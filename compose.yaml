@@ -1,0 +1,49 @@
+services:
+  codex:
+    build:
+      context: .
+    image: codex-sdk-cli:latest
+    stdin_open: true
+    tty: true
+    working_dir: /work
+    environment:
+      CODEX_CLI_MODEL: ${CODEX_CLI_MODEL:-}
+      CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
+      CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
+      CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
+    volumes:
+      - codex-home:/home/codex/.codex
+      - type: bind
+        source: ${CODEX_CLI_WORKDIR:-.}
+        target: /work
+      - type: bind
+        source: ${CODEX_CLI_S3_DIR:-./.docker-empty-s3}
+        target: /data/s3
+        read_only: true
+    command: ["--help"]
+
+  api:
+    build:
+      context: .
+    image: codex-sdk-cli:latest
+    entrypoint: ["codex-api"]
+    command: []
+    ports:
+      - "8000:8000"
+    environment:
+      CODEX_CLI_MODEL: ${CODEX_CLI_MODEL:-}
+      CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
+      CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
+      CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
+    volumes:
+      - codex-home:/home/codex/.codex
+      - type: bind
+        source: ${CODEX_CLI_WORKDIR:-.}
+        target: /work
+      - type: bind
+        source: ${CODEX_CLI_S3_DIR:-./.docker-empty-s3}
+        target: /data/s3
+        read_only: true
+
+volumes:
+  codex-home:

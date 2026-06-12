@@ -1,0 +1,166 @@
+# Codex SDK CLI Demo 프로젝트 설명
+
+## 한 줄 요약
+
+이 프로젝트는 OpenAI Codex Python SDK를 이용해 Codex thread 실행, thread 재개, 로그인, 계정 확인을 터미널 명령과 REST API로 해볼 수 있는 작은 Python 예제다.
+
+## 왜 만들었나
+
+Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 때 쓴다. 이 저장소는 SDK 사용법을 복잡한 서비스에 넣기 전에 CLI와 FastAPI 형태로 작게 검증하기 위한 예제다.
+
+## 무엇을 할 수 있나
+
+`codex-demo` 명령은 다음 작업을 지원한다.
+
+- 새 Codex thread를 만들고 prompt 실행.
+- 기존 thread id로 대화 이어가기.
+- ChatGPT browser login.
+- ChatGPT device-code login.
+- API key login.
+- 현재 Codex account 상태 JSON 출력.
+- Codex account logout.
+
+`codex-api`는 다음 REST endpoint를 제공한다.
+
+- `POST /codex/runs`: 새 thread 실행 또는 기존 thread resume.
+- `GET /codex/account`: 현재 account 상태 확인.
+- `POST /codex/login/api-key`: API key 로그인.
+- `POST /codex/logout`: account logout.
+- `GET /health`: API health check.
+
+## 실행 예시
+
+의존성을 설치한다.
+
+```powershell
+uv sync --dev
+```
+
+도움말을 확인한다.
+
+```powershell
+uv run codex-demo --help
+uv run codex-demo run --help
+```
+
+브라우저 로그인 후 새 ephemeral thread를 실행한다.
+
+```powershell
+uv run codex-demo login browser
+uv run codex-demo run "이 저장소를 한 문장으로 설명해줘"
+```
+
+나중에 이어갈 thread는 생성 시점에 명시적으로 저장한다.
+
+```powershell
+uv run codex-demo run --persist "이 저장소를 한 문장으로 설명해줘"
+```
+
+기존 thread를 이어간다.
+
+```powershell
+uv run codex-demo run --thread-id <thread-id> "방금 답변을 더 짧게 요약해줘"
+```
+
+읽기 전용으로 실행한다.
+
+```powershell
+uv run codex-demo run --sandbox read-only --approval deny-all "이 프로젝트 구조를 검토해줘"
+```
+
+FastAPI 앱을 로컬에서 import 확인한다.
+
+```powershell
+uv run python -c "from codex_sdk_cli.api.main import app; print(app.title)"
+```
+
+Docker Compose로 REST API를 실행한다.
+
+```powershell
+docker compose up api
+```
+
+## 코드 구조
+
+```text
+src/codex_sdk_cli/
+├── api/             # FastAPI app, dependency composition, exception handlers
+├── domains/codex/   # Codex domain router, schemas, use cases, ports
+├── infra/codex/     # 실제 Codex SDK client adapter
+├── cli.py           # Click command 정의와 사용자 출력
+├── runner.py        # Codex SDK 호출 helper와 adapter
+├── settings.py      # CODEX_CLI_ 환경변수 설정
+└── __main__.py      # python -m codex_sdk_cli 진입점
+```
+
+테스트는 `tests/`에 있다.
+
+- `tests/test_cli.py`: Click CLI command가 올바르게 동작하는지 fake Codex client로 검증한다.
+- `tests/test_runner.py`: SDK enum mapping, thread start/resume 분기, login helper를 검증한다.
+- `tests/test_api.py`: FastAPI route가 use case와 fake infra port를 통해 동작하는지 검증한다.
+
+## 동작 흐름
+
+`run` 명령을 실행하면 흐름은 다음과 같다.
+
+1. `cli.py`가 command option과 prompt를 읽는다.
+2. `settings.py`의 `CliSettings`가 `CODEX_CLI_` 환경변수 기본값을 적용한다.
+3. `runner.py`가 sandbox와 approval 문자열을 SDK enum으로 변환한다.
+4. thread id가 없으면 `thread_start`, 있으면 `thread_resume`을 호출한다.
+5. `thread.run(prompt)` 결과에서 `thread_id`, `turn_id`, `status`, final response를 출력한다.
+
+새 thread는 기본적으로 `ephemeral=True`로 생성한다. Codex SDK schema 기준으로 ephemeral thread는 디스크에 materialize하지 않는 thread다. 장기 재사용이 필요한 경우 `--persist`를 지정하면 `ephemeral=False`로 생성한다. `--thread-id`로 resume할 때는 기존 thread의 저장 상태를 바꾸지 않으므로 `--persist`는 동작에 영향을 주지 않는다.
+
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다.
+
+## 설정
+
+환경변수는 `CODEX_CLI_` prefix를 사용한다.
+
+- `CODEX_CLI_MODEL`: 기본 model.
+- `CODEX_CLI_SANDBOX`: `read-only`, `workspace-write`, `full-access`.
+- `CODEX_CLI_APPROVAL`: `auto-review`, `deny-all`.
+- `CODEX_CLI_CODEX_BIN`: 특정 local Codex binary를 강제로 사용할 때 지정.
+- `CODEX_CLI_API_KEY`: `login api-key`의 기본 API key.
+
+## 중요한 구현 선택
+
+Click command 함수는 일부러 얇게 유지한다. CLI에서 직접 SDK를 많이 만지면 테스트가 어려워지기 때문에 실제 작업은 `runner.py`의 함수로 넘긴다.
+
+`runner.py`는 `CodexLike`, `ThreadLike`, login handle Protocol을 둔다. 실제 SDK 객체는 `AsyncCodex`를 사용하는 `CodexSdkAdapter`가 감싸고, 테스트에서는 async fake 객체를 넣는다. 덕분에 자동 테스트가 실제 로그인이나 Codex runtime을 띄우지 않는다.
+
+`openai-codex`는 베타 SDK이고 prerelease runtime dependency가 필요하다. 그래서 `pyproject.toml`에는 `[tool.uv] prerelease = "allow"`가 들어 있다.
+
+## 검증 방법
+
+자동 검증은 다음 명령을 사용한다.
+
+```powershell
+uv run pytest
+uv run ruff check .
+uv run pyrefly check --min-severity warn
+```
+
+Pydantic DTO와 dataclass의 마이크로벤치마크는 기본 테스트에서 제외되어 있다. 필요할 때 명시적으로 실행한다.
+
+```powershell
+uv run pytest -m performance -s tests/test_pydantic_model_performance.py
+```
+
+실제 Codex SDK 호출은 인증 상태와 local runtime에 의존하므로 수동으로 확인한다.
+
+```powershell
+uv run codex-demo account
+uv run codex-demo run --sandbox read-only "이 저장소를 한 문장으로 설명해줘"
+uv run codex-demo run --persist --sandbox read-only "이 thread를 나중에 이어갈 수 있게 실행해줘"
+docker compose up api
+```
+
+## 확장 아이디어
+
+- `run --json` 옵션을 추가해 결과를 machine-readable하게 출력.
+- 대화형 REPL 모드 추가.
+- thread 목록 조회나 archive/unarchive 명령 추가.
+- streaming progress 출력 추가.
+- config file support 추가.
+- long-running REST job 상태 저장과 polling endpoint 추가.

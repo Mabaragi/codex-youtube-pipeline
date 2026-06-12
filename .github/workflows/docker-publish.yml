@@ -1,0 +1,70 @@
+name: Docker Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish image to GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tags
+        id: image
+        shell: bash
+        run: |
+          set -eu
+          image_name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          short_sha="${GITHUB_SHA::12}"
+          {
+            echo "name=${image_name}"
+            echo "sha_tag=${image_name}:sha-${short_sha}"
+            echo "latest_tag=${image_name}:latest"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version_tag=${image_name}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show Docker version
+        run: docker version
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build image
+        run: |
+          set -eu
+          docker build \
+            -t "${{ steps.image.outputs.sha_tag }}" \
+            -t "${{ steps.image.outputs.latest_tag }}" \
+            .
+
+      - name: Tag release version
+        if: github.ref_type == 'tag'
+        run: docker tag "${{ steps.image.outputs.sha_tag }}" "${{ steps.image.outputs.version_tag }}"
+
+      - name: Smoke test CLI entrypoint
+        run: docker run --rm "${{ steps.image.outputs.sha_tag }}" --help
+
+      - name: Smoke test API import
+        run: docker run --rm --entrypoint python "${{ steps.image.outputs.sha_tag }}" -c "from codex_sdk_cli.api.main import app; print(app.title)"
+
+      - name: Push image
+        run: |
+          set -eu
+          docker push "${{ steps.image.outputs.sha_tag }}"
+          docker push "${{ steps.image.outputs.latest_tag }}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            docker push "${{ steps.image.outputs.version_tag }}"
+          fi

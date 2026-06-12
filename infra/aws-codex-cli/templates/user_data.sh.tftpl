@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec > >(tee /var/log/codex-sdk-cli-user-data.log | logger -t codex-sdk-cli-user-data -s 2>/dev/console) 2>&1
+
+ARTIFACT_BUCKET="${artifact_bucket}"
+ARTIFACT_KEY="${artifact_key}"
+INSTALL_DIR="/opt/codex-sdk-cli"
+PYTHON_INSTALL_DIR="$INSTALL_DIR/python"
+VENV_DIR="$INSTALL_DIR/venv"
+WHEEL_PATH="/tmp/${artifact_filename}"
+
+dnf update -y
+dnf install -y awscli ca-certificates jq python3 tar gzip
+
+if ! command -v mount-s3 >/dev/null 2>&1; then
+  dnf install -y mount-s3 || {
+    dnf install -y wget
+    wget -O /tmp/mount-s3.rpm https://s3.amazonaws.com/mountpoint-s3-release/latest/x86_64/mount-s3.rpm
+    dnf install -y /tmp/mount-s3.rpm
+  }
+fi
+
+curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+mkdir -p "$INSTALL_DIR"
+aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_KEY" "$WHEEL_PATH"
+
+/usr/local/bin/uv python install 3.13 --install-dir "$PYTHON_INSTALL_DIR"
+PYTHON_BIN="$PYTHON_INSTALL_DIR/cpython-3.13-linux-x86_64-gnu/bin/python3.13"
+/usr/local/bin/uv venv --python "$PYTHON_BIN" "$VENV_DIR"
+/usr/local/bin/uv pip install --python "$VENV_DIR/bin/python" --prerelease allow "$WHEEL_PATH"
+
+ln -sfn "$VENV_DIR/bin/codex-demo" /usr/local/bin/codex-demo
+chmod -R a+rX "$INSTALL_DIR"
+
+cat >/etc/profile.d/codex-sdk-cli.sh <<'PROFILE'
+export PATH="/usr/local/bin:$PATH"
+PROFILE
+
+cat >/usr/local/bin/codex-s3-mount <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 2 || $# -gt 3 ]]; then
+  echo "usage: codex-s3-mount <bucket> <mount-path> [prefix]" >&2
+  exit 2
+fi
+
+bucket="$1"
+mount_path="$2"
+prefix="$${3:-}"
+
+mkdir -p "$mount_path"
+if [[ -n "$prefix" ]]; then
+  exec mount-s3 --read-only --prefix "$prefix" "$bucket" "$mount_path"
+fi
+
+exec mount-s3 --read-only "$bucket" "$mount_path"
+SCRIPT
+chmod +x /usr/local/bin/codex-s3-mount
+
+codex-demo --help >/tmp/codex-demo-help.txt
+
+cat >/etc/motd <<'MOTD'
+Codex SDK CLI demo is installed.
+
+Useful commands:
+  codex-demo --help
+  codex-demo login device
+  codex-demo account
+  codex-s3-mount <bucket> /mnt/s3/<bucket> [prefix]
+
+Login state is local to the Linux user that runs codex-demo.
+MOTD
+
+echo "Codex SDK CLI deployment finished."

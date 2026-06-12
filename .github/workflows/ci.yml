@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  quality:
+    name: Python quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Install dependencies
+        run: uv sync --dev --locked
+
+      - name: Run tests
+        run: uv run pytest
+
+      - name: Run Ruff
+        run: uv run ruff check .
+
+      - name: Run Pyrefly
+        run: uv run pyrefly check --min-severity warn
+
+      - name: Import FastAPI app
+        run: uv run python -c "from codex_sdk_cli.api.main import app; print(app.title)"
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Docker version
+        run: docker version
+
+      - name: Build image
+        run: docker build -t codex-sdk-cli:test .
+
+      - name: Smoke test CLI entrypoint
+        run: docker run --rm codex-sdk-cli:test --help
+
+      - name: Smoke test API import
+        run: docker run --rm --entrypoint python codex-sdk-cli:test -c "from codex_sdk_cli.api.main import app; print(app.title)"

@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import Depends
+
+from codex_sdk_cli.api.dependencies import CodexRuntimeDep, SettingsDep
+
+from .use_cases import (
+    GetCodexAccountUseCase,
+    LoginCodexWithApiKeyUseCase,
+    LogoutCodexUseCase,
+    RunCodexPromptUseCase,
+)
+
+
+def get_run_codex_prompt_use_case(
+    runtime: CodexRuntimeDep,
+    settings: SettingsDep,
+) -> RunCodexPromptUseCase:
+    return RunCodexPromptUseCase(runtime, settings)
+
+
+def get_codex_account_use_case(runtime: CodexRuntimeDep) -> GetCodexAccountUseCase:
+    return GetCodexAccountUseCase(runtime)
+
+
+def get_login_codex_with_api_key_use_case(
+    runtime: CodexRuntimeDep,
+) -> LoginCodexWithApiKeyUseCase:
+    return LoginCodexWithApiKeyUseCase(runtime)
+
+
+def get_logout_codex_use_case(runtime: CodexRuntimeDep) -> LogoutCodexUseCase:
+    return LogoutCodexUseCase(runtime)
+
+
+RunCodexPromptUseCaseDep = Annotated[
+    RunCodexPromptUseCase,
+    Depends(get_run_codex_prompt_use_case),
+]
+GetCodexAccountUseCaseDep = Annotated[
+    GetCodexAccountUseCase,
+    Depends(get_codex_account_use_case),
+]
+LoginCodexWithApiKeyUseCaseDep = Annotated[
+    LoginCodexWithApiKeyUseCase,
+    Depends(get_login_codex_with_api_key_use_case),
+]
+LogoutCodexUseCaseDep = Annotated[
+    LogoutCodexUseCase,
+    Depends(get_logout_codex_use_case),
+]
