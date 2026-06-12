@@ -173,7 +173,16 @@ jobs:
             "$IMAGE_URI"
 
           docker ps --filter "name=$CONTAINER_NAME"
-          curl -fsS --max-time 10 "http://127.0.0.1:$APP_PORT/health"
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health"; then
+              exit 0
+            fi
+            echo "Waiting for API health check, attempt ${attempt}/30"
+            sleep 2
+          done
+
+          docker logs --tail 200 "$CONTAINER_NAME" 2>&1 || true
+          exit 1
           REMOTE_SCRIPT
 
           python - <<'PY'
