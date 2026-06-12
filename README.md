@@ -53,9 +53,10 @@ uv run codex-demo run --cwd C:\path\to\repo --model gpt-5.4 "Explain this codeba
 uv run codex-demo run --empty-base-instructions "Answer with no SDK base instructions."
 ```
 
-`--empty-base-instructions` sends `base_instructions=""` to the Codex SDK. Use
-it as an experiment when you want to compare behavior or token usage without the
-SDK's default base instructions.
+`--empty-base-instructions` sends a blank `base_instructions` override to the
+Codex SDK. The SDK server rejects an actual empty string during turn execution,
+so the CLI uses a whitespace override to compare behavior or token usage without
+the SDK's default base instructions.
 
 ## Account
 

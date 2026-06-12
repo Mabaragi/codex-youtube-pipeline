@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from openai_codex import ApprovalMode, Sandbox
 
 from codex_sdk_cli.cli import main
-from codex_sdk_cli.runner import CodexLike
+from codex_sdk_cli.runner import BLANK_BASE_INSTRUCTIONS, CodexLike
 
 
 @dataclass(slots=True)
@@ -174,7 +174,7 @@ def test_run_command_can_empty_base_instructions() -> None:
     result = invoke_with_fake(codex, ["run", "--empty-base-instructions", "hello"])
 
     assert result.exit_code == 0
-    assert codex.thread_kwargs["base_instructions"] == ""
+    assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
 
 
 def test_run_command_resumes_thread() -> None:
@@ -196,7 +196,7 @@ def test_run_command_can_empty_base_instructions_when_resuming() -> None:
 
     assert result.exit_code == 0
     assert codex.resumed_thread_id == "thread-old"
-    assert codex.thread_kwargs["base_instructions"] == ""
+    assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
 
 
 def test_run_command_ignores_persist_when_resuming_thread() -> None:

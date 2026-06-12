@@ -17,6 +17,9 @@ class CodexCliError(Exception):
     """Raised when CLI input cannot be translated to a Codex SDK request."""
 
 
+BLANK_BASE_INSTRUCTIONS = " "
+
+
 @dataclass(frozen=True, slots=True)
 class RunRequest:
     prompt: str
@@ -233,7 +236,7 @@ def parse_approval(value: ApprovalChoice) -> ApprovalMode:
 
 async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
     cwd = str(request.cwd) if request.cwd is not None else None
-    base_instructions = "" if request.empty_base_instructions else None
+    base_instructions = BLANK_BASE_INSTRUCTIONS if request.empty_base_instructions else None
 
     if request.thread_id is None:
         thread = await codex.thread_start(

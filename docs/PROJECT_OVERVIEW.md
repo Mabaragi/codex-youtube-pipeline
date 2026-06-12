@@ -118,7 +118,7 @@ src/codex_sdk_cli/
 
 새 thread는 기본적으로 `ephemeral=True`로 생성한다. Codex SDK schema 기준으로 ephemeral thread는 디스크에 materialize하지 않는 thread다. 장기 재사용이 필요한 경우 `--persist`를 지정하면 `ephemeral=False`로 생성한다. `--thread-id`로 resume할 때는 기존 thread의 저장 상태를 바꾸지 않으므로 `--persist`는 동작에 영향을 주지 않는다.
 
-`--empty-base-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 `base_instructions=""`를 전달한다. 지정하지 않으면 `base_instructions=None`으로 두어 SDK 기본값을 그대로 사용한다.
+`--empty-base-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank `base_instructions` override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 base instructions를 대체한다. 지정하지 않으면 `base_instructions=None`으로 두어 SDK 기본값을 그대로 사용한다.
 
 REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다.
 

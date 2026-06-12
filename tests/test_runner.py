@@ -7,6 +7,7 @@ from pathlib import Path
 from openai_codex import ApprovalMode, Sandbox
 
 from codex_sdk_cli.runner import (
+    BLANK_BASE_INSTRUCTIONS,
     ChatgptLoginHandleLike,
     CodexLike,
     DeviceCodeLoginHandleLike,
@@ -202,7 +203,7 @@ def test_run_prompt_can_empty_base_instructions_for_new_thread() -> None:
 
     asyncio.run(run_prompt(codex, request))
 
-    assert codex.thread_kwargs["base_instructions"] == ""
+    assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
 
 
 def test_run_prompt_resumes_existing_thread() -> None:
@@ -243,7 +244,7 @@ def test_run_prompt_can_empty_base_instructions_when_resuming() -> None:
     asyncio.run(run_prompt(codex, request))
 
     assert codex.resumed_thread_id == "thread-old"
-    assert codex.thread_kwargs["base_instructions"] == ""
+    assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
 
 
 def test_login_helpers_return_completion() -> None:
