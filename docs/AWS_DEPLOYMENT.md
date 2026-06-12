@@ -143,3 +143,43 @@ curl -sS -X POST http://localhost:8000/codex/runs \
   -H 'content-type: application/json' \
   -d '{"prompt":"Describe /work in one sentence.","sandbox":"read-only"}'
 ```
+
+## GitHub Actions 자동 배포
+
+Terraform은 GitHub Actions가 AWS OIDC로 assume할 IAM role과 ECR repository를 만든다.
+`main` branch push에서 CI가 성공하면 workflow가 다음 순서로 배포한다.
+
+1. Docker image를 빌드하고 ECR에 `sha-<commit>`과 `latest` tag로 push한다.
+2. SSM `AWS-RunShellScript`로 EC2에 배포 명령을 보낸다.
+3. EC2가 ECR image를 pull하고 `codex-sdk-api` 컨테이너를 재기동한다.
+4. EC2 내부에서 `http://127.0.0.1:8000/health`를 호출해 배포를 검증한다.
+
+GitHub repository variables는 다음 값이 필요하다.
+
+```text
+AWS_REGION
+AWS_ROLE_ARN
+ECR_REPOSITORY
+EC2_INSTANCE_ID
+APP_PORT
+CONTAINER_NAME
+CODEX_CLI_SANDBOX
+CODEX_CLI_APPROVAL
+```
+
+기본 Terraform 설정은 API port를 인터넷에 열지 않는다. 로컬에서 API를 확인하려면
+SSM port forwarding을 사용한다.
+
+```powershell
+aws ssm start-session `
+  --target <instance-id> `
+  --region ap-northeast-2 `
+  --document-name AWS-StartPortForwardingSession `
+  --parameters '{"portNumber":["8000"],"localPortNumber":["8000"]}'
+```
+
+별도 터미널에서:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+```

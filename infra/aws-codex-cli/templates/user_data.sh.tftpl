@@ -11,7 +11,8 @@ VENV_DIR="$INSTALL_DIR/venv"
 WHEEL_PATH="/tmp/${artifact_filename}"
 
 dnf update -y
-dnf install -y awscli ca-certificates jq python3 tar gzip
+dnf install -y awscli ca-certificates docker jq python3 tar gzip
+systemctl enable --now docker
 
 if ! command -v mount-s3 >/dev/null 2>&1; then
   dnf install -y mount-s3 || {
@@ -70,6 +71,7 @@ Useful commands:
   codex-demo login device
   codex-demo account
   codex-s3-mount <bucket> /mnt/s3/<bucket> [prefix]
+  docker ps
 
 Login state is local to the Linux user that runs codex-demo.
 MOTD

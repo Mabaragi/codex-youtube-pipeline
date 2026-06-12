@@ -13,6 +13,21 @@ output "instance_id" {
   value       = aws_instance.cli.id
 }
 
+output "ecr_repository_name" {
+  description = "ECR repository name for the Dockerized API image."
+  value       = aws_ecr_repository.app.name
+}
+
+output "ecr_repository_url" {
+  description = "ECR repository URL for the Dockerized API image."
+  value       = aws_ecr_repository.app.repository_url
+}
+
+output "github_actions_role_arn" {
+  description = "IAM role ARN that GitHub Actions assumes through OIDC."
+  value       = aws_iam_role.github_actions.arn
+}
+
 output "private_ip" {
   description = "Private IP address of the CLI host."
   value       = aws_instance.cli.private_ip
@@ -21,6 +36,16 @@ output "private_ip" {
 output "ssm_start_session_command" {
   description = "Command to open an SSM shell on the CLI host."
   value       = "aws ssm start-session --target ${aws_instance.cli.id} --region ${var.aws_region}"
+}
+
+output "ssm_port_forward_command" {
+  description = "Command to forward the deployed API port to localhost without opening public ingress."
+  value       = "aws ssm start-session --target ${aws_instance.cli.id} --region ${var.aws_region} --document-name AWS-StartPortForwardingSession --parameters '{\"portNumber\":[\"${var.api_port}\"],\"localPortNumber\":[\"${var.api_port}\"]}'"
+}
+
+output "public_api_url" {
+  description = "Public API URL when api_cidr_blocks allows ingress."
+  value       = length(var.api_cidr_blocks) > 0 && aws_instance.cli.public_ip != null ? "http://${aws_instance.cli.public_ip}:${var.api_port}" : null
 }
 
 output "post_deploy_smoke_test" {

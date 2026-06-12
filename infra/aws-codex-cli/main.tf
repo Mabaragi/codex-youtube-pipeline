@@ -1,5 +1,7 @@
 data "aws_caller_identity" "current" {}
 
+data "aws_partition" "current" {}
+
 data "aws_vpc" "default" {
   count   = var.vpc_id == null ? 1 : 0
   default = true
@@ -34,6 +36,41 @@ data "aws_ami" "amazon_linux_2023" {
 
 resource "random_id" "suffix" {
   byte_length = 4
+}
+
+resource "aws_ecr_repository" "app" {
+  name                 = var.ecr_repository_name
+  image_tag_mutability = "MUTABLE"
+  force_delete         = var.force_destroy_ecr_repository
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "app" {
+  repository = aws_ecr_repository.app.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the latest 20 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 20
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_s3_bucket" "artifacts" {
@@ -98,6 +135,28 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 
 data "aws_iam_policy_document" "instance" {
   statement {
+    sid = "AuthenticateToEcr"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "PullCodexApiImage"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:DescribeImages",
+      "ecr:DescribeRepositories",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+    resources = [
+      aws_ecr_repository.app.arn,
+    ]
+  }
+
+  statement {
     sid = "ReadCliArtifact"
     actions = [
       "s3:GetObject",
@@ -143,6 +202,92 @@ resource "aws_iam_instance_profile" "instance" {
   role = aws_iam_role.instance.name
 }
 
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+}
+
+data "aws_iam_policy_document" "github_actions_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.github_oidc_subjects
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions" {
+  name               = "${var.name_prefix}-github-actions-${random_id.suffix.hex}"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+}
+
+data "aws_iam_policy_document" "github_actions" {
+  statement {
+    sid = "AuthenticateToEcr"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "PushCodexApiImage"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
+      "ecr:DescribeRepositories",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ]
+    resources = [
+      aws_ecr_repository.app.arn,
+    ]
+  }
+
+  statement {
+    sid = "DeployThroughSsm"
+    actions = [
+      "ssm:SendCommand",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.cli.id}",
+      "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}::document/AWS-RunShellScript",
+    ]
+  }
+
+  statement {
+    sid = "ReadSsmCommandResults"
+    actions = [
+      "ssm:GetCommandInvocation",
+      "ssm:ListCommandInvocations",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions" {
+  name   = "${var.name_prefix}-github-actions"
+  role   = aws_iam_role.github_actions.id
+  policy = data.aws_iam_policy_document.github_actions.json
+}
+
 resource "aws_security_group" "instance" {
   name        = "${var.name_prefix}-instance-${random_id.suffix.hex}"
   description = "Codex SDK CLI host"
@@ -157,6 +302,18 @@ resource "aws_security_group" "instance" {
       to_port     = 22
       protocol    = "tcp"
       cidr_blocks = var.ssh_cidr_blocks
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = length(var.api_cidr_blocks) > 0 ? [1] : []
+
+    content {
+      description = "Optional Codex API access"
+      from_port   = var.api_port
+      to_port     = var.api_port
+      protocol    = "tcp"
+      cidr_blocks = var.api_cidr_blocks
     }
   }
 
@@ -193,6 +350,12 @@ resource "aws_instance" "cli" {
     encrypted   = true
     volume_size = var.root_volume_size_gb
     volume_type = "gp3"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      user_data,
+    ]
   }
 
   tags = {

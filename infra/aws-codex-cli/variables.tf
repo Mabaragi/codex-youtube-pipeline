@@ -80,6 +80,53 @@ variable "read_only_s3_bucket_arns" {
   default     = []
 }
 
+variable "api_port" {
+  description = "Host port used for the Codex FastAPI container."
+  type        = number
+  default     = 8000
+
+  validation {
+    condition     = var.api_port > 0 && var.api_port < 65536
+    error_message = "api_port must be between 1 and 65535."
+  }
+}
+
+variable "api_cidr_blocks" {
+  description = "Optional public CIDR blocks allowed to reach the FastAPI container. Empty keeps the API reachable through SSM port forwarding only."
+  type        = list(string)
+  default     = []
+}
+
+variable "ecr_repository_name" {
+  description = "ECR repository name for the Dockerized Codex API image."
+  type        = string
+  default     = "codex-sdk-cli"
+}
+
+variable "force_destroy_ecr_repository" {
+  description = "Allow Terraform destroy to delete the ECR repository and images."
+  type        = bool
+  default     = true
+}
+
+variable "github_repository" {
+  description = "GitHub repository allowed to assume the deploy role, in OWNER/REPO form."
+  type        = string
+  default     = "Mabaragi/codex-sdk"
+}
+
+variable "github_branch" {
+  description = "GitHub branch allowed to deploy through OIDC."
+  type        = string
+  default     = "main"
+}
+
+variable "github_allow_tag_deploys" {
+  description = "Allow v* tag refs from github_repository to assume the deploy role."
+  type        = bool
+  default     = true
+}
+
 variable "force_destroy_artifact_bucket" {
   description = "Allow Terraform destroy to delete the artifact bucket and its objects."
   type        = bool
