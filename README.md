@@ -181,5 +181,5 @@ ghcr.io/<owner>/<repo>:vX.Y.Z
 
 On `main` pushes, CI also deploys the FastAPI container to the Terraform-managed
 EC2 host through AWS OIDC, ECR, and SSM after quality gates pass. The default
-Terraform settings keep port `8000` private; use SSM port forwarding to inspect
-the deployed API locally.
+Terraform settings expose port `8000` publicly through the instance security
+group.

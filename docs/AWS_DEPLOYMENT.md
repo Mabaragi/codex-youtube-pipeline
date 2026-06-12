@@ -167,8 +167,15 @@ CODEX_CLI_SANDBOX
 CODEX_CLI_APPROVAL
 ```
 
-기본 Terraform 설정은 API port를 인터넷에 열지 않는다. 로컬에서 API를 확인하려면
-SSM port forwarding을 사용한다.
+기본 Terraform 설정은 API port `8000`을 `0.0.0.0/0`에 공개한다. 공개 URL은
+Terraform output의 `public_api_url`에서 확인한다.
+
+```powershell
+terraform -chdir=infra/aws-codex-cli output public_api_url
+Invoke-RestMethod http://<public-ip>:8000/health
+```
+
+인터넷 공개 없이 확인하려면 `api_cidr_blocks=[]`로 적용하고 SSM port forwarding을 사용한다.
 
 ```powershell
 aws ssm start-session `

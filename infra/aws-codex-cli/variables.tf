@@ -92,9 +92,9 @@ variable "api_port" {
 }
 
 variable "api_cidr_blocks" {
-  description = "Optional public CIDR blocks allowed to reach the FastAPI container. Empty keeps the API reachable through SSM port forwarding only."
+  description = "CIDR blocks allowed to reach the FastAPI container."
   type        = list(string)
-  default     = []
+  default     = ["0.0.0.0/0"]
 }
 
 variable "ecr_repository_name" {
