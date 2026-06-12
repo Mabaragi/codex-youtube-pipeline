@@ -48,6 +48,7 @@ class CodexRuntimeClient(CodexRuntimePort):
                         approval_mode=parse_approval(command.approval),
                         persist=command.persist,
                         empty_base_instructions=command.empty_base_instructions,
+                        empty_developer_instructions=command.empty_developer_instructions,
                     ),
                 )
             return CodexRunResult(

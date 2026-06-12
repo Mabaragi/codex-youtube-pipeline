@@ -71,6 +71,11 @@ def main(ctx: click.Context) -> None:
     is_flag=True,
     help="Send empty base_instructions to Codex instead of SDK defaults.",
 )
+@click.option(
+    "--empty-developer-instructions",
+    is_flag=True,
+    help="Send empty developer_instructions to Codex instead of SDK defaults.",
+)
 @click.argument("prompt")
 @click.pass_context
 def run(
@@ -82,6 +87,7 @@ def run(
     approval: ApprovalChoice | None,
     persist: bool,
     empty_base_instructions: bool,
+    empty_developer_instructions: bool,
     prompt: str,
 ) -> None:
     """Start or resume a Codex thread and run PROMPT."""
@@ -96,6 +102,7 @@ def run(
                 approval,
                 persist,
                 empty_base_instructions,
+                empty_developer_instructions,
                 prompt,
             )
         )
@@ -117,6 +124,7 @@ async def _run_async(
     approval: ApprovalChoice | None,
     persist: bool,
     empty_base_instructions: bool,
+    empty_developer_instructions: bool,
     prompt: str,
 ) -> RunOutput:
     settings = _settings()
@@ -129,6 +137,7 @@ async def _run_async(
         approval_mode=parse_approval(approval or settings.approval),
         persist=persist,
         empty_base_instructions=empty_base_instructions,
+        empty_developer_instructions=empty_developer_instructions,
     )
 
     async with _codex(ctx, settings) as codex:

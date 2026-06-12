@@ -21,6 +21,7 @@ class DataclassRunRequest:
     approval_mode: ApprovalMode
     persist: bool
     empty_base_instructions: bool
+    empty_developer_instructions: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,7 @@ class PydanticRunRequest(BaseModel):
     approval_mode: ApprovalMode
     persist: bool
     empty_base_instructions: bool
+    empty_developer_instructions: bool
 
 
 class PydanticRunOutput(BaseModel):
@@ -85,6 +87,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         approval_mode=ApprovalMode.deny_all,
         persist=False,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
     pydantic_request = PydanticRunRequest(
         prompt="hello",
@@ -95,6 +98,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         approval_mode=ApprovalMode.deny_all,
         persist=False,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
 
     assert pydantic_request.prompt == dataclass_request.prompt
@@ -103,6 +107,10 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
     assert pydantic_request.approval_mode is dataclass_request.approval_mode
     assert pydantic_request.persist is dataclass_request.persist
     assert pydantic_request.empty_base_instructions is dataclass_request.empty_base_instructions
+    assert (
+        pydantic_request.empty_developer_instructions
+        is dataclass_request.empty_developer_instructions
+    )
 
     dataclass_output = DataclassRunOutput("thread-1", "turn-1", "completed", "done", None)
     pydantic_output = PydanticRunOutput(
@@ -131,6 +139,7 @@ def test_pydantic_model_performance() -> None:
         ApprovalMode.deny_all,
         False,
         False,
+        False,
     )
     pydantic_request = PydanticRunRequest(
         prompt="hello",
@@ -141,6 +150,7 @@ def test_pydantic_model_performance() -> None:
         approval_mode=ApprovalMode.deny_all,
         persist=False,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
 
     benchmarks = [
@@ -155,6 +165,7 @@ def test_pydantic_model_performance() -> None:
                 ApprovalMode.deny_all,
                 False,
                 False,
+                False,
             ),
             lambda: PydanticRunRequest(
                 prompt="hello",
@@ -165,6 +176,7 @@ def test_pydantic_model_performance() -> None:
                 approval_mode=ApprovalMode.deny_all,
                 persist=False,
                 empty_base_instructions=False,
+                empty_developer_instructions=False,
             ),
         ),
         _benchmark_pair(

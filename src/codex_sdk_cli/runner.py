@@ -18,6 +18,7 @@ class CodexCliError(Exception):
 
 
 BLANK_BASE_INSTRUCTIONS = " "
+BLANK_DEVELOPER_INSTRUCTIONS = " "
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +31,7 @@ class RunRequest:
     approval_mode: ApprovalMode
     persist: bool
     empty_base_instructions: bool
+    empty_developer_instructions: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +98,7 @@ class CodexLike(Protocol):
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -109,6 +112,7 @@ class CodexLike(Protocol):
         approval_mode: ApprovalMode | None = None,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
     ) -> Awaitable[ThreadLike]:
@@ -158,6 +162,7 @@ class CodexSdkAdapter(CodexLike):
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -167,6 +172,7 @@ class CodexSdkAdapter(CodexLike):
                 approval_mode=approval_mode,
                 base_instructions=base_instructions,
                 cwd=cwd,
+                developer_instructions=developer_instructions,
                 ephemeral=ephemeral,
                 model=model,
                 sandbox=sandbox,
@@ -180,6 +186,7 @@ class CodexSdkAdapter(CodexLike):
         approval_mode: ApprovalMode | None = None,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
     ) -> ThreadLike:
@@ -189,6 +196,7 @@ class CodexSdkAdapter(CodexLike):
                 approval_mode=approval_mode,
                 base_instructions=base_instructions,
                 cwd=cwd,
+                developer_instructions=developer_instructions,
                 model=model,
                 sandbox=sandbox,
             )
@@ -237,12 +245,16 @@ def parse_approval(value: ApprovalChoice) -> ApprovalMode:
 async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
     cwd = str(request.cwd) if request.cwd is not None else None
     base_instructions = BLANK_BASE_INSTRUCTIONS if request.empty_base_instructions else None
+    developer_instructions = (
+        BLANK_DEVELOPER_INSTRUCTIONS if request.empty_developer_instructions else None
+    )
 
     if request.thread_id is None:
         thread = await codex.thread_start(
             approval_mode=request.approval_mode,
             base_instructions=base_instructions,
             cwd=cwd,
+            developer_instructions=developer_instructions,
             ephemeral=not request.persist,
             model=request.model,
             sandbox=request.sandbox,
@@ -253,6 +265,7 @@ async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
             approval_mode=request.approval_mode,
             base_instructions=base_instructions,
             cwd=cwd,
+            developer_instructions=developer_instructions,
             model=request.model,
             sandbox=request.sandbox,
         )

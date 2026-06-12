@@ -8,7 +8,11 @@ from click.testing import CliRunner
 from openai_codex import ApprovalMode, Sandbox
 
 from codex_sdk_cli.cli import main
-from codex_sdk_cli.runner import BLANK_BASE_INSTRUCTIONS, CodexLike
+from codex_sdk_cli.runner import (
+    BLANK_BASE_INSTRUCTIONS,
+    BLANK_DEVELOPER_INSTRUCTIONS,
+    CodexLike,
+)
 
 
 @dataclass(slots=True)
@@ -65,6 +69,7 @@ class FakeCodexForCli(CodexLike):
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -73,6 +78,7 @@ class FakeCodexForCli(CodexLike):
             "approval_mode": approval_mode,
             "base_instructions": base_instructions,
             "cwd": cwd,
+            "developer_instructions": developer_instructions,
             "ephemeral": ephemeral,
             "model": model,
             "sandbox": sandbox,
@@ -86,6 +92,7 @@ class FakeCodexForCli(CodexLike):
         approval_mode: ApprovalMode | None = None,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
     ) -> FakeThread:
@@ -94,6 +101,7 @@ class FakeCodexForCli(CodexLike):
             "approval_mode": approval_mode,
             "base_instructions": base_instructions,
             "cwd": cwd,
+            "developer_instructions": developer_instructions,
             "model": model,
             "sandbox": sandbox,
         }
@@ -156,6 +164,7 @@ def test_run_command_outputs_thread_metadata_and_response() -> None:
     assert codex.thread_kwargs["approval_mode"] is ApprovalMode.deny_all
     assert codex.thread_kwargs["ephemeral"] is True
     assert codex.thread_kwargs["base_instructions"] is None
+    assert codex.thread_kwargs["developer_instructions"] is None
 
 
 def test_run_command_persists_new_thread_when_requested() -> None:
@@ -175,6 +184,15 @@ def test_run_command_can_empty_base_instructions() -> None:
 
     assert result.exit_code == 0
     assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
+
+
+def test_run_command_can_empty_developer_instructions() -> None:
+    codex = FakeCodexForCli()
+
+    result = invoke_with_fake(codex, ["run", "--empty-developer-instructions", "hello"])
+
+    assert result.exit_code == 0
+    assert codex.thread_kwargs["developer_instructions"] == BLANK_DEVELOPER_INSTRUCTIONS
 
 
 def test_run_command_resumes_thread() -> None:
@@ -197,6 +215,19 @@ def test_run_command_can_empty_base_instructions_when_resuming() -> None:
     assert result.exit_code == 0
     assert codex.resumed_thread_id == "thread-old"
     assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
+
+
+def test_run_command_can_empty_developer_instructions_when_resuming() -> None:
+    codex = FakeCodexForCli()
+
+    result = invoke_with_fake(
+        codex,
+        ["run", "--thread-id", "thread-old", "--empty-developer-instructions", "continue"],
+    )
+
+    assert result.exit_code == 0
+    assert codex.resumed_thread_id == "thread-old"
+    assert codex.thread_kwargs["developer_instructions"] == BLANK_DEVELOPER_INSTRUCTIONS
 
 
 def test_run_command_ignores_persist_when_resuming_thread() -> None:

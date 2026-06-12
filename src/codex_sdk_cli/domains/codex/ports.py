@@ -17,6 +17,7 @@ class CodexRunCommand(BaseModel):
     approval: ApprovalChoice
     persist: bool
     empty_base_instructions: bool
+    empty_developer_instructions: bool
 
     model_config = ConfigDict(frozen=True)
 

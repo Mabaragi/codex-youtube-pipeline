@@ -86,6 +86,7 @@ def test_run_endpoint_uses_defaults_and_returns_camel_case_response() -> None:
         approval="deny-all",
         persist=False,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
 
 
@@ -104,6 +105,23 @@ def test_run_endpoint_can_empty_base_instructions() -> None:
     assert response["status"] == "completed"
     assert fake.run_command is not None
     assert fake.run_command.empty_base_instructions is True
+
+
+def test_run_endpoint_can_empty_developer_instructions() -> None:
+    fake = FakeCodexRuntime()
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/codex/runs",
+            runtime=fake,
+            json={"prompt": "hello", "emptyDeveloperInstructions": True},
+        )
+    )
+
+    assert response["status"] == "completed"
+    assert fake.run_command is not None
+    assert fake.run_command.empty_developer_instructions is True
 
 
 def test_run_endpoint_maps_domain_errors() -> None:

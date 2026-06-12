@@ -8,6 +8,7 @@ from openai_codex import ApprovalMode, Sandbox
 
 from codex_sdk_cli.runner import (
     BLANK_BASE_INSTRUCTIONS,
+    BLANK_DEVELOPER_INSTRUCTIONS,
     ChatgptLoginHandleLike,
     CodexLike,
     DeviceCodeLoginHandleLike,
@@ -76,6 +77,7 @@ class FakeCodex(CodexLike):
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -85,6 +87,7 @@ class FakeCodex(CodexLike):
             "approval_mode": approval_mode,
             "base_instructions": base_instructions,
             "cwd": cwd,
+            "developer_instructions": developer_instructions,
             "ephemeral": ephemeral,
             "model": model,
             "sandbox": sandbox,
@@ -98,6 +101,7 @@ class FakeCodex(CodexLike):
         approval_mode: ApprovalMode | None = None,
         base_instructions: str | None = None,
         cwd: str | None = None,
+        developer_instructions: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
     ) -> FakeThread:
@@ -106,6 +110,7 @@ class FakeCodex(CodexLike):
             "approval_mode": approval_mode,
             "base_instructions": base_instructions,
             "cwd": cwd,
+            "developer_instructions": developer_instructions,
             "model": model,
             "sandbox": sandbox,
         }
@@ -149,6 +154,7 @@ def test_run_prompt_starts_new_thread() -> None:
         approval_mode=ApprovalMode.deny_all,
         persist=False,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -160,6 +166,7 @@ def test_run_prompt_starts_new_thread() -> None:
         "approval_mode": ApprovalMode.deny_all,
         "base_instructions": None,
         "cwd": str(Path("C:/repo")),
+        "developer_instructions": None,
         "ephemeral": True,
         "model": "gpt-test",
         "sandbox": Sandbox.read_only,
@@ -180,6 +187,7 @@ def test_run_prompt_can_persist_new_thread() -> None:
         approval_mode=ApprovalMode.auto_review,
         persist=True,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
 
     asyncio.run(run_prompt(codex, request))
@@ -199,11 +207,31 @@ def test_run_prompt_can_empty_base_instructions_for_new_thread() -> None:
         approval_mode=ApprovalMode.auto_review,
         persist=False,
         empty_base_instructions=True,
+        empty_developer_instructions=False,
     )
 
     asyncio.run(run_prompt(codex, request))
 
     assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
+
+
+def test_run_prompt_can_empty_developer_instructions_for_new_thread() -> None:
+    codex = FakeCodex()
+    request = RunRequest(
+        prompt="hello",
+        thread_id=None,
+        cwd=None,
+        model=None,
+        sandbox=Sandbox.workspace_write,
+        approval_mode=ApprovalMode.auto_review,
+        persist=False,
+        empty_base_instructions=False,
+        empty_developer_instructions=True,
+    )
+
+    asyncio.run(run_prompt(codex, request))
+
+    assert codex.thread_kwargs["developer_instructions"] == BLANK_DEVELOPER_INSTRUCTIONS
 
 
 def test_run_prompt_resumes_existing_thread() -> None:
@@ -217,6 +245,7 @@ def test_run_prompt_resumes_existing_thread() -> None:
         approval_mode=ApprovalMode.auto_review,
         persist=True,
         empty_base_instructions=False,
+        empty_developer_instructions=False,
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -239,12 +268,33 @@ def test_run_prompt_can_empty_base_instructions_when_resuming() -> None:
         approval_mode=ApprovalMode.auto_review,
         persist=False,
         empty_base_instructions=True,
+        empty_developer_instructions=False,
     )
 
     asyncio.run(run_prompt(codex, request))
 
     assert codex.resumed_thread_id == "thread-old"
     assert codex.thread_kwargs["base_instructions"] == BLANK_BASE_INSTRUCTIONS
+
+
+def test_run_prompt_can_empty_developer_instructions_when_resuming() -> None:
+    codex = FakeCodex()
+    request = RunRequest(
+        prompt="continue",
+        thread_id="thread-old",
+        cwd=None,
+        model=None,
+        sandbox=Sandbox.workspace_write,
+        approval_mode=ApprovalMode.auto_review,
+        persist=False,
+        empty_base_instructions=False,
+        empty_developer_instructions=True,
+    )
+
+    asyncio.run(run_prompt(codex, request))
+
+    assert codex.resumed_thread_id == "thread-old"
+    assert codex.thread_kwargs["developer_instructions"] == BLANK_DEVELOPER_INSTRUCTIONS
 
 
 def test_login_helpers_return_completion() -> None:
