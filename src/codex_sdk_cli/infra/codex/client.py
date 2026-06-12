@@ -3,13 +3,21 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
+from typing_extensions import override
+
 from codex_sdk_cli.domains.codex.exceptions import CodexRuntimeError, InvalidCodexRequest
-from codex_sdk_cli.domains.codex.ports import CodexRunCommand, CodexRunResult, CodexRuntimePort
+from codex_sdk_cli.domains.codex.ports import (
+    CodexLoginResult,
+    CodexRunCommand,
+    CodexRunResult,
+    CodexRuntimePort,
+)
 from codex_sdk_cli.runner import (
     CodexCliError,
     RunRequest,
     account_json,
     login_with_api_key,
+    login_with_device_code,
     logout_codex,
     open_codex,
     parse_approval,
@@ -25,6 +33,7 @@ class CodexRuntimeClient(CodexRuntimePort):
     def __init__(self, settings: CliSettings) -> None:
         self._settings = settings
 
+    @override
     async def run_prompt(self, command: CodexRunCommand) -> CodexRunResult:
         async def operation() -> CodexRunResult:
             async with open_codex(self._settings.codex_config()) as codex:
@@ -47,6 +56,20 @@ class CodexRuntimeClient(CodexRuntimePort):
                 final_response=output.final_response,
                 usage=output.usage,
             )
+
+        return await self._translate_errors(operation)
+
+    @override
+    async def login_with_device_code(self) -> CodexLoginResult:
+        async def operation() -> CodexLoginResult:
+            async with open_codex(self._settings.codex_config()) as codex:
+                output = await login_with_device_code(
+                    codex,
+                    announce_code=lambda url, code: print(
+                        f"To log in, visit {url} and enter the code: {code}"
+                    ),
+                )
+            return CodexLoginResult(success=output.success, error=output.error)
 
         return await self._translate_errors(operation)
 

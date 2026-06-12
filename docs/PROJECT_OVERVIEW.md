@@ -24,6 +24,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 
 - `POST /codex/runs`: 새 thread 실행 또는 기존 thread resume.
 - `GET /codex/account`: 현재 account 상태 확인.
+- `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
 - `GET /health`: API health check.

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 from .dependencies import (
     GetCodexAccountUseCaseDep,
     LoginCodexWithApiKeyUseCaseDep,
+    LoginCodexWithDeviceCodeUseCaseDep,
     LogoutCodexUseCaseDep,
     RunCodexPromptUseCaseDep,
 )
@@ -34,6 +35,13 @@ async def get_codex_account(
     refresh_token: bool = Query(default=False, alias="refreshToken"),
 ) -> AccountResponse:
     return await use_case.execute(refresh_token=refresh_token)
+
+
+@router.post("/login/device-code", response_model=LoginResponse)
+async def login_codex_with_device_code(
+    use_case: LoginCodexWithDeviceCodeUseCaseDep,
+) -> LoginResponse:
+    return await use_case.execute()
 
 
 @router.post("/login/api-key", response_model=LoginResponse)

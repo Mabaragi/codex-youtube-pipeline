@@ -66,6 +66,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "openai-codex" },
     { name = "pydantic-settings" },
+    { name = "typing-extensions" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -83,6 +84,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "openai-codex", specifier = ">=0.1.0b3,<0.2" },
     { name = "pydantic-settings", specifier = ">=2.2" },
+    { name = "typing-extensions", specifier = ">=4.12" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 

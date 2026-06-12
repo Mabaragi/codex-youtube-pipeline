@@ -9,6 +9,7 @@ from codex_sdk_cli.api.dependencies import CodexRuntimeDep, SettingsDep
 from .use_cases import (
     GetCodexAccountUseCase,
     LoginCodexWithApiKeyUseCase,
+    LoginCodexWithDeviceCodeUseCase,
     LogoutCodexUseCase,
     RunCodexPromptUseCase,
 )
@@ -23,6 +24,12 @@ def get_run_codex_prompt_use_case(
 
 def get_codex_account_use_case(runtime: CodexRuntimeDep) -> GetCodexAccountUseCase:
     return GetCodexAccountUseCase(runtime)
+
+
+def get_login_codex_with_device_code_use_case(
+    runtime: CodexRuntimeDep,
+) -> LoginCodexWithDeviceCodeUseCase:
+    return LoginCodexWithDeviceCodeUseCase(runtime)
 
 
 def get_login_codex_with_api_key_use_case(
@@ -42,6 +49,10 @@ RunCodexPromptUseCaseDep = Annotated[
 GetCodexAccountUseCaseDep = Annotated[
     GetCodexAccountUseCase,
     Depends(get_codex_account_use_case),
+]
+LoginCodexWithDeviceCodeUseCaseDep = Annotated[
+    LoginCodexWithDeviceCodeUseCase,
+    Depends(get_login_codex_with_device_code_use_case),
 ]
 LoginCodexWithApiKeyUseCaseDep = Annotated[
     LoginCodexWithApiKeyUseCase,

@@ -30,9 +30,19 @@ class CodexRunResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+class CodexLoginResult(BaseModel):
+    success: bool
+    error: str | None = None
+
+    model_config = ConfigDict(frozen=True)
+
+
 class CodexRuntimePort(Protocol):
     async def run_prompt(self, command: CodexRunCommand) -> CodexRunResult:
         """Run one Codex prompt."""
+
+    async def login_with_device_code(self) -> CodexLoginResult:
+        """Authenticate using the device code flow and persist login state in the Codex runtime."""
 
     async def login_api_key(self, api_key: str) -> None:
         """Persist API key login state in the Codex runtime."""

@@ -8,7 +8,12 @@ from httpx import ASGITransport, AsyncClient
 from codex_sdk_cli.api.dependencies import get_codex_runtime, get_settings
 from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.codex.exceptions import CodexRuntimeError
-from codex_sdk_cli.domains.codex.ports import CodexRunCommand, CodexRunResult, CodexRuntimePort
+from codex_sdk_cli.domains.codex.ports import (
+    CodexLoginResult,
+    CodexRunCommand,
+    CodexRunResult,
+    CodexRuntimePort,
+)
 from codex_sdk_cli.settings import CliSettings
 
 
@@ -19,6 +24,7 @@ class FakeCodexRuntime(CodexRuntimePort):
         self.refresh_token: bool | None = None
         self.logged_out = False
         self.fail_run = False
+        self.device_login = CodexLoginResult(success=True)
 
     async def run_prompt(self, command: CodexRunCommand) -> CodexRunResult:
         if self.fail_run:
@@ -31,6 +37,9 @@ class FakeCodexRuntime(CodexRuntimePort):
             final_response="done",
             usage={"totalTokens": 3},
         )
+
+    async def login_with_device_code(self) -> CodexLoginResult:
+        return self.device_login
 
     async def login_api_key(self, api_key: str) -> None:
         self.api_key = api_key
@@ -105,6 +114,35 @@ def test_account_endpoint_returns_runtime_payload() -> None:
 
     assert response == {"account": {"email": "dev@example.test"}, "refreshToken": True}
     assert fake.refresh_token is True
+
+
+def test_login_device_code_endpoint() -> None:
+    fake = FakeCodexRuntime()
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/codex/login/device-code",
+            runtime=fake,
+        )
+    )
+
+    assert response == {"success": True, "error": None}
+
+
+def test_login_device_code_endpoint_returns_login_failure() -> None:
+    fake = FakeCodexRuntime()
+    fake.device_login = CodexLoginResult(success=False, error="expired code")
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/codex/login/device-code",
+            runtime=fake,
+        )
+    )
+
+    assert response == {"success": False, "error": "expired code"}
 
 
 def test_login_api_key_and_logout_endpoints() -> None:

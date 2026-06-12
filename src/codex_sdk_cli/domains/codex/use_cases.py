@@ -46,6 +46,15 @@ class GetCodexAccountUseCase:
         return AccountResponse(root=await self._runtime.account(refresh_token=refresh_token))
 
 
+class LoginCodexWithDeviceCodeUseCase:
+    def __init__(self, runtime: CodexRuntimePort) -> None:
+        self._runtime = runtime
+
+    async def execute(self) -> LoginResponse:
+        output = await self._runtime.login_with_device_code()
+        return LoginResponse(success=output.success, error=output.error)
+
+
 class LoginCodexWithApiKeyUseCase:
     def __init__(self, runtime: CodexRuntimePort) -> None:
         self._runtime = runtime
