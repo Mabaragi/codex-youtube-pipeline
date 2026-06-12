@@ -32,6 +32,16 @@ jobs:
             echo "latest_tag=${image_name}:latest"
           } >> "$GITHUB_OUTPUT"
 
+          {
+            echo "tags<<EOF"
+            echo "${image_name}:sha-${short_sha}"
+            echo "${image_name}:latest"
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              echo "${image_name}:${GITHUB_REF_NAME}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             echo "version_tag=${image_name}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
@@ -39,20 +49,23 @@ jobs:
       - name: Show Docker version
         run: docker version
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
-        run: |
-          set -eu
-          docker build \
-            -t "${{ steps.image.outputs.sha_tag }}" \
-            -t "${{ steps.image.outputs.latest_tag }}" \
-            .
-
-      - name: Tag release version
-        if: github.ref_type == 'tag'
-        run: docker tag "${{ steps.image.outputs.sha_tag }}" "${{ steps.image.outputs.version_tag }}"
+      - name: Build image for smoke tests
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ steps.image.outputs.sha_tag }}
+          provenance: false
 
       - name: Smoke test CLI entrypoint
         run: docker run --rm "${{ steps.image.outputs.sha_tag }}" --help
@@ -61,10 +74,9 @@ jobs:
         run: docker run --rm --entrypoint python "${{ steps.image.outputs.sha_tag }}" -c "from codex_sdk_cli.api.main import app; print(app.title)"
 
       - name: Push image
-        run: |
-          set -eu
-          docker push "${{ steps.image.outputs.sha_tag }}"
-          docker push "${{ steps.image.outputs.latest_tag }}"
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            docker push "${{ steps.image.outputs.version_tag }}"
-          fi
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          provenance: false

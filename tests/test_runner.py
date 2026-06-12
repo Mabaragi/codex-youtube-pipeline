@@ -152,7 +152,7 @@ def test_run_prompt_starts_new_thread() -> None:
     assert codex.thread.inputs == ["hello"]
     assert codex.thread_kwargs == {
         "approval_mode": ApprovalMode.deny_all,
-        "cwd": "C:\\repo",
+        "cwd": str(Path("C:/repo")),
         "ephemeral": True,
         "model": "gpt-test",
         "sandbox": Sandbox.read_only,
