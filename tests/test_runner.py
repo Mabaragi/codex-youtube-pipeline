@@ -73,6 +73,7 @@ class FakeCodex(CodexLike):
         self,
         *,
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
@@ -81,6 +82,7 @@ class FakeCodex(CodexLike):
         self.started = True
         self.thread_kwargs = {
             "approval_mode": approval_mode,
+            "base_instructions": base_instructions,
             "cwd": cwd,
             "ephemeral": ephemeral,
             "model": model,
@@ -93,6 +95,7 @@ class FakeCodex(CodexLike):
         thread_id: str,
         *,
         approval_mode: ApprovalMode | None = None,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -100,6 +103,7 @@ class FakeCodex(CodexLike):
         self.resumed_thread_id = thread_id
         self.thread_kwargs = {
             "approval_mode": approval_mode,
+            "base_instructions": base_instructions,
             "cwd": cwd,
             "model": model,
             "sandbox": sandbox,
@@ -143,6 +147,7 @@ def test_run_prompt_starts_new_thread() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
+        empty_base_instructions=False,
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -152,6 +157,7 @@ def test_run_prompt_starts_new_thread() -> None:
     assert codex.thread.inputs == ["hello"]
     assert codex.thread_kwargs == {
         "approval_mode": ApprovalMode.deny_all,
+        "base_instructions": None,
         "cwd": str(Path("C:/repo")),
         "ephemeral": True,
         "model": "gpt-test",
@@ -172,12 +178,31 @@ def test_run_prompt_can_persist_new_thread() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=True,
+        empty_base_instructions=False,
     )
 
     asyncio.run(run_prompt(codex, request))
 
     assert codex.started is True
     assert codex.thread_kwargs["ephemeral"] is False
+
+
+def test_run_prompt_can_empty_base_instructions_for_new_thread() -> None:
+    codex = FakeCodex()
+    request = RunRequest(
+        prompt="hello",
+        thread_id=None,
+        cwd=None,
+        model=None,
+        sandbox=Sandbox.workspace_write,
+        approval_mode=ApprovalMode.auto_review,
+        persist=False,
+        empty_base_instructions=True,
+    )
+
+    asyncio.run(run_prompt(codex, request))
+
+    assert codex.thread_kwargs["base_instructions"] == ""
 
 
 def test_run_prompt_resumes_existing_thread() -> None:
@@ -190,6 +215,7 @@ def test_run_prompt_resumes_existing_thread() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=True,
+        empty_base_instructions=False,
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -199,6 +225,25 @@ def test_run_prompt_resumes_existing_thread() -> None:
     assert codex.thread.inputs == ["continue"]
     assert "ephemeral" not in codex.thread_kwargs
     assert output.thread_id == "thread-1"
+
+
+def test_run_prompt_can_empty_base_instructions_when_resuming() -> None:
+    codex = FakeCodex()
+    request = RunRequest(
+        prompt="continue",
+        thread_id="thread-old",
+        cwd=None,
+        model=None,
+        sandbox=Sandbox.workspace_write,
+        approval_mode=ApprovalMode.auto_review,
+        persist=False,
+        empty_base_instructions=True,
+    )
+
+    asyncio.run(run_prompt(codex, request))
+
+    assert codex.resumed_thread_id == "thread-old"
+    assert codex.thread_kwargs["base_instructions"] == ""
 
 
 def test_login_helpers_return_completion() -> None:

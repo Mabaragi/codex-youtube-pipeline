@@ -16,6 +16,7 @@ class RunRequest(BaseModel):
     sandbox: SandboxChoice | None = None
     approval: ApprovalChoice | None = None
     persist: bool = False
+    empty_base_instructions: bool = Field(default=False, alias="emptyBaseInstructions")
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True, str_strip_whitespace=True)
 

@@ -63,6 +63,7 @@ class FakeCodexForCli(CodexLike):
         self,
         *,
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
@@ -70,6 +71,7 @@ class FakeCodexForCli(CodexLike):
     ) -> FakeThread:
         self.thread_kwargs = {
             "approval_mode": approval_mode,
+            "base_instructions": base_instructions,
             "cwd": cwd,
             "ephemeral": ephemeral,
             "model": model,
@@ -82,6 +84,7 @@ class FakeCodexForCli(CodexLike):
         thread_id: str,
         *,
         approval_mode: ApprovalMode | None = None,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -89,6 +92,7 @@ class FakeCodexForCli(CodexLike):
         self.resumed_thread_id = thread_id
         self.thread_kwargs = {
             "approval_mode": approval_mode,
+            "base_instructions": base_instructions,
             "cwd": cwd,
             "model": model,
             "sandbox": sandbox,
@@ -151,6 +155,7 @@ def test_run_command_outputs_thread_metadata_and_response() -> None:
     assert codex.thread_kwargs["sandbox"] is Sandbox.read_only
     assert codex.thread_kwargs["approval_mode"] is ApprovalMode.deny_all
     assert codex.thread_kwargs["ephemeral"] is True
+    assert codex.thread_kwargs["base_instructions"] is None
 
 
 def test_run_command_persists_new_thread_when_requested() -> None:
@@ -163,6 +168,15 @@ def test_run_command_persists_new_thread_when_requested() -> None:
     assert codex.thread_kwargs["ephemeral"] is False
 
 
+def test_run_command_can_empty_base_instructions() -> None:
+    codex = FakeCodexForCli()
+
+    result = invoke_with_fake(codex, ["run", "--empty-base-instructions", "hello"])
+
+    assert result.exit_code == 0
+    assert codex.thread_kwargs["base_instructions"] == ""
+
+
 def test_run_command_resumes_thread() -> None:
     codex = FakeCodexForCli()
 
@@ -170,6 +184,19 @@ def test_run_command_resumes_thread() -> None:
 
     assert result.exit_code == 0
     assert codex.resumed_thread_id == "thread-old"
+
+
+def test_run_command_can_empty_base_instructions_when_resuming() -> None:
+    codex = FakeCodexForCli()
+
+    result = invoke_with_fake(
+        codex,
+        ["run", "--thread-id", "thread-old", "--empty-base-instructions", "continue"],
+    )
+
+    assert result.exit_code == 0
+    assert codex.resumed_thread_id == "thread-old"
+    assert codex.thread_kwargs["base_instructions"] == ""
 
 
 def test_run_command_ignores_persist_when_resuming_thread() -> None:

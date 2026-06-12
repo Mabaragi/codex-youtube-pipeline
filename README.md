@@ -50,7 +50,12 @@ Useful options:
 ```powershell
 uv run codex-demo run --sandbox read-only --approval deny-all "Review the project."
 uv run codex-demo run --cwd C:\path\to\repo --model gpt-5.4 "Explain this codebase."
+uv run codex-demo run --empty-base-instructions "Answer with no SDK base instructions."
 ```
+
+`--empty-base-instructions` sends `base_instructions=""` to the Codex SDK. Use
+it as an experiment when you want to compare behavior or token usage without the
+SDK's default base instructions.
 
 ## Account
 
@@ -160,7 +165,7 @@ Invoke-RestMethod `
   -Method Post `
   -Uri http://localhost:8000/codex/runs `
   -ContentType "application/json" `
-  -Body '{"prompt":"Describe /work in one sentence.","sandbox":"read-only"}'
+  -Body '{"prompt":"Describe /work in one sentence.","sandbox":"read-only","emptyBaseInstructions":true}'
 ```
 
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,

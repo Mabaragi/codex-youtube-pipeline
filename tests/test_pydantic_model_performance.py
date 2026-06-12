@@ -20,6 +20,7 @@ class DataclassRunRequest:
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
+    empty_base_instructions: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,7 @@ class PydanticRunRequest(BaseModel):
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
+    empty_base_instructions: bool
 
 
 class PydanticRunOutput(BaseModel):
@@ -82,6 +84,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
+        empty_base_instructions=False,
     )
     pydantic_request = PydanticRunRequest(
         prompt="hello",
@@ -91,6 +94,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
+        empty_base_instructions=False,
     )
 
     assert pydantic_request.prompt == dataclass_request.prompt
@@ -98,6 +102,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
     assert pydantic_request.sandbox is dataclass_request.sandbox
     assert pydantic_request.approval_mode is dataclass_request.approval_mode
     assert pydantic_request.persist is dataclass_request.persist
+    assert pydantic_request.empty_base_instructions is dataclass_request.empty_base_instructions
 
     dataclass_output = DataclassRunOutput("thread-1", "turn-1", "completed", "done", None)
     pydantic_output = PydanticRunOutput(
@@ -125,6 +130,7 @@ def test_pydantic_model_performance() -> None:
         Sandbox.read_only,
         ApprovalMode.deny_all,
         False,
+        False,
     )
     pydantic_request = PydanticRunRequest(
         prompt="hello",
@@ -134,6 +140,7 @@ def test_pydantic_model_performance() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
+        empty_base_instructions=False,
     )
 
     benchmarks = [
@@ -147,6 +154,7 @@ def test_pydantic_model_performance() -> None:
                 Sandbox.read_only,
                 ApprovalMode.deny_all,
                 False,
+                False,
             ),
             lambda: PydanticRunRequest(
                 prompt="hello",
@@ -156,6 +164,7 @@ def test_pydantic_model_performance() -> None:
                 sandbox=Sandbox.read_only,
                 approval_mode=ApprovalMode.deny_all,
                 persist=False,
+                empty_base_instructions=False,
             ),
         ),
         _benchmark_pair(

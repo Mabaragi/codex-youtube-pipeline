@@ -26,6 +26,7 @@ class RunRequest:
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
+    empty_base_instructions: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +91,7 @@ class CodexLike(Protocol):
         self,
         *,
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
@@ -102,6 +104,7 @@ class CodexLike(Protocol):
         thread_id: str,
         *,
         approval_mode: ApprovalMode | None = None,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -150,6 +153,7 @@ class CodexSdkAdapter(CodexLike):
         self,
         *,
         approval_mode: ApprovalMode = ApprovalMode.auto_review,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         ephemeral: bool | None = None,
         model: str | None = None,
@@ -158,6 +162,7 @@ class CodexSdkAdapter(CodexLike):
         return SdkThreadAdapter(
             await self._codex.thread_start(
                 approval_mode=approval_mode,
+                base_instructions=base_instructions,
                 cwd=cwd,
                 ephemeral=ephemeral,
                 model=model,
@@ -170,6 +175,7 @@ class CodexSdkAdapter(CodexLike):
         thread_id: str,
         *,
         approval_mode: ApprovalMode | None = None,
+        base_instructions: str | None = None,
         cwd: str | None = None,
         model: str | None = None,
         sandbox: Sandbox | None = None,
@@ -178,6 +184,7 @@ class CodexSdkAdapter(CodexLike):
             await self._codex.thread_resume(
                 thread_id,
                 approval_mode=approval_mode,
+                base_instructions=base_instructions,
                 cwd=cwd,
                 model=model,
                 sandbox=sandbox,
@@ -226,10 +233,12 @@ def parse_approval(value: ApprovalChoice) -> ApprovalMode:
 
 async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
     cwd = str(request.cwd) if request.cwd is not None else None
+    base_instructions = "" if request.empty_base_instructions else None
 
     if request.thread_id is None:
         thread = await codex.thread_start(
             approval_mode=request.approval_mode,
+            base_instructions=base_instructions,
             cwd=cwd,
             ephemeral=not request.persist,
             model=request.model,
@@ -239,6 +248,7 @@ async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
         thread = await codex.thread_resume(
             request.thread_id,
             approval_mode=request.approval_mode,
+            base_instructions=base_instructions,
             cwd=cwd,
             model=request.model,
             sandbox=request.sandbox,

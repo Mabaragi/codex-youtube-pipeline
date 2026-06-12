@@ -33,6 +33,7 @@ class RunCodexPromptUseCase:
                 sandbox=request.sandbox or self._settings.sandbox,
                 approval=request.approval or self._settings.approval,
                 persist=request.persist,
+                empty_base_instructions=request.empty_base_instructions,
             )
         )
         return RunResponse.model_validate(result.model_dump())

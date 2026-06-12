@@ -66,6 +66,11 @@ def main(ctx: click.Context) -> None:
     is_flag=True,
     help="Persist a newly created thread to local Codex state.",
 )
+@click.option(
+    "--empty-base-instructions",
+    is_flag=True,
+    help="Send empty base_instructions to Codex instead of SDK defaults.",
+)
 @click.argument("prompt")
 @click.pass_context
 def run(
@@ -76,12 +81,23 @@ def run(
     sandbox: SandboxChoice | None,
     approval: ApprovalChoice | None,
     persist: bool,
+    empty_base_instructions: bool,
     prompt: str,
 ) -> None:
     """Start or resume a Codex thread and run PROMPT."""
     output = _handle_errors(
         lambda: asyncio.run(
-            _run_async(ctx, thread_id, cwd, model, sandbox, approval, persist, prompt)
+            _run_async(
+                ctx,
+                thread_id,
+                cwd,
+                model,
+                sandbox,
+                approval,
+                persist,
+                empty_base_instructions,
+                prompt,
+            )
         )
     )
 
@@ -100,6 +116,7 @@ async def _run_async(
     sandbox: SandboxChoice | None,
     approval: ApprovalChoice | None,
     persist: bool,
+    empty_base_instructions: bool,
     prompt: str,
 ) -> RunOutput:
     settings = _settings()
@@ -111,6 +128,7 @@ async def _run_async(
         sandbox=parse_sandbox(sandbox or settings.sandbox),
         approval_mode=parse_approval(approval or settings.approval),
         persist=persist,
+        empty_base_instructions=empty_base_instructions,
     )
 
     async with _codex(ctx, settings) as codex:
