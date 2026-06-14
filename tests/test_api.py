@@ -59,6 +59,17 @@ def test_health_endpoint() -> None:
     assert response == {"status": "ok"}
 
 
+def test_s3_health_endpoint_returns_mount_diagnostics() -> None:
+    response = asyncio.run(_request("GET", "/health/s3"))
+
+    assert response["path"] == "/data/s3"
+    assert isinstance(response["exists"], bool)
+    assert isinstance(response["readable"], bool)
+    assert isinstance(response["isMount"], bool)
+    assert isinstance(response["s3Mounted"], bool)
+    assert isinstance(response["reason"], str)
+
+
 def test_run_endpoint_uses_defaults_and_returns_camel_case_response() -> None:
     fake = FakeCodexRuntime()
 

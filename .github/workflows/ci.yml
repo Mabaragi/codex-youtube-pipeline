@@ -77,6 +77,8 @@ jobs:
       CODEX_CLI_MODEL: ${{ vars.CODEX_CLI_MODEL }}
       CODEX_CLI_SANDBOX: ${{ vars.CODEX_CLI_SANDBOX || 'workspace-write' }}
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
+      S3_MOUNT_BUCKET: ${{ vars.S3_MOUNT_BUCKET }}
+      S3_MOUNT_PREFIX: ${{ vars.S3_MOUNT_PREFIX }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -149,8 +151,35 @@ jobs:
           systemctl enable --now docker
 
           state_root="/opt/codex-sdk-cli/docker"
-          mkdir -p "$state_root/codex-home" "$state_root/work" "$state_root/empty-s3"
+          s3_mount_dir="$state_root/s3"
+          mkdir -p "$state_root/codex-home" "$state_root/work" "$state_root/empty-s3" "$s3_mount_dir"
           chown -R 1000:1000 "$state_root/codex-home"
+
+          s3_bind_source="$state_root/empty-s3"
+          if [ -n "$S3_MOUNT_BUCKET" ]; then
+            echo "Mounting S3 bucket ${S3_MOUNT_BUCKET} for /data/s3"
+            if ! command -v mount-s3 >/dev/null 2>&1; then
+              dnf install -y mount-s3 || {
+                dnf install -y wget
+                wget -O /tmp/mount-s3.rpm https://s3.amazonaws.com/mountpoint-s3-release/latest/x86_64/mount-s3.rpm
+                dnf install -y /tmp/mount-s3.rpm
+              }
+            fi
+
+            if findmnt -M "$s3_mount_dir" >/dev/null 2>&1; then
+              umount "$s3_mount_dir"
+            fi
+
+            if [ -n "$S3_MOUNT_PREFIX" ]; then
+              mount-s3 --read-only --allow-other --prefix "$S3_MOUNT_PREFIX" "$S3_MOUNT_BUCKET" "$s3_mount_dir"
+            else
+              mount-s3 --read-only --allow-other "$S3_MOUNT_BUCKET" "$s3_mount_dir"
+            fi
+            findmnt -M "$s3_mount_dir"
+            s3_bind_source="$s3_mount_dir"
+          else
+            echo "S3_MOUNT_BUCKET is not set; binding empty local directory to /data/s3"
+          fi
 
           aws ecr get-login-password --region "$AWS_REGION" \
             | docker login --username AWS --password-stdin "$ECR_REGISTRY"
@@ -168,21 +197,39 @@ jobs:
             -e CODEX_CLI_APPROVAL="$CODEX_CLI_APPROVAL" \
             -v "$state_root/codex-home:/home/codex/.codex" \
             -v "$state_root/work:/work" \
-            -v "$state_root/empty-s3:/data/s3:ro" \
+            -v "$s3_bind_source:/data/s3:ro" \
             --entrypoint codex-api \
             "$IMAGE_URI"
 
           docker ps --filter "name=$CONTAINER_NAME"
+          health_ok=0
           for attempt in $(seq 1 30); do
             if curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health"; then
-              exit 0
+              health_ok=1
+              break
             fi
             echo "Waiting for API health check, attempt ${attempt}/30"
             sleep 2
           done
 
-          docker logs --tail 200 "$CONTAINER_NAME" 2>&1 || true
-          exit 1
+          if [ "$health_ok" -ne 1 ]; then
+            docker logs --tail 200 "$CONTAINER_NAME" 2>&1 || true
+            exit 1
+          fi
+
+          s3_status="$(curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health/s3")"
+          echo "$s3_status"
+          S3_STATUS="$s3_status" python3 - <<'PY'
+          import json
+          import os
+
+          status = json.loads(os.environ["S3_STATUS"])
+          expected_bucket = os.environ.get("S3_MOUNT_BUCKET", "")
+          if expected_bucket and not status.get("s3Mounted"):
+              raise SystemExit(f"S3 mount check failed: {status}")
+          if not expected_bucket:
+              print("S3 mount check recorded diagnostics; no bucket was configured.")
+          PY
           REMOTE_SCRIPT
 
           python - <<'PY'
@@ -201,6 +248,8 @@ jobs:
                   f"export CODEX_CLI_MODEL={os.environ.get('CODEX_CLI_MODEL', '')!r}",
                   f"export CODEX_CLI_SANDBOX={os.environ['CODEX_CLI_SANDBOX']!r}",
                   f"export CODEX_CLI_APPROVAL={os.environ['CODEX_CLI_APPROVAL']!r}",
+                  f"export S3_MOUNT_BUCKET={os.environ.get('S3_MOUNT_BUCKET', '')!r}",
+                  f"export S3_MOUNT_PREFIX={os.environ.get('S3_MOUNT_PREFIX', '')!r}",
                   "bash -s <<'REMOTE_SCRIPT'",
                   script,
                   "REMOTE_SCRIPT",

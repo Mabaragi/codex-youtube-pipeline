@@ -190,3 +190,9 @@ On `main` pushes, CI also deploys the FastAPI container to the Terraform-managed
 EC2 host through AWS OIDC, ECR, and SSM after quality gates pass. The default
 Terraform settings expose port `8000` publicly through the instance security
 group.
+
+Set the optional GitHub repository variable `S3_MOUNT_BUCKET` to mount that
+bucket on the EC2 host with Mountpoint for Amazon S3 and bind it into the API
+container at `/data/s3`. Set `S3_MOUNT_PREFIX` to restrict the mount to a
+bucket prefix. The deploy job calls `/health/s3` and fails when a bucket is
+configured but the container does not report a `mount-s3` filesystem.

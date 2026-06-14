@@ -167,6 +167,24 @@ CODEX_CLI_SANDBOX
 CODEX_CLI_APPROVAL
 ```
 
+S3 Mountpoint를 API 컨테이너의 `/data/s3`로 연결하려면 다음 repository variable을
+추가한다.
+
+```text
+S3_MOUNT_BUCKET
+S3_MOUNT_PREFIX
+```
+
+`S3_MOUNT_BUCKET`이 설정되면 deploy job은 EC2 host에서 Mountpoint for Amazon S3로
+bucket을 read-only mount하고 컨테이너에 bind mount한다. `S3_MOUNT_PREFIX`는 선택
+값이다. 컨테이너 시작 후 deploy job은 `/health/s3`를 호출하고, bucket이 설정됐는데
+`s3Mounted`가 `true`가 아니면 배포를 실패시킨다. 현재 bucket 변수가 없으면
+`/data/s3`에는 빈 로컬 디렉터리가 연결되고 `/health/s3` 진단만 출력한다.
+
+EC2 instance role에는 대상 bucket에 대한 `s3:ListBucket`과 object에 대한
+`s3:GetObject` 권한이 필요하다. Terraform module은 `read_only_s3_bucket_arns`로
+이 권한을 부여한다.
+
 기본 Terraform 설정은 API port `8000`을 `0.0.0.0/0`에 공개한다. 공개 URL은
 Terraform output의 `public_api_url`에서 확인한다.
 
