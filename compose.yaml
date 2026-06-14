@@ -11,6 +11,8 @@ services:
       CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
       CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
       CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
+      CODEX_CLI_YOUTUBE_HTTP_PROXY: ${CODEX_CLI_YOUTUBE_HTTP_PROXY:-}
+      CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${CODEX_CLI_YOUTUBE_HTTPS_PROXY:-}
     volumes:
       - codex-home:/home/codex/.codex
       - type: bind
@@ -35,6 +37,8 @@ services:
       CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
       CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
       CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
+      CODEX_CLI_YOUTUBE_HTTP_PROXY: ${CODEX_CLI_YOUTUBE_HTTP_PROXY:-}
+      CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${CODEX_CLI_YOUTUBE_HTTPS_PROXY:-}
     volumes:
       - codex-home:/home/codex/.codex
       - type: bind

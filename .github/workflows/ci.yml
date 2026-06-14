@@ -77,6 +77,8 @@ jobs:
       CODEX_CLI_MODEL: ${{ vars.CODEX_CLI_MODEL }}
       CODEX_CLI_SANDBOX: ${{ vars.CODEX_CLI_SANDBOX || 'workspace-write' }}
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
+      CODEX_CLI_YOUTUBE_HTTP_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTP_PROXY || vars.CODEX_CLI_YOUTUBE_HTTP_PROXY }}
+      CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTPS_PROXY || vars.CODEX_CLI_YOUTUBE_HTTPS_PROXY }}
       S3_MOUNT_BUCKET: ${{ vars.S3_MOUNT_BUCKET }}
       S3_MOUNT_PREFIX: ${{ vars.S3_MOUNT_PREFIX }}
       S3_MOUNT_TEST_FILE: ${{ vars.S3_MOUNT_TEST_FILE }}
@@ -251,6 +253,8 @@ jobs:
             -e CODEX_CLI_MODEL="$CODEX_CLI_MODEL" \
             -e CODEX_CLI_SANDBOX="$CODEX_CLI_SANDBOX" \
             -e CODEX_CLI_APPROVAL="$CODEX_CLI_APPROVAL" \
+            -e CODEX_CLI_YOUTUBE_HTTP_PROXY="$CODEX_CLI_YOUTUBE_HTTP_PROXY" \
+            -e CODEX_CLI_YOUTUBE_HTTPS_PROXY="$CODEX_CLI_YOUTUBE_HTTPS_PROXY" \
             -v "$state_root/codex-home:/home/codex/.codex" \
             -v "$state_root/work:/work" \
             --mount "type=bind,source=$s3_bind_source,target=/data/s3,readonly,bind-propagation=rslave" \
@@ -339,6 +343,8 @@ jobs:
                   f"export CODEX_CLI_MODEL={os.environ.get('CODEX_CLI_MODEL', '')!r}",
                   f"export CODEX_CLI_SANDBOX={os.environ['CODEX_CLI_SANDBOX']!r}",
                   f"export CODEX_CLI_APPROVAL={os.environ['CODEX_CLI_APPROVAL']!r}",
+                  f"export CODEX_CLI_YOUTUBE_HTTP_PROXY={os.environ.get('CODEX_CLI_YOUTUBE_HTTP_PROXY', '')!r}",
+                  f"export CODEX_CLI_YOUTUBE_HTTPS_PROXY={os.environ.get('CODEX_CLI_YOUTUBE_HTTPS_PROXY', '')!r}",
                   f"export S3_MOUNT_BUCKET={os.environ.get('S3_MOUNT_BUCKET', '')!r}",
                   f"export S3_MOUNT_PREFIX={os.environ.get('S3_MOUNT_PREFIX', '')!r}",
                   f"export S3_MOUNT_TEST_FILE={os.environ.get('S3_MOUNT_TEST_FILE', '')!r}",

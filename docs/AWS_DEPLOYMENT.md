@@ -167,6 +167,18 @@ CODEX_CLI_SANDBOX
 CODEX_CLI_APPROVAL
 ```
 
+YouTube transcript requests may be blocked from cloud provider IPs. If that
+happens, configure a residential proxy and store the URLs as GitHub repository
+secrets:
+
+```text
+CODEX_CLI_YOUTUBE_HTTP_PROXY
+CODEX_CLI_YOUTUBE_HTTPS_PROXY
+```
+
+Repository variables with the same names are also supported for non-sensitive
+proxy URLs. Authenticated proxy URLs should use secrets.
+
 S3 Mountpoint를 API 컨테이너의 `/data/s3`로 연결하려면 다음 repository variable을
 추가한다.
 

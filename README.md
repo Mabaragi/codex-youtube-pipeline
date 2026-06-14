@@ -187,6 +187,11 @@ plain text, and the original timed caption segments. If YouTube blocks cloud
 provider traffic, configure `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
 `CODEX_CLI_YOUTUBE_HTTPS_PROXY` before starting the API.
 
+For GitHub Actions EC2 deploys, store proxy URLs as repository secrets named
+`CODEX_CLI_YOUTUBE_HTTP_PROXY` and `CODEX_CLI_YOUTUBE_HTTPS_PROXY`. Repository
+variables with the same names also work for non-sensitive proxy URLs, but
+authenticated proxy URLs should be secrets.
+
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,
 application workflows live in use cases, and the actual Codex SDK adapter lives
 under the infrastructure layer.
