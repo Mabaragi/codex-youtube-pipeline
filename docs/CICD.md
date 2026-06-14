@@ -37,6 +37,10 @@ flowchart TD
 현재 자동 배포 대상은 AWS EC2가 아니라 Windows Home PC다. AWS Terraform/EC2
 문서는 남아 있지만 `main` push 자동 배포에는 참여하지 않는다.
 
+문서-only 변경은 자동 workflow를 시작하지 않는다. `CI`와 `Docker Publish`는
+`**/*.md`, `docs/**`, `vaults/**`만 바뀐 `push`/`pull_request`를 무시한다.
+필요하면 `workflow_dispatch`로 수동 실행할 수 있다.
+
 ## Workflow별 역할
 
 | Workflow | Trigger | Runner | 역할 |

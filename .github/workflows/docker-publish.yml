@@ -6,6 +6,10 @@ on:
       - main
     tags:
       - "v*.*.*"
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "vaults/**"
 
 permissions:
   contents: read
