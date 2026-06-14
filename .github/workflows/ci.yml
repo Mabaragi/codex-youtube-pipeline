@@ -179,9 +179,9 @@ jobs:
           $deadline = (Get-Date).AddSeconds(90)
           while ((Get-Date) -lt $deadline) {
             $logs = docker compose --project-name codex-sdk-home -f compose.home.yaml logs --no-color cloudflared 2>$null
-            $match = [regex]::Match($logs, "https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-            if ($match.Success) {
-              $url = $match.Value
+            $matches = [regex]::Matches($logs, "https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+            if ($matches.Count -gt 0) {
+              $url = $matches[$matches.Count - 1].Value
               break
             }
             Start-Sleep -Seconds 3
