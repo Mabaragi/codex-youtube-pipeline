@@ -253,7 +253,7 @@ jobs:
           PY
 
           if [ -n "$S3_MOUNT_BUCKET" ]; then
-            docker exec \
+            docker exec -i \
               -e S3_MOUNT_TEST_FILE="$S3_MOUNT_TEST_FILE" \
               "$CONTAINER_NAME" \
               python - <<'PY'
