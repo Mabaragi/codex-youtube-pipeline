@@ -8,7 +8,6 @@ on:
       - main
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
@@ -90,28 +89,6 @@ jobs:
             fi
           done
 
-          if (( ${#missing[@]} == 0 )); then
-            set +e
-            runner_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners" --jq '
-              [
-                .runners[]
-                | select(.status == "online")
-                | select(([.labels[].name] | index("self-hosted")) != null)
-                | select(([.labels[].name] | index("Windows")) != null)
-                | select(([.labels[].name] | index("X64")) != null)
-                | select(([.labels[].name] | index("codex-home")) != null)
-              ] | length
-            ')"
-            runner_status=$?
-            set -e
-
-            if [[ "$runner_status" -ne 0 ]]; then
-              missing+=("permission to verify self-hosted runners with the GitHub Actions token")
-            elif [[ "$runner_count" == "0" ]]; then
-              missing+=("online self-hosted runner with labels: self-hosted, Windows, X64, codex-home")
-            fi
-          fi
-
           if (( ${#missing[@]} > 0 )); then
             printf 'Home deploy is not ready. Missing prerequisites:\n'
             printf ' - %s\n' "${missing[@]}"
@@ -122,7 +99,7 @@ jobs:
             exit 0
           fi
 
-          echo "Home deploy prerequisites are ready."
+          echo "Home deploy secrets are ready."
           echo "deploy_ready=true" >> "$GITHUB_OUTPUT"
 
   home_deploy:

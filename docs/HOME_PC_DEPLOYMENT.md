@@ -50,9 +50,9 @@ X64
 codex-home
 ```
 
-The workflow uses a GitHub-hosted preflight job. If this runner or required
-secrets are missing, `main` pushes skip home deployment instead of waiting
-forever for a runner.
+The workflow uses a GitHub-hosted preflight job to verify required secrets. If
+the runner is offline, the home deployment job will wait until the runner comes
+back online.
 
 ## Cloudflare Tunnel Setup
 
@@ -152,4 +152,3 @@ docker compose --project-name codex-sdk-home -f compose.home.yaml down
 ```
 
 Preserve `codex-home` unless you intentionally want to clear Codex login state.
-
