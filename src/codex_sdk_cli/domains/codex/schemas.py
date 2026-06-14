@@ -1,23 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr
 
-from codex_sdk_cli.settings import ApprovalChoice, SandboxChoice
-
 
 class RunRequest(BaseModel):
     prompt: str = Field(min_length=1)
-    thread_id: str | None = Field(default=None, alias="threadId")
-    cwd: Path | None = None
-    model: str | None = None
-    sandbox: SandboxChoice | None = None
-    approval: ApprovalChoice | None = None
-    persist: bool = False
-    empty_base_instructions: bool = Field(default=False, alias="emptyBaseInstructions")
-    empty_developer_instructions: bool = Field(default=False, alias="emptyDeveloperInstructions")
+    base_instructions: str | None = Field(default=None, alias="baseInstructions")
+    developer_instructions: str | None = Field(default=None, alias="developerInstructions")
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True, str_strip_whitespace=True)
 

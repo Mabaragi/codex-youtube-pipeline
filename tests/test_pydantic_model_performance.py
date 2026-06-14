@@ -20,8 +20,8 @@ class DataclassRunRequest:
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
-    empty_base_instructions: bool
-    empty_developer_instructions: bool
+    base_instructions: str | None
+    developer_instructions: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +49,8 @@ class PydanticRunRequest(BaseModel):
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
-    empty_base_instructions: bool
-    empty_developer_instructions: bool
+    base_instructions: str | None
+    developer_instructions: str | None
 
 
 class PydanticRunOutput(BaseModel):
@@ -86,8 +86,8 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=None,
+        developer_instructions=None,
     )
     pydantic_request = PydanticRunRequest(
         prompt="hello",
@@ -97,8 +97,8 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=None,
+        developer_instructions=None,
     )
 
     assert pydantic_request.prompt == dataclass_request.prompt
@@ -106,11 +106,8 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
     assert pydantic_request.sandbox is dataclass_request.sandbox
     assert pydantic_request.approval_mode is dataclass_request.approval_mode
     assert pydantic_request.persist is dataclass_request.persist
-    assert pydantic_request.empty_base_instructions is dataclass_request.empty_base_instructions
-    assert (
-        pydantic_request.empty_developer_instructions
-        is dataclass_request.empty_developer_instructions
-    )
+    assert pydantic_request.base_instructions is dataclass_request.base_instructions
+    assert pydantic_request.developer_instructions is dataclass_request.developer_instructions
 
     dataclass_output = DataclassRunOutput("thread-1", "turn-1", "completed", "done", None)
     pydantic_output = PydanticRunOutput(
@@ -138,8 +135,8 @@ def test_pydantic_model_performance() -> None:
         Sandbox.read_only,
         ApprovalMode.deny_all,
         False,
-        False,
-        False,
+        None,
+        None,
     )
     pydantic_request = PydanticRunRequest(
         prompt="hello",
@@ -149,8 +146,8 @@ def test_pydantic_model_performance() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=None,
+        developer_instructions=None,
     )
 
     benchmarks = [
@@ -164,8 +161,8 @@ def test_pydantic_model_performance() -> None:
                 Sandbox.read_only,
                 ApprovalMode.deny_all,
                 False,
-                False,
-                False,
+                None,
+                None,
             ),
             lambda: PydanticRunRequest(
                 prompt="hello",
@@ -175,8 +172,8 @@ def test_pydantic_model_performance() -> None:
                 sandbox=Sandbox.read_only,
                 approval_mode=ApprovalMode.deny_all,
                 persist=False,
-                empty_base_instructions=False,
-                empty_developer_instructions=False,
+                base_instructions=None,
+                developer_instructions=None,
             ),
         ),
         _benchmark_pair(

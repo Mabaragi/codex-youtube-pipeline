@@ -153,8 +153,8 @@ def test_run_prompt_starts_new_thread() -> None:
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=None,
+        developer_instructions=None,
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -186,8 +186,8 @@ def test_run_prompt_can_persist_new_thread() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=True,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=None,
+        developer_instructions=None,
     )
 
     asyncio.run(run_prompt(codex, request))
@@ -206,8 +206,8 @@ def test_run_prompt_can_empty_base_instructions_for_new_thread() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
-        empty_base_instructions=True,
-        empty_developer_instructions=False,
+        base_instructions=BLANK_BASE_INSTRUCTIONS,
+        developer_instructions=None,
     )
 
     asyncio.run(run_prompt(codex, request))
@@ -225,8 +225,8 @@ def test_run_prompt_can_empty_developer_instructions_for_new_thread() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=True,
+        base_instructions=None,
+        developer_instructions=BLANK_DEVELOPER_INSTRUCTIONS,
     )
 
     asyncio.run(run_prompt(codex, request))
@@ -244,8 +244,8 @@ def test_run_prompt_resumes_existing_thread() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=True,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=None,
+        developer_instructions=None,
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -267,8 +267,8 @@ def test_run_prompt_can_empty_base_instructions_when_resuming() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
-        empty_base_instructions=True,
-        empty_developer_instructions=False,
+        base_instructions=BLANK_BASE_INSTRUCTIONS,
+        developer_instructions=None,
     )
 
     asyncio.run(run_prompt(codex, request))
@@ -287,8 +287,8 @@ def test_run_prompt_can_empty_developer_instructions_when_resuming() -> None:
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=True,
+        base_instructions=None,
+        developer_instructions=BLANK_DEVELOPER_INSTRUCTIONS,
     )
 
     asyncio.run(run_prompt(codex, request))

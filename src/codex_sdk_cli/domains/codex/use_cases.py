@@ -27,14 +27,14 @@ class RunCodexPromptUseCase:
         result = await self._runtime.run_prompt(
             CodexRunCommand(
                 prompt=prompt,
-                thread_id=request.thread_id,
-                cwd=request.cwd,
-                model=request.model or self._settings.model,
-                sandbox=request.sandbox or self._settings.sandbox,
-                approval=request.approval or self._settings.approval,
-                persist=request.persist,
-                empty_base_instructions=request.empty_base_instructions,
-                empty_developer_instructions=request.empty_developer_instructions,
+                thread_id=None,
+                cwd=None,
+                model=self._settings.model,
+                sandbox=self._settings.sandbox,
+                approval=self._settings.approval,
+                persist=False,
+                base_instructions=_instruction_or_blank(request.base_instructions),
+                developer_instructions=_instruction_or_blank(request.developer_instructions),
             )
         )
         return RunResponse.model_validate(result.model_dump())
@@ -77,3 +77,11 @@ class LogoutCodexUseCase:
     async def execute(self) -> LogoutResponse:
         await self._runtime.logout()
         return LogoutResponse(success=True)
+
+
+def _instruction_or_blank(value: str | None) -> str:
+    if value is None:
+        return " "
+
+    normalized = value.strip()
+    return normalized if normalized else " "

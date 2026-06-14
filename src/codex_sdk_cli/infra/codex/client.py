@@ -47,8 +47,8 @@ class CodexRuntimeClient(CodexRuntimePort):
                         sandbox=parse_sandbox(command.sandbox),
                         approval_mode=parse_approval(command.approval),
                         persist=command.persist,
-                        empty_base_instructions=command.empty_base_instructions,
-                        empty_developer_instructions=command.empty_developer_instructions,
+                        base_instructions=command.base_instructions,
+                        developer_instructions=command.developer_instructions,
                     ),
                 )
             return CodexRunResult(

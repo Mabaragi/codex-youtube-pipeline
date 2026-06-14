@@ -141,7 +141,7 @@ docker compose up api
 ```bash
 curl -sS -X POST http://localhost:8000/codex/runs \
   -H 'content-type: application/json' \
-  -d '{"prompt":"Describe /work in one sentence.","sandbox":"read-only"}'
+  -d '{"prompt":"Describe /work in one sentence.","baseInstructions":"You are concise.","developerInstructions":"Answer in Korean."}'
 ```
 
 ## GitHub Actions 자동 배포

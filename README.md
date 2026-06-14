@@ -167,7 +167,7 @@ Invoke-RestMethod `
   -Method Post `
   -Uri http://localhost:8000/codex/runs `
   -ContentType "application/json" `
-  -Body '{"prompt":"Describe /work in one sentence.","sandbox":"read-only","emptyBaseInstructions":true,"emptyDeveloperInstructions":true}'
+  -Body '{"prompt":"Describe /work in one sentence.","baseInstructions":"You are concise.","developerInstructions":"Answer in Korean."}'
 ```
 
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,

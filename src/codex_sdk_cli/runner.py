@@ -30,8 +30,8 @@ class RunRequest:
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
-    empty_base_instructions: bool
-    empty_developer_instructions: bool
+    base_instructions: str | None
+    developer_instructions: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,17 +244,13 @@ def parse_approval(value: ApprovalChoice) -> ApprovalMode:
 
 async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
     cwd = str(request.cwd) if request.cwd is not None else None
-    base_instructions = BLANK_BASE_INSTRUCTIONS if request.empty_base_instructions else None
-    developer_instructions = (
-        BLANK_DEVELOPER_INSTRUCTIONS if request.empty_developer_instructions else None
-    )
 
     if request.thread_id is None:
         thread = await codex.thread_start(
             approval_mode=request.approval_mode,
-            base_instructions=base_instructions,
+            base_instructions=request.base_instructions,
             cwd=cwd,
-            developer_instructions=developer_instructions,
+            developer_instructions=request.developer_instructions,
             ephemeral=not request.persist,
             model=request.model,
             sandbox=request.sandbox,
@@ -263,9 +259,9 @@ async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
         thread = await codex.thread_resume(
             request.thread_id,
             approval_mode=request.approval_mode,
-            base_instructions=base_instructions,
+            base_instructions=request.base_instructions,
             cwd=cwd,
-            developer_instructions=developer_instructions,
+            developer_instructions=request.developer_instructions,
             model=request.model,
             sandbox=request.sandbox,
         )

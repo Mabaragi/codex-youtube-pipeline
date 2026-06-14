@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import get_codex_runtime, get_settings
@@ -85,12 +86,12 @@ def test_run_endpoint_uses_defaults_and_returns_camel_case_response() -> None:
         sandbox="read-only",
         approval="deny-all",
         persist=False,
-        empty_base_instructions=False,
-        empty_developer_instructions=False,
+        base_instructions=" ",
+        developer_instructions=" ",
     )
 
 
-def test_run_endpoint_can_empty_base_instructions() -> None:
+def test_run_endpoint_normalizes_blank_instructions_to_single_spaces() -> None:
     fake = FakeCodexRuntime()
 
     response = asyncio.run(
@@ -98,16 +99,21 @@ def test_run_endpoint_can_empty_base_instructions() -> None:
             "POST",
             "/codex/runs",
             runtime=fake,
-            json={"prompt": "hello", "emptyBaseInstructions": True},
+            json={
+                "prompt": "hello",
+                "baseInstructions": "",
+                "developerInstructions": "   ",
+            },
         )
     )
 
     assert response["status"] == "completed"
     assert fake.run_command is not None
-    assert fake.run_command.empty_base_instructions is True
+    assert fake.run_command.base_instructions == " "
+    assert fake.run_command.developer_instructions == " "
 
 
-def test_run_endpoint_can_empty_developer_instructions() -> None:
+def test_run_endpoint_passes_custom_instructions() -> None:
     fake = FakeCodexRuntime()
 
     response = asyncio.run(
@@ -115,13 +121,37 @@ def test_run_endpoint_can_empty_developer_instructions() -> None:
             "POST",
             "/codex/runs",
             runtime=fake,
-            json={"prompt": "hello", "emptyDeveloperInstructions": True},
+            json={
+                "prompt": "hello",
+                "baseInstructions": "  base rules  ",
+                "developerInstructions": "  dev rules  ",
+            },
         )
     )
 
     assert response["status"] == "completed"
     assert fake.run_command is not None
-    assert fake.run_command.empty_developer_instructions is True
+    assert fake.run_command.base_instructions == "base rules"
+    assert fake.run_command.developer_instructions == "dev rules"
+
+
+@pytest.mark.parametrize("removed_field", ["cwd", "threadId", "persist"])
+def test_run_endpoint_rejects_removed_advanced_parameters(removed_field: str) -> None:
+    fake = FakeCodexRuntime()
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/codex/runs",
+            runtime=fake,
+            json={"prompt": "hello", removed_field: "ignored"},
+            expected_status=422,
+        )
+    )
+
+    assert fake.run_command is None
+    assert response["detail"][0]["type"] == "extra_forbidden"
+    assert response["detail"][0]["loc"] == ["body", removed_field]
 
 
 def test_run_endpoint_maps_domain_errors() -> None:

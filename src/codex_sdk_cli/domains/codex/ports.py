@@ -16,8 +16,8 @@ class CodexRunCommand(BaseModel):
     sandbox: SandboxChoice
     approval: ApprovalChoice
     persist: bool
-    empty_base_instructions: bool
-    empty_developer_instructions: bool
+    base_instructions: str | None
+    developer_instructions: str | None
 
     model_config = ConfigDict(frozen=True)
 

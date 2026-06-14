@@ -11,6 +11,8 @@ import click
 from pydantic import ValidationError
 
 from .runner import (
+    BLANK_BASE_INSTRUCTIONS,
+    BLANK_DEVELOPER_INSTRUCTIONS,
     CodexCliError,
     CodexLike,
     LoginOutput,
@@ -136,8 +138,10 @@ async def _run_async(
         sandbox=parse_sandbox(sandbox or settings.sandbox),
         approval_mode=parse_approval(approval or settings.approval),
         persist=persist,
-        empty_base_instructions=empty_base_instructions,
-        empty_developer_instructions=empty_developer_instructions,
+        base_instructions=BLANK_BASE_INSTRUCTIONS if empty_base_instructions else None,
+        developer_instructions=(
+            BLANK_DEVELOPER_INSTRUCTIONS if empty_developer_instructions else None
+        ),
     )
 
     async with _codex(ctx, settings) as codex:

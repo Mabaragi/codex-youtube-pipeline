@@ -22,7 +22,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 
 `codex-api`는 다음 REST endpoint를 제공한다.
 
-- `POST /codex/runs`: 새 thread 실행 또는 기존 thread resume.
+- `POST /codex/runs`: prompt와 optional instructions 요청으로 새 thread를 실행한다.
 - `GET /codex/account`: 현재 account 상태 확인.
 - `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
