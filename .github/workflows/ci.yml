@@ -2,13 +2,14 @@ name: CI
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches:
       - main
 
 permissions:
+  actions: read
   contents: read
-  id-token: write
 
 jobs:
   quality:
@@ -60,330 +61,138 @@ jobs:
       - name: Smoke test API import
         run: docker run --rm --entrypoint python codex-sdk-cli:test -c "from codex_sdk_cli.api.main import app; print(app.title)"
 
-  deploy:
-    name: Deploy API to EC2
+  home_deploy_preflight:
+    name: Home deploy readiness
     runs-on: ubuntu-latest
     needs:
       - quality
       - docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
+    outputs:
+      deploy_ready: ${{ steps.readiness.outputs.deploy_ready }}
+    steps:
+      - name: Check home deployment prerequisites
+        id: readiness
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARED_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TUNNEL_TOKEN }}
+          HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
+          HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
+        run: |
+          set -eu
+
+          missing=()
+          required=(CLOUDFLARED_TUNNEL_TOKEN HOME_BASIC_AUTH_USER HOME_BASIC_AUTH_PASSWORD)
+          for name in "${required[@]}"; do
+            if [[ -z "${!name}" ]]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if (( ${#missing[@]} == 0 )); then
+            set +e
+            runner_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners" --jq '
+              [
+                .runners[]
+                | select(.status == "online")
+                | select(([.labels[].name] | index("self-hosted")) != null)
+                | select(([.labels[].name] | index("Windows")) != null)
+                | select(([.labels[].name] | index("X64")) != null)
+                | select(([.labels[].name] | index("codex-home")) != null)
+              ] | length
+            ')"
+            runner_status=$?
+            set -e
+
+            if [[ "$runner_status" -ne 0 ]]; then
+              missing+=("permission to verify self-hosted runners with the GitHub Actions token")
+            elif [[ "$runner_count" == "0" ]]; then
+              missing+=("online self-hosted runner with labels: self-hosted, Windows, X64, codex-home")
+            fi
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Home deploy is not ready. Missing prerequisites:\n'
+            printf ' - %s\n' "${missing[@]}"
+            echo "deploy_ready=false" >> "$GITHUB_OUTPUT"
+            if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              exit 1
+            fi
+            exit 0
+          fi
+
+          echo "Home deploy prerequisites are ready."
+          echo "deploy_ready=true" >> "$GITHUB_OUTPUT"
+
+  home_deploy:
+    name: Deploy API to home PC
+    runs-on: [self-hosted, Windows, X64, codex-home]
+    needs:
+      - home_deploy_preflight
+    if: needs.home_deploy_preflight.outputs.deploy_ready == 'true'
+    timeout-minutes: 30
     env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-      APP_PORT: ${{ vars.APP_PORT || '8000' }}
-      CONTAINER_NAME: ${{ vars.CONTAINER_NAME || 'codex-sdk-api' }}
+      CLOUDFLARED_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TUNNEL_TOKEN }}
+      HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
+      HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
+      HOME_NGINX_PORT: ${{ vars.HOME_NGINX_PORT || '18080' }}
       CODEX_CLI_MODEL: ${{ vars.CODEX_CLI_MODEL }}
       CODEX_CLI_SANDBOX: ${{ vars.CODEX_CLI_SANDBOX || 'workspace-write' }}
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
       CODEX_CLI_YOUTUBE_HTTP_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTP_PROXY || vars.CODEX_CLI_YOUTUBE_HTTP_PROXY }}
       CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTPS_PROXY || vars.CODEX_CLI_YOUTUBE_HTTPS_PROXY }}
-      S3_MOUNT_BUCKET: ${{ vars.S3_MOUNT_BUCKET }}
-      S3_MOUNT_PREFIX: ${{ vars.S3_MOUNT_PREFIX }}
-      S3_MOUNT_TEST_FILE: ${{ vars.S3_MOUNT_TEST_FILE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate deployment variables
-        shell: bash
+      - name: Show Docker version
+        shell: powershell
         run: |
-          set -eu
-          required=(AWS_REGION AWS_ROLE_ARN ECR_REPOSITORY EC2_INSTANCE_ID)
-          for name in "${required[@]}"; do
-            if [[ -z "${!name}" ]]; then
-              echo "Missing GitHub Actions variable: ${name}" >&2
-              exit 1
-            fi
-          done
+          $ErrorActionPreference = "Stop"
+          docker version
+          docker compose version
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Log in to ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build image
-        shell: bash
+      - name: Prepare home deployment files
+        shell: powershell
         run: |
-          set -eu
-          short_sha="${GITHUB_SHA::12}"
-          image_uri="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY}:sha-${short_sha}"
-          latest_uri="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY}:latest"
-          {
-            echo "IMAGE_URI=${image_uri}"
-            echo "LATEST_URI=${latest_uri}"
-          } >> "$GITHUB_ENV"
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force ".docker-empty-s3" | Out-Null
+          New-Item -ItemType Directory -Force ".home-deploy" | Out-Null
 
-          docker build -t "${image_uri}" -t "${latest_uri}" .
+          $hash = $env:HOME_BASIC_AUTH_PASSWORD |
+            docker run --rm -i httpd:2.4-alpine htpasswd -Bni $env:HOME_BASIC_AUTH_USER
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to generate Nginx Basic Auth file."
+          }
+          $hash | Set-Content -Encoding ascii ".home-deploy/nginx.htpasswd"
 
-      - name: Smoke test image
-        shell: bash
+      - name: Validate home compose file
+        shell: powershell
         run: |
-          set -eu
-          docker run --rm "${IMAGE_URI}" --help
-          docker run --rm --entrypoint python "${IMAGE_URI}" -c "from codex_sdk_cli.api.main import app; print(app.title)"
+          $ErrorActionPreference = "Stop"
+          docker compose --project-name codex-sdk-home -f compose.home.yaml config
 
-      - name: Push image to ECR
-        shell: bash
+      - name: Deploy home stack
+        shell: powershell
         run: |
-          set -eu
-          docker push "${IMAGE_URI}"
-          docker push "${LATEST_URI}"
+          $ErrorActionPreference = "Stop"
+          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build api nginx cloudflared
+          docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 
-      - name: Prepare SSM deployment parameters
-        shell: bash
+      - name: Verify local Nginx health through Basic Auth
+        shell: powershell
         run: |
-          set -eu
-          cat > deploy.sh <<'REMOTE_SCRIPT'
-          set -eu
+          $ErrorActionPreference = "Stop"
+          $pair = "{0}:{1}" -f $env:HOME_BASIC_AUTH_USER, $env:HOME_BASIC_AUTH_PASSWORD
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair))
+          $headers = @{ Authorization = "Basic $encoded" }
+          $uri = "http://127.0.0.1:$env:HOME_NGINX_PORT/health"
+          Invoke-RestMethod -Uri $uri -Headers $headers
 
-          if command -v cloud-init >/dev/null 2>&1; then
-            cloud-init status --wait || true
-          fi
-
-          if ! command -v docker >/dev/null 2>&1; then
-            dnf install -y docker
-          fi
-
-          systemctl enable --now docker
-
-          state_root="/opt/codex-sdk-cli/docker"
-          s3_mount_dir="$state_root/s3"
-          mkdir -p "$state_root/codex-home" "$state_root/work" "$state_root/empty-s3" "$s3_mount_dir"
-          chown -R 1000:1000 "$state_root/codex-home"
-
-          aws ecr get-login-password --region "$AWS_REGION" \
-            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-          docker pull "$IMAGE_URI"
-          docker stop "$CONTAINER_NAME" 2>/dev/null || true
-          docker rm "$CONTAINER_NAME" 2>/dev/null || true
-
-          s3_bind_source="$state_root/empty-s3"
-          if [ -n "$S3_MOUNT_BUCKET" ]; then
-            echo "Mounting S3 bucket ${S3_MOUNT_BUCKET} for /data/s3"
-            if ! command -v mount-s3 >/dev/null 2>&1; then
-              dnf install -y mount-s3 || {
-                dnf install -y wget
-                wget -O /tmp/mount-s3.rpm https://s3.amazonaws.com/mountpoint-s3-release/latest/x86_64/mount-s3.rpm
-                dnf install -y /tmp/mount-s3.rpm
-              }
-            fi
-
-            cat > /usr/local/bin/codex-sdk-s3-mount <<'MOUNT_SCRIPT'
-          #!/usr/bin/env bash
-          set -eu
-
-          args=(--foreground --read-only --allow-other --region "$AWS_REGION")
-          if [ -n "${S3_MOUNT_PREFIX:-}" ]; then
-            args+=(--prefix "$S3_MOUNT_PREFIX")
-          fi
-
-          exec mount-s3 "${args[@]}" "$S3_MOUNT_BUCKET" "$S3_MOUNT_DIR"
-          MOUNT_SCRIPT
-            chmod 0755 /usr/local/bin/codex-sdk-s3-mount
-
-            cat > /etc/codex-sdk-cli-s3-mount.env <<EOF
-          AWS_REGION=$AWS_REGION
-          S3_MOUNT_BUCKET=$S3_MOUNT_BUCKET
-          S3_MOUNT_PREFIX=$S3_MOUNT_PREFIX
-          S3_MOUNT_DIR=$s3_mount_dir
-          EOF
-
-            cat > /etc/systemd/system/codex-sdk-s3-mount.service <<'UNIT'
-          [Unit]
-          Description=Codex SDK S3 Mountpoint
-          After=network-online.target
-          Wants=network-online.target
-
-          [Service]
-          Type=simple
-          EnvironmentFile=/etc/codex-sdk-cli-s3-mount.env
-          ExecStart=/usr/local/bin/codex-sdk-s3-mount
-          ExecStop=/bin/umount /opt/codex-sdk-cli/docker/s3
-          Restart=on-failure
-          RestartSec=5
-
-          [Install]
-          WantedBy=multi-user.target
-          UNIT
-
-            systemctl daemon-reload
-            systemctl enable codex-sdk-s3-mount.service
-            systemctl restart codex-sdk-s3-mount.service
-
-            for attempt in $(seq 1 10); do
-              if findmnt -M "$s3_mount_dir" >/dev/null 2>&1; then
-                break
-              fi
-              echo "Waiting for S3 mount service, attempt ${attempt}/10"
-              sleep 1
-            done
-
-            s3_host_mount="$(findmnt -n -M "$s3_mount_dir" -o SOURCE,FSTYPE)"
-            echo "Host S3 mount: $s3_host_mount"
-            case "$s3_host_mount" in
-              *mountpoint-s3*|*mount-s3*) ;;
-              *)
-                echo "Mounted path is not Mountpoint for Amazon S3: $s3_host_mount" >&2
-                exit 1
-                ;;
-            esac
-            ls -la "$s3_mount_dir"
-            s3_bind_source="$s3_mount_dir"
-          else
-            systemctl stop codex-sdk-s3-mount.service 2>/dev/null || true
-            systemctl disable codex-sdk-s3-mount.service 2>/dev/null || true
-            if findmnt -M "$s3_mount_dir" >/dev/null 2>&1; then
-              umount "$s3_mount_dir"
-            fi
-            echo "S3_MOUNT_BUCKET is not set; binding empty local directory to /data/s3"
-          fi
-
-          docker run -d \
-            --name "$CONTAINER_NAME" \
-            --restart unless-stopped \
-            -p "$APP_PORT:8000" \
-            -e CODEX_CLI_MODEL="$CODEX_CLI_MODEL" \
-            -e CODEX_CLI_SANDBOX="$CODEX_CLI_SANDBOX" \
-            -e CODEX_CLI_APPROVAL="$CODEX_CLI_APPROVAL" \
-            -e CODEX_CLI_YOUTUBE_HTTP_PROXY="$CODEX_CLI_YOUTUBE_HTTP_PROXY" \
-            -e CODEX_CLI_YOUTUBE_HTTPS_PROXY="$CODEX_CLI_YOUTUBE_HTTPS_PROXY" \
-            -v "$state_root/codex-home:/home/codex/.codex" \
-            -v "$state_root/work:/work" \
-            --mount "type=bind,source=$s3_bind_source,target=/data/s3,readonly,bind-propagation=rslave" \
-            --entrypoint codex-api \
-            "$IMAGE_URI"
-
-          docker ps --filter "name=$CONTAINER_NAME"
-          health_ok=0
-          for attempt in $(seq 1 30); do
-            if curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health"; then
-              health_ok=1
-              break
-            fi
-            echo "Waiting for API health check, attempt ${attempt}/30"
-            sleep 2
-          done
-
-          if [ "$health_ok" -ne 1 ]; then
-            docker logs --tail 200 "$CONTAINER_NAME" 2>&1 || true
-            exit 1
-          fi
-
-          s3_status="$(curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health/s3")"
-          echo "$s3_status"
-          S3_STATUS="$s3_status" python3 - <<'PY'
-          import json
-          import os
-
-          status = json.loads(os.environ["S3_STATUS"])
-          expected_bucket = os.environ.get("S3_MOUNT_BUCKET", "")
-          if expected_bucket:
-              missing = [
-                  name for name in ("exists", "readable", "isMount") if not status.get(name)
-              ]
-              if missing:
-                  raise SystemExit(f"S3 bind mount check failed: {status}")
-              if status.get("s3Mounted"):
-                  print("S3 mount detected from container mountinfo.")
-              else:
-                  print(
-                      "S3 host mount is bound into the container; "
-                      f"container mountinfo reports {status.get('source')} "
-                      f"{status.get('filesystemType')}."
-                  )
-          if not expected_bucket:
-              print("S3 mount check recorded diagnostics; no bucket was configured.")
-          PY
-
-          if [ -n "$S3_MOUNT_BUCKET" ]; then
-            docker exec -i \
-              -e S3_MOUNT_TEST_FILE="$S3_MOUNT_TEST_FILE" \
-              "$CONTAINER_NAME" \
-              python - <<'PY'
-          import os
-          from pathlib import Path
-
-          root = Path("/data/s3")
-          if not root.exists() or not root.is_dir():
-              raise SystemExit("/data/s3 is not an accessible directory")
-
-          entries = sorted(path.name for path in root.iterdir())
-          print(f"Container /data/s3 entries: {entries[:20]}")
-
-          test_file = os.environ.get("S3_MOUNT_TEST_FILE", "").strip()
-          if test_file:
-              target = root / test_file
-              data = target.read_bytes()
-              print(f"Read S3 test file {target.as_posix()} ({len(data)} bytes)")
-          PY
-          fi
-          REMOTE_SCRIPT
-
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          script = Path("deploy.sh").read_text(encoding="utf-8")
-          command = "\n".join(
-              [
-                  f"export AWS_REGION={os.environ['AWS_REGION']!r}",
-                  f"export ECR_REGISTRY={os.environ['IMAGE_URI'].split('/')[0]!r}",
-                  f"export IMAGE_URI={os.environ['IMAGE_URI']!r}",
-                  f"export CONTAINER_NAME={os.environ['CONTAINER_NAME']!r}",
-                  f"export APP_PORT={os.environ['APP_PORT']!r}",
-                  f"export CODEX_CLI_MODEL={os.environ.get('CODEX_CLI_MODEL', '')!r}",
-                  f"export CODEX_CLI_SANDBOX={os.environ['CODEX_CLI_SANDBOX']!r}",
-                  f"export CODEX_CLI_APPROVAL={os.environ['CODEX_CLI_APPROVAL']!r}",
-                  f"export CODEX_CLI_YOUTUBE_HTTP_PROXY={os.environ.get('CODEX_CLI_YOUTUBE_HTTP_PROXY', '')!r}",
-                  f"export CODEX_CLI_YOUTUBE_HTTPS_PROXY={os.environ.get('CODEX_CLI_YOUTUBE_HTTPS_PROXY', '')!r}",
-                  f"export S3_MOUNT_BUCKET={os.environ.get('S3_MOUNT_BUCKET', '')!r}",
-                  f"export S3_MOUNT_PREFIX={os.environ.get('S3_MOUNT_PREFIX', '')!r}",
-                  f"export S3_MOUNT_TEST_FILE={os.environ.get('S3_MOUNT_TEST_FILE', '')!r}",
-                  "bash -s <<'REMOTE_SCRIPT'",
-                  script,
-                  "REMOTE_SCRIPT",
-              ]
-          )
-          Path("ssm-parameters.json").write_text(
-              json.dumps({"commands": [command], "executionTimeout": ["900"]}),
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Deploy through SSM
-        shell: bash
+      - name: Show home stack logs on failure
+        if: failure()
+        shell: powershell
         run: |
-          set -eu
-          command_id="$(aws ssm send-command \
-            --region "$AWS_REGION" \
-            --instance-ids "$EC2_INSTANCE_ID" \
-            --document-name AWS-RunShellScript \
-            --parameters file://ssm-parameters.json \
-            --query "Command.CommandId" \
-            --output text)"
-
-          set +e
-          aws ssm wait command-executed \
-            --region "$AWS_REGION" \
-            --command-id "$command_id" \
-            --instance-id "$EC2_INSTANCE_ID"
-          wait_status=$?
-          set -e
-
-          aws ssm get-command-invocation \
-            --region "$AWS_REGION" \
-            --command-id "$command_id" \
-            --instance-id "$EC2_INSTANCE_ID" \
-            --query "{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}" \
-            --output text
-
-          exit "$wait_status"
+          docker compose --project-name codex-sdk-home -f compose.home.yaml ps
+          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api nginx cloudflared

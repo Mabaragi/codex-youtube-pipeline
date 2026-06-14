@@ -146,8 +146,13 @@ curl -sS -X POST http://localhost:8000/codex/runs \
 
 ## GitHub Actions 자동 배포
 
+참고: 현재 `main` push 자동 배포 대상은 Windows home PC self-hosted runner다. AWS
+EC2 배포 workflow는 비활성화되었고, 이 문서는 Terraform/SSM 기반 AWS 배포를 다시
+사용하거나 참고할 때의 절차로 남긴다. 현재 운영 배포 절차는
+`docs/HOME_PC_DEPLOYMENT.md`를 본다.
+
 Terraform은 GitHub Actions가 AWS OIDC로 assume할 IAM role과 ECR repository를 만든다.
-`main` branch push에서 CI가 성공하면 workflow가 다음 순서로 배포한다.
+AWS EC2 자동 배포를 다시 켜는 경우 workflow가 다음 순서로 배포한다.
 
 1. Docker image를 빌드하고 ECR에 `sha-<commit>`과 `latest` tag로 push한다.
 2. SSM `AWS-RunShellScript`로 EC2에 배포 명령을 보낸다.

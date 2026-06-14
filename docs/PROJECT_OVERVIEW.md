@@ -89,6 +89,9 @@ Docker Compose로 REST API를 실행한다.
 docker compose up api
 ```
 
+Home PC 배포는 Windows self-hosted runner, Docker Compose, Nginx Basic Auth,
+Cloudflare Tunnel을 사용한다. 자세한 절차는 `docs/HOME_PC_DEPLOYMENT.md`를 본다.
+
 YouTube 자막 조회 API는 URL과 raw video ID를 모두 받는다.
 
 ```powershell

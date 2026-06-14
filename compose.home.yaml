@@ -1,0 +1,82 @@
+services:
+  api:
+    build:
+      context: .
+    image: codex-sdk-cli:home
+    restart: unless-stopped
+    entrypoint: ["codex-api"]
+    command: []
+    expose:
+      - "8000"
+    environment:
+      CODEX_CLI_MODEL: ${CODEX_CLI_MODEL:-}
+      CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
+      CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
+      CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
+      CODEX_CLI_YOUTUBE_HTTP_PROXY: ${CODEX_CLI_YOUTUBE_HTTP_PROXY:-}
+      CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${CODEX_CLI_YOUTUBE_HTTPS_PROXY:-}
+    volumes:
+      - codex-home:/home/codex/.codex
+      - type: bind
+        source: ${CODEX_CLI_WORKDIR:-.}
+        target: /work
+      - type: bind
+        source: ${CODEX_CLI_S3_DIR:-./.docker-empty-s3}
+        target: /data/s3
+        read_only: true
+
+  codex:
+    profiles: ["tools"]
+    build:
+      context: .
+    image: codex-sdk-cli:home
+    stdin_open: true
+    tty: true
+    working_dir: /work
+    environment:
+      CODEX_CLI_MODEL: ${CODEX_CLI_MODEL:-}
+      CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
+      CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
+      CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
+      CODEX_CLI_YOUTUBE_HTTP_PROXY: ${CODEX_CLI_YOUTUBE_HTTP_PROXY:-}
+      CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${CODEX_CLI_YOUTUBE_HTTPS_PROXY:-}
+    volumes:
+      - codex-home:/home/codex/.codex
+      - type: bind
+        source: ${CODEX_CLI_WORKDIR:-.}
+        target: /work
+      - type: bind
+        source: ${CODEX_CLI_S3_DIR:-./.docker-empty-s3}
+        target: /data/s3
+        read_only: true
+    command: ["--help"]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${HOME_NGINX_PORT:-18080}:80"
+    volumes:
+      - type: bind
+        source: ./deploy/nginx/home.conf
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+      - type: bind
+        source: ./.home-deploy/nginx.htpasswd
+        target: /etc/nginx/.htpasswd
+        read_only: true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN:-}
+
+volumes:
+  codex-home:
+

@@ -16,6 +16,7 @@ override.tf.json
 .ruff_cache/
 .venv/
 .docker-empty-s3/
+.home-deploy/
 __pycache__/
 *.py[cod]
 

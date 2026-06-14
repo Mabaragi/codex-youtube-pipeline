@@ -187,10 +187,10 @@ plain text, and the original timed caption segments. If YouTube blocks cloud
 provider traffic, configure `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
 `CODEX_CLI_YOUTUBE_HTTPS_PROXY` before starting the API.
 
-For GitHub Actions EC2 deploys, store proxy URLs as repository secrets named
-`CODEX_CLI_YOUTUBE_HTTP_PROXY` and `CODEX_CLI_YOUTUBE_HTTPS_PROXY`. Repository
-variables with the same names also work for non-sensitive proxy URLs, but
-authenticated proxy URLs should be secrets.
+When running from a cloud host, YouTube may still block the host IP. The home PC
+deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows
+self-hosted runner, Docker Nginx, and Cloudflare Tunnel so transcript requests
+egress through the PC's network.
 
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,
 application workflows live in use cases, and the actual Codex SDK adapter lives
@@ -208,18 +208,10 @@ ghcr.io/<owner>/<repo>:sha-<commit>
 ghcr.io/<owner>/<repo>:vX.Y.Z
 ```
 
-On `main` pushes, CI also deploys the FastAPI container to the Terraform-managed
-EC2 host through AWS OIDC, ECR, and SSM after quality gates pass. The default
-Terraform settings expose port `8000` publicly through the instance security
-group.
+On `main` pushes, CI deploys the API to a Windows self-hosted runner labeled
+`codex-home` when the runner and required secrets are available. The home stack
+uses Docker Compose, Nginx Basic Auth, and Cloudflare Tunnel. See
+`docs/HOME_PC_DEPLOYMENT.md`.
 
-Set the optional GitHub repository variable `S3_MOUNT_BUCKET` to mount that
-bucket on the EC2 host with Mountpoint for Amazon S3 and bind it into the API
-container at `/data/s3`. Set `S3_MOUNT_PREFIX` to restrict the mount to a
-bucket prefix. Set `S3_MOUNT_TEST_FILE` to a file path inside the mounted prefix
-when the deploy should prove that the container can read a known S3 object.
-The deploy job verifies the host mount source, calls `/health/s3`, and reads the
-optional test file from inside the container. Container mountinfo may report the
-bind-mounted filesystem rather than the host's Mountpoint source. On EC2, the
-Mountpoint process is managed by `codex-sdk-s3-mount.service` so the mount
-survives beyond the one-shot SSM deployment command.
+The older Terraform EC2 deployment remains documented in `docs/AWS_DEPLOYMENT.md`
+for manual AWS use, but `main` pushes no longer deploy to EC2.
