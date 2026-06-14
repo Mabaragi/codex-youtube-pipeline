@@ -156,6 +156,13 @@ jobs:
           mkdir -p "$state_root/codex-home" "$state_root/work" "$state_root/empty-s3" "$s3_mount_dir"
           chown -R 1000:1000 "$state_root/codex-home"
 
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+          docker pull "$IMAGE_URI"
+          docker stop "$CONTAINER_NAME" 2>/dev/null || true
+          docker rm "$CONTAINER_NAME" 2>/dev/null || true
+
           s3_bind_source="$state_root/empty-s3"
           if [ -n "$S3_MOUNT_BUCKET" ]; then
             echo "Mounting S3 bucket ${S3_MOUNT_BUCKET} for /data/s3"
@@ -167,15 +174,56 @@ jobs:
               }
             fi
 
-            if findmnt -M "$s3_mount_dir" >/dev/null 2>&1; then
-              umount "$s3_mount_dir"
-            fi
+            cat > /usr/local/bin/codex-sdk-s3-mount <<'MOUNT_SCRIPT'
+          #!/usr/bin/env bash
+          set -eu
 
-            if [ -n "$S3_MOUNT_PREFIX" ]; then
-              mount-s3 --read-only --allow-other --prefix "$S3_MOUNT_PREFIX" "$S3_MOUNT_BUCKET" "$s3_mount_dir"
-            else
-              mount-s3 --read-only --allow-other "$S3_MOUNT_BUCKET" "$s3_mount_dir"
-            fi
+          args=(--foreground --read-only --allow-other --region "$AWS_REGION")
+          if [ -n "${S3_MOUNT_PREFIX:-}" ]; then
+            args+=(--prefix "$S3_MOUNT_PREFIX")
+          fi
+
+          exec mount-s3 "${args[@]}" "$S3_MOUNT_BUCKET" "$S3_MOUNT_DIR"
+          MOUNT_SCRIPT
+            chmod 0755 /usr/local/bin/codex-sdk-s3-mount
+
+            cat > /etc/codex-sdk-cli-s3-mount.env <<EOF
+          AWS_REGION=$AWS_REGION
+          S3_MOUNT_BUCKET=$S3_MOUNT_BUCKET
+          S3_MOUNT_PREFIX=$S3_MOUNT_PREFIX
+          S3_MOUNT_DIR=$s3_mount_dir
+          EOF
+
+            cat > /etc/systemd/system/codex-sdk-s3-mount.service <<'UNIT'
+          [Unit]
+          Description=Codex SDK S3 Mountpoint
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          EnvironmentFile=/etc/codex-sdk-cli-s3-mount.env
+          ExecStart=/usr/local/bin/codex-sdk-s3-mount
+          ExecStop=/bin/umount /opt/codex-sdk-cli/docker/s3
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+            systemctl daemon-reload
+            systemctl enable codex-sdk-s3-mount.service
+            systemctl restart codex-sdk-s3-mount.service
+
+            for attempt in $(seq 1 10); do
+              if findmnt -M "$s3_mount_dir" >/dev/null 2>&1; then
+                break
+              fi
+              echo "Waiting for S3 mount service, attempt ${attempt}/10"
+              sleep 1
+            done
+
             s3_host_mount="$(findmnt -n -M "$s3_mount_dir" -o SOURCE,FSTYPE)"
             echo "Host S3 mount: $s3_host_mount"
             case "$s3_host_mount" in
@@ -185,17 +233,16 @@ jobs:
                 exit 1
                 ;;
             esac
+            ls -la "$s3_mount_dir"
             s3_bind_source="$s3_mount_dir"
           else
+            systemctl stop codex-sdk-s3-mount.service 2>/dev/null || true
+            systemctl disable codex-sdk-s3-mount.service 2>/dev/null || true
+            if findmnt -M "$s3_mount_dir" >/dev/null 2>&1; then
+              umount "$s3_mount_dir"
+            fi
             echo "S3_MOUNT_BUCKET is not set; binding empty local directory to /data/s3"
           fi
-
-          aws ecr get-login-password --region "$AWS_REGION" \
-            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-          docker pull "$IMAGE_URI"
-          docker stop "$CONTAINER_NAME" 2>/dev/null || true
-          docker rm "$CONTAINER_NAME" 2>/dev/null || true
 
           docker run -d \
             --name "$CONTAINER_NAME" \
@@ -206,7 +253,7 @@ jobs:
             -e CODEX_CLI_APPROVAL="$CODEX_CLI_APPROVAL" \
             -v "$state_root/codex-home:/home/codex/.codex" \
             -v "$state_root/work:/work" \
-            -v "$s3_bind_source:/data/s3:ro" \
+            --mount "type=bind,source=$s3_bind_source,target=/data/s3,readonly,bind-propagation=rslave" \
             --entrypoint codex-api \
             "$IMAGE_URI"
 

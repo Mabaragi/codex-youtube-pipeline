@@ -198,4 +198,6 @@ bucket prefix. Set `S3_MOUNT_TEST_FILE` to a file path inside the mounted prefix
 when the deploy should prove that the container can read a known S3 object.
 The deploy job verifies the host mount source, calls `/health/s3`, and reads the
 optional test file from inside the container. Container mountinfo may report the
-bind-mounted filesystem rather than the host's Mountpoint source.
+bind-mounted filesystem rather than the host's Mountpoint source. On EC2, the
+Mountpoint process is managed by `codex-sdk-s3-mount.service` so the mount
+survives beyond the one-shot SSM deployment command.
