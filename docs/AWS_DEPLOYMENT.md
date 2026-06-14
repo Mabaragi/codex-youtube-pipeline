@@ -173,13 +173,17 @@ S3 Mountpoint를 API 컨테이너의 `/data/s3`로 연결하려면 다음 reposi
 ```text
 S3_MOUNT_BUCKET
 S3_MOUNT_PREFIX
+S3_MOUNT_TEST_FILE
 ```
 
 `S3_MOUNT_BUCKET`이 설정되면 deploy job은 EC2 host에서 Mountpoint for Amazon S3로
 bucket을 read-only mount하고 컨테이너에 bind mount한다. `S3_MOUNT_PREFIX`는 선택
-값이다. 컨테이너 시작 후 deploy job은 `/health/s3`를 호출하고, bucket이 설정됐는데
-`s3Mounted`가 `true`가 아니면 배포를 실패시킨다. 현재 bucket 변수가 없으면
-`/data/s3`에는 빈 로컬 디렉터리가 연결되고 `/health/s3` 진단만 출력한다.
+값이다. 컨테이너 시작 후 deploy job은 EC2 host의 `findmnt` 결과, `/health/s3`,
+그리고 선택적인 `S3_MOUNT_TEST_FILE` 읽기를 함께 확인한다. Docker bind mount
+때문에 컨테이너 mountinfo는 host의 Mountpoint source 대신 host disk filesystem으로
+보일 수 있으므로 host `findmnt`를 S3 mount의 기준 신호로 사용한다. 현재 bucket
+변수가 없으면 `/data/s3`에는 빈 로컬 디렉터리가 연결되고 `/health/s3` 진단만
+출력한다.
 
 EC2 instance role에는 대상 bucket에 대한 `s3:ListBucket`과 object에 대한
 `s3:GetObject` 권한이 필요하다. Terraform module은 `read_only_s3_bucket_arns`로

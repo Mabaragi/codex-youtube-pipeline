@@ -79,6 +79,7 @@ jobs:
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
       S3_MOUNT_BUCKET: ${{ vars.S3_MOUNT_BUCKET }}
       S3_MOUNT_PREFIX: ${{ vars.S3_MOUNT_PREFIX }}
+      S3_MOUNT_TEST_FILE: ${{ vars.S3_MOUNT_TEST_FILE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,7 +176,15 @@ jobs:
             else
               mount-s3 --read-only --allow-other "$S3_MOUNT_BUCKET" "$s3_mount_dir"
             fi
-            findmnt -M "$s3_mount_dir"
+            s3_host_mount="$(findmnt -n -M "$s3_mount_dir" -o SOURCE,FSTYPE)"
+            echo "Host S3 mount: $s3_host_mount"
+            case "$s3_host_mount" in
+              *mountpoint-s3*|*mount-s3*) ;;
+              *)
+                echo "Mounted path is not Mountpoint for Amazon S3: $s3_host_mount" >&2
+                exit 1
+                ;;
+            esac
             s3_bind_source="$s3_mount_dir"
           else
             echo "S3_MOUNT_BUCKET is not set; binding empty local directory to /data/s3"
@@ -225,11 +234,46 @@ jobs:
 
           status = json.loads(os.environ["S3_STATUS"])
           expected_bucket = os.environ.get("S3_MOUNT_BUCKET", "")
-          if expected_bucket and not status.get("s3Mounted"):
-              raise SystemExit(f"S3 mount check failed: {status}")
+          if expected_bucket:
+              missing = [
+                  name for name in ("exists", "readable", "isMount") if not status.get(name)
+              ]
+              if missing:
+                  raise SystemExit(f"S3 bind mount check failed: {status}")
+              if status.get("s3Mounted"):
+                  print("S3 mount detected from container mountinfo.")
+              else:
+                  print(
+                      "S3 host mount is bound into the container; "
+                      f"container mountinfo reports {status.get('source')} "
+                      f"{status.get('filesystemType')}."
+                  )
           if not expected_bucket:
               print("S3 mount check recorded diagnostics; no bucket was configured.")
           PY
+
+          if [ -n "$S3_MOUNT_BUCKET" ]; then
+            docker exec \
+              -e S3_MOUNT_TEST_FILE="$S3_MOUNT_TEST_FILE" \
+              "$CONTAINER_NAME" \
+              python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path("/data/s3")
+          if not root.exists() or not root.is_dir():
+              raise SystemExit("/data/s3 is not an accessible directory")
+
+          entries = sorted(path.name for path in root.iterdir())
+          print(f"Container /data/s3 entries: {entries[:20]}")
+
+          test_file = os.environ.get("S3_MOUNT_TEST_FILE", "").strip()
+          if test_file:
+              target = root / test_file
+              data = target.read_bytes()
+              print(f"Read S3 test file {target.as_posix()} ({len(data)} bytes)")
+          PY
+          fi
           REMOTE_SCRIPT
 
           python - <<'PY'
@@ -250,6 +294,7 @@ jobs:
                   f"export CODEX_CLI_APPROVAL={os.environ['CODEX_CLI_APPROVAL']!r}",
                   f"export S3_MOUNT_BUCKET={os.environ.get('S3_MOUNT_BUCKET', '')!r}",
                   f"export S3_MOUNT_PREFIX={os.environ.get('S3_MOUNT_PREFIX', '')!r}",
+                  f"export S3_MOUNT_TEST_FILE={os.environ.get('S3_MOUNT_TEST_FILE', '')!r}",
                   "bash -s <<'REMOTE_SCRIPT'",
                   script,
                   "REMOTE_SCRIPT",

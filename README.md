@@ -194,5 +194,8 @@ group.
 Set the optional GitHub repository variable `S3_MOUNT_BUCKET` to mount that
 bucket on the EC2 host with Mountpoint for Amazon S3 and bind it into the API
 container at `/data/s3`. Set `S3_MOUNT_PREFIX` to restrict the mount to a
-bucket prefix. The deploy job calls `/health/s3` and fails when a bucket is
-configured but the container does not report a `mount-s3` filesystem.
+bucket prefix. Set `S3_MOUNT_TEST_FILE` to a file path inside the mounted prefix
+when the deploy should prove that the container can read a known S3 object.
+The deploy job verifies the host mount source, calls `/health/s3`, and reads the
+optional test file from inside the container. Container mountinfo may report the
+bind-mounted filesystem rather than the host's Mountpoint source.
