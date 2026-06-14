@@ -73,10 +73,7 @@ services:
     restart: unless-stopped
     depends_on:
       - nginx
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN:-}
+    command: tunnel --no-autoupdate --url http://nginx:80
 
 volumes:
   codex-home:
-

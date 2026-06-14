@@ -10,7 +10,7 @@ GitHub main push or workflow_dispatch
   -> GitHub-hosted quality and Docker checks
   -> Windows self-hosted runner on the home PC
   -> Docker Compose home stack
-  -> cloudflared tunnel
+  -> cloudflared quick tunnel
   -> nginx Basic Auth
   -> codex-api
 ```
@@ -20,7 +20,8 @@ The home stack is defined in `compose.home.yaml`.
 - `api`: runs `codex-api` and exposes port `8000` only inside Docker.
 - `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
-- `cloudflared`: connects a remotely managed Cloudflare Tunnel to `nginx:80`.
+- `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to
+  `nginx:80`.
 - `codex`: utility service for one-time `codex-demo login device`.
 
 ## One-Time Windows PC Setup
@@ -54,26 +55,17 @@ The workflow uses a GitHub-hosted preflight job to verify required secrets. If
 the runner is offline, the home deployment job will wait until the runner comes
 back online.
 
-## Cloudflare Tunnel Setup
+## Cloudflare Quick Tunnel Setup
 
-Create the tunnel from scratch:
+The home stack uses Cloudflare's quick tunnel mode. It does not require a
+Cloudflare account, domain, DNS record, or tunnel token. Each `cloudflared`
+restart can produce a new `https://*.trycloudflare.com` URL, so the deploy job
+extracts the latest URL from container logs and writes it to both the GitHub
+Actions summary and `.home-deploy/latest-tunnel-url.txt` on the runner.
 
-1. Create or log into a Cloudflare account.
-2. Add the domain you want to use and point its nameservers to Cloudflare.
-3. Open `Zero Trust > Networks > Tunnels`.
-4. Create a tunnel and choose Docker as the connector environment.
-5. Copy the tunnel token.
-6. Add a public hostname such as `api.example.com`.
-7. Set the service URL for that hostname to:
-
-```text
-http://nginx:80
-```
-
-Store the tunnel token and Basic Auth credentials as GitHub repository secrets:
+Store only the Basic Auth credentials as GitHub repository secrets:
 
 ```powershell
-gh secret set CLOUDFLARED_TUNNEL_TOKEN -R Mabaragi/codex-sdk
 gh secret set HOME_BASIC_AUTH_USER -R Mabaragi/codex-sdk
 gh secret set HOME_BASIC_AUTH_PASSWORD -R Mabaragi/codex-sdk
 ```
@@ -110,11 +102,18 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Basic $encoded" }
 ```
 
-After Cloudflare DNS and tunnel routing are active, test the public hostname:
+Read the latest quick tunnel URL on the home PC:
 
 ```powershell
+Get-Content .home-deploy/latest-tunnel-url.txt
+```
+
+Test the public quick tunnel URL:
+
+```powershell
+$url = Get-Content .home-deploy/latest-tunnel-url.txt
 Invoke-RestMethod `
-  -Uri https://api.example.com/health `
+  -Uri "$url/health" `
   -Headers @{ Authorization = "Basic $encoded" }
 ```
 

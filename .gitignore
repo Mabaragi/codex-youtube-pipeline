@@ -17,6 +17,7 @@ override.tf.json
 .venv/
 .docker-empty-s3/
 .home-deploy/
+.wrangler/
 __pycache__/
 *.py[cod]
 

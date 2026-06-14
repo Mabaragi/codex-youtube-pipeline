@@ -75,14 +75,13 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CLOUDFLARED_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TUNNEL_TOKEN }}
           HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
           HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
         run: |
           set -eu
 
           missing=()
-          required=(CLOUDFLARED_TUNNEL_TOKEN HOME_BASIC_AUTH_USER HOME_BASIC_AUTH_PASSWORD)
+          required=(HOME_BASIC_AUTH_USER HOME_BASIC_AUTH_PASSWORD)
           for name in "${required[@]}"; do
             if [[ -z "${!name}" ]]; then
               missing+=("${name}")
@@ -110,7 +109,6 @@ jobs:
     if: needs.home_deploy_preflight.outputs.deploy_ready == 'true'
     timeout-minutes: 30
     env:
-      CLOUDFLARED_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARED_TUNNEL_TOKEN }}
       HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
       HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
       HOME_NGINX_PORT: ${{ vars.HOME_NGINX_PORT || '18080' }}
@@ -166,6 +164,66 @@ jobs:
           $headers = @{ Authorization = "Basic $encoded" }
           $uri = "http://127.0.0.1:$env:HOME_NGINX_PORT/health"
           Invoke-RestMethod -Uri $uri -Headers $headers
+
+      - name: Capture Cloudflare quick tunnel URL
+        id: quick_tunnel
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $urlPath = ".home-deploy/latest-tunnel-url.txt"
+          if (Test-Path -LiteralPath $urlPath) {
+            Remove-Item -LiteralPath $urlPath -Force
+          }
+
+          $url = $null
+          $deadline = (Get-Date).AddSeconds(90)
+          while ((Get-Date) -lt $deadline) {
+            $logs = docker compose --project-name codex-sdk-home -f compose.home.yaml logs --no-color cloudflared 2>$null
+            $match = [regex]::Match($logs, "https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+            if ($match.Success) {
+              $url = $match.Value
+              break
+            }
+            Start-Sleep -Seconds 3
+          }
+
+          if (-not $url) {
+            docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 cloudflared
+            throw "Cloudflare quick tunnel URL was not found in cloudflared logs."
+          }
+
+          $url | Set-Content -Encoding ascii $urlPath
+          "url=$url" >> $env:GITHUB_OUTPUT
+          "### Home quick tunnel" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "Public URL: $url" >> $env:GITHUB_STEP_SUMMARY
+          "Latest URL file on runner: $urlPath" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Verify public quick tunnel health through Basic Auth
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "${{ steps.quick_tunnel.outputs.url }}"
+          $pair = "{0}:{1}" -f $env:HOME_BASIC_AUTH_USER, $env:HOME_BASIC_AUTH_PASSWORD
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair))
+          $headers = @{ Authorization = "Basic $encoded" }
+          $deadline = (Get-Date).AddSeconds(90)
+          $lastError = $null
+
+          while ((Get-Date) -lt $deadline) {
+            try {
+              Invoke-RestMethod -Uri "$url/health" -Headers $headers -TimeoutSec 15
+              exit 0
+            } catch {
+              $lastError = $_
+              Start-Sleep -Seconds 5
+            }
+          }
+
+          if ($lastError) {
+            throw $lastError
+          }
+          throw "Public quick tunnel health check timed out."
 
       - name: Show home stack logs on failure
         if: failure()

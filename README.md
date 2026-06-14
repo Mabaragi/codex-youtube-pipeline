@@ -189,8 +189,8 @@ provider traffic, configure `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
 
 When running from a cloud host, YouTube may still block the host IP. The home PC
 deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows
-self-hosted runner, Docker Nginx, and Cloudflare Tunnel so transcript requests
-egress through the PC's network.
+self-hosted runner, Docker Nginx, and an ephemeral Cloudflare quick tunnel so
+transcript requests egress through the PC's network.
 
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,
 application workflows live in use cases, and the actual Codex SDK adapter lives
@@ -209,8 +209,8 @@ ghcr.io/<owner>/<repo>:vX.Y.Z
 ```
 
 On `main` pushes, CI deploys the API to a Windows self-hosted runner labeled
-`codex-home` when the runner and required secrets are available. The home stack
-uses Docker Compose, Nginx Basic Auth, and Cloudflare Tunnel. See
+`codex-home` when the runner and Basic Auth secrets are available. The home stack
+uses Docker Compose, Nginx Basic Auth, and Cloudflare quick tunnel. See
 `docs/HOME_PC_DEPLOYMENT.md`.
 
 The older Terraform EC2 deployment remains documented in `docs/AWS_DEPLOYMENT.md`
