@@ -3,6 +3,9 @@
 This guide runs the FastAPI API from a Windows PC so YouTube transcript requests
 use the PC's residential network instead of a cloud provider IP.
 
+For the full GitHub Actions CI/CD topology, including Mermaid diagrams and
+failure handling, see `docs/CICD.md`.
+
 ## Architecture
 
 ```text

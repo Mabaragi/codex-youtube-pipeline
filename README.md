@@ -211,7 +211,8 @@ ghcr.io/<owner>/<repo>:vX.Y.Z
 On `main` pushes, CI deploys the API to a Windows self-hosted runner labeled
 `codex-home` when the runner and Basic Auth secrets are available. The home stack
 uses Docker Compose, Nginx Basic Auth, and Cloudflare quick tunnel. See
-`docs/HOME_PC_DEPLOYMENT.md`.
+`docs/CICD.md` for the full CI/CD topology and `docs/HOME_PC_DEPLOYMENT.md` for
+Home PC operations.
 
 The older Terraform EC2 deployment remains documented in `docs/AWS_DEPLOYMENT.md`
 for manual AWS use, but `main` pushes no longer deploy to EC2.
