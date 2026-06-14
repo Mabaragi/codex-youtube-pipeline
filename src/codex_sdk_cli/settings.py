@@ -19,10 +19,19 @@ class CliSettings(BaseSettings):
     approval: ApprovalChoice = "auto-review"
     codex_bin: Path | None = None
     api_key: SecretStr | None = None
+    youtube_http_proxy: str | None = None
+    youtube_https_proxy: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="CODEX_CLI_", extra="ignore")
 
-    @field_validator("model", "codex_bin", "api_key", mode="before")
+    @field_validator(
+        "model",
+        "codex_bin",
+        "api_key",
+        "youtube_http_proxy",
+        "youtube_https_proxy",
+        mode="before",
+    )
     @classmethod
     def _blank_string_to_none(cls, value: object) -> object | None:
         if isinstance(value, str) and not value.strip():

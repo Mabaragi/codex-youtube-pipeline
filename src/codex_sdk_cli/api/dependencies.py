@@ -6,7 +6,9 @@ from typing import Annotated
 from fastapi import Depends
 
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
+from codex_sdk_cli.domains.youtube.ports import YouTubeTranscriptPort
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
+from codex_sdk_cli.infra.youtube.client import YouTubeTranscriptClient
 from codex_sdk_cli.settings import CliSettings
 
 
@@ -21,5 +23,15 @@ async def get_codex_runtime(
     return CodexRuntimeClient(settings)
 
 
+async def get_youtube_transcript_client(
+    settings: Annotated[CliSettings, Depends(get_settings)],
+) -> YouTubeTranscriptPort:
+    return YouTubeTranscriptClient.from_settings(settings)
+
+
 SettingsDep = Annotated[CliSettings, Depends(get_settings)]
 CodexRuntimeDep = Annotated[CodexRuntimePort, Depends(get_codex_runtime)]
+YouTubeTranscriptClientDep = Annotated[
+    YouTubeTranscriptPort,
+    Depends(get_youtube_transcript_client),
+]

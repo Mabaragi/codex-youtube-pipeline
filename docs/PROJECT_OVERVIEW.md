@@ -27,6 +27,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
+- `POST /youtube/transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회한다.
 - `GET /health`: API health check.
 
 ## 실행 예시
@@ -88,13 +89,25 @@ Docker Compose로 REST API를 실행한다.
 docker compose up api
 ```
 
+YouTube 자막 조회 API는 URL과 raw video ID를 모두 받는다.
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8000/youtube/transcripts `
+  -ContentType "application/json" `
+  -Body '{"video":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","languages":["ko","en"],"preserveFormatting":false}'
+```
+
 ## 코드 구조
 
 ```text
 src/codex_sdk_cli/
 ├── api/             # FastAPI app, dependency composition, exception handlers
 ├── domains/codex/   # Codex domain router, schemas, use cases, ports
+├── domains/youtube/ # YouTube transcript API router, schemas, use cases, ports
 ├── infra/codex/     # 실제 Codex SDK client adapter
+├── infra/youtube/   # youtube-transcript-api adapter
 ├── cli.py           # Click command 정의와 사용자 출력
 ├── runner.py        # Codex SDK 호출 helper와 adapter
 ├── settings.py      # CODEX_CLI_ 환경변수 설정
@@ -121,7 +134,7 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다.
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube transcript use case도 `YouTubeTranscriptPort` Protocol에 의존하며, 실제 captions 조회는 `infra/youtube/client.py`가 `youtube-transcript-api`를 통해 처리한다.
 
 ## 설정
 
@@ -132,6 +145,8 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_APPROVAL`: `auto-review`, `deny-all`.
 - `CODEX_CLI_CODEX_BIN`: 특정 local Codex binary를 강제로 사용할 때 지정.
 - `CODEX_CLI_API_KEY`: `login api-key`의 기본 API key.
+- `CODEX_CLI_YOUTUBE_HTTP_PROXY`: YouTube transcript 요청에 사용할 HTTP proxy.
+- `CODEX_CLI_YOUTUBE_HTTPS_PROXY`: YouTube transcript 요청에 사용할 HTTPS proxy.
 
 ## 중요한 구현 선택
 

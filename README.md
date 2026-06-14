@@ -75,6 +75,8 @@ Environment variables use the `CODEX_CLI_` prefix:
 - `CODEX_CLI_APPROVAL` (`auto-review`, `deny-all`)
 - `CODEX_CLI_CODEX_BIN`
 - `CODEX_CLI_API_KEY`
+- `CODEX_CLI_YOUTUBE_HTTP_PROXY`
+- `CODEX_CLI_YOUTUBE_HTTPS_PROXY`
 
 ## Checks
 
@@ -169,6 +171,21 @@ Invoke-RestMethod `
   -ContentType "application/json" `
   -Body '{"prompt":"Describe /work in one sentence.","baseInstructions":"You are concise.","developerInstructions":"Answer in Korean."}'
 ```
+
+Fetch YouTube captions by URL or video ID:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8000/youtube/transcripts `
+  -ContentType "application/json" `
+  -Body '{"video":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","languages":["ko","en"],"preserveFormatting":false}'
+```
+
+The YouTube endpoint returns the selected transcript metadata, newline-joined
+plain text, and the original timed caption segments. If YouTube blocks cloud
+provider traffic, configure `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
+`CODEX_CLI_YOUTUBE_HTTPS_PROXY` before starting the API.
 
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,
 application workflows live in use cases, and the actual Codex SDK adapter lives
