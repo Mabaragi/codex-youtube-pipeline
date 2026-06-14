@@ -20,6 +20,22 @@ def test_find_mount_entry_detects_mount_s3_target() -> None:
     assert _is_s3_mount(entry) is True
 
 
+def test_find_mount_entry_detects_mountpoint_s3_target() -> None:
+    mountinfo = (
+        "31 23 0:29 / / rw,relatime - overlay overlay rw\n"
+        "77 31 0:99 / /data/s3 rw,nosuid,nodev,relatime - "
+        "fuse mountpoint-s3 ro,user_id=0,group_id=0,allow_other\n"
+    )
+
+    entry = _find_mount_entry(Path("/data/s3"), mountinfo)
+
+    assert entry is not None
+    assert entry.mount_point == "/data/s3"
+    assert entry.filesystem_type == "fuse"
+    assert entry.source == "mountpoint-s3"
+    assert _is_s3_mount(entry) is True
+
+
 def test_find_mount_entry_uses_deepest_parent_mount() -> None:
     mountinfo = (
         "31 23 0:29 / / rw,relatime - overlay overlay rw\n"

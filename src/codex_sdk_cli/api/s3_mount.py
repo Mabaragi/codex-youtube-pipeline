@@ -110,7 +110,7 @@ def _decode_mountinfo_path(value: str) -> str:
 
 def _is_s3_mount(entry: MountEntry) -> bool:
     haystack = f"{entry.filesystem_type} {entry.source}".lower()
-    return "mount-s3" in haystack
+    return "mount-s3" in haystack or "mountpoint-s3" in haystack
 
 
 def _can_read_directory(path: Path) -> bool:
