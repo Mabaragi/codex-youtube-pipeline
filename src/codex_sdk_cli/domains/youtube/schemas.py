@@ -17,6 +17,14 @@ class TranscriptSegmentResponse(BaseModel):
     duration: float
 
 
+class TranscriptStorageResponse(BaseModel):
+    bucket: str
+    object_name: str = Field(alias="objectName")
+    uri: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class TranscriptResponse(BaseModel):
     video_id: str = Field(alias="videoId")
     language: str
@@ -24,6 +32,6 @@ class TranscriptResponse(BaseModel):
     is_generated: bool = Field(alias="isGenerated")
     text: str
     segments: list[TranscriptSegmentResponse]
+    storage: TranscriptStorageResponse
 
     model_config = ConfigDict(populate_by_name=True)
-

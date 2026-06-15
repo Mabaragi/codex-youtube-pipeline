@@ -27,7 +27,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
-- `POST /youtube/transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회한다.
+- `POST /youtube/transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회하고 응답 JSON을 MinIO에 저장한다.
 - `GET /health`: API health check.
 
 ## 실행 예시
@@ -113,7 +113,7 @@ src/codex_sdk_cli/
 ├── domains/codex/   # Codex domain router, schemas, use cases, ports
 ├── domains/youtube/ # YouTube transcript API router, schemas, use cases, ports
 ├── infra/codex/     # 실제 Codex SDK client adapter
-├── infra/youtube/   # youtube-transcript-api adapter
+├── infra/youtube/   # youtube-transcript-api adapter, MinIO transcript storage
 ├── cli.py           # Click command 정의와 사용자 출력
 ├── runner.py        # Codex SDK 호출 helper와 adapter
 ├── settings.py      # CODEX_CLI_ 환경변수 설정
@@ -140,7 +140,7 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube transcript use case도 `YouTubeTranscriptPort` Protocol에 의존하며, 실제 captions 조회는 `infra/youtube/client.py`가 `youtube-transcript-api`를 통해 처리한다.
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube transcript use case도 `YouTubeTranscriptPort`와 `YouTubeTranscriptStoragePort` Protocol에 의존하며, 실제 captions 조회는 `infra/youtube/client.py`가 `youtube-transcript-api`를 통해 처리하고 응답 JSON 저장은 `infra/youtube/storage.py`가 MinIO에 기록한다.
 
 ## 설정
 
@@ -153,6 +153,12 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_API_KEY`: `login api-key`의 기본 API key.
 - `CODEX_CLI_YOUTUBE_HTTP_PROXY`: YouTube transcript 요청에 사용할 HTTP proxy.
 - `CODEX_CLI_YOUTUBE_HTTPS_PROXY`: YouTube transcript 요청에 사용할 HTTPS proxy.
+- `CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT`: transcript JSON을 저장할 MinIO endpoint.
+- `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`: MinIO access key.
+- `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY`: MinIO secret key.
+- `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`: transcript JSON bucket.
+- `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX`: object key prefix. 기본값은 `youtube/transcripts`.
+- `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: MinIO HTTPS 사용 여부. 기본값은 `false`.
 
 ## 중요한 구현 선택
 

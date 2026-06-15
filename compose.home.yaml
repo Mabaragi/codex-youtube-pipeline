@@ -15,6 +15,14 @@ services:
       CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
       CODEX_CLI_YOUTUBE_HTTP_PROXY: ${CODEX_CLI_YOUTUBE_HTTP_PROXY:-}
       CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${CODEX_CLI_YOUTUBE_HTTPS_PROXY:-}
+      CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT: ${CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT:-minio:9000}
+      CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY: ${CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY:-codex}
+      CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY: ${CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY:-codex-transcript-dev-password}
+      CODEX_CLI_TRANSCRIPT_MINIO_BUCKET: ${CODEX_CLI_TRANSCRIPT_MINIO_BUCKET:-raw}
+      CODEX_CLI_TRANSCRIPT_MINIO_PREFIX: ${CODEX_CLI_TRANSCRIPT_MINIO_PREFIX:-youtube/transcripts}
+      CODEX_CLI_TRANSCRIPT_MINIO_SECURE: ${CODEX_CLI_TRANSCRIPT_MINIO_SECURE:-false}
+    depends_on:
+      - minio
     volumes:
       - codex-home:/home/codex/.codex
       - type: bind
@@ -40,6 +48,12 @@ services:
       CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
       CODEX_CLI_YOUTUBE_HTTP_PROXY: ${CODEX_CLI_YOUTUBE_HTTP_PROXY:-}
       CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${CODEX_CLI_YOUTUBE_HTTPS_PROXY:-}
+      CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT: ${CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT:-minio:9000}
+      CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY: ${CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY:-codex}
+      CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY: ${CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY:-codex-transcript-dev-password}
+      CODEX_CLI_TRANSCRIPT_MINIO_BUCKET: ${CODEX_CLI_TRANSCRIPT_MINIO_BUCKET:-raw}
+      CODEX_CLI_TRANSCRIPT_MINIO_PREFIX: ${CODEX_CLI_TRANSCRIPT_MINIO_PREFIX:-youtube/transcripts}
+      CODEX_CLI_TRANSCRIPT_MINIO_SECURE: ${CODEX_CLI_TRANSCRIPT_MINIO_SECURE:-false}
     volumes:
       - codex-home:/home/codex/.codex
       - type: bind
@@ -75,5 +89,16 @@ services:
       - nginx
     command: tunnel --no-autoupdate --url http://nginx:80
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY:-codex}
+      MINIO_ROOT_PASSWORD: ${CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY:-codex-transcript-dev-password}
+    volumes:
+      - minio-data:/data
+
 volumes:
   codex-home:
+  minio-data:

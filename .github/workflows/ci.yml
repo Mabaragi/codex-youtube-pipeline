@@ -125,6 +125,12 @@ jobs:
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
       CODEX_CLI_YOUTUBE_HTTP_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTP_PROXY || vars.CODEX_CLI_YOUTUBE_HTTP_PROXY }}
       CODEX_CLI_YOUTUBE_HTTPS_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTPS_PROXY || vars.CODEX_CLI_YOUTUBE_HTTPS_PROXY }}
+      CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT: ${{ vars.CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT }}
+      CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY: ${{ secrets.CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY || vars.CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY }}
+      CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY: ${{ secrets.CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY || vars.CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY }}
+      CODEX_CLI_TRANSCRIPT_MINIO_BUCKET: ${{ vars.CODEX_CLI_TRANSCRIPT_MINIO_BUCKET }}
+      CODEX_CLI_TRANSCRIPT_MINIO_PREFIX: ${{ vars.CODEX_CLI_TRANSCRIPT_MINIO_PREFIX }}
+      CODEX_CLI_TRANSCRIPT_MINIO_SECURE: ${{ vars.CODEX_CLI_TRANSCRIPT_MINIO_SECURE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -160,7 +166,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build api nginx cloudflared
+          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build api nginx cloudflared minio
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 
       - name: Verify local Nginx health through Basic Auth
@@ -238,4 +244,4 @@ jobs:
         shell: powershell
         run: |
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api nginx cloudflared
+          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api nginx cloudflared minio

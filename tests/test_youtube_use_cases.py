@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from datetime import date
 
 import pytest
 
 from codex_sdk_cli.domains.youtube.exceptions import InvalidYouTubeVideo
 from codex_sdk_cli.domains.youtube.ports import (
+    TranscriptStorageLocation,
     YouTubeTranscriptFetchRequest,
     YouTubeTranscriptFetchResult,
     YouTubeTranscriptPort,
     YouTubeTranscriptSegment,
+    YouTubeTranscriptStoragePort,
+    YouTubeTranscriptStorageSaveRequest,
 )
 from codex_sdk_cli.domains.youtube.schemas import TranscriptRequest
 from codex_sdk_cli.domains.youtube.use_cases import (
     FetchYouTubeTranscriptUseCase,
+    build_transcript_object_name,
     normalize_video_id,
 )
 
@@ -39,6 +45,25 @@ class FakeYouTubeTranscriptClient(YouTubeTranscriptPort):
                 YouTubeTranscriptSegment(text="world", start=1.0, duration=1.0),
             ),
         )
+
+
+class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
+    def __init__(self) -> None:
+        self.saves: list[YouTubeTranscriptStorageSaveRequest] = []
+
+    def location_for(self, object_name: str) -> TranscriptStorageLocation:
+        return TranscriptStorageLocation(
+            bucket="raw",
+            object_name=object_name,
+            uri=f"s3://raw/{object_name}",
+        )
+
+    async def save_transcript(
+        self,
+        request: YouTubeTranscriptStorageSaveRequest,
+    ) -> TranscriptStorageLocation:
+        self.saves.append(request)
+        return self.location_for(request.object_name)
 
 
 @pytest.mark.parametrize(
@@ -73,7 +98,13 @@ def test_normalize_video_id_rejects_invalid_inputs(video: str) -> None:
 
 def test_fetch_transcript_use_case_uses_fake_client_without_network() -> None:
     fake = FakeYouTubeTranscriptClient()
-    use_case = FetchYouTubeTranscriptUseCase(fake)
+    storage = FakeYouTubeTranscriptStorage()
+    use_case = FetchYouTubeTranscriptUseCase(
+        fake,
+        storage,
+        storage_prefix="youtube/transcripts",
+        date_provider=lambda: date(2026, 6, 15),
+    )
 
     response = asyncio.run(
         use_case.execute(
@@ -84,6 +115,13 @@ def test_fetch_transcript_use_case_uses_fake_client_without_network() -> None:
             )
         )
     )
+    expected_object_name = build_transcript_object_name(
+        prefix="youtube/transcripts",
+        storage_date=date(2026, 6, 15),
+        video_id=VIDEO_ID,
+        languages=("en",),
+        preserve_formatting=True,
+    )
 
     assert fake.request == YouTubeTranscriptFetchRequest(
         video_id=VIDEO_ID,
@@ -93,3 +131,10 @@ def test_fetch_transcript_use_case_uses_fake_client_without_network() -> None:
     assert response.text == "hello\nworld"
     assert response.language_code == "en"
     assert [segment.text for segment in response.segments] == ["hello", "world"]
+    assert response.storage.bucket == "raw"
+    assert response.storage.object_name == expected_object_name
+    assert response.storage.uri == f"s3://raw/{expected_object_name}"
+    assert storage.saves[0].object_name == expected_object_name
+    assert json.loads(storage.saves[0].payload.decode("utf-8")) == response.model_dump(
+        by_alias=True
+    )

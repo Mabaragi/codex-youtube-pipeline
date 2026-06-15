@@ -22,3 +22,6 @@ class YouTubeTranscriptForbidden(YouTubeDomainError):
 class YouTubeTranscriptUpstreamError(YouTubeDomainError):
     """Raised when YouTube or the transcript provider blocks/fails the request."""
 
+
+class YouTubeTranscriptStorageError(YouTubeDomainError):
+    """Raised when transcript object storage is unavailable or misconfigured."""

@@ -13,6 +13,7 @@ GitHub main push or workflow_dispatch
   -> GitHub-hosted quality and Docker checks
   -> Windows self-hosted runner on the home PC
   -> Docker Compose home stack
+  -> MinIO transcript JSON storage
   -> cloudflared quick tunnel
   -> nginx Basic Auth
   -> codex-api
@@ -21,6 +22,8 @@ GitHub main push or workflow_dispatch
 The home stack is defined in `compose.home.yaml`.
 
 - `api`: runs `codex-api` and exposes port `8000` only inside Docker.
+- `minio`: stores YouTube transcript response JSON in the `raw` bucket by
+  default and is reachable only inside the Docker network.
 - `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
 - `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to
@@ -79,7 +82,13 @@ Optional repository variables:
 gh variable set HOME_NGINX_PORT --body 18080 -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_SANDBOX --body workspace-write -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_APPROVAL --body auto-review -R Mabaragi/codex-sdk
+gh variable set CODEX_CLI_TRANSCRIPT_MINIO_BUCKET --body raw -R Mabaragi/codex-sdk
 ```
+
+The home compose defaults use `minio:9000`, access key `codex`, bucket `raw`,
+and prefix `youtube/transcripts`. Override `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`
+and `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY` with repository secrets for a less
+guessable local MinIO credential.
 
 ## Deploy And Verify
 
@@ -90,7 +99,7 @@ On the home PC, inspect the stack:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api nginx cloudflared
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api nginx cloudflared minio
 ```
 
 Check the local Nginx endpoint with Basic Auth:

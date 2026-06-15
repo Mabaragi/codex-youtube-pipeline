@@ -21,6 +21,12 @@ class CliSettings(BaseSettings):
     api_key: SecretStr | None = None
     youtube_http_proxy: str | None = None
     youtube_https_proxy: str | None = None
+    transcript_minio_endpoint: str | None = None
+    transcript_minio_access_key: SecretStr | None = None
+    transcript_minio_secret_key: SecretStr | None = None
+    transcript_minio_bucket: str | None = None
+    transcript_minio_prefix: str = "youtube/transcripts"
+    transcript_minio_secure: bool = False
 
     model_config = SettingsConfigDict(env_prefix="CODEX_CLI_", extra="ignore")
 
@@ -30,6 +36,10 @@ class CliSettings(BaseSettings):
         "api_key",
         "youtube_http_proxy",
         "youtube_https_proxy",
+        "transcript_minio_endpoint",
+        "transcript_minio_access_key",
+        "transcript_minio_secret_key",
+        "transcript_minio_bucket",
         mode="before",
     )
     @classmethod

@@ -77,6 +77,12 @@ Environment variables use the `CODEX_CLI_` prefix:
 - `CODEX_CLI_API_KEY`
 - `CODEX_CLI_YOUTUBE_HTTP_PROXY`
 - `CODEX_CLI_YOUTUBE_HTTPS_PROXY`
+- `CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT`
+- `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`
+- `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY`
+- `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`
+- `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX` (default: `youtube/transcripts`)
+- `CODEX_CLI_TRANSCRIPT_MINIO_SECURE` (default: `false`)
 
 ## Checks
 
@@ -147,6 +153,10 @@ docker compose run --rm codex account
 docker compose run --rm codex run --sandbox read-only "Describe /work in one sentence."
 ```
 
+Docker Compose also starts MinIO for YouTube transcript JSON storage. The local
+compose file exposes only the MinIO console on `127.0.0.1:9001`; the API talks to
+MinIO through the internal `minio:9000` Docker network endpoint.
+
 To expose a host S3 mount to the container, set `CODEX_CLI_S3_DIR`:
 
 ```powershell
@@ -183,8 +193,23 @@ Invoke-RestMethod `
 ```
 
 The YouTube endpoint returns the selected transcript metadata, newline-joined
-plain text, and the original timed caption segments. If YouTube blocks cloud
-provider traffic, configure `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
+plain text, the original timed caption segments, and the MinIO object location.
+It stores the same response JSON in MinIO before returning success:
+
+```json
+{
+  "videoId": "dQw4w9WgXcQ",
+  "storage": {
+    "bucket": "raw",
+    "objectName": "youtube/transcripts/2026/06/15/dQw4w9WgXcQ-<hash>.json",
+    "uri": "s3://raw/youtube/transcripts/2026/06/15/dQw4w9WgXcQ-<hash>.json"
+  }
+}
+```
+
+If MinIO is not configured or the write fails, the endpoint returns an error
+instead of silently dropping the transcript. If YouTube blocks cloud provider
+traffic, configure `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
 `CODEX_CLI_YOUTUBE_HTTPS_PROXY` before starting the API.
 
 When running from a cloud host, YouTube may still block the host IP. The home PC

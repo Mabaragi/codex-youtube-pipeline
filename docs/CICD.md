@@ -24,7 +24,7 @@ flowchart TD
     QualityMain --> Preflight["Home deploy readiness"]
     DockerMain --> Preflight
     Preflight --> HomeRunner["Windows self-hosted runner: codex-home"]
-    HomeRunner --> ComposeDeploy["docker compose up -d --build api nginx cloudflared"]
+    HomeRunner --> ComposeDeploy["docker compose up -d --build api nginx cloudflared minio"]
     ComposeDeploy --> LocalHealth["local Basic Auth health check"]
     LocalHealth --> CaptureUrl["capture latest trycloudflare.com URL"]
     CaptureUrl --> PublicHealth["public Basic Auth health check"]
@@ -93,7 +93,7 @@ sequenceDiagram
     Runner->>Docker: docker version and compose version
     Runner->>Docker: generate .home-deploy/nginx.htpasswd
     Runner->>Docker: docker compose config
-    Runner->>Docker: docker compose up -d --build api nginx cloudflared
+    Runner->>Docker: docker compose up -d --build api nginx cloudflared minio
     Runner->>Nginx: GET http://127.0.0.1:18080/health with Basic Auth
     Nginx->>API: proxy /health
     API-->>Nginx: {"status":"ok"}
@@ -134,6 +134,8 @@ flowchart LR
     API --> CodexVolume["Docker volume<br/>codex-home:/home/codex/.codex"]
     CodexTool["codex utility service"] --> CodexVolume
     API --> WorkBind["bind mount<br/>/work"]
+    API --> MinIO["minio container<br/>raw bucket"]
+    MinIO --> MinioVolume["Docker volume<br/>minio-data"]
     API --> S3Bind["read-only bind mount<br/>/data/s3"]
 ```
 
@@ -144,8 +146,11 @@ flowchart LR
 - `nginx`: 모든 endpoint에 Basic Auth를 적용하고 `api:8000`으로 proxy한다.
   호스트에는 `127.0.0.1:${HOME_NGINX_PORT:-18080}`만 연다.
 - `cloudflared`: account-less quick tunnel을 열고 `nginx:80`으로 라우팅한다.
+- `minio`: YouTube transcript endpoint가 반환하는 JSON을 내부 Docker network의
+  S3-compatible object storage에 저장한다. 기본 bucket은 `raw`다.
 - `codex`: device-code login과 account 확인을 위한 수동 utility service다.
 - `codex-home` volume: `api`와 `codex`가 공유하는 Codex login state를 저장한다.
+- `minio-data` volume: MinIO object data를 저장한다.
 
 ## Secrets와 variables
 
@@ -165,6 +170,15 @@ flowchart LR
 
 - `CODEX_CLI_YOUTUBE_HTTP_PROXY`
 - `CODEX_CLI_YOUTUBE_HTTPS_PROXY`
+
+선택 MinIO 설정:
+
+- `CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT`: 기본값 `minio:9000`.
+- `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`: 기본값 `codex`.
+- `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY`: 기본값 `codex-transcript-dev-password`.
+- `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`: 기본값 `raw`.
+- `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX`: 기본값 `youtube/transcripts`.
+- `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: 기본값 `false`.
 
 Basic Auth는 Nginx에서 처리한다. 앱 코드에는 인증 middleware가 없다.
 
@@ -234,7 +248,7 @@ Home stack 확인:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api nginx cloudflared
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api nginx cloudflared minio
 ```
 
 수동 재배포:

@@ -27,6 +27,19 @@ class YouTubeTranscriptFetchResult:
     segments: tuple[YouTubeTranscriptSegment, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class TranscriptStorageLocation:
+    bucket: str
+    object_name: str
+    uri: str
+
+
+@dataclass(frozen=True, slots=True)
+class YouTubeTranscriptStorageSaveRequest:
+    object_name: str
+    payload: bytes
+
+
 class YouTubeTranscriptPort(Protocol):
     async def fetch_transcript(
         self,
@@ -34,3 +47,13 @@ class YouTubeTranscriptPort(Protocol):
     ) -> YouTubeTranscriptFetchResult:
         """Fetch a transcript for a YouTube video."""
 
+
+class YouTubeTranscriptStoragePort(Protocol):
+    def location_for(self, object_name: str) -> TranscriptStorageLocation:
+        """Return the object storage location for an object key."""
+
+    async def save_transcript(
+        self,
+        request: YouTubeTranscriptStorageSaveRequest,
+    ) -> TranscriptStorageLocation:
+        """Persist a transcript response JSON payload."""
