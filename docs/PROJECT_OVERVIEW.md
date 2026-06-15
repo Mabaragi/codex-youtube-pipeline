@@ -27,6 +27,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
+- `POST /youtube-data/channels/resolve`: YouTube handle을 공식 YouTube Data API로 channel ID에 resolve하고 matching local channel rows의 `youtubeChannelId`를 갱신한다.
 - `POST /youtube-transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회하고 응답 JSON을 MinIO에 저장한 뒤 DB에 메타데이터와 object 경로를 저장한다.
 - `GET /youtube-transcripts`: 저장된 transcript metadata를 조회한다.
 - `GET /youtube-transcripts/{id}`: 저장된 transcript metadata 단건을 조회한다.
@@ -156,7 +157,7 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube Data use case는 `YouTubeDataClientPort`와 `StreamerRepositoryPort`에 의존해 official channel ID를 조회한 뒤 local channel row를 갱신한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
 
 ## 설정
 
@@ -169,6 +170,8 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_API_KEY`: `login api-key`의 기본 API key.
 - `CODEX_CLI_YOUTUBE_HTTP_PROXY`: YouTube transcript 요청에 사용할 HTTP proxy.
 - `CODEX_CLI_YOUTUBE_HTTPS_PROXY`: YouTube transcript 요청에 사용할 HTTPS proxy.
+- `CODEX_CLI_YOUTUBE_DATA_API_KEY`: official YouTube Data API key.
+- `CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS`: YouTube Data API timeout. 기본값은 `10`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT`: transcript JSON을 저장할 MinIO endpoint.
 - `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`: MinIO access key.
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY`: MinIO secret key.

@@ -71,3 +71,10 @@ class StreamerRepositoryPort(Protocol):
     async def delete_channel(self, channel_id: int) -> bool:
         """Delete one channel by internal ID."""
 
+    async def update_youtube_channel_id_by_handle(
+        self,
+        *,
+        handle: str,
+        youtube_channel_id: str,
+    ) -> list[ChannelRecord]:
+        """Update YouTube channel IDs for local channels matching a handle."""

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -185,6 +185,36 @@ class SqlAlchemyStreamerRepository(StreamerRepositoryPort):
             await self._session.rollback()
             raise StreamerPersistenceError("Streamer persistence failed.") from exc
 
+    @override
+    async def update_youtube_channel_id_by_handle(
+        self,
+        *,
+        handle: str,
+        youtube_channel_id: str,
+    ) -> list[ChannelRecord]:
+        try:
+            match_values = _handle_match_values(handle)
+            if not match_values:
+                return []
+            rows = list(
+                await self._session.scalars(
+                    select(ChannelModel)
+                    .where(func.lower(func.trim(ChannelModel.handle)).in_(match_values))
+                    .order_by(ChannelModel.id)
+                )
+            )
+            if not rows:
+                return []
+            for row in rows:
+                row.youtube_channel_id = youtube_channel_id
+            await self._session.commit()
+            for row in rows:
+                await self._session.refresh(row)
+            return [_channel_record(row) for row in rows]
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise StreamerPersistenceError("Streamer persistence failed.") from exc
+
 
 def _streamer_record(model: StreamerModel) -> StreamerRecord:
     return StreamerRecord(id=model.id, name=model.name)
@@ -198,3 +228,12 @@ def _channel_record(model: ChannelModel) -> ChannelRecord:
         name=model.name,
         youtube_channel_id=model.youtube_channel_id,
     )
+
+
+def _handle_match_values(handle: str) -> set[str]:
+    normalized = handle.strip().lower()
+    if normalized.startswith("@"):
+        normalized = normalized[1:].strip()
+    if not normalized:
+        return set()
+    return {normalized, f"@{normalized}"}

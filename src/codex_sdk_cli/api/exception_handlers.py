@@ -12,6 +12,13 @@ from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerNotFound,
     StreamerPersistenceError,
 )
+from codex_sdk_cli.domains.youtube_data.exceptions import (
+    InvalidYouTubeChannelHandle,
+    YouTubeDataChannelNotFound,
+    YouTubeDataConfigurationError,
+    YouTubeDataDomainError,
+    YouTubeDataUpstreamError,
+)
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
     InvalidYouTubeVideo,
     YouTubeTranscriptDomainError,
@@ -49,6 +56,22 @@ def add_exception_handlers(app: FastAPI) -> None:
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, StreamerPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(YouTubeDataDomainError)
+    async def youtube_data_domain_error_handler(
+        _request: Request,
+        exc: YouTubeDataDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, YouTubeDataChannelNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, YouTubeDataConfigurationError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        elif isinstance(exc, YouTubeDataUpstreamError):
+            status_code = status.HTTP_502_BAD_GATEWAY
+        elif isinstance(exc, InvalidYouTubeChannelHandle):
+            status_code = status.HTTP_400_BAD_REQUEST
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
     @app.exception_handler(YouTubeTranscriptDomainError)

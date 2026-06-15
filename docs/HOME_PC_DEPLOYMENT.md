@@ -85,6 +85,7 @@ Optional repository variables:
 gh variable set HOME_NGINX_PORT --body 18080 -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_SANDBOX --body workspace-write -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_APPROVAL --body auto-review -R Mabaragi/codex-sdk
+gh secret set CODEX_CLI_YOUTUBE_DATA_API_KEY -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_TRANSCRIPT_MINIO_BUCKET --body raw -R Mabaragi/codex-sdk
 ```
 

@@ -43,6 +43,25 @@ def test_database_settings_allow_env_override(
     assert settings.database_echo is True
 
 
+def test_youtube_data_settings_handle_blank_and_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", " ")
+
+    blank_settings = CliSettings()
+
+    assert blank_settings.youtube_data_api_key is None
+    assert blank_settings.youtube_data_api_key_value() is None
+
+    monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", "AIza-test")
+    monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS", "3.5")
+
+    settings = CliSettings()
+
+    assert settings.youtube_data_api_key_value() == "AIza-test"
+    assert settings.youtube_data_timeout_seconds == 3.5
+
+
 def test_blank_database_url_uses_default() -> None:
     settings = CliSettings(database_url=" ")
 

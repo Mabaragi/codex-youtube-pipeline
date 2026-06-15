@@ -77,6 +77,8 @@ Environment variables use the `CODEX_CLI_` prefix:
 - `CODEX_CLI_API_KEY`
 - `CODEX_CLI_YOUTUBE_HTTP_PROXY`
 - `CODEX_CLI_YOUTUBE_HTTPS_PROXY`
+- `CODEX_CLI_YOUTUBE_DATA_API_KEY`
+- `CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS` (default: `10`)
 - `CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT`
 - `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY`
@@ -261,6 +263,21 @@ write fails, the endpoint returns an error instead of silently dropping the
 transcript. If YouTube blocks cloud provider traffic, configure
 `CODEX_CLI_YOUTUBE_HTTP_PROXY` and/or
 `CODEX_CLI_YOUTUBE_HTTPS_PROXY` before starting the API.
+
+Resolve an official YouTube channel ID from a handle and write the result into
+matching local `channels.youtube_channel_id` rows:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8000/youtube-data/channels/resolve `
+  -ContentType "application/json" `
+  -Body '{"handle":"@GoogleDevelopers"}'
+```
+
+This endpoint requires `CODEX_CLI_YOUTUBE_DATA_API_KEY`. It uses the official
+YouTube Data API `channels.list` method with `forHandle` and returns the
+resolved `youtubeChannelId` plus local `updatedChannelIds`.
 
 When running from a cloud host, YouTube may still block the host IP. The home PC
 deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows

@@ -22,6 +22,8 @@ class CliSettings(BaseSettings):
     api_key: SecretStr | None = None
     youtube_http_proxy: str | None = None
     youtube_https_proxy: str | None = None
+    youtube_data_api_key: SecretStr | None = None
+    youtube_data_timeout_seconds: float = 10.0
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
@@ -39,6 +41,7 @@ class CliSettings(BaseSettings):
         "api_key",
         "youtube_http_proxy",
         "youtube_https_proxy",
+        "youtube_data_api_key",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
         "transcript_minio_secret_key",
@@ -65,3 +68,8 @@ class CliSettings(BaseSettings):
         if self.api_key is None:
             return None
         return self.api_key.get_secret_value()
+
+    def youtube_data_api_key_value(self) -> str | None:
+        if self.youtube_data_api_key is None:
+            return None
+        return self.youtube_data_api_key.get_secret_value()
