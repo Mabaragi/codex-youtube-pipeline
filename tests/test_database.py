@@ -13,10 +13,10 @@ from codex_sdk_cli.infra.database.session import create_database_engine, create_
 from codex_sdk_cli.settings import DEFAULT_DATABASE_URL, CliSettings
 
 
-def test_database_base_registers_youtube_transcript_table() -> None:
+def test_database_base_registers_app_tables() -> None:
     import codex_sdk_cli.infra.database.models  # noqa: F401
 
-    assert set(Base.metadata.tables) == {"youtube_transcripts"}
+    assert set(Base.metadata.tables) == {"channels", "streamers", "youtube_transcripts"}
 
 
 def test_database_settings_use_default_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -60,7 +60,7 @@ def test_async_sqlite_session_executes_without_creating_app_tables(tmp_path: Pat
     assert database_file.exists()
 
 
-def test_alembic_upgrade_creates_youtube_transcripts_table(
+def test_alembic_upgrade_creates_app_tables(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -76,11 +76,16 @@ def test_alembic_upgrade_creates_youtube_transcripts_table(
     try:
         inspector = inspect(engine)
         table_names = inspector.get_table_names()
-        columns = {column["name"] for column in inspector.get_columns("youtube_transcripts")}
+        transcript_columns = {
+            column["name"] for column in inspector.get_columns("youtube_transcripts")
+        }
+        streamer_columns = {column["name"] for column in inspector.get_columns("streamers")}
+        channel_columns = {column["name"] for column in inspector.get_columns("channels")}
+        channel_foreign_keys = inspector.get_foreign_keys("channels")
     finally:
         engine.dispose()
 
-    assert "youtube_transcripts" in table_names
+    assert {"channels", "streamers", "youtube_transcripts"}.issubset(table_names)
     assert {
         "video_id",
         "language_code",
@@ -90,7 +95,16 @@ def test_alembic_upgrade_creates_youtube_transcripts_table(
         "response_sha256",
         "segment_count",
         "text_length",
-    }.issubset(columns)
+    }.issubset(transcript_columns)
+    assert {"id", "name"}.issubset(streamer_columns)
+    assert {"id", "streamer_id", "handle", "name", "youtube_channel_id"}.issubset(
+        channel_columns
+    )
+    assert any(
+        foreign_key["referred_table"] == "streamers"
+        and foreign_key["constrained_columns"] == ["streamer_id"]
+        for foreign_key in channel_foreign_keys
+    )
 
 
 async def _query_database(database_url: str) -> tuple[int | None, list[str]]:

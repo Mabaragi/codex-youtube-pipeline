@@ -8,6 +8,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
+from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.youtube.exceptions import YouTubeTranscriptStorageError
 from codex_sdk_cli.domains.youtube.ports import (
     YouTubeTranscriptPort,
@@ -19,6 +20,7 @@ from codex_sdk_cli.infra.database.session import (
     create_database_engine,
     create_session_factory,
 )
+from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.youtube.client import YouTubeTranscriptClient
 from codex_sdk_cli.infra.youtube.repository import SqlAlchemyYouTubeTranscriptRepository
 from codex_sdk_cli.infra.youtube.storage import MinioTranscriptStorage
@@ -73,6 +75,12 @@ async def get_youtube_transcript_repository(
     return SqlAlchemyYouTubeTranscriptRepository(session)
 
 
+async def get_streamer_repository(
+    session: DatabaseSessionDep,
+) -> StreamerRepositoryPort:
+    return SqlAlchemyStreamerRepository(session)
+
+
 async def get_youtube_transcript_storage(
     settings: Annotated[CliSettings, Depends(get_settings)],
 ) -> YouTubeTranscriptStoragePort:
@@ -96,6 +104,10 @@ YouTubeTranscriptClientDep = Annotated[
 YouTubeTranscriptRepositoryDep = Annotated[
     YouTubeTranscriptRepositoryPort,
     Depends(get_youtube_transcript_repository),
+]
+StreamerRepositoryDep = Annotated[
+    StreamerRepositoryPort,
+    Depends(get_streamer_repository),
 ]
 YouTubeTranscriptStorageDep = Annotated[
     YouTubeTranscriptStoragePort,

@@ -5,6 +5,13 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
+from codex_sdk_cli.domains.streamers.exceptions import (
+    ChannelNotFound,
+    StreamerDomainError,
+    StreamerHasChannels,
+    StreamerNotFound,
+    StreamerPersistenceError,
+)
 from codex_sdk_cli.domains.youtube.exceptions import (
     InvalidYouTubeVideo,
     YouTubeDomainError,
@@ -27,6 +34,20 @@ def add_exception_handlers(app: FastAPI) -> None:
             if isinstance(exc, CodexRuntimeError)
             else status.HTTP_400_BAD_REQUEST
         )
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(StreamerDomainError)
+    async def streamer_domain_error_handler(
+        _request: Request,
+        exc: StreamerDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, (StreamerNotFound, ChannelNotFound)):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, StreamerHasChannels):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, StreamerPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
     @app.exception_handler(YouTubeDomainError)
