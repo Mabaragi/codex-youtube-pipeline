@@ -6,15 +6,34 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StreamerCreateRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
+    name: str = Field(
+        min_length=1,
+        max_length=255,
+        description="Display name of the streamer.",
+        examples=["Chzzk Archive"],
+    )
 
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+        json_schema_extra={"examples": [{"name": "Chzzk Archive"}]},
+    )
 
 
 class StreamerUpdateRequest(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=255)
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="New display name of the streamer.",
+        examples=["Chzzk Archive KR"],
+    )
 
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+        json_schema_extra={"examples": [{"name": "Chzzk Archive KR"}]},
+    )
 
     @model_validator(mode="after")
     def require_name(self) -> Self:
@@ -31,38 +50,95 @@ class StreamerResponse(BaseModel):
 
 
 class ChannelCreateRequest(BaseModel):
-    streamer_id: int = Field(alias="streamerId", ge=1)
-    handle: str = Field(min_length=1, max_length=255)
-    name: str = Field(min_length=1, max_length=255)
+    streamer_id: int = Field(
+        alias="streamerId",
+        ge=1,
+        description="ID of the streamer that owns this channel.",
+        examples=[1],
+    )
+    handle: str = Field(
+        min_length=1,
+        max_length=255,
+        description="Public channel handle or short identifier.",
+        examples=["@archive-live"],
+    )
+    name: str = Field(
+        min_length=1,
+        max_length=255,
+        description="Display name of the channel.",
+        examples=["Archive Live"],
+    )
     youtube_channel_id: str | None = Field(
         default=None,
         alias="youtubeChannelId",
         min_length=1,
         max_length=255,
+        description="Optional YouTube channel ID, not the handle.",
+        examples=["UC_x5XG1OV2P6uZZ5FSM9Ttw"],
     )
 
     model_config = ConfigDict(
         extra="forbid",
         populate_by_name=True,
         str_strip_whitespace=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "streamerId": 1,
+                    "handle": "@archive-live",
+                    "name": "Archive Live",
+                    "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+                }
+            ]
+        },
     )
 
 
 class ChannelUpdateRequest(BaseModel):
-    streamer_id: int | None = Field(default=None, alias="streamerId", ge=1)
-    handle: str | None = Field(default=None, min_length=1, max_length=255)
-    name: str | None = Field(default=None, min_length=1, max_length=255)
+    streamer_id: int | None = Field(
+        default=None,
+        alias="streamerId",
+        ge=1,
+        description="New owning streamer ID.",
+        examples=[2],
+    )
+    handle: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="New public channel handle or short identifier.",
+        examples=["@archive-shorts"],
+    )
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="New display name of the channel.",
+        examples=["Archive Shorts"],
+    )
     youtube_channel_id: str | None = Field(
         default=None,
         alias="youtubeChannelId",
         min_length=1,
         max_length=255,
+        description="New YouTube channel ID. Use null to clear this optional field.",
+        examples=["UC_x5XG1OV2P6uZZ5FSM9Ttw"],
     )
 
     model_config = ConfigDict(
         extra="forbid",
         populate_by_name=True,
         str_strip_whitespace=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "streamerId": 2,
+                    "handle": "@archive-shorts",
+                    "name": "Archive Shorts",
+                    "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+                }
+            ]
+        },
     )
 
     @model_validator(mode="after")
@@ -87,4 +163,3 @@ class ChannelResponse(BaseModel):
 
 class DeleteResponse(BaseModel):
     success: bool
-

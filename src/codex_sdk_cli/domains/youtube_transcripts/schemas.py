@@ -7,11 +7,37 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TranscriptRequest(BaseModel):
-    video: str = Field(min_length=1)
-    languages: list[str] | None = None
-    preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
+    video: str = Field(
+        min_length=1,
+        description="YouTube video URL or 11-character video ID.",
+        examples=["https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
+    )
+    languages: list[str] | None = Field(
+        default=None,
+        description="Preferred transcript language codes, tried in order.",
+        examples=[["ko", "en"]],
+    )
+    preserve_formatting: bool = Field(
+        default=False,
+        alias="preserveFormatting",
+        description="Whether to preserve transcript formatting from YouTube.",
+        examples=[False],
+    )
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        str_strip_whitespace=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "video": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "languages": ["ko", "en"],
+                    "preserveFormatting": False,
+                }
+            ]
+        },
+    )
 
 
 class TranscriptSegmentResponse(BaseModel):
@@ -60,9 +86,20 @@ class TranscriptMetadataResponse(BaseModel):
 
 
 class TranscriptMetadataUpdateRequest(BaseModel):
-    notes: str | None = None
+    notes: str | None = Field(
+        default=None,
+        description="Operator notes for this metadata row. Use null to clear notes.",
+        examples=["Reviewed transcript quality; keep for downstream summarization."],
+    )
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {"notes": "Reviewed transcript quality; keep for downstream summarization."},
+            ]
+        },
+    )
 
     @model_validator(mode="after")
     def require_notes(self) -> Self:
