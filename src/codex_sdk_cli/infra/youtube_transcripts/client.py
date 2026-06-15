@@ -20,13 +20,13 @@ from youtube_transcript_api import (
 )
 from youtube_transcript_api.proxies import GenericProxyConfig
 
-from codex_sdk_cli.domains.youtube.exceptions import (
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
     InvalidYouTubeVideo,
     YouTubeTranscriptForbidden,
     YouTubeTranscriptNotFound,
     YouTubeTranscriptUpstreamError,
 )
-from codex_sdk_cli.domains.youtube.ports import (
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptFetchRequest,
     YouTubeTranscriptFetchResult,
     YouTubeTranscriptPort,

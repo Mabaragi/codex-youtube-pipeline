@@ -7,10 +7,12 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from urllib.parse import parse_qs, urlparse
 
-from .exceptions import InvalidYouTubeVideo
+from .exceptions import InvalidYouTubeVideo, YouTubeTranscriptMetadataNotFound
 from .ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptFetchRequest,
+    YouTubeTranscriptMetadataFilters,
+    YouTubeTranscriptMetadataRecord,
     YouTubeTranscriptPort,
     YouTubeTranscriptRecord,
     YouTubeTranscriptRepositoryPort,
@@ -18,6 +20,9 @@ from .ports import (
     YouTubeTranscriptStorageSaveRequest,
 )
 from .schemas import (
+    DeleteResponse,
+    TranscriptMetadataResponse,
+    TranscriptMetadataUpdateRequest,
     TranscriptRequest,
     TranscriptResponse,
     TranscriptSegmentResponse,
@@ -124,6 +129,67 @@ class FetchYouTubeTranscriptUseCase:
         return response
 
 
+class ListYouTubeTranscriptMetadataUseCase:
+    def __init__(self, repository: YouTubeTranscriptRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        *,
+        video_id: str | None = None,
+        language_code: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[TranscriptMetadataResponse]:
+        normalized_video_id = normalize_video_id(video_id) if video_id is not None else None
+        records = await self._repository.list_transcript_metadata(
+            YouTubeTranscriptMetadataFilters(
+                video_id=normalized_video_id,
+                language_code=language_code,
+                limit=limit,
+                offset=offset,
+            )
+        )
+        return [_metadata_response(record) for record in records]
+
+
+class GetYouTubeTranscriptMetadataUseCase:
+    def __init__(self, repository: YouTubeTranscriptRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(self, transcript_id: int) -> TranscriptMetadataResponse:
+        record = await self._repository.get_transcript_metadata(transcript_id)
+        if record is None:
+            raise YouTubeTranscriptMetadataNotFound("Transcript metadata not found.")
+        return _metadata_response(record)
+
+
+class UpdateYouTubeTranscriptMetadataUseCase:
+    def __init__(self, repository: YouTubeTranscriptRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        transcript_id: int,
+        request: TranscriptMetadataUpdateRequest,
+    ) -> TranscriptMetadataResponse:
+        record = await self._repository.update_transcript_notes(transcript_id, request.notes)
+        if record is None:
+            raise YouTubeTranscriptMetadataNotFound("Transcript metadata not found.")
+        return _metadata_response(record)
+
+
+class DeleteYouTubeTranscriptMetadataUseCase:
+    def __init__(self, repository: YouTubeTranscriptRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(self, transcript_id: int) -> DeleteResponse:
+        deleted = await self._repository.delete_transcript_metadata(transcript_id)
+        if not deleted:
+            raise YouTubeTranscriptMetadataNotFound("Transcript metadata not found.")
+        return DeleteResponse(success=True)
+
+
 def normalize_video_id(video: str) -> str:
     value = video.strip()
     if not value:
@@ -200,6 +266,29 @@ def _storage_response(location: TranscriptStorageLocation) -> TranscriptStorageR
         bucket=location.bucket,
         objectName=location.object_name,
         uri=location.uri,
+    )
+
+
+def _metadata_response(record: YouTubeTranscriptMetadataRecord) -> TranscriptMetadataResponse:
+    return TranscriptMetadataResponse(
+        id=record.id,
+        videoId=record.video_id,
+        language=record.language,
+        languageCode=record.language_code,
+        isGenerated=record.is_generated,
+        requestedLanguages=list(record.requested_languages),
+        preserveFormatting=record.preserve_formatting,
+        storage=TranscriptStorageResponse(
+            bucket=record.storage_bucket,
+            objectName=record.storage_object_name,
+            uri=record.storage_uri,
+        ),
+        responseSha256=record.response_sha256,
+        segmentCount=record.segment_count,
+        textLength=record.text_length,
+        notes=record.notes,
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
     )
 
 

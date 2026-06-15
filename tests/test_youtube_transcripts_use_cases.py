@@ -6,11 +6,13 @@ from datetime import date
 
 import pytest
 
-from codex_sdk_cli.domains.youtube.exceptions import InvalidYouTubeVideo
-from codex_sdk_cli.domains.youtube.ports import (
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import InvalidYouTubeVideo
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptFetchRequest,
     YouTubeTranscriptFetchResult,
+    YouTubeTranscriptMetadataFilters,
+    YouTubeTranscriptMetadataRecord,
     YouTubeTranscriptPort,
     YouTubeTranscriptRecord,
     YouTubeTranscriptRepositoryPort,
@@ -18,8 +20,8 @@ from codex_sdk_cli.domains.youtube.ports import (
     YouTubeTranscriptStoragePort,
     YouTubeTranscriptStorageSaveRequest,
 )
-from codex_sdk_cli.domains.youtube.schemas import TranscriptRequest
-from codex_sdk_cli.domains.youtube.use_cases import (
+from codex_sdk_cli.domains.youtube_transcripts.schemas import TranscriptRequest
+from codex_sdk_cli.domains.youtube_transcripts.use_cases import (
     FetchYouTubeTranscriptUseCase,
     build_transcript_object_name,
     normalize_video_id,
@@ -74,6 +76,28 @@ class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
 
     async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
         self.records.append(record)
+
+    async def list_transcript_metadata(
+        self,
+        filters: YouTubeTranscriptMetadataFilters,
+    ) -> list[YouTubeTranscriptMetadataRecord]:
+        return []
+
+    async def get_transcript_metadata(
+        self,
+        transcript_id: int,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        return None
+
+    async def update_transcript_notes(
+        self,
+        transcript_id: int,
+        notes: str | None,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        return None
+
+    async def delete_transcript_metadata(self, transcript_id: int) -> bool:
+        return False
 
 
 @pytest.mark.parametrize(

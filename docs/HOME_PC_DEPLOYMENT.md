@@ -25,8 +25,8 @@ The home stack is defined in `compose.home.yaml`.
 - `api`: runs `codex-api` and exposes port `8000` only inside Docker.
 - `minio`: stores YouTube transcript response JSON in the `raw` bucket by
   default and is reachable only inside the Docker network.
-- SQLite: stores transcript metadata in `youtube_transcripts`; raw transcript
-  response JSON remains in MinIO.
+- SQLite: stores transcript metadata and operator `notes` in
+  `youtube_transcripts`; raw transcript response JSON remains in MinIO.
 - `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
 - `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to

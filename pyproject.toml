@@ -24,6 +24,7 @@ codex-demo = "codex_sdk_cli.cli:main"
 
 [dependency-groups]
 dev = [
+    "graphviz>=0.21",
     "httpx>=0.27,<1",
     "pyrefly",
     "pytest>=8.0",

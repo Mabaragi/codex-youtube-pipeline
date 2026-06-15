@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 
@@ -56,6 +57,34 @@ class YouTubeTranscriptRecord:
     text_length: int
 
 
+@dataclass(frozen=True, slots=True)
+class YouTubeTranscriptMetadataRecord:
+    id: int
+    video_id: str
+    language: str
+    language_code: str
+    is_generated: bool
+    requested_languages: tuple[str, ...]
+    preserve_formatting: bool
+    storage_bucket: str
+    storage_object_name: str
+    storage_uri: str
+    response_sha256: str
+    segment_count: int
+    text_length: int
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class YouTubeTranscriptMetadataFilters:
+    video_id: str | None = None
+    language_code: str | None = None
+    limit: int = 50
+    offset: int = 0
+
+
 class YouTubeTranscriptPort(Protocol):
     async def fetch_transcript(
         self,
@@ -78,3 +107,25 @@ class YouTubeTranscriptStoragePort(Protocol):
 class YouTubeTranscriptRepositoryPort(Protocol):
     async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
         """Persist transcript metadata after object storage succeeds."""
+
+    async def list_transcript_metadata(
+        self,
+        filters: YouTubeTranscriptMetadataFilters,
+    ) -> list[YouTubeTranscriptMetadataRecord]:
+        """List stored transcript metadata rows."""
+
+    async def get_transcript_metadata(
+        self,
+        transcript_id: int,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        """Return one stored transcript metadata row by ID."""
+
+    async def update_transcript_notes(
+        self,
+        transcript_id: int,
+        notes: str | None,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        """Update the operator notes for a stored transcript metadata row."""
+
+    async def delete_transcript_metadata(self, transcript_id: int) -> bool:
+        """Delete one stored transcript metadata row without deleting object storage."""

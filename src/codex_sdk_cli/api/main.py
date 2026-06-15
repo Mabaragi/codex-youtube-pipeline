@@ -7,7 +7,7 @@ from codex_sdk_cli.api.exception_handlers import add_exception_handlers
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.domains.codex.router import router as codex_router
 from codex_sdk_cli.domains.streamers.router import router as streamers_router
-from codex_sdk_cli.domains.youtube.router import router as youtube_router
+from codex_sdk_cli.domains.youtube_transcripts.router import router as youtube_transcripts_router
 
 
 def create_app() -> FastAPI:
@@ -19,7 +19,11 @@ def create_app() -> FastAPI:
     add_exception_handlers(app)
     app.include_router(codex_router, prefix="/codex", tags=["codex"])
     app.include_router(streamers_router, tags=["streamers"])
-    app.include_router(youtube_router, prefix="/youtube", tags=["youtube"])
+    app.include_router(
+        youtube_transcripts_router,
+        prefix="/youtube-transcripts",
+        tags=["youtube-transcripts"],
+    )
 
     @app.get("/health", tags=["system"])
     async def health() -> dict[str, str]:

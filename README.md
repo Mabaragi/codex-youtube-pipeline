@@ -92,7 +92,8 @@ The project uses async SQLAlchemy with Alembic migrations. SQLite uses
 `./data/app.db` by default; local database files and SQLite journal/WAL files are
 ignored by git. The first application table is `youtube_transcripts`, which
 stores YouTube transcript metadata plus the MinIO bucket, object name, URI, and
-response hash. The raw response JSON stays in MinIO.
+response hash. The raw response JSON stays in MinIO. Operators can update only
+the nullable `notes` field through the metadata API.
 
 Schema changes must go through Alembic migrations. Do not call
 `metadata.create_all()` or `metadata.drop_all()` from app code, tests, or startup
@@ -218,15 +219,15 @@ Fetch YouTube captions by URL or video ID:
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri http://localhost:8000/youtube/transcripts `
+  -Uri http://localhost:8000/youtube-transcripts `
   -ContentType "application/json" `
   -Body '{"video":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","languages":["ko","en"],"preserveFormatting":false}'
 ```
 
-The YouTube endpoint returns the selected transcript metadata, newline-joined
-plain text, the original timed caption segments, and the MinIO object location.
-It stores the same response JSON in MinIO, then records metadata and the storage
-path in `youtube_transcripts` before returning success:
+The YouTube transcript endpoint returns the selected transcript metadata,
+newline-joined plain text, the original timed caption segments, and the MinIO
+object location. It stores the same response JSON in MinIO, then records
+metadata and the storage path in `youtube_transcripts` before returning success:
 
 ```json
 {
@@ -238,6 +239,22 @@ path in `youtube_transcripts` before returning success:
   }
 }
 ```
+
+List, inspect, annotate, and delete stored metadata rows:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/youtube-transcripts?videoId=dQw4w9WgXcQ"
+Invoke-RestMethod -Uri http://localhost:8000/youtube-transcripts/1
+Invoke-RestMethod `
+  -Method Patch `
+  -Uri http://localhost:8000/youtube-transcripts/1 `
+  -ContentType "application/json" `
+  -Body '{"notes":"reviewed"}'
+Invoke-RestMethod -Method Delete -Uri http://localhost:8000/youtube-transcripts/1
+```
+
+Metadata deletion removes only the SQLite row. The raw transcript JSON remains
+in MinIO at the recorded `storage.uri`.
 
 If MinIO is not configured, the object write fails, or the database metadata
 write fails, the endpoint returns an error instead of silently dropping the

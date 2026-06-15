@@ -6,12 +6,12 @@ from typing import BinaryIO
 import pytest
 from minio.error import MinioException
 
-from codex_sdk_cli.domains.youtube.exceptions import YouTubeTranscriptStorageError
-from codex_sdk_cli.domains.youtube.ports import (
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptStorageError
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptStorageSaveRequest,
 )
-from codex_sdk_cli.infra.youtube.storage import MinioClientLike, MinioTranscriptStorage
+from codex_sdk_cli.infra.youtube_transcripts.storage import MinioClientLike, MinioTranscriptStorage
 
 
 class FakeMinioClient(MinioClientLike):

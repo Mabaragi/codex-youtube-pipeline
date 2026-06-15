@@ -95,6 +95,7 @@ def test_alembic_upgrade_creates_app_tables(
         "response_sha256",
         "segment_count",
         "text_length",
+        "notes",
     }.issubset(transcript_columns)
     assert {"id", "name"}.issubset(streamer_columns)
     assert {"id", "streamer_id", "handle", "name", "youtube_channel_id"}.issubset(

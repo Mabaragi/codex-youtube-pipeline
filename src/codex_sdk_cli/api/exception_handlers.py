@@ -12,10 +12,11 @@ from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerNotFound,
     StreamerPersistenceError,
 )
-from codex_sdk_cli.domains.youtube.exceptions import (
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
     InvalidYouTubeVideo,
-    YouTubeDomainError,
+    YouTubeTranscriptDomainError,
     YouTubeTranscriptForbidden,
+    YouTubeTranscriptMetadataNotFound,
     YouTubeTranscriptNotFound,
     YouTubeTranscriptPersistenceError,
     YouTubeTranscriptStorageError,
@@ -50,13 +51,13 @@ def add_exception_handlers(app: FastAPI) -> None:
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(YouTubeDomainError)
+    @app.exception_handler(YouTubeTranscriptDomainError)
     async def youtube_domain_error_handler(
         _request: Request,
-        exc: YouTubeDomainError,
+        exc: YouTubeTranscriptDomainError,
     ) -> JSONResponse:
         status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, YouTubeTranscriptNotFound):
+        if isinstance(exc, (YouTubeTranscriptNotFound, YouTubeTranscriptMetadataNotFound)):
             status_code = status.HTTP_404_NOT_FOUND
         elif isinstance(exc, YouTubeTranscriptForbidden):
             status_code = status.HTTP_403_FORBIDDEN

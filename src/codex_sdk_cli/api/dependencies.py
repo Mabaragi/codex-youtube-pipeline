@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
-from codex_sdk_cli.domains.youtube.exceptions import YouTubeTranscriptStorageError
-from codex_sdk_cli.domains.youtube.ports import (
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptStorageError
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptPort,
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptStoragePort,
@@ -21,9 +21,11 @@ from codex_sdk_cli.infra.database.session import (
     create_session_factory,
 )
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
-from codex_sdk_cli.infra.youtube.client import YouTubeTranscriptClient
-from codex_sdk_cli.infra.youtube.repository import SqlAlchemyYouTubeTranscriptRepository
-from codex_sdk_cli.infra.youtube.storage import MinioTranscriptStorage
+from codex_sdk_cli.infra.youtube_transcripts.client import YouTubeTranscriptClient
+from codex_sdk_cli.infra.youtube_transcripts.repository import (
+    SqlAlchemyYouTubeTranscriptRepository,
+)
+from codex_sdk_cli.infra.youtube_transcripts.storage import MinioTranscriptStorage
 from codex_sdk_cli.settings import CliSettings
 
 

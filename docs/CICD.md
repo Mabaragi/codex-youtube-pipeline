@@ -153,8 +153,8 @@ flowchart LR
 - `cloudflared`: account-less quick tunnel을 열고 `nginx:80`으로 라우팅한다.
 - `minio`: YouTube transcript endpoint가 반환하는 JSON을 내부 Docker network의
   S3-compatible object storage에 저장한다. 기본 bucket은 `raw`다.
-- SQLite: `youtube_transcripts`에 transcript metadata, MinIO bucket/object/URI,
-  response hash를 저장한다. raw JSON은 MinIO에만 둔다.
+- SQLite: `youtube_transcripts`에 transcript metadata, 운영자 `notes`, MinIO
+  bucket/object/URI, response hash를 저장한다. raw JSON은 MinIO에만 둔다.
 - `codex`: device-code login과 account 확인을 위한 수동 utility service다.
 - `codex-home` volume: `api`와 `codex`가 공유하는 Codex login state를 저장한다.
 - `minio-data` volume: MinIO object data를 저장한다.

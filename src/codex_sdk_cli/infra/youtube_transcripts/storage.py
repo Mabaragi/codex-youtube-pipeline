@@ -8,8 +8,8 @@ from minio import Minio
 from minio.error import MinioException, S3Error
 from typing_extensions import override
 
-from codex_sdk_cli.domains.youtube.exceptions import YouTubeTranscriptStorageError
-from codex_sdk_cli.domains.youtube.ports import (
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptStorageError
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptStoragePort,
     YouTubeTranscriptStorageSaveRequest,
