@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import argparse
+import hashlib
+import json
 import sys
 from html import escape
 from importlib import import_module
@@ -11,14 +14,23 @@ from sqlalchemy import Column, Table
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = REPO_ROOT / "src"
 OUTPUT_PATH = REPO_ROOT / "docs" / "erd.svg"
+SCHEMA_HASH_PATH = REPO_ROOT / "docs" / "erd.schema.sha256"
 
 
 def main() -> None:
+    args = _parse_args()
     sys.path.insert(0, str(SRC_PATH))
     import_module("codex_sdk_cli.infra.database.models")
     from codex_sdk_cli.infra.database.base import Base
 
-    graph = _build_graph(list(Base.metadata.sorted_tables))
+    tables = list(Base.metadata.sorted_tables)
+    schema_hash = _schema_hash(tables)
+
+    if args.check:
+        _check_schema_hash(schema_hash)
+        return
+
+    graph = _build_graph(tables)
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     graph.render(
         filename=OUTPUT_PATH.stem,
@@ -26,6 +38,17 @@ def main() -> None:
         format="svg",
         cleanup=True,
     )
+    _write_schema_hash(schema_hash)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate or verify the database ERD SVG.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify the committed ERD schema hash without rewriting the SVG.",
+    )
+    return parser.parse_args()
 
 
 def _build_graph(tables: list[Table]) -> Digraph:
@@ -129,6 +152,47 @@ def _column_marker(table: Table, column: Column) -> str:
 
 def _column_type(column: Column) -> str:
     return str(column.type).replace("DATETIME", "DateTime")
+
+
+def _schema_hash(tables: list[Table]) -> str:
+    payload = [
+        {
+            "name": table.name,
+            "columns": [
+                {
+                    "name": column.name,
+                    "type": _column_type(column),
+                    "nullable": bool(column.nullable),
+                    "primary_key": bool(column.primary_key),
+                    "unique": bool(column.unique or column.name in _unique_column_names(table)),
+                    "index": bool(column.index or column.name in _index_column_names(table)),
+                    "foreign_keys": sorted(
+                        f"{foreign_key.column.table.name}.{foreign_key.column.name}"
+                        for foreign_key in column.foreign_keys
+                    ),
+                }
+                for column in table.columns
+            ],
+        }
+        for table in tables
+    ]
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _write_schema_hash(schema_hash: str) -> None:
+    SCHEMA_HASH_PATH.write_text(f"{schema_hash}\n", encoding="utf-8", newline="\n")
+
+
+def _check_schema_hash(schema_hash: str) -> None:
+    if not SCHEMA_HASH_PATH.is_file():
+        raise SystemExit(
+            "docs/erd.schema.sha256 is missing. Run `uv run python scripts/generate_erd.py`."
+        )
+    if SCHEMA_HASH_PATH.read_text(encoding="utf-8").strip() != schema_hash:
+        raise SystemExit(
+            "docs/erd.schema.sha256 is stale. Run `uv run python scripts/generate_erd.py`."
+        )
 
 
 def _index_column_names(table: Table) -> set[str]:

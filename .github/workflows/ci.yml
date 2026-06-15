@@ -55,9 +55,7 @@ jobs:
         run: uv run python -c "from codex_sdk_cli.api.main import app; print(app.title)"
 
       - name: Verify ERD is up to date
-        run: |
-          uv run python scripts/generate_erd.py
-          git diff --exit-code docs/erd.svg
+        run: uv run python scripts/generate_erd.py --check
 
   docker:
     name: Docker build
