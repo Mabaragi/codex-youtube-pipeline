@@ -166,7 +166,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build api nginx cloudflared minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api nginx cloudflared minio
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 
       - name: Verify local Nginx health through Basic Auth
@@ -177,7 +177,23 @@ jobs:
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair))
           $headers = @{ Authorization = "Basic $encoded" }
           $uri = "http://127.0.0.1:$env:HOME_NGINX_PORT/health"
-          Invoke-RestMethod -Uri $uri -Headers $headers
+          $deadline = (Get-Date).AddSeconds(90)
+          $lastError = $null
+
+          while ((Get-Date) -lt $deadline) {
+            try {
+              Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 15
+              exit 0
+            } catch {
+              $lastError = $_
+              Start-Sleep -Seconds 5
+            }
+          }
+
+          if ($lastError) {
+            throw $lastError
+          }
+          throw "Local Nginx health check timed out."
 
       - name: Capture Cloudflare quick tunnel URL
         id: quick_tunnel

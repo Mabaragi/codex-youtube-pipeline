@@ -24,8 +24,8 @@ flowchart TD
     QualityMain --> Preflight["Home deploy readiness"]
     DockerMain --> Preflight
     Preflight --> HomeRunner["Windows self-hosted runner: codex-home"]
-    HomeRunner --> ComposeDeploy["docker compose up -d --build api nginx cloudflared minio"]
-    ComposeDeploy --> LocalHealth["local Basic Auth health check"]
+    HomeRunner --> ComposeDeploy["docker compose up -d --build --force-recreate api nginx cloudflared minio"]
+    ComposeDeploy --> LocalHealth["local Basic Auth health check with retry"]
     LocalHealth --> CaptureUrl["capture latest trycloudflare.com URL"]
     CaptureUrl --> PublicHealth["public Basic Auth health check"]
 
@@ -93,8 +93,8 @@ sequenceDiagram
     Runner->>Docker: docker version and compose version
     Runner->>Docker: generate .home-deploy/nginx.htpasswd
     Runner->>Docker: docker compose config
-    Runner->>Docker: docker compose up -d --build api nginx cloudflared minio
-    Runner->>Nginx: GET http://127.0.0.1:18080/health with Basic Auth
+    Runner->>Docker: docker compose up -d --build --force-recreate api nginx cloudflared minio
+    Runner->>Nginx: Retry GET http://127.0.0.1:18080/health with Basic Auth
     Nginx->>API: proxy /health
     API-->>Nginx: {"status":"ok"}
     Runner->>CF: read cloudflared logs
