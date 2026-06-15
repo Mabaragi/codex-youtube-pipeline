@@ -18,3 +18,10 @@ build
 .env.*
 .codex
 .docker-empty-s3
+data
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*

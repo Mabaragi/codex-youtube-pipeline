@@ -21,6 +21,7 @@
 - 새 Python 코드는 `modern-python` 기본값을 따른다: `src/` layout, Click CLI, `pydantic-settings`, Protocol 기반 경계, pytest/Ruff/Pyrefly 검증.
 - CLI command 함수는 얇게 유지하고, Codex SDK 호출과 use-case 로직은 `src/codex_sdk_cli/runner.py`에 둔다.
 - 환경 설정은 `src/codex_sdk_cli/settings.py`의 `CliSettings`와 `CODEX_CLI_` prefix를 통해 관리한다.
+- DB schema 변경은 SQLAlchemy 모델과 Alembic migration으로만 수행하고, 앱 코드나 테스트에서 `metadata.create_all()`/`drop_all()`을 호출하지 않는다.
 - 자동 테스트에서는 실제 Codex app-server, 로그인, 네트워크 호출을 띄우지 않는다. Protocol/fake 기반 테스트를 사용한다.
 - `openai-codex`는 베타 SDK이며 prerelease runtime dependency가 필요하므로 `[tool.uv] prerelease = "allow"`를 유지한다.
 
@@ -36,6 +37,7 @@
 ## Task Guides
 
 - `vaults/agents/python-cli.md`: CLI 명령, 설정, SDK adapter, 테스트 경계를 바꾸는 작업에서 읽는다.
+- `vaults/agents/database.md`: SQLite, SQLAlchemy 모델, DB 세션, Alembic migration을 바꾸는 작업에서 읽는다.
 
 ## Workflow Guides
 

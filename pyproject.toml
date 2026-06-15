@@ -5,11 +5,14 @@ description = "Small Python CLI demo for the OpenAI Codex SDK."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiosqlite>=0.21,<1",
+    "alembic>=1.16,<2",
     "click>=8.1",
     "fastapi>=0.115",
     "minio>=7.2,<8",
     "openai-codex>=0.1.0b3,<0.2",
     "pydantic-settings>=2.2",
+    "sqlalchemy[asyncio]>=2.0,<3",
     "typing-extensions>=4.12",
     "uvicorn[standard]>=0.30",
     "youtube-transcript-api>=1.2.4,<2",
@@ -39,6 +42,10 @@ prerelease = "allow"
 
 [tool.fastapi]
 entrypoint = "codex_sdk_cli.api.main:app"
+
+[tool.alembic]
+script_location = "%(here)s/alembic"
+prepend_sys_path = ["."]
 
 [tool.ruff]
 line-length = 100

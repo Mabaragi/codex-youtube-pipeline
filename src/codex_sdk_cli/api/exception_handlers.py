@@ -10,6 +10,7 @@ from codex_sdk_cli.domains.youtube.exceptions import (
     YouTubeDomainError,
     YouTubeTranscriptForbidden,
     YouTubeTranscriptNotFound,
+    YouTubeTranscriptPersistenceError,
     YouTubeTranscriptStorageError,
     YouTubeTranscriptUpstreamError,
 )
@@ -40,7 +41,10 @@ def add_exception_handlers(app: FastAPI) -> None:
             status_code = status.HTTP_403_FORBIDDEN
         elif isinstance(exc, YouTubeTranscriptUpstreamError):
             status_code = status.HTTP_502_BAD_GATEWAY
-        elif isinstance(exc, YouTubeTranscriptStorageError):
+        elif isinstance(
+            exc,
+            (YouTubeTranscriptStorageError, YouTubeTranscriptPersistenceError),
+        ):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         elif isinstance(exc, InvalidYouTubeVideo):
             status_code = status.HTTP_400_BAD_REQUEST

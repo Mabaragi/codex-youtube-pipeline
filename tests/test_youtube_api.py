@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_client,
+    get_youtube_transcript_repository,
     get_youtube_transcript_storage,
 )
 from codex_sdk_cli.api.main import create_app
@@ -15,6 +16,7 @@ from codex_sdk_cli.domains.youtube.exceptions import (
     YouTubeDomainError,
     YouTubeTranscriptForbidden,
     YouTubeTranscriptNotFound,
+    YouTubeTranscriptPersistenceError,
     YouTubeTranscriptStorageError,
     YouTubeTranscriptUpstreamError,
 )
@@ -23,6 +25,8 @@ from codex_sdk_cli.domains.youtube.ports import (
     YouTubeTranscriptFetchRequest,
     YouTubeTranscriptFetchResult,
     YouTubeTranscriptPort,
+    YouTubeTranscriptRecord,
+    YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptSegment,
     YouTubeTranscriptStoragePort,
     YouTubeTranscriptStorageSaveRequest,
@@ -75,6 +79,17 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
         if self.error is not None:
             raise self.error
         return self.location_for(request.object_name)
+
+
+class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
+    def __init__(self) -> None:
+        self.records: list[YouTubeTranscriptRecord] = []
+        self.error: YouTubeTranscriptPersistenceError | None = None
+
+    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+        self.records.append(record)
+        if self.error is not None:
+            raise self.error
 
 
 def test_transcript_endpoint_normalizes_url_and_raw_video_id() -> None:
@@ -226,6 +241,28 @@ def test_transcript_endpoint_maps_storage_errors_to_unavailable() -> None:
     assert len(storage.saves) == 1
 
 
+def test_transcript_endpoint_maps_repository_errors_to_unavailable() -> None:
+    fake = FakeYouTubeTranscriptClient()
+    storage = FakeYouTubeTranscriptStorage()
+    repository = FakeYouTubeTranscriptRepository()
+    repository.error = YouTubeTranscriptPersistenceError("Metadata unavailable.")
+
+    response = asyncio.run(
+        _request(
+            fake,
+            youtube_storage=storage,
+            youtube_repository=repository,
+            json={"video": VIDEO_ID},
+            expected_status=503,
+        )
+    )
+
+    assert response == {"detail": "Metadata unavailable."}
+    assert len(fake.requests) == 1
+    assert len(storage.saves) == 1
+    assert len(repository.records) == 1
+
+
 def test_transcript_endpoint_does_not_store_when_fetch_fails() -> None:
     fake = FakeYouTubeTranscriptClient()
     fake.error = YouTubeTranscriptUpstreamError("Blocked upstream.")
@@ -244,17 +281,40 @@ def test_transcript_endpoint_does_not_store_when_fetch_fails() -> None:
     assert storage.saves == []
 
 
+def test_transcript_endpoint_does_not_persist_when_storage_fails() -> None:
+    fake = FakeYouTubeTranscriptClient()
+    storage = FakeYouTubeTranscriptStorage()
+    storage.error = YouTubeTranscriptStorageError("Storage unavailable.")
+    repository = FakeYouTubeTranscriptRepository()
+
+    response = asyncio.run(
+        _request(
+            fake,
+            youtube_storage=storage,
+            youtube_repository=repository,
+            json={"video": VIDEO_ID},
+            expected_status=503,
+        )
+    )
+
+    assert response == {"detail": "Storage unavailable."}
+    assert repository.records == []
+
+
 async def _request(
     youtube_client: FakeYouTubeTranscriptClient,
     *,
     youtube_storage: FakeYouTubeTranscriptStorage | None = None,
+    youtube_repository: FakeYouTubeTranscriptRepository | None = None,
     json: dict[str, Any],
     expected_status: int = 200,
 ) -> Any:
     app = create_app()
     storage = youtube_storage or FakeYouTubeTranscriptStorage()
+    repository = youtube_repository or FakeYouTubeTranscriptRepository()
     app.dependency_overrides[get_youtube_transcript_client] = lambda: youtube_client
     app.dependency_overrides[get_youtube_transcript_storage] = lambda: storage
+    app.dependency_overrides[get_youtube_transcript_repository] = lambda: repository
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

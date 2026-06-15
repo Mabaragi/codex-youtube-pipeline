@@ -12,6 +12,8 @@ from codex_sdk_cli.domains.youtube.ports import (
     YouTubeTranscriptFetchRequest,
     YouTubeTranscriptFetchResult,
     YouTubeTranscriptPort,
+    YouTubeTranscriptRecord,
+    YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptSegment,
     YouTubeTranscriptStoragePort,
     YouTubeTranscriptStorageSaveRequest,
@@ -66,6 +68,14 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
         return self.location_for(request.object_name)
 
 
+class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
+    def __init__(self) -> None:
+        self.records: list[YouTubeTranscriptRecord] = []
+
+    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+        self.records.append(record)
+
+
 @pytest.mark.parametrize(
     ("video", "expected"),
     [
@@ -99,9 +109,11 @@ def test_normalize_video_id_rejects_invalid_inputs(video: str) -> None:
 def test_fetch_transcript_use_case_uses_fake_client_without_network() -> None:
     fake = FakeYouTubeTranscriptClient()
     storage = FakeYouTubeTranscriptStorage()
+    repository = FakeYouTubeTranscriptRepository()
     use_case = FetchYouTubeTranscriptUseCase(
         fake,
         storage,
+        repository,
         storage_prefix="youtube/transcripts",
         date_provider=lambda: date(2026, 6, 15),
     )
@@ -138,3 +150,20 @@ def test_fetch_transcript_use_case_uses_fake_client_without_network() -> None:
     assert json.loads(storage.saves[0].payload.decode("utf-8")) == response.model_dump(
         by_alias=True
     )
+    assert repository.records == [
+        YouTubeTranscriptRecord(
+            video_id=VIDEO_ID,
+            language="English",
+            language_code="en",
+            is_generated=False,
+            requested_languages=("en",),
+            preserve_formatting=True,
+            storage_bucket="raw",
+            storage_object_name=expected_object_name,
+            storage_uri=f"s3://raw/{expected_object_name}",
+            response_sha256=repository.records[0].response_sha256,
+            segment_count=2,
+            text_length=len("hello\nworld"),
+        )
+    ]
+    assert len(repository.records[0].response_sha256) == 64

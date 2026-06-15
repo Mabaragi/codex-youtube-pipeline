@@ -12,6 +12,8 @@ from .ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptFetchRequest,
     YouTubeTranscriptPort,
+    YouTubeTranscriptRecord,
+    YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptStoragePort,
     YouTubeTranscriptStorageSaveRequest,
 )
@@ -50,12 +52,14 @@ class FetchYouTubeTranscriptUseCase:
         self,
         client: YouTubeTranscriptPort,
         storage: YouTubeTranscriptStoragePort,
+        repository: YouTubeTranscriptRepositoryPort,
         *,
         storage_prefix: str = "youtube/transcripts",
         date_provider: Callable[[], date] | None = None,
     ) -> None:
         self._client = client
         self._storage = storage
+        self._repository = repository
         self._storage_prefix = storage_prefix
         self._date_provider = date_provider or _utc_today
 
@@ -94,10 +98,27 @@ class FetchYouTubeTranscriptUseCase:
             segments=segments,
             storage=_storage_response(location),
         )
+        response_payload = response.model_dump_json(by_alias=True).encode("utf-8")
         await self._storage.save_transcript(
             YouTubeTranscriptStorageSaveRequest(
                 object_name=object_name,
-                payload=response.model_dump_json(by_alias=True).encode("utf-8"),
+                payload=response_payload,
+            )
+        )
+        await self._repository.save_transcript_record(
+            YouTubeTranscriptRecord(
+                video_id=result.video_id,
+                language=result.language,
+                language_code=result.language_code,
+                is_generated=result.is_generated,
+                requested_languages=languages,
+                preserve_formatting=request.preserve_formatting,
+                storage_bucket=location.bucket,
+                storage_object_name=location.object_name,
+                storage_uri=location.uri,
+                response_sha256=hashlib.sha256(response_payload).hexdigest(),
+                segment_count=len(result.segments),
+                text_length=len(response.text),
             )
         )
         return response

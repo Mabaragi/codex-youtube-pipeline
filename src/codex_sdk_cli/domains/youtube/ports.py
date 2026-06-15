@@ -40,6 +40,22 @@ class YouTubeTranscriptStorageSaveRequest:
     payload: bytes
 
 
+@dataclass(frozen=True, slots=True)
+class YouTubeTranscriptRecord:
+    video_id: str
+    language: str
+    language_code: str
+    is_generated: bool
+    requested_languages: tuple[str, ...]
+    preserve_formatting: bool
+    storage_bucket: str
+    storage_object_name: str
+    storage_uri: str
+    response_sha256: str
+    segment_count: int
+    text_length: int
+
+
 class YouTubeTranscriptPort(Protocol):
     async def fetch_transcript(
         self,
@@ -57,3 +73,8 @@ class YouTubeTranscriptStoragePort(Protocol):
         request: YouTubeTranscriptStorageSaveRequest,
     ) -> TranscriptStorageLocation:
         """Persist a transcript response JSON payload."""
+
+
+class YouTubeTranscriptRepositoryPort(Protocol):
+    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+        """Persist transcript metadata after object storage succeeds."""

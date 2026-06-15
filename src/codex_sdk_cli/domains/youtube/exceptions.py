@@ -25,3 +25,7 @@ class YouTubeTranscriptUpstreamError(YouTubeDomainError):
 
 class YouTubeTranscriptStorageError(YouTubeDomainError):
     """Raised when transcript object storage is unavailable or misconfigured."""
+
+
+class YouTubeTranscriptPersistenceError(YouTubeDomainError):
+    """Raised when transcript metadata cannot be persisted."""

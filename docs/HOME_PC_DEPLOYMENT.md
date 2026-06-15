@@ -12,6 +12,7 @@ failure handling, see `docs/CICD.md`.
 GitHub main push or workflow_dispatch
   -> GitHub-hosted quality and Docker checks
   -> Windows self-hosted runner on the home PC
+  -> Alembic migration against the API SQLite database
   -> Docker Compose home stack
   -> MinIO transcript JSON storage
   -> cloudflared quick tunnel
@@ -24,6 +25,8 @@ The home stack is defined in `compose.home.yaml`.
 - `api`: runs `codex-api` and exposes port `8000` only inside Docker.
 - `minio`: stores YouTube transcript response JSON in the `raw` bucket by
   default and is reachable only inside the Docker network.
+- SQLite: stores transcript metadata in `youtube_transcripts`; raw transcript
+  response JSON remains in MinIO.
 - `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
 - `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to
@@ -86,14 +89,27 @@ gh variable set CODEX_CLI_TRANSCRIPT_MINIO_BUCKET --body raw -R Mabaragi/codex-s
 ```
 
 The home compose defaults use `minio:9000`, access key `codex`, bucket `raw`,
-and prefix `youtube/transcripts`. Override `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY`
-and `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY` with repository secrets for a less
+prefix `youtube/transcripts`, and SQLite URL
+`sqlite+aiosqlite:///./data/app.db`. Override
+`CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY` and
+`CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY` with repository secrets for a less
 guessable local MinIO credential.
 
 ## Deploy And Verify
 
 Home deployment runs on `main` pushes and can also be started from the GitHub
 Actions `CI` workflow with `Run workflow`.
+
+The deploy workflow builds the API image, runs `alembic upgrade head` with the
+same `CODEX_CLI_DATABASE_URL` used by the API container, then recreates the home
+stack. If you redeploy manually from the runner checkout, run the same migration
+step before starting the API:
+
+```powershell
+docker compose --project-name codex-sdk-home -f compose.home.yaml build api
+docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api nginx cloudflared minio
+```
 
 On the home PC, inspect the stack:
 

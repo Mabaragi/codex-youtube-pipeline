@@ -1,0 +1,5 @@
+Database migrations for codex-sdk-cli-demo.
+
+Use Alembic only for schema changes. Do not create application tables outside
+revision files, and do not call SQLAlchemy metadata.create_all() or drop_all()
+from app code.

@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ApprovalChoice = Literal["auto-review", "deny-all"]
 SandboxChoice = Literal["read-only", "workspace-write", "full-access"]
+DEFAULT_DATABASE_URL = "sqlite+aiosqlite:///./data/app.db"
 
 
 class CliSettings(BaseSettings):
@@ -27,6 +28,8 @@ class CliSettings(BaseSettings):
     transcript_minio_bucket: str | None = None
     transcript_minio_prefix: str = "youtube/transcripts"
     transcript_minio_secure: bool = False
+    database_url: str = DEFAULT_DATABASE_URL
+    database_echo: bool = False
 
     model_config = SettingsConfigDict(env_prefix="CODEX_CLI_", extra="ignore")
 
@@ -46,6 +49,13 @@ class CliSettings(BaseSettings):
     def _blank_string_to_none(cls, value: object) -> object | None:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _blank_database_url_to_default(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_DATABASE_URL
         return value
 
     def codex_config(self) -> CodexConfig:
