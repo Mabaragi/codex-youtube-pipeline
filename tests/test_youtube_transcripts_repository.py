@@ -63,6 +63,7 @@ def test_repository_lists_filters_updates_notes_and_deletes_metadata(
     assert result["got_storage_uri"] == "s3://raw/youtube/transcripts/object-2.json"
     assert result["updated_notes"] == "reviewed"
     assert result["cleared_notes"] is None
+    assert result["existing_request_id"] == 3
     assert result["deleted"] is True
     assert result["missing_after_delete"] is None
     assert result["delete_missing"] is False
@@ -124,6 +125,11 @@ async def _exercise_metadata_crud(database_url: str) -> dict[str, object]:
             got = await repository.get_transcript_metadata(2)
             updated = await repository.update_transcript_notes(1, "reviewed")
             cleared = await repository.update_transcript_notes(1, None)
+            existing_request = await repository.find_transcript_metadata_for_request(
+                video_id="dQw4w9WgXcQ",
+                requested_languages=("ko", "en"),
+                preserve_formatting=False,
+            )
             deleted = await repository.delete_transcript_metadata(2)
             missing_after_delete = await repository.get_transcript_metadata(2)
             delete_missing = await repository.delete_transcript_metadata(999)
@@ -131,6 +137,7 @@ async def _exercise_metadata_crud(database_url: str) -> dict[str, object]:
         assert got is not None
         assert updated is not None
         assert cleared is not None
+        assert existing_request is not None
         return {
             "all_ids": [record.id for record in all_records],
             "filtered_ids": [record.id for record in filtered_records],
@@ -138,6 +145,7 @@ async def _exercise_metadata_crud(database_url: str) -> dict[str, object]:
             "got_storage_uri": got.storage_uri,
             "updated_notes": updated.notes,
             "cleared_notes": cleared.notes,
+            "existing_request_id": existing_request.id,
             "deleted": deleted,
             "missing_after_delete": missing_after_delete,
             "delete_missing": delete_missing,

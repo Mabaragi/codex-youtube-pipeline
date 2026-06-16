@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from codex_sdk_cli.domains.channels.schemas import ResolveYouTubeChannelRequest
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.video_tasks.use_cases import (
+    CollectChannelTranscriptTasksUseCase,
+)
 from codex_sdk_cli.domains.videos.use_cases import CollectChannelVideosUseCase
 
 from .exceptions import PipelineJobNotFound, PipelineJobRetryNotAllowed
@@ -16,6 +19,7 @@ from .ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineTranscriptOutputRecord,
     PipelineVideoOutputRecord,
 )
 from .schemas import (
@@ -25,6 +29,7 @@ from .schemas import (
     PipelineJobAttemptResponse,
     PipelineJobDetailResponse,
     PipelineJobSummaryResponse,
+    PipelineTranscriptOutputResponse,
     PipelineVideoOutputResponse,
     RetryPipelineJobResponse,
 )
@@ -101,11 +106,12 @@ class RetryPipelineJobUseCase:
         await self._pipeline_jobs.mark_job_running(job.id)
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
         result = await executor.execute(job, attempt)
+        updated_job = await self._pipeline_jobs.get_job(job.id)
         return RetryPipelineJobResponse(
             jobId=job.id,
             jobAttemptId=attempt.id,
             step=job.step,
-            status="succeeded",
+            status=updated_job.status if updated_job is not None else "succeeded",
             result=result,
         )
 
@@ -155,6 +161,18 @@ class VideoCollectRetryExecutor(PipelineRetryExecutor):
             youtube_channel_id=youtube_channel_id,
         )
         return result.model_dump(by_alias=True)
+
+
+class TranscriptCollectRetryExecutor(PipelineRetryExecutor):
+    def __init__(self, use_case: CollectChannelTranscriptTasksUseCase) -> None:
+        self._use_case = use_case
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        return await self._use_case.execute_retry_job_attempt(job, attempt)
 
 
 def _channel_resolve_request(job: PipelineJobRecord) -> tuple[int, ResolveYouTubeChannelRequest]:
@@ -226,6 +244,9 @@ def _job_detail_response(detail: PipelineJobDetailRecord) -> PipelineJobDetailRe
         ],
         channels=[_channel_output_response(channel) for channel in detail.channels],
         videos=[_video_output_response(video) for video in detail.videos],
+        transcripts=[
+            _transcript_output_response(transcript) for transcript in detail.transcripts
+        ],
     )
 
 
@@ -286,4 +307,17 @@ def _video_output_response(
         sourceSearchApiCallId=video.source_search_api_call_id,
         sourceDetailsApiCallId=video.source_details_api_call_id,
         sourceJobId=video.source_job_id,
+    )
+
+
+def _transcript_output_response(
+    transcript: PipelineTranscriptOutputRecord,
+) -> PipelineTranscriptOutputResponse:
+    return PipelineTranscriptOutputResponse(
+        transcriptId=transcript.id,
+        videoTaskId=transcript.video_task_id,
+        videoId=transcript.video_id,
+        youtubeVideoId=transcript.youtube_video_id,
+        languageCode=transcript.language_code,
+        storageUri=transcript.storage_uri,
     )

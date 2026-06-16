@@ -35,6 +35,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineTranscriptOutputRecord,
     PipelineVideoOutputRecord,
 )
 from codex_sdk_cli.infra.database.base import Base
@@ -190,6 +191,7 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 external_api_calls=await self._external_api_call_summaries(attempts),
                 channels=await self._channel_outputs(job_id, attempts),
                 videos=await self._video_outputs(job_id, attempts),
+                transcripts=await self._transcript_outputs(job_id),
             )
         except SQLAlchemyError as exc:
             raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
@@ -424,6 +426,37 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 source_job_id=video.source_job_id,
             )
             for video in videos
+        ]
+
+    async def _transcript_outputs(self, job_id: int) -> list[PipelineTranscriptOutputRecord]:
+        from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
+        from codex_sdk_cli.infra.videos.repository import VideoModel
+        from codex_sdk_cli.infra.youtube_transcripts.repository import (
+            YouTubeTranscriptRecordModel,
+        )
+
+        rows = (
+            await self._session.execute(
+                select(VideoTaskModel, VideoModel, YouTubeTranscriptRecordModel)
+                .join(VideoModel, VideoTaskModel.video_id == VideoModel.id)
+                .join(
+                    YouTubeTranscriptRecordModel,
+                    VideoTaskModel.output_transcript_id == YouTubeTranscriptRecordModel.id,
+                )
+                .where(VideoTaskModel.job_id == job_id)
+                .order_by(VideoTaskModel.id.asc())
+            )
+        ).all()
+        return [
+            PipelineTranscriptOutputRecord(
+                id=transcript.id,
+                video_task_id=task.id,
+                video_id=task.video_id,
+                youtube_video_id=video.youtube_video_id,
+                language_code=transcript.language_code,
+                storage_uri=transcript.storage_uri,
+            )
+            for task, video, transcript in rows
         ]
 
     async def _mark_attempt_finished(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Protocol
 
@@ -115,12 +115,23 @@ class PipelineVideoOutputRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class PipelineTranscriptOutputRecord:
+    id: int
+    video_task_id: int
+    video_id: int
+    youtube_video_id: str
+    language_code: str
+    storage_uri: str
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineJobDetailRecord:
     job: PipelineJobRecord
     attempts: list[PipelineJobAttemptRecord]
     external_api_calls: list[ExternalApiCallSummaryRecord]
     channels: list[PipelineChannelOutputRecord]
     videos: list[PipelineVideoOutputRecord]
+    transcripts: list[PipelineTranscriptOutputRecord] = field(default_factory=list)
 
 
 class PipelineJobRepositoryPort(Protocol):

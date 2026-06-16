@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -74,8 +74,38 @@ class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
     def __init__(self) -> None:
         self.records: list[YouTubeTranscriptRecord] = []
 
-    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+    async def save_transcript_record(
+        self,
+        record: YouTubeTranscriptRecord,
+    ) -> YouTubeTranscriptMetadataRecord:
         self.records.append(record)
+        return YouTubeTranscriptMetadataRecord(
+            id=len(self.records),
+            video_id=record.video_id,
+            language=record.language,
+            language_code=record.language_code,
+            is_generated=record.is_generated,
+            requested_languages=record.requested_languages,
+            preserve_formatting=record.preserve_formatting,
+            storage_bucket=record.storage_bucket,
+            storage_object_name=record.storage_object_name,
+            storage_uri=record.storage_uri,
+            response_sha256=record.response_sha256,
+            segment_count=record.segment_count,
+            text_length=record.text_length,
+            notes=None,
+            created_at=datetime(2026, 6, 15, tzinfo=UTC),
+            updated_at=datetime(2026, 6, 15, tzinfo=UTC),
+        )
+
+    async def find_transcript_metadata_for_request(
+        self,
+        *,
+        video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        return None
 
     async def list_transcript_metadata(
         self,

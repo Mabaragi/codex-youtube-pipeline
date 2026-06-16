@@ -22,6 +22,7 @@ def test_database_base_registers_app_tables() -> None:
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
+        "video_tasks",
         "videos",
         "youtube_transcripts",
     }
@@ -63,11 +64,15 @@ def test_youtube_data_settings_handle_blank_and_env_override(
 
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", "AIza-test")
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS", "3.5")
+    monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS", "300")
+    monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT", "2")
 
     settings = CliSettings()
 
     assert settings.youtube_data_api_key_value() == "AIza-test"
     assert settings.youtube_data_timeout_seconds == 3.5
+    assert settings.transcript_collect_timeout_seconds == 300
+    assert settings.transcript_collect_concurrency_limit == 2
 
 
 def test_blank_database_url_uses_default() -> None:
@@ -124,6 +129,11 @@ def test_alembic_upgrade_creates_app_tables(
         video_columns = {column["name"] for column in inspector.get_columns("videos")}
         video_foreign_keys = inspector.get_foreign_keys("videos")
         video_unique_constraints = inspector.get_unique_constraints("videos")
+        video_task_columns = {
+            column["name"] for column in inspector.get_columns("video_tasks")
+        }
+        video_task_foreign_keys = inspector.get_foreign_keys("video_tasks")
+        video_task_unique_constraints = inspector.get_unique_constraints("video_tasks")
     finally:
         engine.dispose()
 
@@ -133,6 +143,7 @@ def test_alembic_upgrade_creates_app_tables(
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
+        "video_tasks",
         "videos",
         "youtube_transcripts",
     }.issubset(table_names)
@@ -263,6 +274,49 @@ def test_alembic_upgrade_creates_app_tables(
         foreign_key["referred_table"] == "pipeline_jobs"
         and foreign_key["constrained_columns"] == ["source_job_id"]
         for foreign_key in video_foreign_keys
+    )
+    assert {
+        "id",
+        "video_id",
+        "task_name",
+        "task_version",
+        "input_hash",
+        "status",
+        "worker_id",
+        "timeout_seconds",
+        "job_id",
+        "job_attempt_id",
+        "output_transcript_id",
+        "output_json",
+        "error_type",
+        "error_message",
+        "started_at",
+        "completed_at",
+    }.issubset(video_task_columns)
+    assert any(
+        unique_constraint["column_names"]
+        == ["video_id", "task_name", "task_version", "input_hash"]
+        for unique_constraint in video_task_unique_constraints
+    )
+    assert any(
+        foreign_key["referred_table"] == "videos"
+        and foreign_key["constrained_columns"] == ["video_id"]
+        for foreign_key in video_task_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["job_id"]
+        for foreign_key in video_task_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_job_attempts"
+        and foreign_key["constrained_columns"] == ["job_attempt_id"]
+        for foreign_key in video_task_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "youtube_transcripts"
+        and foreign_key["constrained_columns"] == ["output_transcript_id"]
+        for foreign_key in video_task_foreign_keys
     )
 
 

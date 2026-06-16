@@ -96,10 +96,40 @@ class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         self.error: YouTubeTranscriptPersistenceError | None = None
         self.deleted_ids: list[int] = []
 
-    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+    async def save_transcript_record(
+        self,
+        record: YouTubeTranscriptRecord,
+    ) -> YouTubeTranscriptMetadataRecord:
         self.records.append(record)
         if self.error is not None:
             raise self.error
+        metadata = _metadata_record(
+            id=max((item.id for item in self.metadata_records), default=0) + 1,
+            video_id=record.video_id,
+            language_code=record.language_code,
+        )
+        self.metadata_records.append(metadata)
+        return metadata
+
+    async def find_transcript_metadata_for_request(
+        self,
+        *,
+        video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        if self.error is not None:
+            raise self.error
+        return next(
+            (
+                record
+                for record in reversed(self.metadata_records)
+                if record.video_id == video_id
+                and record.requested_languages == requested_languages
+                and record.preserve_formatting == preserve_formatting
+            ),
+            None,
+        )
 
     async def list_transcript_metadata(
         self,

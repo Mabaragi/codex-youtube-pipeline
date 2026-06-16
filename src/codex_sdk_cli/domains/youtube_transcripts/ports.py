@@ -105,8 +105,20 @@ class YouTubeTranscriptStoragePort(Protocol):
 
 
 class YouTubeTranscriptRepositoryPort(Protocol):
-    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+    async def save_transcript_record(
+        self,
+        record: YouTubeTranscriptRecord,
+    ) -> YouTubeTranscriptMetadataRecord:
         """Persist transcript metadata after object storage succeeds."""
+
+    async def find_transcript_metadata_for_request(
+        self,
+        *,
+        video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        """Return the latest metadata row for the exact transcript request."""
 
     async def list_transcript_metadata(
         self,

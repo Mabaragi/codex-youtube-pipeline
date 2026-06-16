@@ -59,7 +59,10 @@ class SqlAlchemyYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         self._session = session
 
     @override
-    async def save_transcript_record(self, record: YouTubeTranscriptRecord) -> None:
+    async def save_transcript_record(
+        self,
+        record: YouTubeTranscriptRecord,
+    ) -> YouTubeTranscriptMetadataRecord:
         try:
             model = await self._session.scalar(
                 select(YouTubeTranscriptRecordModel).where(
@@ -72,11 +75,41 @@ class SqlAlchemyYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
 
             _apply_record(model, record)
             await self._session.commit()
+            await self._session.refresh(model)
+            return _metadata_record(model)
         except SQLAlchemyError as exc:
             await self._session.rollback()
             raise YouTubeTranscriptPersistenceError(
                 "Transcript metadata persistence failed."
             ) from exc
+
+    @override
+    async def find_transcript_metadata_for_request(
+        self,
+        *,
+        video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> YouTubeTranscriptMetadataRecord | None:
+        try:
+            model = await self._session.scalar(
+                select(YouTubeTranscriptRecordModel)
+                .where(
+                    YouTubeTranscriptRecordModel.video_id == video_id,
+                    YouTubeTranscriptRecordModel.requested_languages
+                    == list(requested_languages),
+                    YouTubeTranscriptRecordModel.preserve_formatting
+                    == preserve_formatting,
+                )
+                .order_by(YouTubeTranscriptRecordModel.id.desc())
+            )
+        except SQLAlchemyError as exc:
+            raise YouTubeTranscriptPersistenceError(
+                "Transcript metadata persistence failed."
+            ) from exc
+        if model is None:
+            return None
+        return _metadata_record(model)
 
     @override
     async def list_transcript_metadata(

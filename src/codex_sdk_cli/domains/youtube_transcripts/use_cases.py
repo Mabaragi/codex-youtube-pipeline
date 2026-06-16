@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from urllib.parse import parse_qs, urlparse
 
@@ -52,6 +53,12 @@ SCHEMELESS_YOUTUBE_PREFIXES = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class StoredTranscriptResult:
+    response: TranscriptResponse
+    metadata: TranscriptMetadataResponse
+
+
 class FetchYouTubeTranscriptUseCase:
     def __init__(
         self,
@@ -69,6 +76,9 @@ class FetchYouTubeTranscriptUseCase:
         self._date_provider = date_provider or _utc_today
 
     async def execute(self, request: TranscriptRequest) -> TranscriptResponse:
+        return (await self.execute_with_metadata(request)).response
+
+    async def execute_with_metadata(self, request: TranscriptRequest) -> StoredTranscriptResult:
         video_id = normalize_video_id(request.video)
         languages = normalize_languages(request.languages)
         result = await self._client.fetch_transcript(
@@ -110,7 +120,7 @@ class FetchYouTubeTranscriptUseCase:
                 payload=response_payload,
             )
         )
-        await self._repository.save_transcript_record(
+        metadata = await self._repository.save_transcript_record(
             YouTubeTranscriptRecord(
                 video_id=result.video_id,
                 language=result.language,
@@ -126,7 +136,10 @@ class FetchYouTubeTranscriptUseCase:
                 text_length=len(response.text),
             )
         )
-        return response
+        return StoredTranscriptResult(
+            response=response,
+            metadata=_metadata_response(metadata),
+        )
 
 
 class ListYouTubeTranscriptMetadataUseCase:

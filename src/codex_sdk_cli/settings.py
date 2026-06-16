@@ -24,6 +24,8 @@ class CliSettings(BaseSettings):
     youtube_https_proxy: str | None = None
     youtube_data_api_key: SecretStr | None = None
     youtube_data_timeout_seconds: float = 10.0
+    transcript_collect_timeout_seconds: int = 600
+    transcript_collect_concurrency_limit: int = 1
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
@@ -60,6 +62,16 @@ class CliSettings(BaseSettings):
     def _blank_database_url_to_default(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return DEFAULT_DATABASE_URL
+        return value
+
+    @field_validator(
+        "transcript_collect_timeout_seconds",
+        "transcript_collect_concurrency_limit",
+    )
+    @classmethod
+    def _positive_int(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("value must be greater than or equal to 1")
         return value
 
     def codex_config(self) -> CodexConfig:

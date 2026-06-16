@@ -24,6 +24,12 @@ from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerNotFound,
     StreamerPersistenceError,
 )
+from codex_sdk_cli.domains.video_tasks.exceptions import (
+    VideoTaskDomainError,
+    VideoTaskNotFound,
+    VideoTaskPersistenceError,
+    VideoTaskRetryNotAllowed,
+)
 from codex_sdk_cli.domains.videos.exceptions import (
     ChannelMissingYouTubeId,
     VideoAlreadyExists,
@@ -112,6 +118,20 @@ def add_exception_handlers(app: FastAPI) -> None:
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         elif isinstance(exc, ChannelMissingYouTubeId):
             status_code = status.HTTP_400_BAD_REQUEST
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(VideoTaskDomainError)
+    async def video_task_domain_error_handler(
+        _request: Request,
+        exc: VideoTaskDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, VideoTaskNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, VideoTaskRetryNotAllowed):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, VideoTaskPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
     @app.exception_handler(PipelineJobDomainError)

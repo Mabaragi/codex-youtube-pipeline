@@ -32,11 +32,16 @@ Last updated: 2026-06-16
 - [x] `POST /channels/{channel_id}/videos/collect`로 local channel 기반 YouTube video 수집을 지원한다.
 - [x] `GET /channels/{channel_id}/videos`로 저장된 videos를 최신순 조회한다.
 - [x] `video_collect` failed job retry를 지원하도록 step별 executor registry를 도입한다.
+- [x] `video_tasks` table과 repository를 추가해 video 단위 task 상태와 중복 방지를 저장한다.
+- [x] `POST /channels/{channel_id}/video-tasks/transcript-collect`로 channel selector 기반 manual transcript 수집을 지원한다.
+- [x] `GET /channels/{channel_id}/video-tasks`로 저장된 task 상태를 조회한다.
+- [x] `transcript_collect` task 기본 정책을 `timeoutSeconds=600`, `concurrencyLimit=1`로 둔다.
+- [x] `transcript_collect` failed job retry를 executor registry에 연결한다.
+- [x] pipeline job detail에서 linked transcript output을 반환한다.
 
 ## Future Domain Work
 
 - [ ] `search.list` v1 500개 제한을 넘어서는 전체 백필이 필요하면 uploads playlist 또는 publishedBefore windowing 전략을 도입한다.
-- [ ] transcript 수집도 pipeline job/attempt와 raw metadata 연결을 갖도록 확장한다.
 - [ ] LLM summary 결과는 transcript metadata와 분리된 summary domain table에 저장한다.
 - [ ] summary 생성 request/response raw도 재현성과 감사 가능성을 위해 저장한다.
 

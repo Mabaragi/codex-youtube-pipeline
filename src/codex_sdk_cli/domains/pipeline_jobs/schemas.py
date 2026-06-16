@@ -85,6 +85,17 @@ class PipelineVideoOutputResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PipelineTranscriptOutputResponse(BaseModel):
+    transcript_id: int = Field(alias="transcriptId")
+    video_task_id: int = Field(alias="videoTaskId")
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    language_code: str = Field(alias="languageCode")
+    storage_uri: str = Field(alias="storageUri")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PipelineJobDetailResponse(BaseModel):
     job_id: int = Field(alias="jobId")
     step: str
@@ -102,6 +113,7 @@ class PipelineJobDetailResponse(BaseModel):
     external_api_calls: list[ExternalApiCallSummaryResponse] = Field(alias="externalApiCalls")
     channels: list[PipelineChannelOutputResponse]
     videos: list[PipelineVideoOutputResponse]
+    transcripts: list[PipelineTranscriptOutputResponse]
 
     model_config = ConfigDict(populate_by_name=True)
 

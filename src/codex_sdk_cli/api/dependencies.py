@@ -13,6 +13,7 @@ from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
+from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.domains.videos.ports import VideoRepositoryPort
 from codex_sdk_cli.domains.youtube_data.exceptions import YouTubeDataConfigurationError
 from codex_sdk_cli.domains.youtube_data.ports import YouTubeDataClientPort
@@ -33,6 +34,7 @@ from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternal
 from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
+from codex_sdk_cli.infra.video_tasks.repository import SqlAlchemyVideoTaskRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.infra.youtube_transcripts.client import YouTubeTranscriptClient
@@ -115,6 +117,12 @@ async def get_video_repository(
     return SqlAlchemyVideoRepository(session)
 
 
+async def get_video_task_repository(
+    session: DatabaseSessionDep,
+) -> VideoTaskRepositoryPort:
+    return SqlAlchemyVideoTaskRepository(session)
+
+
 async def get_youtube_data_client(
     settings: Annotated[CliSettings, Depends(get_settings)],
     session: DatabaseSessionDep,
@@ -183,6 +191,10 @@ PipelineJobRepositoryDep = Annotated[
 VideoRepositoryDep = Annotated[
     VideoRepositoryPort,
     Depends(get_video_repository),
+]
+VideoTaskRepositoryDep = Annotated[
+    VideoTaskRepositoryPort,
+    Depends(get_video_task_repository),
 ]
 YouTubeDataClientDep = Annotated[
     YouTubeDataClientPort,
