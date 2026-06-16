@@ -4,6 +4,12 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from codex_sdk_cli.domains.channels.exceptions import (
+    ChannelAlreadyExists,
+    ChannelDomainError,
+    ChannelNotFound,
+    ChannelPersistenceError,
+)
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
 from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
 from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
@@ -13,7 +19,6 @@ from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
     PipelineJobRetryNotAllowed,
 )
 from codex_sdk_cli.domains.streamers.exceptions import (
-    ChannelNotFound,
     StreamerDomainError,
     StreamerHasChannels,
     StreamerNotFound,
@@ -57,11 +62,25 @@ def add_exception_handlers(app: FastAPI) -> None:
         exc: StreamerDomainError,
     ) -> JSONResponse:
         status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, (StreamerNotFound, ChannelNotFound)):
+        if isinstance(exc, StreamerNotFound):
             status_code = status.HTTP_404_NOT_FOUND
         elif isinstance(exc, StreamerHasChannels):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, StreamerPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(ChannelDomainError)
+    async def channel_domain_error_handler(
+        _request: Request,
+        exc: ChannelDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, ChannelNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, ChannelAlreadyExists):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, ChannelPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 

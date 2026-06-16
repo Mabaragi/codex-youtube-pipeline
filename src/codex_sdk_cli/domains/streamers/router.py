@@ -2,24 +2,16 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, Path, status
 
 from .dependencies import (
-    CreateChannelUseCaseDep,
     CreateStreamerUseCaseDep,
-    DeleteChannelUseCaseDep,
     DeleteStreamerUseCaseDep,
-    GetChannelUseCaseDep,
     GetStreamerUseCaseDep,
-    ListChannelsUseCaseDep,
     ListStreamersUseCaseDep,
-    UpdateChannelUseCaseDep,
     UpdateStreamerUseCaseDep,
 )
 from .schemas import (
-    ChannelCreateRequest,
-    ChannelResponse,
-    ChannelUpdateRequest,
     DeleteResponse,
     StreamerCreateRequest,
     StreamerResponse,
@@ -69,48 +61,3 @@ async def delete_streamer(
     use_case: DeleteStreamerUseCaseDep,
 ) -> DeleteResponse:
     return await use_case.execute(streamer_id)
-
-
-@router.post(
-    "/channels",
-    response_model=ChannelResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_channel(
-    request: ChannelCreateRequest,
-    use_case: CreateChannelUseCaseDep,
-) -> ChannelResponse:
-    return await use_case.execute(request)
-
-
-@router.get("/channels", response_model=list[ChannelResponse])
-async def list_channels(
-    use_case: ListChannelsUseCaseDep,
-    streamer_id: Annotated[int | None, Query(alias="streamerId", ge=1)] = None,
-) -> list[ChannelResponse]:
-    return await use_case.execute(streamer_id=streamer_id)
-
-
-@router.get("/channels/{channel_id}", response_model=ChannelResponse)
-async def get_channel(
-    channel_id: Annotated[int, Path(ge=1)],
-    use_case: GetChannelUseCaseDep,
-) -> ChannelResponse:
-    return await use_case.execute(channel_id)
-
-
-@router.patch("/channels/{channel_id}", response_model=ChannelResponse)
-async def update_channel(
-    channel_id: Annotated[int, Path(ge=1)],
-    request: ChannelUpdateRequest,
-    use_case: UpdateChannelUseCaseDep,
-) -> ChannelResponse:
-    return await use_case.execute(channel_id, request)
-
-
-@router.delete("/channels/{channel_id}", response_model=DeleteResponse)
-async def delete_channel(
-    channel_id: Annotated[int, Path(ge=1)],
-    use_case: DeleteChannelUseCaseDep,
-) -> DeleteResponse:
-    return await use_case.execute(channel_id)

@@ -39,7 +39,7 @@ Last updated: 2026-06-16
 
 ## Job Lifecycle
 
-새 pipeline step은 입력을 normalize하고 최소 validation을 통과한 뒤 job을 만든다. 아직 작업 대상 domain row가 생성되기 전이면 `subject_type`과 `subject_id`는 현재 알고 있는 상위 local row를 가리켜도 된다. 예를 들어 channel resolve는 streamer가 현재 subject이고, 성공 후 channel row가 output이 된다.
+새 pipeline step은 입력을 normalize하고 최소 validation을 통과한 뒤 job을 만든다. 아직 작업 대상 domain row가 생성되기 전이면 `subject_type`과 `subject_id`는 현재 알고 있는 상위 local row를 가리켜도 된다. Channel resolve는 streamer가 현재 subject이고, 성공 후 channel row가 output이 된다. Video collect부터는 channel이 subject다.
 
 권장 job status:
 
@@ -85,13 +85,15 @@ API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한
 
 ## Current Baseline
 
-현재 구현된 첫 pipeline step은 `POST /youtube-data/channels/resolve`다.
-요청은 `streamerId`와 `handle`만 받는다. use case는 streamer 존재를 확인한 뒤
+현재 구현된 첫 pipeline step은 `POST /streamers/{streamer_id}/channels/resolve`다.
+요청 body는 `handle`만 받는다. use case는 streamer 존재를 확인한 뒤
 `channel_resolve` job과 첫 attempt를 만들고, YouTube Data API `channels.list`
 raw response를 `external_api_calls`와 object storage에 기록한다. 성공하면
-`channels` row를 만들고 `channels.source_job_id`와 `channels.source_api_call_id`로
-job/raw metadata를 연결한다. 응답에는 `channelId`, `youtubeChannelId`,
-`sourceApiCallId`, `jobId`, `jobAttemptId`가 포함된다.
+`channels` row를 만들거나 같은 streamer의 기존 `youtube_channel_id` row를
+재사용한다. 새 row는 `channels.source_job_id`와
+`channels.source_api_call_id`로 job/raw metadata를 연결한다. 응답에는
+`channelId`, `youtubeChannelId`, `sourceApiCallId`, `jobId`, `jobAttemptId`가
+포함된다.
 
 요청 DTO validation 실패나 missing streamer처럼 작업 대상으로 볼 수 없는 입력은 job을
 만들지 않는다. YouTube upstream/not-found/schema validation 실패처럼 attempt 실행 중
@@ -99,7 +101,8 @@ job/raw metadata를 연결한다. 응답에는 `channelId`, `youtubeChannelId`,
 
 `POST /pipeline/jobs/{jobId}/retry`는 현재 `channel_resolve` failed job만
 지원한다. retry는 기존 job을 덮어쓰지 않고 같은 job 아래 새 attempt를 만들며,
-성공 시 새 `channels` row를 생성한다. `succeeded`, `running`, `skipped`,
+성공 시 `channelId` output을 기록한다. 이미 같은 streamer에 같은 YouTube channel
+row가 있으면 기존 row를 재사용한다. `succeeded`, `running`, `skipped`,
 `canceled` job은 retry하지 않는다. 입력이 달라져야 하는 재실행은 retry가 아니라
 새 job으로 처리한다.
 

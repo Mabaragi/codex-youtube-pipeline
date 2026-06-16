@@ -6,27 +6,30 @@ from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
-from codex_sdk_cli.api.dependencies import get_streamer_repository
+from codex_sdk_cli.api.dependencies import get_channel_repository, get_streamer_repository
 from codex_sdk_cli.api.main import create_app
+from codex_sdk_cli.domains.channels.exceptions import (
+    ChannelAlreadyExists,
+    ChannelPersistenceError,
+)
+from codex_sdk_cli.domains.channels.ports import (
+    ChannelCreate,
+    ChannelRecord,
+    ChannelRepositoryPort,
+    ChannelUpdate,
+)
 from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerHasChannels,
     StreamerPersistenceError,
 )
-from codex_sdk_cli.domains.streamers.ports import (
-    ChannelCreate,
-    ChannelRecord,
-    ChannelUpdate,
-    StreamerRecord,
-    StreamerRepositoryPort,
-)
+from codex_sdk_cli.domains.streamers.ports import StreamerRecord, StreamerRepositoryPort
 
 
 class FakeStreamerRepository(StreamerRepositoryPort):
     def __init__(self) -> None:
         self.streamers: dict[int, StreamerRecord] = {}
-        self.channels: dict[int, ChannelRecord] = {}
+        self.channel_streamer_ids: set[int] = set()
         self.next_streamer_id = 1
-        self.next_channel_id = 1
         self.fail_persistence = False
 
     async def create_streamer(self, *, name: str) -> StreamerRecord:
@@ -57,13 +60,28 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         self._raise_if_failed()
         if streamer_id not in self.streamers:
             return False
-        if any(channel.streamer_id == streamer_id for channel in self.channels.values()):
+        if streamer_id in self.channel_streamer_ids:
             raise StreamerHasChannels("Streamer has channels and cannot be deleted.")
         del self.streamers[streamer_id]
         return True
 
+    def _raise_if_failed(self) -> None:
+        if self.fail_persistence:
+            raise StreamerPersistenceError("Streamer persistence failed.")
+
+
+class FakeChannelRepository(ChannelRepositoryPort):
+    def __init__(self, streamers: FakeStreamerRepository | None = None) -> None:
+        self.streamers = streamers
+        self.channels: dict[int, ChannelRecord] = {}
+        self.next_channel_id = 1
+        self.fail_persistence = False
+
     async def create_channel(self, channel: ChannelCreate) -> ChannelRecord:
         self._raise_if_failed()
+        existing = await self.get_channel_by_youtube_channel_id(channel.youtube_channel_id or "")
+        if channel.youtube_channel_id is not None and existing is not None:
+            raise ChannelAlreadyExists("YouTube channel already exists.")
         record = ChannelRecord(
             id=self.next_channel_id,
             streamer_id=channel.streamer_id,
@@ -75,6 +93,7 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         )
         self.channels[record.id] = record
         self.next_channel_id += 1
+        self._sync_streamer_channel_ids()
         return record
 
     async def list_channels(self, *, streamer_id: int | None = None) -> list[ChannelRecord]:
@@ -88,6 +107,20 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         self._raise_if_failed()
         return self.channels.get(channel_id)
 
+    async def get_channel_by_youtube_channel_id(
+        self,
+        youtube_channel_id: str,
+    ) -> ChannelRecord | None:
+        self._raise_if_failed()
+        return next(
+            (
+                record
+                for record in self.channels.values()
+                if record.youtube_channel_id == youtube_channel_id
+            ),
+            None,
+        )
+
     async def update_channel(
         self,
         channel_id: int,
@@ -97,10 +130,8 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         record = self.channels.get(channel_id)
         if record is None:
             return None
-        streamer_id = update.streamer_id if update.streamer_id is not None else record.streamer_id
         updated = replace(
             record,
-            streamer_id=streamer_id,
             handle=update.handle if update.handle is not None else record.handle,
             name=update.name if update.name is not None else record.name,
             youtube_channel_id=(
@@ -117,34 +148,49 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         if channel_id not in self.channels:
             return False
         del self.channels[channel_id]
+        self._sync_streamer_channel_ids()
         return True
+
+    def _sync_streamer_channel_ids(self) -> None:
+        if self.streamers is not None:
+            self.streamers.channel_streamer_ids = {
+                channel.streamer_id for channel in self.channels.values()
+            }
 
     def _raise_if_failed(self) -> None:
         if self.fail_persistence:
-            raise StreamerPersistenceError("Streamer persistence failed.")
+            raise ChannelPersistenceError("Channel persistence failed.")
 
 
 def test_streamer_and_channel_crud_api() -> None:
-    fake = FakeStreamerRepository()
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
 
     streamer = asyncio.run(
-        _request(fake, "POST", "/streamers", json={"name": " Alpha "}, expected_status=201)
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers",
+            json={"name": " Alpha "},
+            expected_status=201,
+        )
     )
     assert streamer == {"id": 1, "name": "Alpha"}
-    assert asyncio.run(_request(fake, "GET", "/streamers")) == [streamer]
+    assert asyncio.run(_request(streamers, channels, "GET", "/streamers")) == [streamer]
 
     updated_streamer = asyncio.run(
-        _request(fake, "PATCH", "/streamers/1", json={"name": "Beta"})
+        _request(streamers, channels, "PATCH", "/streamers/1", json={"name": "Beta"})
     )
     assert updated_streamer == {"id": 1, "name": "Beta"}
 
     channel = asyncio.run(
         _request(
-            fake,
+            streamers,
+            channels,
             "POST",
-            "/channels",
+            "/streamers/1/channels",
             json={
-                "streamerId": 1,
                 "handle": " @beta ",
                 "name": " Main ",
                 "youtubeChannelId": None,
@@ -161,51 +207,77 @@ def test_streamer_and_channel_crud_api() -> None:
         "sourceApiCallId": None,
         "sourceJobId": None,
     }
-    assert asyncio.run(_request(fake, "GET", "/channels?streamerId=1")) == [channel]
-    assert asyncio.run(_request(fake, "GET", "/channels/1")) == channel
+    assert asyncio.run(_request(streamers, channels, "GET", "/streamers/1/channels")) == [
+        channel
+    ]
+    assert asyncio.run(_request(streamers, channels, "GET", "/channels")) == [channel]
+    assert asyncio.run(_request(streamers, channels, "GET", "/channels/1")) == channel
 
     updated_channel = asyncio.run(
-        _request(fake, "PATCH", "/channels/1", json={"youtubeChannelId": "UC123"})
+        _request(streamers, channels, "PATCH", "/channels/1", json={"youtubeChannelId": "UC123"})
     )
     assert updated_channel["youtubeChannelId"] == "UC123"
 
     cleared_channel = asyncio.run(
-        _request(fake, "PATCH", "/channels/1", json={"youtubeChannelId": None})
+        _request(streamers, channels, "PATCH", "/channels/1", json={"youtubeChannelId": None})
     )
     assert cleared_channel["youtubeChannelId"] is None
 
-    assert asyncio.run(_request(fake, "DELETE", "/channels/1")) == {"success": True}
-    assert asyncio.run(_request(fake, "DELETE", "/streamers/1")) == {"success": True}
+    assert asyncio.run(_request(streamers, channels, "DELETE", "/channels/1")) == {
+        "success": True
+    }
+    assert asyncio.run(_request(streamers, channels, "DELETE", "/streamers/1")) == {
+        "success": True
+    }
 
 
 def test_streamer_api_maps_not_found_and_delete_conflict() -> None:
-    fake = FakeStreamerRepository()
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
 
-    missing = asyncio.run(_request(fake, "GET", "/streamers/404", expected_status=404))
+    missing = asyncio.run(
+        _request(streamers, channels, "GET", "/streamers/404", expected_status=404)
+    )
     assert missing == {"detail": "Streamer not found."}
 
-    asyncio.run(_request(fake, "POST", "/streamers", json={"name": "Alpha"}, expected_status=201))
     asyncio.run(
         _request(
-            fake,
+            streamers,
+            channels,
             "POST",
-            "/channels",
-            json={"streamerId": 1, "handle": "@alpha", "name": "Alpha"},
+            "/streamers",
+            json={"name": "Alpha"},
+            expected_status=201,
+        )
+    )
+    asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/1/channels",
+            json={"handle": "@alpha", "name": "Alpha"},
             expected_status=201,
         )
     )
 
-    conflict = asyncio.run(_request(fake, "DELETE", "/streamers/1", expected_status=409))
+    conflict = asyncio.run(
+        _request(streamers, channels, "DELETE", "/streamers/1", expected_status=409)
+    )
     assert conflict == {"detail": "Streamer has channels and cannot be deleted."}
 
 
 def test_channel_api_maps_missing_streamer_to_not_found() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+
     response = asyncio.run(
         _request(
-            FakeStreamerRepository(),
+            streamers,
+            channels,
             "POST",
-            "/channels",
-            json={"streamerId": 99, "handle": "@missing", "name": "Missing"},
+            "/streamers/99/channels",
+            json={"handle": "@missing", "name": "Missing"},
             expected_status=404,
         )
     )
@@ -214,26 +286,149 @@ def test_channel_api_maps_missing_streamer_to_not_found() -> None:
 
 
 def test_streamer_api_maps_persistence_errors() -> None:
-    fake = FakeStreamerRepository()
-    fake.fail_persistence = True
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+    streamers.fail_persistence = True
 
     response = asyncio.run(
-        _request(fake, "POST", "/streamers", json={"name": "Alpha"}, expected_status=503)
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers",
+            json={"name": "Alpha"},
+            expected_status=503,
+        )
     )
 
     assert response == {"detail": "Streamer persistence failed."}
 
 
-def test_channel_patch_rejects_empty_body() -> None:
-    response = asyncio.run(
-        _request(FakeStreamerRepository(), "PATCH", "/channels/1", json={}, expected_status=422)
+def test_channel_create_reuses_same_streamer_youtube_channel_id() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha")
+
+    first = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/1/channels",
+            json={"handle": "@alpha", "name": "Alpha", "youtubeChannelId": "UC123"},
+            expected_status=201,
+        )
+    )
+    second = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/1/channels",
+            json={"handle": "@alpha-copy", "name": "Alpha Copy", "youtubeChannelId": "UC123"},
+            expected_status=201,
+        )
     )
 
-    assert response["detail"][0]["type"] == "value_error"
+    assert second == first
+    assert len(channels.channels) == 1
+
+
+def test_channel_create_rejects_youtube_channel_id_owned_by_other_streamer() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha")
+    streamers.streamers[2] = StreamerRecord(id=2, name="Beta")
+
+    asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/1/channels",
+            json={"handle": "@alpha", "name": "Alpha", "youtubeChannelId": "UC123"},
+            expected_status=201,
+        )
+    )
+    response = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/2/channels",
+            json={"handle": "@beta", "name": "Beta", "youtubeChannelId": "UC123"},
+            expected_status=409,
+        )
+    )
+
+    assert response == {"detail": "YouTube channel already belongs to another streamer."}
+
+
+def test_channel_patch_rejects_duplicate_youtube_channel_id() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha")
+
+    asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/1/channels",
+            json={"handle": "@alpha", "name": "Alpha", "youtubeChannelId": "UC123"},
+            expected_status=201,
+        )
+    )
+    asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers/1/channels",
+            json={"handle": "@alpha-2", "name": "Alpha 2"},
+            expected_status=201,
+        )
+    )
+
+    response = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "PATCH",
+            "/channels/2",
+            json={"youtubeChannelId": "UC123"},
+            expected_status=409,
+        )
+    )
+
+    assert response == {"detail": "YouTube channel already exists."}
+
+
+def test_channel_patch_rejects_streamer_id_and_empty_body() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+
+    streamer_response = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "PATCH",
+            "/channels/1",
+            json={"streamerId": 2},
+            expected_status=422,
+        )
+    )
+    empty_response = asyncio.run(
+        _request(streamers, channels, "PATCH", "/channels/1", json={}, expected_status=422)
+    )
+
+    assert streamer_response["detail"][0]["type"] == "extra_forbidden"
+    assert empty_response["detail"][0]["type"] == "value_error"
 
 
 async def _request(
-    repository: FakeStreamerRepository,
+    streamers: FakeStreamerRepository,
+    channels: FakeChannelRepository,
     method: str,
     path: str,
     *,
@@ -241,7 +436,8 @@ async def _request(
     expected_status: int = 200,
 ) -> Any:
     app = create_app()
-    app.dependency_overrides[get_streamer_repository] = lambda: repository
+    app.dependency_overrides[get_streamer_repository] = lambda: streamers
+    app.dependency_overrides[get_channel_repository] = lambda: channels
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

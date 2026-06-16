@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from codex_sdk_cli.domains.youtube_data.schemas import ResolveYouTubeChannelRequest
-from codex_sdk_cli.domains.youtube_data.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.channels.schemas import ResolveYouTubeChannelRequest
+from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 
 from .exceptions import PipelineJobNotFound, PipelineJobRetryNotAllowed
 from .ports import (
@@ -94,10 +94,15 @@ class RetryPipelineJobUseCase:
                 f"Retry is not supported for pipeline step '{job.step}'."
             )
 
-        request = _channel_resolve_request(job)
+        streamer_id, request = _channel_resolve_request(job)
         await self._pipeline_jobs.mark_job_running(job.id)
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
-        result = await self._channel_resolver.execute_job_attempt(job, attempt, request)
+        result = await self._channel_resolver.execute_job_attempt(
+            job,
+            attempt,
+            streamer_id=streamer_id,
+            request=request,
+        )
         return RetryPipelineJobResponse(
             jobId=job.id,
             jobAttemptId=attempt.id,
@@ -107,11 +112,11 @@ class RetryPipelineJobUseCase:
         )
 
 
-def _channel_resolve_request(job: PipelineJobRecord) -> ResolveYouTubeChannelRequest:
+def _channel_resolve_request(job: PipelineJobRecord) -> tuple[int, ResolveYouTubeChannelRequest]:
     input_json = job.input_json
-    return ResolveYouTubeChannelRequest(
-        streamerId=_required_int(input_json, "streamerId"),
-        handle=_required_str(input_json, "handle"),
+    return (
+        _required_int(input_json, "streamerId"),
+        ResolveYouTubeChannelRequest(handle=_required_str(input_json, "handle")),
     )
 
 

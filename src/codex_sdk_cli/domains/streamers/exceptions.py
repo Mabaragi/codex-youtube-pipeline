@@ -11,14 +11,9 @@ class StreamerNotFound(StreamerDomainError):
     """Raised when a streamer cannot be found."""
 
 
-class ChannelNotFound(StreamerDomainError):
-    """Raised when a channel cannot be found."""
-
-
 class StreamerHasChannels(StreamerDomainError):
     """Raised when deleting a streamer that still owns channels."""
 
 
 class StreamerPersistenceError(StreamerDomainError):
     """Raised when streamer/channel persistence fails."""
-

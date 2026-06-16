@@ -7,9 +7,10 @@ import pytest
 from alembic.config import Config
 
 from alembic import command
+from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate, PipelineJobListQuery
-from codex_sdk_cli.domains.streamers.ports import ChannelCreate
+from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
@@ -85,8 +86,9 @@ async def _exercise_repository(database_url: str) -> None:
                 )
             )
             streamers = SqlAlchemyStreamerRepository(session)
+            channels = SqlAlchemyChannelRepository(session)
             streamer = await streamers.create_streamer(name="Google")
-            await streamers.create_channel(
+            await channels.create_channel(
                 ChannelCreate(
                     streamer_id=streamer.id,
                     handle="@GoogleDevelopers",

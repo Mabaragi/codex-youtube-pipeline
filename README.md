@@ -284,10 +284,9 @@ $streamer = Invoke-RestMethod `
 
 Invoke-RestMethod `
   -Method Post `
-  -Uri http://localhost:8000/channels `
+  -Uri "http://localhost:8000/streamers/$($streamer.id)/channels" `
   -ContentType "application/json" `
   -Body (@{
-    streamerId = $streamer.id
     handle = "@GoogleDevelopers"
     name = "Google Developers"
   } | ConvertTo-Json)
@@ -299,10 +298,9 @@ local `channels` row:
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri http://localhost:8000/youtube-data/channels/resolve `
+  -Uri "http://localhost:8000/streamers/$($streamer.id)/channels/resolve" `
   -ContentType "application/json" `
   -Body (@{
-    streamerId = $streamer.id
     handle = "@GoogleDevelopers"
   } | ConvertTo-Json)
 ```

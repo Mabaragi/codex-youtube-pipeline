@@ -5,11 +5,12 @@ from typing import Annotated
 from fastapi import Depends
 
 from codex_sdk_cli.api.dependencies import (
+    ChannelRepositoryDep,
     PipelineJobRepositoryDep,
     StreamerRepositoryDep,
     YouTubeDataClientDep,
 )
-from codex_sdk_cli.domains.youtube_data.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 
 from .use_cases import GetPipelineJobUseCase, ListPipelineJobsUseCase, RetryPipelineJobUseCase
 
@@ -29,11 +30,12 @@ def get_pipeline_job_use_case(
 def get_retry_pipeline_job_use_case(
     pipeline_jobs: PipelineJobRepositoryDep,
     client: YouTubeDataClientDep,
+    channels: ChannelRepositoryDep,
     streamers: StreamerRepositoryDep,
 ) -> RetryPipelineJobUseCase:
     return RetryPipelineJobUseCase(
         pipeline_jobs,
-        ResolveYouTubeChannelUseCase(client, streamers, pipeline_jobs),
+        ResolveYouTubeChannelUseCase(client, channels, streamers, pipeline_jobs),
     )
 
 

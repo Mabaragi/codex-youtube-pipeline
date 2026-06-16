@@ -7,13 +7,15 @@ import pytest
 from alembic.config import Config
 
 from alembic import command
+from codex_sdk_cli.domains.channels.exceptions import ChannelAlreadyExists
+from codex_sdk_cli.domains.channels.ports import ChannelCreate, ChannelUpdate
 from codex_sdk_cli.domains.streamers.exceptions import StreamerHasChannels
-from codex_sdk_cli.domains.streamers.ports import ChannelCreate, ChannelUpdate
+from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 
 
-def test_streamer_repository_crud_and_delete_guard(
+def test_streamer_and_channel_repositories(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -21,28 +23,29 @@ def test_streamer_repository_crud_and_delete_guard(
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
     command.upgrade(_alembic_config(), "head")
 
-    asyncio.run(_exercise_repository(database_url))
+    asyncio.run(_exercise_repositories(database_url))
 
 
-async def _exercise_repository(database_url: str) -> None:
+async def _exercise_repositories(database_url: str) -> None:
     engine = create_database_engine(database_url)
     try:
         session_factory = create_session_factory(engine)
         async with session_factory() as session:
-            repository = SqlAlchemyStreamerRepository(session)
+            streamers = SqlAlchemyStreamerRepository(session)
+            channels = SqlAlchemyChannelRepository(session)
 
-            streamer = await repository.create_streamer(name="Alpha")
+            streamer = await streamers.create_streamer(name="Alpha")
             assert streamer.id == 1
             assert streamer.name == "Alpha"
-            assert await repository.list_streamers() == [streamer]
-            assert await repository.get_streamer(streamer.id) == streamer
+            assert await streamers.list_streamers() == [streamer]
+            assert await streamers.get_streamer(streamer.id) == streamer
 
-            updated_streamer = await repository.update_streamer(streamer.id, name="Beta")
+            updated_streamer = await streamers.update_streamer(streamer.id, name="Beta")
             assert updated_streamer is not None
             assert updated_streamer.name == "Beta"
-            assert await repository.update_streamer(999, name="Missing") is None
+            assert await streamers.update_streamer(999, name="Missing") is None
 
-            nullable_channel = await repository.create_channel(
+            nullable_channel = await channels.create_channel(
                 ChannelCreate(
                     streamer_id=streamer.id,
                     handle="@alpha",
@@ -50,7 +53,7 @@ async def _exercise_repository(database_url: str) -> None:
                     youtube_channel_id=None,
                 )
             )
-            external_channel = await repository.create_channel(
+            external_channel = await channels.create_channel(
                 ChannelCreate(
                     streamer_id=streamer.id,
                     handle="@alpha-main",
@@ -58,58 +61,65 @@ async def _exercise_repository(database_url: str) -> None:
                     youtube_channel_id="UC123",
                 )
             )
-            duplicate_external_channel = await repository.create_channel(
-                ChannelCreate(
-                    streamer_id=streamer.id,
-                    handle="@alpha-backup",
-                    name="Alpha Backup",
-                    youtube_channel_id="UC123",
-                )
-            )
 
             assert nullable_channel.youtube_channel_id is None
-            assert (
-                external_channel.youtube_channel_id
-                == duplicate_external_channel.youtube_channel_id
-            )
+            assert await channels.get_channel_by_youtube_channel_id("UC123") == external_channel
+            assert [channel.id for channel in await channels.list_channels()] == [
+                nullable_channel.id,
+                external_channel.id,
+            ]
             assert [
                 channel.id
-                for channel in await repository.list_channels(streamer_id=streamer.id)
+                for channel in await channels.list_channels(streamer_id=streamer.id)
             ] == [
                 nullable_channel.id,
                 external_channel.id,
-                duplicate_external_channel.id,
             ]
 
-            with pytest.raises(StreamerHasChannels):
-                await repository.delete_streamer(streamer.id)
+            with pytest.raises(ChannelAlreadyExists):
+                await channels.create_channel(
+                    ChannelCreate(
+                        streamer_id=streamer.id,
+                        handle="@alpha-backup",
+                        name="Alpha Backup",
+                        youtube_channel_id="UC123",
+                    )
+                )
 
-            renamed_channel = await repository.update_channel(
+            with pytest.raises(StreamerHasChannels):
+                await streamers.delete_streamer(streamer.id)
+
+            renamed_channel = await channels.update_channel(
                 nullable_channel.id,
                 ChannelUpdate(
                     handle="@alpha-live",
-                    youtube_channel_id="UC123",
+                    youtube_channel_id="UC456",
                     youtube_channel_id_set=True,
                 ),
             )
             assert renamed_channel is not None
             assert renamed_channel.handle == "@alpha-live"
-            assert renamed_channel.youtube_channel_id == "UC123"
+            assert renamed_channel.youtube_channel_id == "UC456"
 
-            cleared_channel = await repository.update_channel(
+            with pytest.raises(ChannelAlreadyExists):
+                await channels.update_channel(
+                    nullable_channel.id,
+                    ChannelUpdate(youtube_channel_id="UC123", youtube_channel_id_set=True),
+                )
+
+            cleared_channel = await channels.update_channel(
                 nullable_channel.id,
                 ChannelUpdate(youtube_channel_id=None, youtube_channel_id_set=True),
             )
             assert cleared_channel is not None
             assert cleared_channel.youtube_channel_id is None
-            assert await repository.get_channel(nullable_channel.id) == cleared_channel
+            assert await channels.get_channel(nullable_channel.id) == cleared_channel
 
-            assert await repository.delete_channel(nullable_channel.id) is True
-            assert await repository.delete_channel(nullable_channel.id) is False
-            assert await repository.delete_channel(external_channel.id) is True
-            assert await repository.delete_channel(duplicate_external_channel.id) is True
-            assert await repository.delete_streamer(streamer.id) is True
-            assert await repository.delete_streamer(streamer.id) is False
+            assert await channels.delete_channel(nullable_channel.id) is True
+            assert await channels.delete_channel(nullable_channel.id) is False
+            assert await channels.delete_channel(external_channel.id) is True
+            assert await streamers.delete_streamer(streamer.id) is True
+            assert await streamers.delete_streamer(streamer.id) is False
     finally:
         await engine.dispose()
 

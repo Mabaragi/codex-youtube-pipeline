@@ -108,6 +108,7 @@ def test_alembic_upgrade_creates_app_tables(
         streamer_columns = {column["name"] for column in inspector.get_columns("streamers")}
         channel_columns = {column["name"] for column in inspector.get_columns("channels")}
         channel_foreign_keys = inspector.get_foreign_keys("channels")
+        channel_unique_constraints = inspector.get_unique_constraints("channels")
         external_api_call_columns = {
             column["name"] for column in inspector.get_columns("external_api_calls")
         }
@@ -200,6 +201,10 @@ def test_alembic_upgrade_creates_app_tables(
         foreign_key["referred_table"] == "pipeline_jobs"
         and foreign_key["constrained_columns"] == ["source_job_id"]
         for foreign_key in channel_foreign_keys
+    )
+    assert any(
+        unique_constraint["column_names"] == ["youtube_channel_id"]
+        for unique_constraint in channel_unique_constraints
     )
     assert any(
         foreign_key["referred_table"] == "pipeline_job_attempts"

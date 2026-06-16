@@ -8,6 +8,7 @@ import httpx
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
@@ -20,6 +21,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptStoragePort,
 )
+from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
 from codex_sdk_cli.infra.database.session import (
     create_database_engine,
@@ -93,6 +95,12 @@ async def get_streamer_repository(
     return SqlAlchemyStreamerRepository(session)
 
 
+async def get_channel_repository(
+    session: DatabaseSessionDep,
+) -> ChannelRepositoryPort:
+    return SqlAlchemyChannelRepository(session)
+
+
 async def get_pipeline_job_repository(
     session: DatabaseSessionDep,
 ) -> PipelineJobRepositoryPort:
@@ -155,6 +163,10 @@ YouTubeTranscriptRepositoryDep = Annotated[
 StreamerRepositoryDep = Annotated[
     StreamerRepositoryPort,
     Depends(get_streamer_repository),
+]
+ChannelRepositoryDep = Annotated[
+    ChannelRepositoryPort,
+    Depends(get_channel_repository),
 ]
 PipelineJobRepositoryDep = Annotated[
     PipelineJobRepositoryPort,

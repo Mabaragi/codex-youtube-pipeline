@@ -9,7 +9,7 @@ Last updated: 2026-06-16
 - [x] YouTube Data API `channels.list` 응답을 Pydantic external DTO로 검증한다.
 - [x] `channels.list` 요청은 channel 생성에 필요한 필드를 받을 수 있도록 `part=id,snippet`을 사용한다.
 - [x] Pydantic DTO는 우리가 의존하는 필드를 검증하되, Google의 추가 필드는 `extra="allow"`로 허용한다.
-- [x] `/youtube-data/channels/resolve`는 `streamerId`, `handle`만 입력받아 `channels` row 하나를 생성한다.
+- [x] `/streamers/{streamer_id}/channels/resolve`는 path의 streamer와 body의 `handle`로 `channels` row 하나를 생성하거나 같은 streamer의 기존 row를 재사용한다.
 - [x] 요청에 `youtubeChannelId`를 받지 않는다. YouTube 식별자는 YouTube API 응답의 `items[].id`에서만 온다.
 - [x] API 응답에서는 local row 식별자를 `channelId`, YouTube 식별자를 `youtubeChannelId`로 구분한다.
 - [x] 외부 API 요청/응답 raw metadata 테이블 `external_api_calls`를 추가한다.
@@ -19,11 +19,13 @@ Last updated: 2026-06-16
 - [x] `pipeline_jobs`와 `pipeline_job_attempts` SQLAlchemy model, repository, Alembic revision을 추가한다.
 - [x] `external_api_calls.pipeline_job_attempt_id` nullable FK를 추가한다.
 - [x] domain result row가 source job을 참조할 수 있도록 현재 `channels`부터 `source_job_id` nullable FK를 추가한다.
-- [x] `/youtube-data/channels/resolve`가 job/attempt를 생성하고, 성공 응답에 `jobId`, `jobAttemptId`를 포함하도록 연결한다.
+- [x] `/streamers/{streamer_id}/channels/resolve`가 job/attempt를 생성하고, 성공 응답에 `jobId`, `jobAttemptId`를 포함하도록 연결한다.
 - [x] resolve 실패 시 channel row를 만들지 않고 job/attempt를 `failed`로 종료한다.
 - [x] docs/ERD와 database tests를 새 pipeline schema에 맞게 갱신한다.
 - [x] `POST /pipeline/jobs/{jobId}/retry`로 failed `channel_resolve` job을 같은 job 아래 새 attempt로 재시도한다.
 - [x] `GET /pipeline/jobs`와 `GET /pipeline/jobs/{jobId}`로 운영용 job 목록/상세 조회를 제공한다.
+- [x] Channel code를 `channels` domain/infra로 분리하고 public resolve route에서 `youtube_data` 이름을 제거한다.
+- [x] `channels.youtube_channel_id`를 nullable unique로 전환하고 같은 streamer resolve는 기존 row를 재사용한다.
 
 ## Next Implementation
 

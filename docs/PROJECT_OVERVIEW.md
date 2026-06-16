@@ -30,8 +30,9 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `GET /pipeline/jobs`, `GET /pipeline/jobs/{id}`: pipeline job 목록과 상세 attempts/raw calls/domain outputs를 조회한다.
 - `POST /pipeline/jobs/{id}/retry`: 실패한 pipeline job을 같은 job 아래 새 attempt로 재시도한다. 현재는 `channel_resolve`만 지원한다.
 - `POST /streamers`, `GET /streamers`, `GET/PATCH/DELETE /streamers/{id}`: streamer metadata CRUD.
-- `POST /channels`, `GET /channels`, `GET/PATCH/DELETE /channels/{id}`: streamer에 속한 channel metadata CRUD.
-- `POST /youtube-data/channels/resolve`: 등록된 streamer의 YouTube handle을 공식 YouTube Data API로 resolve하고 pipeline job/attempt 및 raw 응답 metadata를 남긴 뒤 `channels` row 하나를 생성한다.
+- `POST /streamers/{id}/channels`, `GET /streamers/{id}/channels`: 특정 streamer에 속한 channel 생성과 목록 조회.
+- `GET /channels`, `GET/PATCH/DELETE /channels/{id}`: channel metadata 조회/수정/삭제.
+- `POST /streamers/{id}/channels/resolve`: 등록된 streamer에 붙일 YouTube handle을 공식 YouTube Data API로 resolve하고 pipeline job/attempt 및 raw 응답 metadata를 남긴 뒤 `channels` row 하나를 생성하거나 같은 streamer의 기존 row를 재사용한다.
 - `POST /youtube-transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회하고 응답 JSON을 MinIO에 저장한 뒤 DB에 메타데이터와 object 경로를 저장한다.
 - `GET /youtube-transcripts`: 저장된 transcript metadata를 조회한다.
 - `GET /youtube-transcripts/{id}`: 저장된 transcript metadata 단건을 조회한다.
@@ -133,14 +134,16 @@ src/codex_sdk_cli/
 ├── domains/codex/   # Codex domain router, schemas, use cases, ports
 ├── domains/external_api_calls/ # 외부 API raw response metadata ports/exceptions
 ├── domains/pipeline_jobs/ # pipeline job/attempt 상태 ports/exceptions
-├── domains/streamers/ # Streamer/channel API router, schemas, use cases, ports
-├── domains/youtube_data/ # YouTube Data API handle resolve router, schemas, use cases, ports
+├── domains/channels/ # Channel API router, schemas, use cases, ports
+├── domains/streamers/ # Streamer API router, schemas, use cases, ports
+├── domains/youtube_data/ # YouTube Data API client ports/exceptions
 ├── domains/youtube_transcripts/ # YouTube transcript API router, schemas, use cases, ports
 ├── infra/codex/     # 실제 Codex SDK client adapter
 ├── infra/database/  # SQLAlchemy Base, async engine/session factory
 ├── infra/external_api_calls/ # raw response object storage recorder와 SQLAlchemy repository
 ├── infra/pipeline_jobs/ # pipeline job/attempt SQLAlchemy repository
-├── infra/streamers/ # Streamer/channel SQLAlchemy repository
+├── infra/channels/  # Channel SQLAlchemy repository
+├── infra/streamers/ # Streamer SQLAlchemy repository
 ├── infra/youtube_data/ # official YouTube Data API HTTP client
 ├── infra/youtube_transcripts/   # youtube-transcript-api adapter, MinIO transcript storage
 ├── cli.py           # Click command 정의와 사용자 출력
@@ -158,9 +161,9 @@ src/codex_sdk_cli/
 - `tests/test_external_api_calls_repository.py`: 외부 API raw metadata repository와 pipeline attempt 연결을 검증한다.
 - `tests/test_external_api_calls_storage.py`: 외부 API raw response MinIO storage boundary를 검증한다.
 - `tests/test_pipeline_jobs_repository.py`: pipeline job/attempt repository lifecycle을 검증한다.
-- `tests/test_streamers_api.py`: Streamer/channel CRUD API와 exception mapping을 검증한다.
-- `tests/test_streamer_repository.py`: Streamer/channel SQLAlchemy repository를 검증한다.
-- `tests/test_youtube_data_api.py`: YouTube Data handle resolve API와 local channel create flow를 검증한다.
+- `tests/test_streamers_api.py`: Streamer CRUD, channel CRUD, streamer-scoped resolve route, exception mapping을 검증한다.
+- `tests/test_streamer_repository.py`: Streamer와 channel SQLAlchemy repository를 검증한다.
+- `tests/test_youtube_data_api.py`: YouTube Data client를 사용하는 channel resolve flow와 pipeline job 연결을 검증한다.
 - `tests/test_youtube_data_client.py`: official YouTube Data API client boundary와 response DTO 검증을 확인한다.
 - `tests/test_youtube_transcripts_api.py`: YouTube transcript fetch와 metadata CRUD API를 검증한다.
 - `tests/test_youtube_transcripts_repository.py`: YouTube transcript metadata repository insert/update/list/get/patch/delete를 검증한다.
@@ -180,7 +183,7 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube Data client는 official channel metadata를 조회하면서 raw 응답을 MinIO에 저장하고 `external_api_calls` metadata row를 남긴 뒤 projection만 반환한다. YouTube Data use case는 `PipelineJobRepositoryPort`, 이 projection, `StreamerRepositoryPort`에 의존해 `channel_resolve` job/attempt와 local channel row 하나를 연결한다. Pipeline retry use case는 failed `channel_resolve` job의 저장된 입력으로 같은 job 아래 새 attempt를 만들고 같은 실행기를 재사용한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. Channel use case는 `ChannelRepositoryPort`, `StreamerRepositoryPort`, `PipelineJobRepositoryPort`, YouTube Data client projection에 의존해 `channel_resolve` job/attempt와 local channel row 하나를 연결한다. YouTube Data client는 official channel metadata를 조회하면서 raw 응답을 MinIO에 저장하고 `external_api_calls` metadata row를 남긴 뒤 projection만 반환한다. Pipeline retry use case는 failed `channel_resolve` job의 저장된 입력으로 같은 job 아래 새 attempt를 만들고 channel resolve 실행기를 재사용한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
 
 ## 설정
 

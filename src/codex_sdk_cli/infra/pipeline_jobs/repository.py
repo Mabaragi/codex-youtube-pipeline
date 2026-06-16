@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    or_,
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,7 +187,7 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 job=_job_record(model),
                 attempts=[_attempt_record(attempt) for attempt in attempts],
                 external_api_calls=await self._external_api_call_summaries(attempts),
-                channels=await self._channel_outputs(job_id),
+                channels=await self._channel_outputs(job_id, attempts),
             )
         except SQLAlchemyError as exc:
             raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
@@ -349,13 +350,27 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
             for call in calls
         ]
 
-    async def _channel_outputs(self, job_id: int) -> list[PipelineChannelOutputRecord]:
-        from codex_sdk_cli.infra.streamers.repository import ChannelModel
+    async def _channel_outputs(
+        self,
+        job_id: int,
+        attempts: list[PipelineJobAttemptModel],
+    ) -> list[PipelineChannelOutputRecord]:
+        from codex_sdk_cli.infra.channels.repository import ChannelModel
 
+        output_channel_ids = [
+            channel_id
+            for attempt in attempts
+            if attempt.output_json is not None
+            for channel_id in [_output_channel_id(attempt.output_json)]
+            if channel_id is not None
+        ]
+        filters = [ChannelModel.source_job_id == job_id]
+        if output_channel_ids:
+            filters.append(ChannelModel.id.in_(output_channel_ids))
         channels = (
             await self._session.scalars(
                 select(ChannelModel)
-                .where(ChannelModel.source_job_id == job_id)
+                .where(or_(*filters))
                 .order_by(ChannelModel.id.asc())
             )
         ).all()
@@ -445,6 +460,11 @@ def _attempt_status(value: str) -> PipelineJobAttemptStatus:
     if value == "canceled":
         return "canceled"
     return "running"
+
+
+def _output_channel_id(output_json: JsonObject) -> int | None:
+    value = output_json.get("channelId")
+    return value if isinstance(value, int) else None
 
 
 def _job_record(model: PipelineJobModel) -> PipelineJobRecord:
