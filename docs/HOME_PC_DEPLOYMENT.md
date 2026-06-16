@@ -92,7 +92,9 @@ gh variable set CODEX_CLI_TRANSCRIPT_MINIO_BUCKET --body raw -R Mabaragi/codex-s
 The home compose defaults use `minio:9000`, access key `codex`, bucket `raw`,
 transcript prefix `youtube/transcripts`, external API call prefix
 `external-api-calls`, and SQLite URL
-`sqlite+aiosqlite:///./data/app.db`. Override
+`sqlite+aiosqlite:////data/db/app.db`. The SQLite file lives on the
+`db-data` Docker named volume at `/data/db/app.db`, not in the runner checkout.
+Override
 `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY` and
 `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY` with repository secrets for a less
 guessable local MinIO credential.
@@ -104,8 +106,12 @@ Actions `CI` workflow with `Run workflow`.
 
 The deploy workflow builds the API image, runs `alembic upgrade head` with the
 same `CODEX_CLI_DATABASE_URL` used by the API container, then recreates the home
-stack. If you redeploy manually from the runner checkout, run the same migration
-step before starting the API:
+stack. On the first deploy after moving SQLite out of the checkout, the workflow
+backs up a legacy `data/app.db` before checkout cleanup and copies it into the
+`db-data` volume only if that volume does not already contain `app.db`.
+
+If you redeploy manually from the runner checkout, run the same migration step
+before starting the API:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml build api
@@ -160,6 +166,10 @@ docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm codex
 The `codex-home` Docker volume stores `/home/codex/.codex` for both `codex` and
 `api`.
 
+The `db-data` Docker volume stores the SQLite application metadata database.
+Preserve it across redeploys; deleting this volume clears `streamers`,
+`channels`, `youtube_transcripts`, and `external_api_calls` metadata.
+
 ## Operations
 
 Redeploy manually:
@@ -181,3 +191,5 @@ docker compose --project-name codex-sdk-home -f compose.home.yaml down
 ```
 
 Preserve `codex-home` unless you intentionally want to clear Codex login state.
+Preserve `db-data` unless you intentionally want to clear the application
+metadata database.

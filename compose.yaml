@@ -22,10 +22,11 @@ services:
       CODEX_CLI_TRANSCRIPT_MINIO_PREFIX: ${CODEX_CLI_TRANSCRIPT_MINIO_PREFIX:-youtube/transcripts}
       CODEX_CLI_TRANSCRIPT_MINIO_SECURE: ${CODEX_CLI_TRANSCRIPT_MINIO_SECURE:-false}
       CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX: ${CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX:-external-api-calls}
-      CODEX_CLI_DATABASE_URL: ${CODEX_CLI_DATABASE_URL:-sqlite+aiosqlite:///./data/app.db}
+      CODEX_CLI_DATABASE_URL: ${CODEX_CLI_DATABASE_URL:-sqlite+aiosqlite:////data/db/app.db}
       CODEX_CLI_DATABASE_ECHO: ${CODEX_CLI_DATABASE_ECHO:-false}
     volumes:
       - codex-home:/home/codex/.codex
+      - db-data:/data/db
       - type: bind
         source: ${CODEX_CLI_WORKDIR:-.}
         target: /work
@@ -61,10 +62,11 @@ services:
       CODEX_CLI_TRANSCRIPT_MINIO_PREFIX: ${CODEX_CLI_TRANSCRIPT_MINIO_PREFIX:-youtube/transcripts}
       CODEX_CLI_TRANSCRIPT_MINIO_SECURE: ${CODEX_CLI_TRANSCRIPT_MINIO_SECURE:-false}
       CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX: ${CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX:-external-api-calls}
-      CODEX_CLI_DATABASE_URL: ${CODEX_CLI_DATABASE_URL:-sqlite+aiosqlite:///./data/app.db}
+      CODEX_CLI_DATABASE_URL: ${CODEX_CLI_DATABASE_URL:-sqlite+aiosqlite:////data/db/app.db}
       CODEX_CLI_DATABASE_ECHO: ${CODEX_CLI_DATABASE_ECHO:-false}
     volumes:
       - codex-home:/home/codex/.codex
+      - db-data:/data/db
       - type: bind
         source: ${CODEX_CLI_WORKDIR:-.}
         target: /work
@@ -86,4 +88,5 @@ services:
 
 volumes:
   codex-home:
+  db-data:
   minio-data:

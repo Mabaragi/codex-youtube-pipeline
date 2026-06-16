@@ -87,17 +87,21 @@ Environment variables use the `CODEX_CLI_` prefix:
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX` (default: `youtube/transcripts`)
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE` (default: `false`)
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX` (default: `external-api-calls`)
-- `CODEX_CLI_DATABASE_URL` (default: `sqlite+aiosqlite:///./data/app.db`)
+- `CODEX_CLI_DATABASE_URL` (app default:
+  `sqlite+aiosqlite:///./data/app.db`; Docker Compose default:
+  `sqlite+aiosqlite:////data/db/app.db`)
 - `CODEX_CLI_DATABASE_ECHO` (default: `false`)
 
 ## Database
 
-The project uses async SQLAlchemy with Alembic migrations. SQLite uses
-`./data/app.db` by default; local database files and SQLite journal/WAL files are
-ignored by git. Current application tables are `youtube_transcripts`,
-`streamers`, `channels`, and `external_api_calls`. Transcript and external API
-raw response JSON stays in MinIO while SQLite stores metadata plus the MinIO
-bucket, object name, URI, response hash, and validation status. Operators can
+The project uses async SQLAlchemy with Alembic migrations. Non-Docker runs use
+`./data/app.db` by default; Docker Compose runs use `/data/db/app.db` on the
+`db-data` named volume so redeploy checkout cleanup does not remove metadata.
+Local database files and SQLite journal/WAL files are ignored by git. Current
+application tables are `youtube_transcripts`, `streamers`, `channels`, and
+`external_api_calls`. Transcript and external API raw response JSON stays in
+MinIO while SQLite stores metadata plus the MinIO bucket, object name, URI,
+response hash, and validation status. Operators can
 update only the nullable `notes` field through the transcript metadata API.
 
 Schema changes must go through Alembic migrations. Do not call
@@ -306,10 +310,9 @@ This endpoint requires `CODEX_CLI_YOUTUBE_DATA_API_KEY`. It uses the official
 YouTube Data API `channels.list` method with `forHandle` and `part=id,snippet`,
 validates the response shape, and creates a channel row whose local identifier
 is returned as `channelId`. The YouTube external identifier is returned as
-`youtubeChannelId`; if `youtubeChannelId` is supplied in the request, it must
-match the resolved handle. The raw YouTube Data API response body is saved to
-MinIO, `external_api_calls` stores its metadata, and the created channel returns
-the metadata row as `sourceApiCallId`.
+`youtubeChannelId`. The raw YouTube Data API response body is saved to MinIO,
+`external_api_calls` stores its metadata, and the created channel returns the
+metadata row as `sourceApiCallId`.
 
 When running from a cloud host, YouTube may still block the host IP. The home PC
 deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows

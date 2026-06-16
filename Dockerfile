@@ -20,7 +20,8 @@ WORKDIR /work
 
 RUN adduser --disabled-password --gecos "" codex \
     && mkdir -p /home/codex/.codex \
-    && chown -R codex:codex /home/codex/.codex
+    && mkdir -p /data/db \
+    && chown -R codex:codex /home/codex/.codex /data/db
 
 COPY --from=builder /build/dist/*.whl /tmp/
 

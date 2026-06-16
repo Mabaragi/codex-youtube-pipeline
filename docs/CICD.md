@@ -110,17 +110,19 @@ sequenceDiagram
 
 Home deploy job의 주요 단계:
 
-1. Docker와 Docker Compose가 동작하는지 확인한다.
-2. GitHub secrets의 `HOME_BASIC_AUTH_USER`, `HOME_BASIC_AUTH_PASSWORD`로
+1. checkout 전에 legacy `data/app.db`가 있으면 runner temp로 백업한다.
+2. Docker와 Docker Compose가 동작하는지 확인한다.
+3. GitHub secrets의 `HOME_BASIC_AUTH_USER`, `HOME_BASIC_AUTH_PASSWORD`로
    `.home-deploy/nginx.htpasswd`를 생성한다.
-3. `docker compose --project-name codex-sdk-home -f compose.home.yaml config`로
+4. `docker compose --project-name codex-sdk-home -f compose.home.yaml config`로
    stack 설정을 검증한다.
-4. `api` image를 build하고 같은 compose env로 `alembic upgrade head`를 실행한다.
-5. `api`, `nginx`, `cloudflared`를 `up -d --build`로 배포한다.
-6. 로컬 Nginx health check를 Basic Auth로 확인한다.
-7. `cloudflared` 로그에서 가장 마지막 `https://*.trycloudflare.com` URL을
+5. `db-data` volume이 비어 있으면 legacy DB 백업을 `/data/db/app.db`로 옮긴다.
+6. `api` image를 build하고 같은 compose env로 `alembic upgrade head`를 실행한다.
+7. `api`, `nginx`, `cloudflared`, `minio`를 `up -d --build`로 배포한다.
+8. 로컬 Nginx health check를 Basic Auth로 확인한다.
+9. `cloudflared` 로그에서 가장 마지막 `https://*.trycloudflare.com` URL을
    찾아 `.home-deploy/latest-tunnel-url.txt`와 Actions summary에 기록한다.
-8. public quick tunnel URL의 `/health`도 Basic Auth로 확인한다.
+10. public quick tunnel URL의 `/health`도 Basic Auth로 확인한다.
 
 가장 마지막 URL을 사용하는 이유는 `cloudflared` 컨테이너 로그에 이전 quick
 tunnel URL이 남아 있을 수 있기 때문이다. 재부팅 직후 첫 배포 실패는 이 로그의
@@ -137,8 +139,9 @@ flowchart LR
 
     API --> CodexVolume["Docker volume<br/>codex-home:/home/codex/.codex"]
     CodexTool["codex utility service"] --> CodexVolume
+    API --> DbVolume["Docker volume<br/>db-data:/data/db"]
+    DbVolume --> SQLite["SQLite<br/>/data/db/app.db<br/>metadata tables"]
     API --> WorkBind["bind mount<br/>/work"]
-    API --> SQLite["SQLite<br/>/work/data/app.db<br/>metadata tables"]
     API --> MinIO["minio container<br/>raw bucket"]
     MinIO --> MinioVolume["Docker volume<br/>minio-data"]
     API --> S3Bind["read-only bind mount<br/>/data/s3"]
@@ -157,6 +160,7 @@ flowchart LR
   metadata를 저장한다. raw JSON은 MinIO에만 둔다.
 - `codex`: device-code login과 account 확인을 위한 수동 utility service다.
 - `codex-home` volume: `api`와 `codex`가 공유하는 Codex login state를 저장한다.
+- `db-data` volume: SQLite application metadata DB를 저장한다.
 - `minio-data` volume: MinIO object data를 저장한다.
 
 ## Secrets와 variables
@@ -195,7 +199,8 @@ flowchart LR
 
 선택 DB 설정:
 
-- `CODEX_CLI_DATABASE_URL`: 기본값 `sqlite+aiosqlite:///./data/app.db`.
+- `CODEX_CLI_DATABASE_URL`: Home Compose 기본값
+  `sqlite+aiosqlite:////data/db/app.db`.
 - `CODEX_CLI_DATABASE_ECHO`: 기본값 `false`.
 
 Home deploy는 API container와 같은 DB 설정으로 `alembic upgrade head`를 먼저
@@ -291,7 +296,8 @@ docker compose --project-name codex-sdk-home -f compose.home.yaml down
 ```
 
 `codex-home` volume은 Codex login state를 담고 있으므로 의도적으로 로그인을
-초기화할 때만 삭제한다.
+초기화할 때만 삭제한다. `db-data` volume은 SQLite metadata DB를 담으므로
+의도적으로 application metadata를 초기화할 때만 삭제한다.
 
 ## 흔한 실패와 확인 지점
 

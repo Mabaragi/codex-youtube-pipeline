@@ -196,7 +196,9 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX`: object key prefix. 기본값은 `youtube/transcripts`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: MinIO HTTPS 사용 여부. 기본값은 `false`.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.
-- `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 기본값은 `sqlite+aiosqlite:///./data/app.db`.
+- `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 앱 기본값은
+  `sqlite+aiosqlite:///./data/app.db`이고, Docker Compose 기본값은
+  `sqlite+aiosqlite:////data/db/app.db`다.
 - `CODEX_CLI_DATABASE_ECHO`: SQLAlchemy SQL echo 여부. 기본값은 `false`.
 
 ## 중요한 구현 선택

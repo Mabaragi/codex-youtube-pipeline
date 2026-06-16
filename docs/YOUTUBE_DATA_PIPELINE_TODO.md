@@ -29,8 +29,8 @@ Last updated: 2026-06-16
 - [x] `items[].id`는 내부 projection에서 `youtube_channel_id`로 매핑한다.
 - [x] `items[].snippet.title`은 `channels.name` 후보로 사용한다.
 - [x] `/youtube-data/channels/resolve`는 기존 local channel row들을 handle로 찾아 업데이트하지 않는다.
-- [x] `/youtube-data/channels/resolve`는 `streamerId`, `handle`, 선택적 `youtubeChannelId`를 입력받아 `channels` row 하나를 생성한다.
-- [x] 요청에 `youtubeChannelId`가 포함되면 YouTube API 응답의 `items[].id`와 일치하는지 검증한다.
+- [x] `/youtube-data/channels/resolve`는 `streamerId`, `handle`만 입력받아 `channels` row 하나를 생성한다.
+- [x] 요청에 `youtubeChannelId`를 받지 않는다. YouTube 식별자는 YouTube API 응답의 `items[].id`에서만 온다.
 - [x] API 응답에서는 local row 식별자를 `channelId`, YouTube 식별자를 `youtubeChannelId`로 명확히 구분한다.
 - [x] 내부 메서드명에서 모호한 `channel_id` 표현을 피하고 `youtube_channel_id` 또는 `youtubeChannelId` 의미를 드러낸다.
 - [x] README, `docs/PROJECT_OVERVIEW.md`, `vaults/agents/api-domains.md`의 기존 "matching local channel rows update" 설명을 새 create flow로 갱신한다.
@@ -121,6 +121,6 @@ Future extension:
 
 ## Open Decisions
 
-- `youtubeChannelId` 입력은 optional로 받는다. 제공된 경우 API 응답과 일치하는지 검증한다.
+- `youtubeChannelId`는 resolve 요청 입력이 아니라 응답 필드로만 제공한다.
 - `external_api_calls`는 모든 외부 요청에 공통 사용하고, raw body는 object storage에 둔다.
 - pipeline 상태 테이블을 channel resolve 단계부터 바로 만들지, videos 수집 단계에서 만들지 결정해야 한다. 현재 추천은 raw 저장 테이블을 먼저 만들고 pipeline job 테이블은 videos 수집 직전에 추가하는 방식이다.

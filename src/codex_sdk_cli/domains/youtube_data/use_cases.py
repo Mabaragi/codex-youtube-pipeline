@@ -7,7 +7,7 @@ from codex_sdk_cli.domains.streamers.ports import (
     StreamerRepositoryPort,
 )
 
-from .exceptions import InvalidYouTubeChannelHandle, YouTubeDataChannelIdentityMismatch
+from .exceptions import InvalidYouTubeChannelHandle, YouTubeDataChannelResolutionError
 from .ports import YouTubeDataClientPort
 from .schemas import ResolveYouTubeChannelRequest, ResolveYouTubeChannelResponse
 
@@ -30,13 +30,6 @@ class ResolveYouTubeChannelUseCase:
             raise StreamerNotFound("Streamer not found.")
 
         result = await self._client.resolve_youtube_channel_by_handle(handle)
-        if (
-            request.youtube_channel_id is not None
-            and request.youtube_channel_id != result.youtube_channel_id
-        ):
-            raise YouTubeDataChannelIdentityMismatch(
-                "Resolved YouTube channel ID did not match the request."
-            )
 
         record = await self._repository.create_channel(
             ChannelCreate(
@@ -59,11 +52,11 @@ def _normalize_request_handle(handle: str) -> str:
 
 def _response(record: ChannelRecord) -> ResolveYouTubeChannelResponse:
     if record.youtube_channel_id is None:
-        raise YouTubeDataChannelIdentityMismatch(
+        raise YouTubeDataChannelResolutionError(
             "Created channel row did not include a YouTube channel ID."
         )
     if record.source_api_call_id is None:
-        raise YouTubeDataChannelIdentityMismatch(
+        raise YouTubeDataChannelResolutionError(
             "Created channel row did not include a source API call ID."
         )
     return ResolveYouTubeChannelResponse(

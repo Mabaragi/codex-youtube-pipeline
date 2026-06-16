@@ -145,6 +145,24 @@ jobs:
       CODEX_CLI_DATABASE_URL: ${{ vars.CODEX_CLI_DATABASE_URL }}
       CODEX_CLI_DATABASE_ECHO: ${{ vars.CODEX_CLI_DATABASE_ECHO }}
     steps:
+      - name: Preserve legacy checkout SQLite DB
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $backupDir = Join-Path $env:RUNNER_TEMP "codex-sdk-legacy-db"
+          New-Item -ItemType Directory -Force $backupDir | Out-Null
+
+          $legacyDb = Join-Path $env:GITHUB_WORKSPACE "data/app.db"
+          $backupDb = Join-Path $backupDir "app.db"
+          if (Test-Path -LiteralPath $legacyDb) {
+            Copy-Item -LiteralPath $legacyDb -Destination $backupDb -Force
+            "LEGACY_SQLITE_DB_BACKUP=$backupDb" >> $env:GITHUB_ENV
+            Write-Host "Preserved legacy SQLite DB from $legacyDb"
+          } else {
+            "LEGACY_SQLITE_DB_BACKUP=" >> $env:GITHUB_ENV
+            Write-Host "No legacy checkout SQLite DB found."
+          }
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -174,6 +192,35 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           docker compose --project-name codex-sdk-home -f compose.home.yaml config
+
+      - name: Migrate legacy SQLite DB to Docker volume
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $backupDb = $env:LEGACY_SQLITE_DB_BACKUP
+          if ([string]::IsNullOrWhiteSpace($backupDb) -or -not (Test-Path -LiteralPath $backupDb)) {
+            Write-Host "No legacy checkout SQLite DB backup found."
+            exit 0
+          }
+
+          $volumeName = "codex-sdk-home_db-data"
+          docker volume create $volumeName | Out-Null
+
+          docker run --rm -v "${volumeName}:/data/db" alpine:3.22 sh -c "test -f /data/db/app.db"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Docker volume $volumeName already has app.db; skipping legacy copy."
+            exit 0
+          }
+          if ($LASTEXITCODE -ne 1) {
+            throw "Failed to inspect SQLite DB in Docker volume $volumeName."
+          }
+
+          $backupDir = Split-Path -Parent $backupDb
+          docker run --rm -v "${volumeName}:/data/db" -v "${backupDir}:/backup:ro" alpine:3.22 sh -c "mkdir -p /data/db && cp /backup/app.db /data/db/app.db && chown -R 1000:1000 /data/db"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to copy legacy SQLite DB into Docker volume $volumeName."
+          }
+          Write-Host "Copied legacy SQLite DB into Docker volume $volumeName."
 
       - name: Deploy home stack
         shell: powershell

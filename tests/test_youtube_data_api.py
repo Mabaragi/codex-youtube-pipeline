@@ -161,29 +161,7 @@ def test_youtube_data_resolve_creates_one_channel_for_streamer() -> None:
     )
 
 
-def test_youtube_data_resolve_accepts_matching_expected_youtube_channel_id() -> None:
-    client = FakeYouTubeDataClient()
-    repository = FakeStreamerRepository()
-    repository.streamers[1] = StreamerRecord(id=1, name="Google")
-
-    response = asyncio.run(
-        _request(
-            client,
-            repository,
-            json={
-                "streamerId": 1,
-                "handle": "@GoogleDevelopers",
-                "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
-            },
-            expected_status=201,
-        )
-    )
-
-    assert response["youtubeChannelId"] == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
-    assert response["channelId"] == 1
-
-
-def test_youtube_data_resolve_rejects_mismatched_youtube_channel_id() -> None:
+def test_youtube_data_resolve_rejects_request_youtube_channel_id() -> None:
     client = FakeYouTubeDataClient()
     repository = FakeStreamerRepository()
     repository.streamers[1] = StreamerRecord(id=1, name="Google")
@@ -197,11 +175,12 @@ def test_youtube_data_resolve_rejects_mismatched_youtube_channel_id() -> None:
                 "handle": "@GoogleDevelopers",
                 "youtubeChannelId": "UC-other",
             },
-            expected_status=400,
+            expected_status=422,
         )
     )
 
-    assert response == {"detail": "Resolved YouTube channel ID did not match the request."}
+    assert response["detail"][0]["type"] == "extra_forbidden"
+    assert response["detail"][0]["loc"] == ["body", "youtubeChannelId"]
     assert repository.channels == {}
 
 
@@ -274,8 +253,10 @@ def test_youtube_data_openapi_path_and_tag() -> None:
     schema = app.openapi()
 
     path_item = schema["paths"]["/youtube-data/channels/resolve"]
+    request_schema = schema["components"]["schemas"]["ResolveYouTubeChannelRequest"]
 
     assert path_item["post"]["tags"] == ["youtube-data"]
+    assert set(request_schema["properties"]) == {"streamerId", "handle"}
 
 
 async def _request(

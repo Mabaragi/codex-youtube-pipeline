@@ -16,17 +16,6 @@ class ResolveYouTubeChannelRequest(BaseModel):
         description="YouTube handle to resolve. The leading @ is optional.",
         examples=["@GoogleDevelopers"],
     )
-    youtube_channel_id: str | None = Field(
-        default=None,
-        alias="youtubeChannelId",
-        min_length=1,
-        max_length=255,
-        description=(
-            "Optional expected YouTube UC... channel ID. "
-            "If present, it must match the resolved handle."
-        ),
-        examples=["UC_x5XG1OV2P6uZZ5FSM9Ttw"],
-    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -37,7 +26,6 @@ class ResolveYouTubeChannelRequest(BaseModel):
                 {
                     "streamerId": 1,
                     "handle": "@GoogleDevelopers",
-                    "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
                 }
             ]
         },
