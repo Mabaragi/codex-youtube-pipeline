@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
+from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
 from codex_sdk_cli.domains.streamers.exceptions import (
     ChannelNotFound,
     StreamerDomainError,
@@ -57,6 +58,16 @@ def add_exception_handlers(app: FastAPI) -> None:
         elif isinstance(exc, StreamerPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(ExternalApiCallDomainError)
+    async def external_api_call_domain_error_handler(
+        _request: Request,
+        exc: ExternalApiCallDomainError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": exc.message},
+        )
 
     @app.exception_handler(YouTubeDataDomainError)
     async def youtube_data_domain_error_handler(

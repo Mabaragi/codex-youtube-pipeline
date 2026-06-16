@@ -2,7 +2,7 @@
 
 ## Project
 
-이 저장소는 Python으로 만든 `codex-demo` CLI 예제 프로젝트다. OpenAI Codex Python SDK인 `openai-codex`를 사용해 Codex thread를 시작하거나 재개하고, 로그인과 계정 상태 확인을 수행한다.
+이 저장소는 Python `codex-demo` CLI와 `codex-api` FastAPI 예제 프로젝트다. 현재 기능, 배포 방식, task guide 라우팅은 `vaults/INDEX.md`에서 확인한다.
 
 ## Context Vault
 
@@ -18,11 +18,11 @@
 
 ## Always Follow
 
-- 새 Python 코드는 `modern-python` 기본값을 따른다: `src/` layout, Click CLI, `pydantic-settings`, Protocol 기반 경계, pytest/Ruff/Pyrefly 검증.
-- CLI command 함수는 얇게 유지하고, Codex SDK 호출과 use-case 로직은 `src/codex_sdk_cli/runner.py`에 둔다.
+- 새 Python 코드는 `modern-python` 기본값과 이 저장소의 domain-first 구조를 따른다.
+- CLI command 함수와 FastAPI route handler는 얇게 유지하고, 세부 경계는 `vaults/agents/` guide를 따른다.
 - 환경 설정은 `src/codex_sdk_cli/settings.py`의 `CliSettings`와 `CODEX_CLI_` prefix를 통해 관리한다.
 - DB schema 변경은 SQLAlchemy 모델과 Alembic migration으로만 수행하고, 앱 코드나 테스트에서 `metadata.create_all()`/`drop_all()`을 호출하지 않는다.
-- 자동 테스트에서는 실제 Codex app-server, 로그인, 네트워크 호출을 띄우지 않는다. Protocol/fake 기반 테스트를 사용한다.
+- 자동 테스트에서는 실제 Codex app-server, 로그인, YouTube, MinIO, 네트워크 호출을 띄우지 않는다. Protocol/fake 기반 테스트를 사용한다.
 - `openai-codex`는 베타 SDK이며 prerelease runtime dependency가 필요하므로 `[tool.uv] prerelease = "allow"`를 유지한다.
 
 ## Completion Checklist
@@ -32,25 +32,11 @@
 1. 작업 성격에 맞는 검증을 실행하거나 명시적으로 생략한다.
 2. 변경 요약, 핵심 파일, 검증 결과를 정리한다.
 3. 큰 작업이면 worklog workflow에 따라 `vaults/worklogs/YYYY-MM.md`에 기록한다.
-4. 반복되는 사용자 수정이나 작업 교훈은 chat에만 두지 말고 가장 작은 durable 문서에 반영한다.
-
-## Task Guides
-
-- `vaults/agents/python-cli.md`: CLI 명령, 설정, SDK adapter, 테스트 경계를 바꾸는 작업에서 읽는다.
-- `vaults/agents/database.md`: SQLite, SQLAlchemy 모델, DB 세션, Alembic migration을 바꾸는 작업에서 읽는다.
-
-## Workflow Guides
-
-- `vaults/workflows/verification.md`: 어떤 검증을 실행할지 결정할 때 읽는다.
-- `vaults/worklogs/README.md`: substantial work의 local worklog fallback 규칙을 확인할 때 읽는다.
-
-## Human-Facing Docs
-
-사용자나 개발자가 프로젝트를 이해하기 위한 문서는 `docs/`에 둔다. agent는 필요한 경우 `docs/INDEX.md`에서 어떤 문서를 읽을지 확인한다.
+4. 반복되는 사용자 수정이나 개선사항은 chat에만 두지 말고 `vaults/durable/INDEX.md`를 따라 기록하거나 반영한다.
 
 ## Closing The Loop
 
-같은 지적이나 수정이 두 번 이상 반복되면 chat에서만 처리하지 않는다. 루트 guide, task guide, workflow guide, decision note, 또는 reusable skill 중 가장 작은 위치에 규칙을 추가한다.
+같은 지적이나 수정이 두 번 이상 반복되면 chat에서만 처리하지 않는다. 먼저 `vaults/durable/INDEX.md`를 읽고, 그 절차에 따라 반복 개선사항을 기록하거나 가장 작은 source of truth로 승격한다.
 
 ## Git Safety
 

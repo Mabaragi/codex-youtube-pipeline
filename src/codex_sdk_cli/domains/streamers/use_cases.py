@@ -154,5 +154,5 @@ def _channel_response(record: ChannelRecord) -> ChannelResponse:
         handle=record.handle,
         name=record.name,
         youtubeChannelId=record.youtube_channel_id,
+        sourceApiCallId=record.source_api_call_id,
     )
-

@@ -9,6 +9,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
+from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.youtube_data.exceptions import YouTubeDataConfigurationError
 from codex_sdk_cli.domains.youtube_data.ports import YouTubeDataClientPort
@@ -23,6 +24,9 @@ from codex_sdk_cli.infra.database.session import (
     create_database_engine,
     create_session_factory,
 )
+from codex_sdk_cli.infra.external_api_calls.recorder import ExternalApiCallRecorder
+from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
+from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.infra.youtube_transcripts.client import YouTubeTranscriptClient
@@ -89,14 +93,31 @@ async def get_streamer_repository(
 
 async def get_youtube_data_client(
     settings: Annotated[CliSettings, Depends(get_settings)],
+    session: DatabaseSessionDep,
 ) -> AsyncGenerator[YouTubeDataClientPort]:
     api_key = settings.youtube_data_api_key_value()
     if api_key is None:
         raise YouTubeDataConfigurationError("YouTube Data API key is not configured.")
+    api_call_recorder = _external_api_call_recorder(settings, session)
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(settings.youtube_data_timeout_seconds),
     ) as http_client:
-        yield YouTubeDataClient(http_client, api_key=api_key)
+        yield YouTubeDataClient(
+            http_client,
+            api_key=api_key,
+            api_call_recorder=api_call_recorder,
+        )
+
+
+def _external_api_call_recorder(
+    settings: CliSettings,
+    session: AsyncSession,
+) -> ExternalApiCallRecorderPort:
+    return ExternalApiCallRecorder(
+        SqlAlchemyExternalApiCallRepository(session),
+        MinioExternalApiCallStorage.from_settings(settings),
+        storage_prefix=settings.external_api_call_minio_prefix,
+    )
 
 
 async def get_youtube_transcript_storage(

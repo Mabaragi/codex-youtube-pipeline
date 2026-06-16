@@ -2,7 +2,7 @@
 
 ## 한 줄 요약
 
-이 프로젝트는 OpenAI Codex Python SDK를 이용해 Codex thread 실행, thread 재개, 로그인, 계정 확인을 터미널 명령과 REST API로 해볼 수 있는 작은 Python 예제다.
+이 프로젝트는 OpenAI Codex Python SDK를 이용해 Codex thread 실행, thread 재개, 로그인, 계정 확인을 터미널 명령과 REST API로 해보고, YouTube transcript 저장과 streamer/channel metadata 관리를 함께 실험하는 작은 Python 예제다.
 
 ## 왜 만들었나
 
@@ -27,17 +27,21 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
-- `POST /youtube-data/channels/resolve`: YouTube handle을 공식 YouTube Data API로 channel ID에 resolve하고 matching local channel rows의 `youtubeChannelId`를 갱신한다.
+- `POST /streamers`, `GET /streamers`, `GET/PATCH/DELETE /streamers/{id}`: streamer metadata CRUD.
+- `POST /channels`, `GET /channels`, `GET/PATCH/DELETE /channels/{id}`: streamer에 속한 channel metadata CRUD.
+- `POST /youtube-data/channels/resolve`: 등록된 streamer의 YouTube handle을 공식 YouTube Data API로 resolve하고 raw 응답 metadata를 남긴 뒤 `channels` row 하나를 생성한다.
 - `POST /youtube-transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회하고 응답 JSON을 MinIO에 저장한 뒤 DB에 메타데이터와 object 경로를 저장한다.
 - `GET /youtube-transcripts`: 저장된 transcript metadata를 조회한다.
 - `GET /youtube-transcripts/{id}`: 저장된 transcript metadata 단건을 조회한다.
 - `PATCH /youtube-transcripts/{id}`: 저장된 transcript metadata의 `notes`만 수정한다.
 - `DELETE /youtube-transcripts/{id}`: 저장된 transcript metadata row만 삭제한다.
 - `GET /health`: API health check.
+- `GET /health/s3`: 컨테이너에서 보이는 `/data/s3` mount 상태 진단.
 
 DB persistence는 async SQLAlchemy와 Alembic으로 관리한다. 현재
-`youtube_transcripts` 테이블은 transcript raw JSON 자체가 아니라 MinIO bucket,
-object name, URI, response hash, 언어/segment 수, 운영자 `notes` 같은
+`youtube_transcripts`, `streamers`, `channels`, `external_api_calls` 테이블을
+사용한다. `youtube_transcripts`와 `external_api_calls`는 raw JSON 자체가
+아니라 MinIO bucket, object name, URI, response hash, 검증 상태 같은
 메타데이터를 저장한다.
 
 ## 실행 예시
@@ -124,9 +128,15 @@ Invoke-RestMethod `
 src/codex_sdk_cli/
 ├── api/             # FastAPI app, dependency composition, exception handlers
 ├── domains/codex/   # Codex domain router, schemas, use cases, ports
+├── domains/external_api_calls/ # 외부 API raw response metadata ports/exceptions
+├── domains/streamers/ # Streamer/channel API router, schemas, use cases, ports
+├── domains/youtube_data/ # YouTube Data API handle resolve router, schemas, use cases, ports
 ├── domains/youtube_transcripts/ # YouTube transcript API router, schemas, use cases, ports
 ├── infra/codex/     # 실제 Codex SDK client adapter
 ├── infra/database/  # SQLAlchemy Base, async engine/session factory
+├── infra/external_api_calls/ # raw response object storage recorder와 SQLAlchemy repository
+├── infra/streamers/ # Streamer/channel SQLAlchemy repository
+├── infra/youtube_data/ # official YouTube Data API HTTP client
 ├── infra/youtube_transcripts/   # youtube-transcript-api adapter, MinIO transcript storage
 ├── cli.py           # Click command 정의와 사용자 출력
 ├── runner.py        # Codex SDK 호출 helper와 adapter
@@ -140,8 +150,15 @@ src/codex_sdk_cli/
 - `tests/test_runner.py`: SDK enum mapping, thread start/resume 분기, login helper를 검증한다.
 - `tests/test_api.py`: FastAPI route가 use case와 fake infra port를 통해 동작하는지 검증한다.
 - `tests/test_database.py`: DB 설정, async session, Alembic migration 적용을 검증한다.
+- `tests/test_external_api_calls_repository.py`: 외부 API raw metadata repository를 검증한다.
+- `tests/test_external_api_calls_storage.py`: 외부 API raw response MinIO storage boundary를 검증한다.
+- `tests/test_streamers_api.py`: Streamer/channel CRUD API와 exception mapping을 검증한다.
+- `tests/test_streamer_repository.py`: Streamer/channel SQLAlchemy repository를 검증한다.
+- `tests/test_youtube_data_api.py`: YouTube Data handle resolve API와 local channel create flow를 검증한다.
+- `tests/test_youtube_data_client.py`: official YouTube Data API client boundary와 response DTO 검증을 확인한다.
 - `tests/test_youtube_transcripts_api.py`: YouTube transcript fetch와 metadata CRUD API를 검증한다.
 - `tests/test_youtube_transcripts_repository.py`: YouTube transcript metadata repository insert/update/list/get/patch/delete를 검증한다.
+- `tests/test_youtube_transcripts_storage.py`: MinIO transcript storage boundary를 검증한다.
 
 ## 동작 흐름
 
@@ -157,7 +174,7 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube Data use case는 `YouTubeDataClientPort`와 `StreamerRepositoryPort`에 의존해 official channel ID를 조회한 뒤 local channel row를 갱신한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube Data client는 official channel metadata를 조회하면서 raw 응답을 MinIO에 저장하고 `external_api_calls` metadata row를 남긴 뒤 projection만 반환한다. YouTube Data use case는 이 projection과 `StreamerRepositoryPort`에 의존해 local channel row 하나를 생성한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
 
 ## 설정
 
@@ -178,6 +195,7 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`: transcript JSON bucket.
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX`: object key prefix. 기본값은 `youtube/transcripts`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: MinIO HTTPS 사용 여부. 기본값은 `false`.
+- `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.
 - `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 기본값은 `sqlite+aiosqlite:///./data/app.db`.
 - `CODEX_CLI_DATABASE_ECHO`: SQLAlchemy SQL echo 여부. 기본값은 `false`.
 

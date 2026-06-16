@@ -16,7 +16,12 @@ from codex_sdk_cli.settings import DEFAULT_DATABASE_URL, CliSettings
 def test_database_base_registers_app_tables() -> None:
     import codex_sdk_cli.infra.database.models  # noqa: F401
 
-    assert set(Base.metadata.tables) == {"channels", "streamers", "youtube_transcripts"}
+    assert set(Base.metadata.tables) == {
+        "channels",
+        "external_api_calls",
+        "streamers",
+        "youtube_transcripts",
+    }
 
 
 def test_database_settings_use_default_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,10 +106,15 @@ def test_alembic_upgrade_creates_app_tables(
         streamer_columns = {column["name"] for column in inspector.get_columns("streamers")}
         channel_columns = {column["name"] for column in inspector.get_columns("channels")}
         channel_foreign_keys = inspector.get_foreign_keys("channels")
+        external_api_call_columns = {
+            column["name"] for column in inspector.get_columns("external_api_calls")
+        }
     finally:
         engine.dispose()
 
-    assert {"channels", "streamers", "youtube_transcripts"}.issubset(table_names)
+    assert {"channels", "external_api_calls", "streamers", "youtube_transcripts"}.issubset(
+        table_names
+    )
     assert {
         "video_id",
         "language_code",
@@ -117,12 +127,30 @@ def test_alembic_upgrade_creates_app_tables(
         "notes",
     }.issubset(transcript_columns)
     assert {"id", "name"}.issubset(streamer_columns)
-    assert {"id", "streamer_id", "handle", "name", "youtube_channel_id"}.issubset(
-        channel_columns
-    )
+    assert {
+        "id",
+        "streamer_id",
+        "handle",
+        "name",
+        "youtube_channel_id",
+        "source_api_call_id",
+    }.issubset(channel_columns)
+    assert {
+        "provider",
+        "operation",
+        "request_params",
+        "response_storage_object_name",
+        "response_sha256",
+        "validation_status",
+    }.issubset(external_api_call_columns)
     assert any(
         foreign_key["referred_table"] == "streamers"
         and foreign_key["constrained_columns"] == ["streamer_id"]
+        for foreign_key in channel_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "external_api_calls"
+        and foreign_key["constrained_columns"] == ["source_api_call_id"]
         for foreign_key in channel_foreign_keys
     )
 

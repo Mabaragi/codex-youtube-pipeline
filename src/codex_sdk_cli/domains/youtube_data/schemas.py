@@ -4,17 +4,43 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ResolveYouTubeChannelRequest(BaseModel):
+    streamer_id: int = Field(
+        alias="streamerId",
+        ge=1,
+        description="Local streamer ID that will own the created channel row.",
+        examples=[1],
+    )
     handle: str = Field(
         min_length=1,
         max_length=255,
         description="YouTube handle to resolve. The leading @ is optional.",
         examples=["@GoogleDevelopers"],
     )
+    youtube_channel_id: str | None = Field(
+        default=None,
+        alias="youtubeChannelId",
+        min_length=1,
+        max_length=255,
+        description=(
+            "Optional expected YouTube UC... channel ID. "
+            "If present, it must match the resolved handle."
+        ),
+        examples=["UC_x5XG1OV2P6uZZ5FSM9Ttw"],
+    )
 
     model_config = ConfigDict(
         extra="forbid",
+        populate_by_name=True,
         str_strip_whitespace=True,
-        json_schema_extra={"examples": [{"handle": "@GoogleDevelopers"}]},
+        json_schema_extra={
+            "examples": [
+                {
+                    "streamerId": 1,
+                    "handle": "@GoogleDevelopers",
+                    "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+                }
+            ]
+        },
     )
 
     @field_validator("handle")
@@ -26,9 +52,11 @@ class ResolveYouTubeChannelRequest(BaseModel):
 
 
 class ResolveYouTubeChannelResponse(BaseModel):
+    channel_id: int = Field(alias="channelId")
+    streamer_id: int = Field(alias="streamerId")
     handle: str
+    name: str
     youtube_channel_id: str = Field(alias="youtubeChannelId")
-    updated_channel_ids: list[int] = Field(alias="updatedChannelIds")
+    source_api_call_id: int = Field(alias="sourceApiCallId")
 
     model_config = ConfigDict(populate_by_name=True)
-

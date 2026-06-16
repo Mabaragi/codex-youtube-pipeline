@@ -19,6 +19,9 @@ class YouTubeDataChannelNotFound(YouTubeDataDomainError):
     """Raised when YouTube Data API finds no channel for a handle."""
 
 
+class YouTubeDataChannelIdentityMismatch(YouTubeDataDomainError):
+    """Raised when a supplied YouTube channel ID disagrees with the resolved handle."""
+
+
 class YouTubeDataUpstreamError(YouTubeDataDomainError):
     """Raised when YouTube Data API fails or returns an unexpected response."""
-

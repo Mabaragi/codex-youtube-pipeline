@@ -70,6 +70,7 @@ class FakeStreamerRepository(StreamerRepositoryPort):
             handle=channel.handle,
             name=channel.name,
             youtube_channel_id=channel.youtube_channel_id,
+            source_api_call_id=channel.source_api_call_id,
         )
         self.channels[record.id] = record
         self.next_channel_id += 1
@@ -117,22 +118,6 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         del self.channels[channel_id]
         return True
 
-    async def update_youtube_channel_id_by_handle(
-        self,
-        *,
-        handle: str,
-        youtube_channel_id: str,
-    ) -> list[ChannelRecord]:
-        self._raise_if_failed()
-        match_values = _handle_match_values(handle)
-        updated: list[ChannelRecord] = []
-        for channel_id, record in self.channels.items():
-            if record.handle.strip().lower() in match_values:
-                channel = replace(record, youtube_channel_id=youtube_channel_id)
-                self.channels[channel_id] = channel
-                updated.append(channel)
-        return updated
-
     def _raise_if_failed(self) -> None:
         if self.fail_persistence:
             raise StreamerPersistenceError("Streamer persistence failed.")
@@ -172,6 +157,7 @@ def test_streamer_and_channel_crud_api() -> None:
         "handle": "@beta",
         "name": "Main",
         "youtubeChannelId": None,
+        "sourceApiCallId": None,
     }
     assert asyncio.run(_request(fake, "GET", "/channels?streamerId=1")) == [channel]
     assert asyncio.run(_request(fake, "GET", "/channels/1")) == channel
@@ -242,13 +228,6 @@ def test_channel_patch_rejects_empty_body() -> None:
     )
 
     assert response["detail"][0]["type"] == "value_error"
-
-
-def _handle_match_values(handle: str) -> set[str]:
-    normalized = handle.strip().lower()
-    if normalized.startswith("@"):
-        normalized = normalized[1:].strip()
-    return {normalized, f"@{normalized}"}
 
 
 async def _request(

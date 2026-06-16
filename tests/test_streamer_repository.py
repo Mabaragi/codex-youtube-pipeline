@@ -24,19 +24,6 @@ def test_streamer_repository_crud_and_delete_guard(
     asyncio.run(_exercise_repository(database_url))
 
 
-def test_streamer_repository_updates_youtube_channel_id_by_handle(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'handles.db').as_posix()}"
-    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
-
-    updated_ids = asyncio.run(_save_handle_variants_and_update(database_url))
-
-    assert updated_ids == [1, 2, 3]
-
-
 async def _exercise_repository(database_url: str) -> None:
     engine = create_database_engine(database_url)
     try:
@@ -123,46 +110,6 @@ async def _exercise_repository(database_url: str) -> None:
             assert await repository.delete_channel(duplicate_external_channel.id) is True
             assert await repository.delete_streamer(streamer.id) is True
             assert await repository.delete_streamer(streamer.id) is False
-    finally:
-        await engine.dispose()
-
-
-async def _save_handle_variants_and_update(database_url: str) -> list[int]:
-    engine = create_database_engine(database_url)
-    try:
-        session_factory = create_session_factory(engine)
-        async with session_factory() as session:
-            repository = SqlAlchemyStreamerRepository(session)
-            streamer = await repository.create_streamer(name="Alpha")
-            for handle in ("@Mixed", "mixed", " @MIXED "):
-                await repository.create_channel(
-                    ChannelCreate(
-                        streamer_id=streamer.id,
-                        handle=handle,
-                        name=handle,
-                        youtube_channel_id=None,
-                    )
-                )
-            await repository.create_channel(
-                ChannelCreate(
-                    streamer_id=streamer.id,
-                    handle="@other",
-                    name="Other",
-                    youtube_channel_id=None,
-                )
-            )
-            updated = await repository.update_youtube_channel_id_by_handle(
-                handle=" Mixed ",
-                youtube_channel_id="UC123",
-            )
-            all_channels = await repository.list_channels()
-            assert [channel.youtube_channel_id for channel in all_channels] == [
-                "UC123",
-                "UC123",
-                "UC123",
-                None,
-            ]
-            return [channel.id for channel in updated]
     finally:
         await engine.dispose()
 

@@ -30,6 +30,7 @@ class CliSettings(BaseSettings):
     transcript_minio_bucket: str | None = None
     transcript_minio_prefix: str = "youtube/transcripts"
     transcript_minio_secure: bool = False
+    external_api_call_minio_prefix: str = "external-api-calls"
     database_url: str = DEFAULT_DATABASE_URL
     database_echo: bool = False
 

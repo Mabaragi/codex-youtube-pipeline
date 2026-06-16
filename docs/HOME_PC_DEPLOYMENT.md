@@ -14,7 +14,7 @@ GitHub main push or workflow_dispatch
   -> Windows self-hosted runner on the home PC
   -> Alembic migration against the API SQLite database
   -> Docker Compose home stack
-  -> MinIO transcript JSON storage
+  -> MinIO raw JSON storage
   -> cloudflared quick tunnel
   -> nginx Basic Auth
   -> codex-api
@@ -23,10 +23,10 @@ GitHub main push or workflow_dispatch
 The home stack is defined in `compose.home.yaml`.
 
 - `api`: runs `codex-api` and exposes port `8000` only inside Docker.
-- `minio`: stores YouTube transcript response JSON in the `raw` bucket by
-  default and is reachable only inside the Docker network.
-- SQLite: stores transcript metadata and operator `notes` in
-  `youtube_transcripts`; raw transcript response JSON remains in MinIO.
+- `minio`: stores YouTube transcript and external API raw response JSON in the
+  `raw` bucket by default and is reachable only inside the Docker network.
+- SQLite: stores metadata in `youtube_transcripts`, `external_api_calls`,
+  `streamers`, and `channels`; raw JSON remains in MinIO.
 - `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
 - `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to
@@ -90,7 +90,8 @@ gh variable set CODEX_CLI_TRANSCRIPT_MINIO_BUCKET --body raw -R Mabaragi/codex-s
 ```
 
 The home compose defaults use `minio:9000`, access key `codex`, bucket `raw`,
-prefix `youtube/transcripts`, and SQLite URL
+transcript prefix `youtube/transcripts`, external API call prefix
+`external-api-calls`, and SQLite URL
 `sqlite+aiosqlite:///./data/app.db`. Override
 `CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY` and
 `CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY` with repository secrets for a less

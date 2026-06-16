@@ -138,7 +138,7 @@ flowchart LR
     API --> CodexVolume["Docker volume<br/>codex-home:/home/codex/.codex"]
     CodexTool["codex utility service"] --> CodexVolume
     API --> WorkBind["bind mount<br/>/work"]
-    API --> SQLite["SQLite<br/>/work/data/app.db<br/>youtube_transcripts"]
+    API --> SQLite["SQLite<br/>/work/data/app.db<br/>metadata tables"]
     API --> MinIO["minio container<br/>raw bucket"]
     MinIO --> MinioVolume["Docker volume<br/>minio-data"]
     API --> S3Bind["read-only bind mount<br/>/data/s3"]
@@ -151,10 +151,10 @@ flowchart LR
 - `nginx`: 모든 endpoint에 Basic Auth를 적용하고 `api:8000`으로 proxy한다.
   호스트에는 `127.0.0.1:${HOME_NGINX_PORT:-18080}`만 연다.
 - `cloudflared`: account-less quick tunnel을 열고 `nginx:80`으로 라우팅한다.
-- `minio`: YouTube transcript endpoint가 반환하는 JSON을 내부 Docker network의
-  S3-compatible object storage에 저장한다. 기본 bucket은 `raw`다.
-- SQLite: `youtube_transcripts`에 transcript metadata, 운영자 `notes`, MinIO
-  bucket/object/URI, response hash를 저장한다. raw JSON은 MinIO에만 둔다.
+- `minio`: YouTube transcript와 외부 API raw response JSON을 내부 Docker
+  network의 S3-compatible object storage에 저장한다. 기본 bucket은 `raw`다.
+- SQLite: `youtube_transcripts`, `external_api_calls`, `streamers`, `channels`
+  metadata를 저장한다. raw JSON은 MinIO에만 둔다.
 - `codex`: device-code login과 account 확인을 위한 수동 utility service다.
 - `codex-home` volume: `api`와 `codex`가 공유하는 Codex login state를 저장한다.
 - `minio-data` volume: MinIO object data를 저장한다.
@@ -191,6 +191,7 @@ flowchart LR
 - `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`: 기본값 `raw`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX`: 기본값 `youtube/transcripts`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: 기본값 `false`.
+- `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 기본값 `external-api-calls`.
 
 선택 DB 설정:
 

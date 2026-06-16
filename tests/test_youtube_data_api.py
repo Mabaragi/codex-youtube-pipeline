@@ -25,7 +25,7 @@ from codex_sdk_cli.domains.youtube_data.exceptions import (
     YouTubeDataUpstreamError,
 )
 from codex_sdk_cli.domains.youtube_data.ports import (
-    YouTubeChannelHandleResult,
+    YouTubeChannelResolution,
     YouTubeDataClientPort,
 )
 from codex_sdk_cli.settings import CliSettings
@@ -36,14 +36,17 @@ class FakeYouTubeDataClient(YouTubeDataClientPort):
         self.requests: list[str] = []
         self.error: YouTubeDataDomainError | None = None
         self.youtube_channel_id = "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+        self.title = "Google for Developers"
 
-    async def resolve_channel_id_by_handle(self, handle: str) -> YouTubeChannelHandleResult:
+    async def resolve_youtube_channel_by_handle(self, handle: str) -> YouTubeChannelResolution:
         self.requests.append(handle)
         if self.error is not None:
             raise self.error
-        return YouTubeChannelHandleResult(
+        return YouTubeChannelResolution(
             handle=handle,
             youtube_channel_id=self.youtube_channel_id,
+            title=self.title,
+            source_api_call_id=42,
         )
 
 
@@ -51,10 +54,13 @@ class FakeStreamerRepository(StreamerRepositoryPort):
     def __init__(self) -> None:
         self.streamers: dict[int, StreamerRecord] = {}
         self.channels: dict[int, ChannelRecord] = {}
+        self.next_streamer_id = 1
+        self.next_channel_id = 1
 
     async def create_streamer(self, *, name: str) -> StreamerRecord:
-        record = StreamerRecord(id=len(self.streamers) + 1, name=name)
+        record = StreamerRecord(id=self.next_streamer_id, name=name)
         self.streamers[record.id] = record
+        self.next_streamer_id += 1
         return record
 
     async def list_streamers(self) -> list[StreamerRecord]:
@@ -76,13 +82,15 @@ class FakeStreamerRepository(StreamerRepositoryPort):
 
     async def create_channel(self, channel: ChannelCreate) -> ChannelRecord:
         record = ChannelRecord(
-            id=len(self.channels) + 1,
+            id=self.next_channel_id,
             streamer_id=channel.streamer_id,
             handle=channel.handle,
             name=channel.name,
             youtube_channel_id=channel.youtube_channel_id,
+            source_api_call_id=channel.source_api_call_id,
         )
         self.channels[record.id] = record
+        self.next_channel_id += 1
         return record
 
     async def list_channels(self, *, streamer_id: int | None = None) -> list[ChannelRecord]:
@@ -119,63 +127,108 @@ class FakeStreamerRepository(StreamerRepositoryPort):
     async def delete_channel(self, channel_id: int) -> bool:
         return self.channels.pop(channel_id, None) is not None
 
-    async def update_youtube_channel_id_by_handle(
-        self,
-        *,
-        handle: str,
-        youtube_channel_id: str,
-    ) -> list[ChannelRecord]:
-        match_values = _handle_match_values(handle)
-        updated: list[ChannelRecord] = []
-        for channel_id, record in self.channels.items():
-            if record.handle.strip().lower() in match_values:
-                channel = replace(record, youtube_channel_id=youtube_channel_id)
-                self.channels[channel_id] = channel
-                updated.append(channel)
-        return updated
 
-
-def test_youtube_data_resolve_updates_matching_local_channels() -> None:
+def test_youtube_data_resolve_creates_one_channel_for_streamer() -> None:
     client = FakeYouTubeDataClient()
     repository = FakeStreamerRepository()
-    repository.channels = {
-        1: _channel(id=1, handle="@GoogleDevelopers"),
-        2: _channel(id=2, handle=" googledevelopers "),
-        3: _channel(id=3, handle="@Other"),
-    }
+    repository.streamers[1] = StreamerRecord(id=1, name="Google")
 
-    response = asyncio.run(_request(client, repository, json={"handle": " @GoogleDevelopers "}))
+    response = asyncio.run(
+        _request(
+            client,
+            repository,
+            json={"streamerId": 1, "handle": " @GoogleDevelopers "},
+            expected_status=201,
+        )
+    )
 
     assert response == {
+        "channelId": 1,
+        "streamerId": 1,
         "handle": "@GoogleDevelopers",
+        "name": "Google for Developers",
         "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
-        "updatedChannelIds": [1, 2],
+        "sourceApiCallId": 42,
     }
     assert client.requests == ["@GoogleDevelopers"]
-    assert repository.channels[1].youtube_channel_id == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
-    assert repository.channels[2].youtube_channel_id == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
-    assert repository.channels[3].youtube_channel_id is None
+    assert repository.channels[1] == ChannelRecord(
+        id=1,
+        streamer_id=1,
+        handle="@GoogleDevelopers",
+        name="Google for Developers",
+        youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        source_api_call_id=42,
+    )
 
 
-def test_youtube_data_resolve_returns_empty_updates_when_no_local_channel_matches() -> None:
+def test_youtube_data_resolve_accepts_matching_expected_youtube_channel_id() -> None:
     client = FakeYouTubeDataClient()
     repository = FakeStreamerRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Google")
 
-    response = asyncio.run(_request(client, repository, json={"handle": "@GoogleDevelopers"}))
+    response = asyncio.run(
+        _request(
+            client,
+            repository,
+            json={
+                "streamerId": 1,
+                "handle": "@GoogleDevelopers",
+                "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+            },
+            expected_status=201,
+        )
+    )
 
     assert response["youtubeChannelId"] == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
-    assert response["updatedChannelIds"] == []
+    assert response["channelId"] == 1
+
+
+def test_youtube_data_resolve_rejects_mismatched_youtube_channel_id() -> None:
+    client = FakeYouTubeDataClient()
+    repository = FakeStreamerRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Google")
+
+    response = asyncio.run(
+        _request(
+            client,
+            repository,
+            json={
+                "streamerId": 1,
+                "handle": "@GoogleDevelopers",
+                "youtubeChannelId": "UC-other",
+            },
+            expected_status=400,
+        )
+    )
+
+    assert response == {"detail": "Resolved YouTube channel ID did not match the request."}
+    assert repository.channels == {}
+
+
+def test_youtube_data_resolve_maps_missing_streamer_to_not_found() -> None:
+    response = asyncio.run(
+        _request(
+            FakeYouTubeDataClient(),
+            FakeStreamerRepository(),
+            json={"streamerId": 404, "handle": "@GoogleDevelopers"},
+            expected_status=404,
+        )
+    )
+
+    assert response == {"detail": "Streamer not found."}
 
 
 def test_youtube_data_resolve_maps_missing_channel_to_not_found() -> None:
     client = FakeYouTubeDataClient()
     client.error = YouTubeDataChannelNotFound("YouTube channel was not found for this handle.")
+    repository = FakeStreamerRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Missing")
 
     response = asyncio.run(
         _request(
             client,
-            FakeStreamerRepository(),
-            json={"handle": "@missing"},
+            repository,
+            json={"streamerId": 1, "handle": "@missing"},
             expected_status=404,
         )
     )
@@ -186,12 +239,14 @@ def test_youtube_data_resolve_maps_missing_channel_to_not_found() -> None:
 def test_youtube_data_resolve_maps_upstream_errors() -> None:
     client = FakeYouTubeDataClient()
     client.error = YouTubeDataUpstreamError("YouTube Data API request failed upstream.")
+    repository = FakeStreamerRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Blocked")
 
     response = asyncio.run(
         _request(
             client,
-            FakeStreamerRepository(),
-            json={"handle": "@blocked"},
+            repository,
+            json={"streamerId": 1, "handle": "@blocked"},
             expected_status=502,
         )
     )
@@ -200,10 +255,13 @@ def test_youtube_data_resolve_maps_upstream_errors() -> None:
 
 
 def test_youtube_data_resolve_requires_api_key_configuration() -> None:
+    repository = FakeStreamerRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Google")
+
     response = asyncio.run(
         _request_without_client_override(
-            FakeStreamerRepository(),
-            json={"handle": "@GoogleDevelopers"},
+            repository,
+            json={"streamerId": 1, "handle": "@GoogleDevelopers"},
             expected_status=503,
         )
     )
@@ -259,21 +317,3 @@ async def _request_without_client_override(
 
     assert response.status_code == expected_status, response.text
     return response.json()
-
-
-def _channel(*, id: int, handle: str) -> ChannelRecord:
-    return ChannelRecord(
-        id=id,
-        streamer_id=1,
-        handle=handle,
-        name=handle,
-        youtube_channel_id=None,
-    )
-
-
-def _handle_match_values(handle: str) -> set[str]:
-    normalized = handle.strip().lower()
-    if normalized.startswith("@"):
-        normalized = normalized[1:].strip()
-    return {normalized, f"@{normalized}"}
-

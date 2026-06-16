@@ -114,4 +114,3 @@ async def delete_channel(
     use_case: DeleteChannelUseCaseDep,
 ) -> DeleteResponse:
     return await use_case.execute(channel_id)
-
