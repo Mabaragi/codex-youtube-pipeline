@@ -72,6 +72,19 @@ class PipelineChannelOutputResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PipelineVideoOutputResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    channel_id: int = Field(alias="channelId")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    title: str
+    published_at: datetime = Field(alias="publishedAt")
+    source_search_api_call_id: int | None = Field(alias="sourceSearchApiCallId")
+    source_details_api_call_id: int | None = Field(alias="sourceDetailsApiCallId")
+    source_job_id: int | None = Field(alias="sourceJobId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PipelineJobDetailResponse(BaseModel):
     job_id: int = Field(alias="jobId")
     step: str
@@ -88,6 +101,7 @@ class PipelineJobDetailResponse(BaseModel):
     attempts: list[PipelineJobAttemptResponse]
     external_api_calls: list[ExternalApiCallSummaryResponse] = Field(alias="externalApiCalls")
     channels: list[PipelineChannelOutputResponse]
+    videos: list[PipelineVideoOutputResponse]
 
     model_config = ConfigDict(populate_by_name=True)
 

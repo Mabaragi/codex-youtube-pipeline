@@ -10,11 +10,13 @@ from alembic import command
 from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate, PipelineJobListQuery
+from codex_sdk_cli.domains.videos.ports import VideoCreate
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
+from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
 
 
 def test_pipeline_job_repository_tracks_attempt_lifecycle(
@@ -87,6 +89,7 @@ async def _exercise_repository(database_url: str) -> None:
             )
             streamers = SqlAlchemyStreamerRepository(session)
             channels = SqlAlchemyChannelRepository(session)
+            videos = SqlAlchemyVideoRepository(session)
             streamer = await streamers.create_streamer(name="Google")
             await channels.create_channel(
                 ChannelCreate(
@@ -97,6 +100,28 @@ async def _exercise_repository(database_url: str) -> None:
                     source_api_call_id=1,
                     source_job_id=job.id,
                 )
+            )
+            await videos.create_videos(
+                [
+                    VideoCreate(
+                        channel_id=1,
+                        youtube_video_id="video-1",
+                        title="Video 1",
+                        description="Collected video",
+                        published_at=succeeded_job.created_at,
+                        duration="PT1M",
+                        privacy_status="public",
+                        upload_status="processed",
+                        live_broadcast_content="none",
+                        view_count=1,
+                        like_count=2,
+                        comment_count=3,
+                        thumbnail_url=None,
+                        source_search_api_call_id=1,
+                        source_details_api_call_id=1,
+                        source_job_id=job.id,
+                    )
+                ]
             )
             summaries = await repository.list_job_summaries(
                 PipelineJobListQuery(step="channel_resolve", status="succeeded")
@@ -131,6 +156,8 @@ async def _exercise_repository(database_url: str) -> None:
             assert detail.external_api_calls[0].id == 1
             assert detail.external_api_calls[0].pipeline_job_attempt_id == second_attempt.id
             assert detail.channels[0].source_job_id == job.id
+            assert detail.videos[0].youtube_video_id == "video-1"
+            assert detail.videos[0].source_job_id == job.id
             assert await repository.get_job_detail(404) is None
     finally:
         await engine.dispose()

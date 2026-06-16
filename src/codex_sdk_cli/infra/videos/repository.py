@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import select
+from typing_extensions import override
+
+from codex_sdk_cli.domains.videos.exceptions import VideoAlreadyExists, VideoPersistenceError
+from codex_sdk_cli.domains.videos.ports import VideoCreate, VideoRecord, VideoRepositoryPort
+from codex_sdk_cli.infra.database.base import Base
+
+
+class VideoModel(Base):
+    __tablename__ = "videos"
+    __table_args__ = (
+        UniqueConstraint("youtube_video_id", name="uq_videos_youtube_video_id"),
+        CheckConstraint(
+            "view_count IS NULL OR view_count >= 0",
+            name="videos_view_count_non_negative",
+        ),
+        CheckConstraint(
+            "like_count IS NULL OR like_count >= 0",
+            name="videos_like_count_non_negative",
+        ),
+        CheckConstraint(
+            "comment_count IS NULL OR comment_count >= 0",
+            name="videos_comment_count_non_negative",
+        ),
+        Index("ix_videos_channel_published", "channel_id", "published_at", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("channels.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    youtube_video_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        index=True,
+        nullable=False,
+    )
+    duration: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    privacy_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    upload_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    live_broadcast_content: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    view_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    like_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    comment_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_search_api_call_id: Mapped[int | None] = mapped_column(
+        ForeignKey("external_api_calls.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    source_details_api_call_id: Mapped[int | None] = mapped_column(
+        ForeignKey("external_api_calls.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    source_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class SqlAlchemyVideoRepository(VideoRepositoryPort):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    @override
+    async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
+        try:
+            rows = await self._session.scalars(
+                select(VideoModel)
+                .where(VideoModel.channel_id == channel_id)
+                .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
+            )
+            return [_video_record(row) for row in rows]
+        except SQLAlchemyError as exc:
+            raise VideoPersistenceError("Video persistence failed.") from exc
+
+    @override
+    async def find_existing_youtube_video_id(
+        self,
+        *,
+        channel_id: int,
+        youtube_video_ids: tuple[str, ...],
+    ) -> str | None:
+        if not youtube_video_ids:
+            return None
+        try:
+            rows = await self._session.scalars(
+                select(VideoModel.youtube_video_id).where(
+                    VideoModel.channel_id == channel_id,
+                    VideoModel.youtube_video_id.in_(youtube_video_ids),
+                )
+            )
+            existing = set(rows.all())
+        except SQLAlchemyError as exc:
+            raise VideoPersistenceError("Video persistence failed.") from exc
+        return next(
+            (
+                youtube_video_id
+                for youtube_video_id in youtube_video_ids
+                if youtube_video_id in existing
+            ),
+            None,
+        )
+
+    @override
+    async def create_videos(self, videos: list[VideoCreate]) -> list[VideoRecord]:
+        if not videos:
+            return []
+        try:
+            models = [
+                VideoModel(
+                    channel_id=video.channel_id,
+                    youtube_video_id=video.youtube_video_id,
+                    title=video.title,
+                    description=video.description,
+                    published_at=video.published_at,
+                    duration=video.duration,
+                    privacy_status=video.privacy_status,
+                    upload_status=video.upload_status,
+                    live_broadcast_content=video.live_broadcast_content,
+                    view_count=video.view_count,
+                    like_count=video.like_count,
+                    comment_count=video.comment_count,
+                    thumbnail_url=video.thumbnail_url,
+                    source_search_api_call_id=video.source_search_api_call_id,
+                    source_details_api_call_id=video.source_details_api_call_id,
+                    source_job_id=video.source_job_id,
+                )
+                for video in videos
+            ]
+            self._session.add_all(models)
+            await self._session.commit()
+            for model in models:
+                await self._session.refresh(model)
+            return [_video_record(model) for model in models]
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise VideoAlreadyExists("YouTube video already exists.") from exc
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoPersistenceError("Video persistence failed.") from exc
+
+
+def _video_record(model: VideoModel) -> VideoRecord:
+    return VideoRecord(
+        id=model.id,
+        channel_id=model.channel_id,
+        youtube_video_id=model.youtube_video_id,
+        title=model.title,
+        description=model.description,
+        published_at=model.published_at,
+        duration=model.duration,
+        privacy_status=model.privacy_status,
+        upload_status=model.upload_status,
+        live_broadcast_content=model.live_broadcast_content,
+        view_count=model.view_count,
+        like_count=model.like_count,
+        comment_count=model.comment_count,
+        thumbnail_url=model.thumbnail_url,
+        source_search_api_call_id=model.source_search_api_call_id,
+        source_details_api_call_id=model.source_details_api_call_id,
+        source_job_id=model.source_job_id,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )

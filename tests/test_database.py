@@ -22,6 +22,7 @@ def test_database_base_registers_app_tables() -> None:
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
+        "videos",
         "youtube_transcripts",
     }
 
@@ -120,6 +121,9 @@ def test_alembic_upgrade_creates_app_tables(
             column["name"] for column in inspector.get_columns("pipeline_job_attempts")
         }
         pipeline_job_attempt_foreign_keys = inspector.get_foreign_keys("pipeline_job_attempts")
+        video_columns = {column["name"] for column in inspector.get_columns("videos")}
+        video_foreign_keys = inspector.get_foreign_keys("videos")
+        video_unique_constraints = inspector.get_unique_constraints("videos")
     finally:
         engine.dispose()
 
@@ -129,6 +133,7 @@ def test_alembic_upgrade_creates_app_tables(
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
+        "videos",
         "youtube_transcripts",
     }.issubset(table_names)
     assert {
@@ -215,6 +220,49 @@ def test_alembic_upgrade_creates_app_tables(
         foreign_key["referred_table"] == "pipeline_jobs"
         and foreign_key["constrained_columns"] == ["job_id"]
         for foreign_key in pipeline_job_attempt_foreign_keys
+    )
+    assert {
+        "id",
+        "channel_id",
+        "youtube_video_id",
+        "title",
+        "description",
+        "published_at",
+        "duration",
+        "privacy_status",
+        "upload_status",
+        "live_broadcast_content",
+        "view_count",
+        "like_count",
+        "comment_count",
+        "thumbnail_url",
+        "source_search_api_call_id",
+        "source_details_api_call_id",
+        "source_job_id",
+    }.issubset(video_columns)
+    assert any(
+        unique_constraint["column_names"] == ["youtube_video_id"]
+        for unique_constraint in video_unique_constraints
+    )
+    assert any(
+        foreign_key["referred_table"] == "channels"
+        and foreign_key["constrained_columns"] == ["channel_id"]
+        for foreign_key in video_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "external_api_calls"
+        and foreign_key["constrained_columns"] == ["source_search_api_call_id"]
+        for foreign_key in video_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "external_api_calls"
+        and foreign_key["constrained_columns"] == ["source_details_api_call_id"]
+        for foreign_key in video_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["source_job_id"]
+        for foreign_key in video_foreign_keys
     )
 
 

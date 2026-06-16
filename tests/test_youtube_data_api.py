@@ -45,6 +45,8 @@ from codex_sdk_cli.domains.youtube_data.exceptions import (
 from codex_sdk_cli.domains.youtube_data.ports import (
     YouTubeChannelResolution,
     YouTubeDataClientPort,
+    YouTubeVideoDetailsBatch,
+    YouTubeVideoSearchPage,
 )
 from codex_sdk_cli.settings import CliSettings
 
@@ -71,6 +73,23 @@ class FakeYouTubeDataClient(YouTubeDataClientPort):
             title=self.title,
             source_api_call_id=42,
         )
+
+    async def search_channel_videos(
+        self,
+        youtube_channel_id: str,
+        *,
+        page_token: str | None = None,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeVideoSearchPage:
+        raise NotImplementedError
+
+    async def get_video_details(
+        self,
+        youtube_video_ids: tuple[str, ...],
+        *,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeVideoDetailsBatch:
+        raise NotImplementedError
 
 
 class FakePipelineJobRepository(PipelineJobRepositoryPort):
@@ -142,6 +161,7 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
                 if call.pipeline_job_attempt_id in attempt_ids
             ],
             channels=[channel for channel in self.channels if channel.source_job_id == job_id],
+            videos=[],
         )
 
     async def create_attempt(

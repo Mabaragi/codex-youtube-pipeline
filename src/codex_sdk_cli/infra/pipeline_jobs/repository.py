@@ -35,6 +35,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineVideoOutputRecord,
 )
 from codex_sdk_cli.infra.database.base import Base
 
@@ -188,6 +189,7 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 attempts=[_attempt_record(attempt) for attempt in attempts],
                 external_api_calls=await self._external_api_call_summaries(attempts),
                 channels=await self._channel_outputs(job_id, attempts),
+                videos=await self._video_outputs(job_id, attempts),
             )
         except SQLAlchemyError as exc:
             raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
@@ -387,6 +389,43 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
             for channel in channels
         ]
 
+    async def _video_outputs(
+        self,
+        job_id: int,
+        attempts: list[PipelineJobAttemptModel],
+    ) -> list[PipelineVideoOutputRecord]:
+        from codex_sdk_cli.infra.videos.repository import VideoModel
+
+        output_video_ids = [
+            video_id
+            for attempt in attempts
+            if attempt.output_json is not None
+            for video_id in _output_video_ids(attempt.output_json)
+        ]
+        filters = [VideoModel.source_job_id == job_id]
+        if output_video_ids:
+            filters.append(VideoModel.id.in_(output_video_ids))
+        videos = (
+            await self._session.scalars(
+                select(VideoModel)
+                .where(or_(*filters))
+                .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
+            )
+        ).all()
+        return [
+            PipelineVideoOutputRecord(
+                id=video.id,
+                channel_id=video.channel_id,
+                youtube_video_id=video.youtube_video_id,
+                title=video.title,
+                published_at=video.published_at,
+                source_search_api_call_id=video.source_search_api_call_id,
+                source_details_api_call_id=video.source_details_api_call_id,
+                source_job_id=video.source_job_id,
+            )
+            for video in videos
+        ]
+
     async def _mark_attempt_finished(
         self,
         attempt_id: int,
@@ -465,6 +504,13 @@ def _attempt_status(value: str) -> PipelineJobAttemptStatus:
 def _output_channel_id(output_json: JsonObject) -> int | None:
     value = output_json.get("channelId")
     return value if isinstance(value, int) else None
+
+
+def _output_video_ids(output_json: JsonObject) -> list[int]:
+    value = output_json.get("createdVideoIds")
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, int)]
 
 
 def _job_record(model: PipelineJobModel) -> PipelineJobRecord:

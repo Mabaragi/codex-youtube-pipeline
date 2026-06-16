@@ -138,6 +138,88 @@ def test_youtube_data_client_records_invalid_schema_before_raising() -> None:
     assert recorder.requests[0].pipeline_job_attempt_id == 7
 
 
+def test_youtube_data_client_searches_channel_videos_and_sanitizes_api_key() -> None:
+    recorder = FakeExternalApiCallRecorder()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        params = request.url.params
+        assert str(request.url).startswith("https://www.googleapis.com/youtube/v3/search")
+        assert params["part"] == "snippet"
+        assert params["channelId"] == "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+        assert params["type"] == "video"
+        assert params["order"] == "date"
+        assert params["maxResults"] == "50"
+        assert params["pageToken"] == "next"
+        assert params["key"] == "AIza-test"
+        return httpx.Response(200, json=_search_list_payload())
+
+    result = asyncio.run(_search(handler, recorder=recorder, page_token="next"))
+
+    assert result.youtube_video_ids == ("video-1", "video-2")
+    assert result.next_page_token == "older"
+    assert result.source_api_call_id == 1
+    assert recorder.requests[0].operation == "search.list"
+    assert recorder.requests[0].request_params == {
+        "part": "snippet",
+        "channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "type": "video",
+        "order": "date",
+        "maxResults": "50",
+        "pageToken": "next",
+    }
+    assert "key" not in recorder.requests[0].request_params
+    assert recorder.requests[0].quota_cost == 100
+    assert recorder.requests[0].pipeline_job_attempt_id == 7
+
+
+def test_youtube_data_client_fetches_video_details_projection() -> None:
+    recorder = FakeExternalApiCallRecorder()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        params = request.url.params
+        assert str(request.url).startswith("https://www.googleapis.com/youtube/v3/videos")
+        assert params["part"] == "snippet,contentDetails,status,statistics"
+        assert params["id"] == "video-1,video-2"
+        assert params["key"] == "AIza-test"
+        return httpx.Response(200, json=_videos_list_payload())
+
+    result = asyncio.run(_details(handler, recorder=recorder))
+
+    assert result.source_api_call_id == 1
+    assert [video.youtube_video_id for video in result.videos] == ["video-1", "video-2"]
+    first = result.videos[0]
+    assert first.title == "Newest upload"
+    assert first.duration == "PT3M21S"
+    assert first.privacy_status == "public"
+    assert first.upload_status == "processed"
+    assert first.view_count == 123
+    assert first.like_count == 45
+    assert first.comment_count == 6
+    assert first.thumbnail_url == "https://img.example/high.jpg"
+    assert first.source_api_call_id == 1
+    assert recorder.requests[0].operation == "videos.list"
+    assert "key" not in recorder.requests[0].request_params
+    assert recorder.requests[0].quota_cost == 1
+    assert recorder.requests[0].schema_name == "YouTubeVideosListResponse"
+
+
+def test_youtube_data_client_records_invalid_search_schema_before_raising() -> None:
+    recorder = FakeExternalApiCallRecorder()
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_search_list_payload(items=[{"id": {"kind": "youtube#video"}}]),
+        )
+
+    with pytest.raises(YouTubeDataUpstreamError):
+        asyncio.run(_search(handler, recorder=recorder))
+
+    assert recorder.requests[0].operation == "search.list"
+    assert recorder.requests[0].validation_status == "invalid"
+    assert recorder.requests[0].schema_name == "YouTubeSearchListResponse"
+
+
 async def _resolve(
     handler: Callable[[httpx.Request], Coroutine[None, None, httpx.Response]],
     *,
@@ -154,6 +236,48 @@ async def _resolve(
         )
         return await client.resolve_youtube_channel_by_handle(
             "@GoogleDevelopers",
+            pipeline_job_attempt_id=7,
+        )
+
+
+async def _search(
+    handler: Callable[[httpx.Request], Coroutine[None, None, httpx.Response]],
+    *,
+    recorder: FakeExternalApiCallRecorder | None = None,
+    page_token: str | None = None,
+):
+    if recorder is None:
+        recorder = FakeExternalApiCallRecorder()
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = YouTubeDataClient(
+            http_client,
+            api_key="AIza-test",
+            api_call_recorder=recorder,
+        )
+        return await client.search_channel_videos(
+            "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+            page_token=page_token,
+            pipeline_job_attempt_id=7,
+        )
+
+
+async def _details(
+    handler: Callable[[httpx.Request], Coroutine[None, None, httpx.Response]],
+    *,
+    recorder: FakeExternalApiCallRecorder | None = None,
+):
+    if recorder is None:
+        recorder = FakeExternalApiCallRecorder()
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = YouTubeDataClient(
+            http_client,
+            api_key="AIza-test",
+            api_call_recorder=recorder,
+        )
+        return await client.get_video_details(
+            ("video-1", "video-2"),
             pipeline_job_attempt_id=7,
         )
 
@@ -179,4 +303,58 @@ def _channels_list_payload(*, items: list[object] | None = None) -> dict[str, ob
         "etag": "list-etag",
         "pageInfo": {"totalResults": len(items), "resultsPerPage": len(items)},
         "items": items,
+    }
+
+
+def _search_list_payload(*, items: list[object] | None = None) -> dict[str, object]:
+    if items is None:
+        items = [
+            {"id": {"kind": "youtube#video", "videoId": "video-1"}},
+            {"id": {"kind": "youtube#video", "videoId": "video-2"}},
+        ]
+    return {
+        "kind": "youtube#searchListResponse",
+        "etag": "search-etag",
+        "nextPageToken": "older",
+        "pageInfo": {"totalResults": 2, "resultsPerPage": 2},
+        "items": items,
+    }
+
+
+def _videos_list_payload() -> dict[str, object]:
+    return {
+        "kind": "youtube#videoListResponse",
+        "etag": "video-list-etag",
+        "pageInfo": {"totalResults": 2, "resultsPerPage": 2},
+        "items": [
+            {
+                "id": "video-1",
+                "snippet": {
+                    "publishedAt": "2026-06-16T01:02:03Z",
+                    "title": "Newest upload",
+                    "description": "first",
+                    "liveBroadcastContent": "none",
+                    "thumbnails": {
+                        "default": {"url": "https://img.example/default.jpg"},
+                        "high": {"url": "https://img.example/high.jpg"},
+                    },
+                },
+                "contentDetails": {"duration": "PT3M21S"},
+                "status": {"privacyStatus": "public", "uploadStatus": "processed"},
+                "statistics": {"viewCount": "123", "likeCount": "45", "commentCount": "6"},
+            },
+            {
+                "id": "video-2",
+                "snippet": {
+                    "publishedAt": "2026-06-15T01:02:03Z",
+                    "title": "Older upload",
+                    "description": "second",
+                    "liveBroadcastContent": "none",
+                    "thumbnails": {},
+                },
+                "contentDetails": {"duration": "PT1M"},
+                "status": {"privacyStatus": "unlisted", "uploadStatus": "processed"},
+                "statistics": {},
+            },
+        ],
     }

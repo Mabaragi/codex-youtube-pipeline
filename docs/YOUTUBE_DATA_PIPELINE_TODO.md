@@ -26,16 +26,16 @@ Last updated: 2026-06-16
 - [x] `GET /pipeline/jobs`와 `GET /pipeline/jobs/{jobId}`로 운영용 job 목록/상세 조회를 제공한다.
 - [x] Channel code를 `channels` domain/infra로 분리하고 public resolve route에서 `youtube_data` 이름을 제거한다.
 - [x] `channels.youtube_channel_id`를 nullable unique로 전환하고 같은 streamer resolve는 기존 row를 재사용한다.
-
-## Next Implementation
-
-- [ ] retry가 필요한 pipeline step이 늘어나면 step별 executor registry를 도입한다.
+- [x] `videos` table을 추가한다.
+- [x] `videos.youtube_video_id`처럼 YouTube 외부 식별자를 local `id`와 분리해서 명명한다.
+- [x] video 수집 raw 응답과 normalized video row를 분리한다.
+- [x] `POST /channels/{channel_id}/videos/collect`로 local channel 기반 YouTube video 수집을 지원한다.
+- [x] `GET /channels/{channel_id}/videos`로 저장된 videos를 최신순 조회한다.
+- [x] `video_collect` failed job retry를 지원하도록 step별 executor registry를 도입한다.
 
 ## Future Domain Work
 
-- [ ] `videos` table을 추가한다.
-- [ ] `videos.youtube_video_id`처럼 YouTube 외부 식별자를 local `id`와 분리해서 명명한다.
-- [ ] video 수집 raw 응답과 normalized video row를 분리한다.
+- [ ] `search.list` v1 500개 제한을 넘어서는 전체 백필이 필요하면 uploads playlist 또는 publishedBefore windowing 전략을 도입한다.
 - [ ] transcript 수집도 pipeline job/attempt와 raw metadata 연결을 갖도록 확장한다.
 - [ ] LLM summary 결과는 transcript metadata와 분리된 summary domain table에 저장한다.
 - [ ] summary 생성 request/response raw도 재현성과 감사 가능성을 위해 저장한다.

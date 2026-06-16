@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from codex_sdk_cli.domains.channels.schemas import ResolveYouTubeChannelRequest
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.videos.use_cases import CollectChannelVideosUseCase
 
 from .exceptions import PipelineJobNotFound, PipelineJobRetryNotAllowed
 from .ports import (
@@ -15,6 +16,7 @@ from .ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineVideoOutputRecord,
 )
 from .schemas import (
     ExternalApiCallSummaryResponse,
@@ -23,6 +25,7 @@ from .schemas import (
     PipelineJobAttemptResponse,
     PipelineJobDetailResponse,
     PipelineJobSummaryResponse,
+    PipelineVideoOutputResponse,
     RetryPipelineJobResponse,
 )
 
@@ -78,10 +81,10 @@ class RetryPipelineJobUseCase:
     def __init__(
         self,
         pipeline_jobs: PipelineJobRepositoryPort,
-        channel_resolver: ResolveYouTubeChannelUseCase,
+        executors: dict[str, PipelineRetryExecutor],
     ) -> None:
         self._pipeline_jobs = pipeline_jobs
-        self._channel_resolver = channel_resolver
+        self._executors = executors
 
     async def execute(self, job_id: int) -> RetryPipelineJobResponse:
         job = await self._pipeline_jobs.get_job(job_id)
@@ -89,27 +92,69 @@ class RetryPipelineJobUseCase:
             raise PipelineJobNotFound("Pipeline job not found.")
         if job.status != "failed":
             raise PipelineJobRetryNotAllowed("Only failed pipeline jobs can be retried.")
-        if job.step != CHANNEL_RESOLVE_STEP:
+        executor = self._executors.get(job.step)
+        if executor is None:
             raise PipelineJobRetryNotAllowed(
                 f"Retry is not supported for pipeline step '{job.step}'."
             )
 
-        streamer_id, request = _channel_resolve_request(job)
         await self._pipeline_jobs.mark_job_running(job.id)
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
-        result = await self._channel_resolver.execute_job_attempt(
-            job,
-            attempt,
-            streamer_id=streamer_id,
-            request=request,
-        )
+        result = await executor.execute(job, attempt)
         return RetryPipelineJobResponse(
             jobId=job.id,
             jobAttemptId=attempt.id,
             step=job.step,
             status="succeeded",
-            result=result.model_dump(by_alias=True),
+            result=result,
         )
+
+
+class PipelineRetryExecutor:
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        raise NotImplementedError
+
+
+class ChannelResolveRetryExecutor(PipelineRetryExecutor):
+    def __init__(self, use_case: ResolveYouTubeChannelUseCase) -> None:
+        self._use_case = use_case
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        streamer_id, request = _channel_resolve_request(job)
+        result = await self._use_case.execute_job_attempt(
+            job,
+            attempt,
+            streamer_id=streamer_id,
+            request=request,
+        )
+        return result.model_dump(by_alias=True)
+
+
+class VideoCollectRetryExecutor(PipelineRetryExecutor):
+    def __init__(self, use_case: CollectChannelVideosUseCase) -> None:
+        self._use_case = use_case
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        channel_id, youtube_channel_id = _video_collect_request(job)
+        result = await self._use_case.execute_job_attempt(
+            job,
+            attempt,
+            channel_id=channel_id,
+            youtube_channel_id=youtube_channel_id,
+        )
+        return result.model_dump(by_alias=True)
 
 
 def _channel_resolve_request(job: PipelineJobRecord) -> tuple[int, ResolveYouTubeChannelRequest]:
@@ -117,6 +162,14 @@ def _channel_resolve_request(job: PipelineJobRecord) -> tuple[int, ResolveYouTub
     return (
         _required_int(input_json, "streamerId"),
         ResolveYouTubeChannelRequest(handle=_required_str(input_json, "handle")),
+    )
+
+
+def _video_collect_request(job: PipelineJobRecord) -> tuple[int, str]:
+    input_json = job.input_json
+    return (
+        _required_int(input_json, "channelId"),
+        _required_str(input_json, "youtubeChannelId"),
     )
 
 
@@ -172,6 +225,7 @@ def _job_detail_response(detail: PipelineJobDetailRecord) -> PipelineJobDetailRe
             _external_api_call_response(call) for call in detail.external_api_calls
         ],
         channels=[_channel_output_response(channel) for channel in detail.channels],
+        videos=[_video_output_response(video) for video in detail.videos],
     )
 
 
@@ -217,4 +271,19 @@ def _channel_output_response(
         youtubeChannelId=channel.youtube_channel_id,
         sourceApiCallId=channel.source_api_call_id,
         sourceJobId=channel.source_job_id,
+    )
+
+
+def _video_output_response(
+    video: PipelineVideoOutputRecord,
+) -> PipelineVideoOutputResponse:
+    return PipelineVideoOutputResponse(
+        videoId=video.id,
+        channelId=video.channel_id,
+        youtubeVideoId=video.youtube_video_id,
+        title=video.title,
+        publishedAt=video.published_at,
+        sourceSearchApiCallId=video.source_search_api_call_id,
+        sourceDetailsApiCallId=video.source_details_api_call_id,
+        sourceJobId=video.source_job_id,
     )

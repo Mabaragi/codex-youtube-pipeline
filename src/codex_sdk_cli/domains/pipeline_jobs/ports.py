@@ -103,11 +103,24 @@ class PipelineChannelOutputRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class PipelineVideoOutputRecord:
+    id: int
+    channel_id: int
+    youtube_video_id: str
+    title: str
+    published_at: datetime
+    source_search_api_call_id: int | None
+    source_details_api_call_id: int | None
+    source_job_id: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineJobDetailRecord:
     job: PipelineJobRecord
     attempts: list[PipelineJobAttemptRecord]
     external_api_calls: list[ExternalApiCallSummaryRecord]
     channels: list[PipelineChannelOutputRecord]
+    videos: list[PipelineVideoOutputRecord]
 
 
 class PipelineJobRepositoryPort(Protocol):
