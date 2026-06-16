@@ -4,7 +4,9 @@ import hashlib
 import json
 
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
+    PipelineJobAttemptRecord,
     PipelineJobCreate,
+    PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
 from codex_sdk_cli.domains.streamers.exceptions import StreamerNotFound
@@ -52,16 +54,30 @@ class ResolveYouTubeChannelUseCase:
         )
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
 
+        normalized_request = ResolveYouTubeChannelRequest(
+            streamerId=request.streamer_id,
+            handle=handle,
+        )
+        return await self.execute_job_attempt(job, attempt, normalized_request)
+
+    async def execute_job_attempt(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+        request: ResolveYouTubeChannelRequest,
+    ) -> ResolveYouTubeChannelResponse:
         try:
+            if await self._repository.get_streamer(request.streamer_id) is None:
+                raise StreamerNotFound("Streamer not found.")
             result = await self._client.resolve_youtube_channel_by_handle(
-                handle,
+                request.handle,
                 pipeline_job_attempt_id=attempt.id,
             )
 
             record = await self._repository.create_channel(
                 ChannelCreate(
                     streamer_id=request.streamer_id,
-                    handle=handle,
+                    handle=request.handle,
                     name=result.title,
                     youtube_channel_id=result.youtube_channel_id,
                     source_api_call_id=result.source_api_call_id,

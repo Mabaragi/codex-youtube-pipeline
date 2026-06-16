@@ -70,6 +70,19 @@ Last updated: 2026-06-16
 
 API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한 local identifiers를 포함할 수 있다. pipeline step을 실행하는 endpoint는 가능하면 `jobId`, `jobAttemptId`, 그리고 raw metadata id를 응답에 포함한다.
 
+## Operational APIs
+
+운영 API는 pipeline state를 직접 수정하는 작업을 최소화하고, 먼저 관측 가능성을
+제공한다.
+
+- `GET /pipeline/jobs`: 최근 job 목록을 조회한다. `step`, `status`,
+  `subjectType`, `subjectId`, `externalKey`, `cursor`, `limit` 필터를 지원하고,
+  latest attempt 상태와 attempt count를 함께 반환한다.
+- `GET /pipeline/jobs/{jobId}`: 단일 job의 입력, attempts, 연결된
+  `external_api_calls`, 현재 구현된 domain output인 `channels`를 함께 반환한다.
+- `POST /pipeline/jobs/{jobId}/retry`: failed job 재시도 command다. 현재는
+  `channel_resolve`만 지원한다.
+
 ## Current Baseline
 
 현재 구현된 첫 pipeline step은 `POST /youtube-data/channels/resolve`다.
@@ -83,6 +96,12 @@ job/raw metadata를 연결한다. 응답에는 `channelId`, `youtubeChannelId`,
 요청 DTO validation 실패나 missing streamer처럼 작업 대상으로 볼 수 없는 입력은 job을
 만들지 않는다. YouTube upstream/not-found/schema validation 실패처럼 attempt 실행 중
 발생한 오류는 channel row를 만들지 않고 attempt와 job을 `failed`로 종료한다.
+
+`POST /pipeline/jobs/{jobId}/retry`는 현재 `channel_resolve` failed job만
+지원한다. retry는 기존 job을 덮어쓰지 않고 같은 job 아래 새 attempt를 만들며,
+성공 시 새 `channels` row를 생성한다. `succeeded`, `running`, `skipped`,
+`canceled` job은 retry하지 않는다. 입력이 달라져야 하는 재실행은 retry가 아니라
+새 job으로 처리한다.
 
 ## Implementation Rules
 

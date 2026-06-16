@@ -15,13 +15,18 @@ from codex_sdk_cli.api.dependencies import (
 )
 from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
+    ExternalApiCallSummaryRecord,
     JsonObject,
+    PipelineChannelOutputRecord,
     PipelineJobAttemptRecord,
     PipelineJobAttemptStatus,
     PipelineJobCreate,
+    PipelineJobDetailRecord,
+    PipelineJobListQuery,
     PipelineJobRecord,
     PipelineJobRepositoryPort,
     PipelineJobStatus,
+    PipelineJobSummaryRecord,
 )
 from codex_sdk_cli.domains.streamers.ports import (
     ChannelCreate,
@@ -70,6 +75,8 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
     def __init__(self) -> None:
         self.jobs: dict[int, PipelineJobRecord] = {}
         self.attempts: dict[int, PipelineJobAttemptRecord] = {}
+        self.external_api_calls: list[ExternalApiCallSummaryRecord] = []
+        self.channels: list[PipelineChannelOutputRecord] = []
         self.next_job_id = 1
         self.next_attempt_id = 1
 
@@ -92,6 +99,48 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         self.jobs[record.id] = record
         self.next_job_id += 1
         return record
+
+    async def get_job(self, job_id: int) -> PipelineJobRecord | None:
+        return self.jobs.get(job_id)
+
+    async def list_job_summaries(
+        self,
+        query: PipelineJobListQuery,
+    ) -> list[PipelineJobSummaryRecord]:
+        jobs = sorted(self.jobs.values(), key=lambda job: job.id, reverse=True)
+        if query.step is not None:
+            jobs = [job for job in jobs if job.step == query.step]
+        if query.status is not None:
+            jobs = [job for job in jobs if job.status == query.status]
+        if query.subject_type is not None:
+            jobs = [job for job in jobs if job.subject_type == query.subject_type]
+        if query.subject_id is not None:
+            jobs = [job for job in jobs if job.subject_id == query.subject_id]
+        if query.external_key is not None:
+            jobs = [job for job in jobs if job.external_key == query.external_key]
+        if query.cursor is not None:
+            jobs = [job for job in jobs if job.id < query.cursor]
+        return [self._summary(job) for job in jobs[: query.limit]]
+
+    async def get_job_detail(self, job_id: int) -> PipelineJobDetailRecord | None:
+        job = self.jobs.get(job_id)
+        if job is None:
+            return None
+        attempts = sorted(
+            [attempt for attempt in self.attempts.values() if attempt.job_id == job_id],
+            key=lambda attempt: attempt.attempt_no,
+        )
+        attempt_ids = {attempt.id for attempt in attempts}
+        return PipelineJobDetailRecord(
+            job=job,
+            attempts=attempts,
+            external_api_calls=[
+                call
+                for call in self.external_api_calls
+                if call.pipeline_job_attempt_id in attempt_ids
+            ],
+            channels=[channel for channel in self.channels if channel.source_job_id == job_id],
+        )
 
     async def create_attempt(
         self,
@@ -152,6 +201,13 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
     async def mark_job_failed(self, job_id: int) -> PipelineJobRecord:
         return self._update_job(job_id, status="failed")
 
+    async def mark_job_running(self, job_id: int) -> PipelineJobRecord:
+        record = self.jobs[job_id]
+        now = datetime.now(UTC)
+        updated = replace(record, status="running", updated_at=now, completed_at=None)
+        self.jobs[job_id] = updated
+        return updated
+
     def _update_attempt(
         self,
         attempt_id: int,
@@ -179,6 +235,19 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         updated = replace(record, status=status, updated_at=now, completed_at=now)
         self.jobs[job_id] = updated
         return updated
+
+    def _summary(self, job: PipelineJobRecord) -> PipelineJobSummaryRecord:
+        attempts = sorted(
+            [attempt for attempt in self.attempts.values() if attempt.job_id == job.id],
+            key=lambda attempt: attempt.attempt_no,
+        )
+        latest = attempts[-1] if attempts else None
+        return PipelineJobSummaryRecord(
+            job=job,
+            latest_attempt_id=latest.id if latest is not None else None,
+            latest_attempt_status=latest.status if latest is not None else None,
+            attempt_count=len(attempts),
+        )
 
 
 class FakeStreamerRepository(StreamerRepositoryPort):
@@ -413,15 +482,218 @@ def test_youtube_data_resolve_requires_api_key_configuration() -> None:
     assert pipeline_jobs.jobs == {}
 
 
+def test_pipeline_retry_retries_failed_channel_resolve_job() -> None:
+    client = FakeYouTubeDataClient()
+    repository = FakeStreamerRepository()
+    pipeline_jobs = FakePipelineJobRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Google")
+    _seed_channel_resolve_job(pipeline_jobs, status="failed")
+    _seed_failed_attempt(pipeline_jobs, job_id=1)
+
+    response = asyncio.run(
+        _retry_request(
+            client,
+            repository,
+            pipeline_jobs,
+            job_id=1,
+            expected_status=201,
+        )
+    )
+
+    expected_result = {
+        "channelId": 1,
+        "streamerId": 1,
+        "handle": "@GoogleDevelopers",
+        "name": "Google for Developers",
+        "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "sourceApiCallId": 42,
+        "jobId": 1,
+        "jobAttemptId": 2,
+    }
+    assert response == {
+        "jobId": 1,
+        "jobAttemptId": 2,
+        "step": "channel_resolve",
+        "status": "succeeded",
+        "result": expected_result,
+    }
+    assert client.requests == [("@GoogleDevelopers", 2)]
+    assert repository.channels[1].source_job_id == 1
+    assert pipeline_jobs.jobs[1].status == "succeeded"
+    assert pipeline_jobs.attempts[2].status == "succeeded"
+    assert pipeline_jobs.attempts[2].output_json == expected_result
+
+
+def test_pipeline_retry_rejects_non_failed_job() -> None:
+    client = FakeYouTubeDataClient()
+    repository = FakeStreamerRepository()
+    pipeline_jobs = FakePipelineJobRepository()
+    _seed_channel_resolve_job(pipeline_jobs, status="succeeded")
+
+    response = asyncio.run(
+        _retry_request(
+            client,
+            repository,
+            pipeline_jobs,
+            job_id=1,
+            expected_status=409,
+        )
+    )
+
+    assert response == {"detail": "Only failed pipeline jobs can be retried."}
+    assert pipeline_jobs.attempts == {}
+
+
+def test_pipeline_retry_maps_missing_job_to_not_found() -> None:
+    response = asyncio.run(
+        _retry_request(
+            FakeYouTubeDataClient(),
+            FakeStreamerRepository(),
+            FakePipelineJobRepository(),
+            job_id=404,
+            expected_status=404,
+        )
+    )
+
+    assert response == {"detail": "Pipeline job not found."}
+
+
+def test_pipeline_retry_records_failed_attempt_on_upstream_error() -> None:
+    client = FakeYouTubeDataClient()
+    client.error = YouTubeDataUpstreamError("YouTube Data API request failed upstream.")
+    repository = FakeStreamerRepository()
+    pipeline_jobs = FakePipelineJobRepository()
+    repository.streamers[1] = StreamerRecord(id=1, name="Blocked")
+    _seed_channel_resolve_job(pipeline_jobs, status="failed")
+
+    response = asyncio.run(
+        _retry_request(
+            client,
+            repository,
+            pipeline_jobs,
+            job_id=1,
+            expected_status=502,
+        )
+    )
+
+    assert response == {"detail": "YouTube Data API request failed upstream."}
+    assert pipeline_jobs.jobs[1].status == "failed"
+    assert pipeline_jobs.attempts[1].status == "failed"
+    assert pipeline_jobs.attempts[1].error_type == "YouTubeDataUpstreamError"
+
+
+def test_pipeline_jobs_list_filters_and_paginates_operational_summary() -> None:
+    pipeline_jobs = FakePipelineJobRepository()
+    _seed_channel_resolve_job(pipeline_jobs, status="failed")
+    _seed_failed_attempt(pipeline_jobs, job_id=1)
+    _seed_channel_resolve_job(pipeline_jobs, job_id=2, status="succeeded", handle="@Other")
+    pipeline_jobs.attempts[2] = replace(
+        pipeline_jobs.attempts[1],
+        id=2,
+        job_id=2,
+        status="succeeded",
+        error_type=None,
+        error_message=None,
+    )
+
+    failed_response = asyncio.run(
+        _pipeline_request(
+            pipeline_jobs,
+            "GET",
+            "/pipeline/jobs?status=failed&limit=1",
+        )
+    )
+    next_page = asyncio.run(
+        _pipeline_request(
+            pipeline_jobs,
+            "GET",
+            "/pipeline/jobs?limit=1",
+        )
+    )
+
+    assert failed_response["nextCursor"] is None
+    assert failed_response["items"] == [
+        {
+            "jobId": 1,
+            "step": "channel_resolve",
+            "status": "failed",
+            "subjectType": "streamer",
+            "subjectId": 1,
+            "externalKey": "@GoogleDevelopers",
+            "createdAt": failed_response["items"][0]["createdAt"],
+            "updatedAt": failed_response["items"][0]["updatedAt"],
+            "completedAt": failed_response["items"][0]["completedAt"],
+            "latestAttemptId": 1,
+            "latestAttemptStatus": "failed",
+            "attemptCount": 1,
+        }
+    ]
+    assert next_page["items"][0]["jobId"] == 2
+    assert next_page["nextCursor"] == 2
+
+
+def test_pipeline_job_detail_returns_attempts_raw_calls_and_outputs() -> None:
+    pipeline_jobs = FakePipelineJobRepository()
+    _seed_channel_resolve_job(pipeline_jobs, status="failed")
+    _seed_failed_attempt(pipeline_jobs, job_id=1)
+    _seed_external_api_call(pipeline_jobs)
+    pipeline_jobs.channels.append(
+        PipelineChannelOutputRecord(
+            id=7,
+            streamer_id=1,
+            handle="@GoogleDevelopers",
+            name="Google for Developers",
+            youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+            source_api_call_id=42,
+            source_job_id=1,
+        )
+    )
+
+    response = asyncio.run(
+        _pipeline_request(
+            pipeline_jobs,
+            "GET",
+            "/pipeline/jobs/1",
+        )
+    )
+
+    assert response["jobId"] == 1
+    assert response["inputJson"] == {"streamerId": 1, "handle": "@GoogleDevelopers"}
+    assert response["attempts"][0]["jobAttemptId"] == 1
+    assert response["attempts"][0]["errorType"] == "YouTubeDataUpstreamError"
+    assert response["externalApiCalls"][0]["externalApiCallId"] == 42
+    assert response["externalApiCalls"][0]["jobAttemptId"] == 1
+    assert response["channels"][0]["channelId"] == 7
+
+
+def test_pipeline_job_detail_maps_missing_job_to_not_found() -> None:
+    response = asyncio.run(
+        _pipeline_request(
+            FakePipelineJobRepository(),
+            "GET",
+            "/pipeline/jobs/404",
+            expected_status=404,
+        )
+    )
+
+    assert response == {"detail": "Pipeline job not found."}
+
+
 def test_youtube_data_openapi_path_and_tag() -> None:
     app = create_app()
     schema = app.openapi()
 
     path_item = schema["paths"]["/youtube-data/channels/resolve"]
+    list_path_item = schema["paths"]["/pipeline/jobs"]
+    detail_path_item = schema["paths"]["/pipeline/jobs/{job_id}"]
+    retry_path_item = schema["paths"]["/pipeline/jobs/{job_id}/retry"]
     request_schema = schema["components"]["schemas"]["ResolveYouTubeChannelRequest"]
     response_schema = schema["components"]["schemas"]["ResolveYouTubeChannelResponse"]
 
     assert path_item["post"]["tags"] == ["youtube-data"]
+    assert list_path_item["get"]["tags"] == ["pipeline-jobs"]
+    assert detail_path_item["get"]["tags"] == ["pipeline-jobs"]
+    assert retry_path_item["post"]["tags"] == ["pipeline-jobs"]
     assert set(request_schema["properties"]) == {"streamerId", "handle"}
     assert {"jobId", "jobAttemptId"}.issubset(response_schema["properties"])
 
@@ -473,3 +745,105 @@ async def _request_without_client_override(
 
     assert response.status_code == expected_status, response.text
     return response.json()
+
+
+async def _retry_request(
+    youtube_data_client: FakeYouTubeDataClient,
+    repository: FakeStreamerRepository,
+    pipeline_jobs: FakePipelineJobRepository,
+    *,
+    job_id: int,
+    expected_status: int = 200,
+) -> Any:
+    app = create_app()
+    app.dependency_overrides[get_youtube_data_client] = lambda: youtube_data_client
+    app.dependency_overrides[get_streamer_repository] = lambda: repository
+    app.dependency_overrides[get_pipeline_job_repository] = lambda: pipeline_jobs
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(f"/pipeline/jobs/{job_id}/retry")
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+async def _pipeline_request(
+    pipeline_jobs: FakePipelineJobRepository,
+    method: str,
+    path: str,
+    *,
+    expected_status: int = 200,
+) -> Any:
+    app = create_app()
+    app.dependency_overrides[get_pipeline_job_repository] = lambda: pipeline_jobs
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.request(method, path)
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+def _seed_channel_resolve_job(
+    pipeline_jobs: FakePipelineJobRepository,
+    *,
+    job_id: int = 1,
+    status: PipelineJobStatus,
+    handle: str = "@GoogleDevelopers",
+) -> None:
+    now = datetime.now(UTC)
+    pipeline_jobs.jobs[job_id] = PipelineJobRecord(
+        id=job_id,
+        step="channel_resolve",
+        status=status,
+        subject_type="streamer",
+        subject_id=1,
+        external_key=handle,
+        input_json={"streamerId": 1, "handle": handle},
+        input_hash="0" * 64,
+        parent_job_id=None,
+        created_at=now,
+        updated_at=now,
+        completed_at=now if status != "running" else None,
+    )
+    pipeline_jobs.next_job_id = max(pipeline_jobs.next_job_id, job_id + 1)
+
+
+def _seed_failed_attempt(pipeline_jobs: FakePipelineJobRepository, *, job_id: int) -> None:
+    now = datetime.now(UTC)
+    pipeline_jobs.attempts[1] = PipelineJobAttemptRecord(
+        id=1,
+        job_id=job_id,
+        attempt_no=1,
+        status="failed",
+        started_at=now,
+        finished_at=now,
+        worker_id=None,
+        error_type="YouTubeDataUpstreamError",
+        error_message="upstream failed",
+        output_json=None,
+    )
+    pipeline_jobs.next_attempt_id = 2
+
+
+def _seed_external_api_call(pipeline_jobs: FakePipelineJobRepository) -> None:
+    pipeline_jobs.external_api_calls.append(
+        ExternalApiCallSummaryRecord(
+            id=42,
+            pipeline_job_attempt_id=1,
+            provider="youtube_data",
+            operation="channels.list",
+            response_status_code=500,
+            validation_status="not_validated",
+            response_storage_uri="s3://raw/external-api-calls/object.json",
+            duration_ms=123,
+            quota_cost=1,
+            created_at=datetime.now(UTC),
+        )
+    )

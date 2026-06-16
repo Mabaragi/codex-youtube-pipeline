@@ -9,3 +9,11 @@ class PipelineJobDomainError(Exception):
 
 class PipelineJobPersistenceError(PipelineJobDomainError):
     """Raised when pipeline job persistence fails."""
+
+
+class PipelineJobNotFound(PipelineJobDomainError):
+    """Raised when a pipeline job does not exist."""
+
+
+class PipelineJobRetryNotAllowed(PipelineJobDomainError):
+    """Raised when a pipeline job cannot be retried."""

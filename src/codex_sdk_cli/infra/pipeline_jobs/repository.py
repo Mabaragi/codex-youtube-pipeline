@@ -22,13 +22,18 @@ from typing_extensions import override
 
 from codex_sdk_cli.domains.pipeline_jobs.exceptions import PipelineJobPersistenceError
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
+    ExternalApiCallSummaryRecord,
     JsonObject,
+    PipelineChannelOutputRecord,
     PipelineJobAttemptRecord,
     PipelineJobAttemptStatus,
     PipelineJobCreate,
+    PipelineJobDetailRecord,
+    PipelineJobListQuery,
     PipelineJobRecord,
     PipelineJobRepositoryPort,
     PipelineJobStatus,
+    PipelineJobSummaryRecord,
 )
 from codex_sdk_cli.infra.database.base import Base
 
@@ -128,6 +133,65 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
             raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
 
     @override
+    async def get_job(self, job_id: int) -> PipelineJobRecord | None:
+        try:
+            model = await self._session.get(PipelineJobModel, job_id)
+            if model is None:
+                return None
+            return _job_record(model)
+        except SQLAlchemyError as exc:
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+    @override
+    async def list_job_summaries(
+        self,
+        query: PipelineJobListQuery,
+    ) -> list[PipelineJobSummaryRecord]:
+        try:
+            statement = select(PipelineJobModel)
+            if query.step is not None:
+                statement = statement.where(PipelineJobModel.step == query.step)
+            if query.status is not None:
+                statement = statement.where(PipelineJobModel.status == query.status)
+            if query.subject_type is not None:
+                statement = statement.where(PipelineJobModel.subject_type == query.subject_type)
+            if query.subject_id is not None:
+                statement = statement.where(PipelineJobModel.subject_id == query.subject_id)
+            if query.external_key is not None:
+                statement = statement.where(PipelineJobModel.external_key == query.external_key)
+            if query.cursor is not None:
+                statement = statement.where(PipelineJobModel.id < query.cursor)
+            statement = statement.order_by(PipelineJobModel.id.desc()).limit(query.limit)
+            models = list((await self._session.scalars(statement)).all())
+            return await self._job_summaries(models)
+        except SQLAlchemyError as exc:
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+    @override
+    async def get_job_detail(self, job_id: int) -> PipelineJobDetailRecord | None:
+        try:
+            model = await self._session.get(PipelineJobModel, job_id)
+            if model is None:
+                return None
+            attempts = list(
+                (
+                    await self._session.scalars(
+                        select(PipelineJobAttemptModel)
+                        .where(PipelineJobAttemptModel.job_id == job_id)
+                        .order_by(PipelineJobAttemptModel.attempt_no.asc())
+                    )
+                ).all()
+            )
+            return PipelineJobDetailRecord(
+                job=_job_record(model),
+                attempts=[_attempt_record(attempt) for attempt in attempts],
+                external_api_calls=await self._external_api_call_summaries(attempts),
+                channels=await self._channel_outputs(job_id),
+            )
+        except SQLAlchemyError as exc:
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+    @override
     async def create_attempt(
         self,
         *,
@@ -189,6 +253,24 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
     async def mark_job_failed(self, job_id: int) -> PipelineJobRecord:
         return await self._mark_job_finished(job_id, status="failed")
 
+    @override
+    async def mark_job_running(self, job_id: int) -> PipelineJobRecord:
+        try:
+            model = await self._session.get(PipelineJobModel, job_id)
+            if model is None:
+                raise PipelineJobPersistenceError("Pipeline job was not found.")
+            model.status = "running"
+            model.completed_at = None
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _job_record(model)
+        except PipelineJobPersistenceError:
+            await self._session.rollback()
+            raise
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
     async def _next_attempt_no(self, job_id: int) -> int:
         current = await self._session.scalar(
             select(func.max(PipelineJobAttemptModel.attempt_no)).where(
@@ -196,6 +278,99 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
             )
         )
         return 1 if current is None else current + 1
+
+    async def _job_summaries(
+        self,
+        models: list[PipelineJobModel],
+    ) -> list[PipelineJobSummaryRecord]:
+        job_ids = [model.id for model in models]
+        attempts_by_job: dict[int, list[PipelineJobAttemptModel]] = {
+            job_id: [] for job_id in job_ids
+        }
+        if job_ids:
+            attempts = (
+                await self._session.scalars(
+                    select(PipelineJobAttemptModel)
+                    .where(PipelineJobAttemptModel.job_id.in_(job_ids))
+                    .order_by(
+                        PipelineJobAttemptModel.job_id.asc(),
+                        PipelineJobAttemptModel.attempt_no.asc(),
+                    )
+                )
+            ).all()
+            for attempt in attempts:
+                attempts_by_job.setdefault(attempt.job_id, []).append(attempt)
+
+        summaries: list[PipelineJobSummaryRecord] = []
+        for model in models:
+            attempts = attempts_by_job.get(model.id, [])
+            latest = attempts[-1] if attempts else None
+            summaries.append(
+                PipelineJobSummaryRecord(
+                    job=_job_record(model),
+                    latest_attempt_id=latest.id if latest is not None else None,
+                    latest_attempt_status=(
+                        _attempt_status(latest.status) if latest is not None else None
+                    ),
+                    attempt_count=len(attempts),
+                )
+            )
+        return summaries
+
+    async def _external_api_call_summaries(
+        self,
+        attempts: list[PipelineJobAttemptModel],
+    ) -> list[ExternalApiCallSummaryRecord]:
+        from codex_sdk_cli.infra.external_api_calls.repository import ExternalApiCallModel
+
+        attempt_ids = [attempt.id for attempt in attempts]
+        if not attempt_ids:
+            return []
+        calls = (
+            await self._session.scalars(
+                select(ExternalApiCallModel)
+                .where(ExternalApiCallModel.pipeline_job_attempt_id.in_(attempt_ids))
+                .order_by(ExternalApiCallModel.created_at.asc(), ExternalApiCallModel.id.asc())
+            )
+        ).all()
+        return [
+            ExternalApiCallSummaryRecord(
+                id=call.id,
+                pipeline_job_attempt_id=call.pipeline_job_attempt_id,
+                provider=call.provider,
+                operation=call.operation,
+                response_status_code=call.response_status_code,
+                validation_status=call.validation_status,
+                response_storage_uri=call.response_storage_uri,
+                duration_ms=call.duration_ms,
+                quota_cost=call.quota_cost,
+                created_at=call.created_at,
+            )
+            for call in calls
+        ]
+
+    async def _channel_outputs(self, job_id: int) -> list[PipelineChannelOutputRecord]:
+        from codex_sdk_cli.infra.streamers.repository import ChannelModel
+
+        channels = (
+            await self._session.scalars(
+                select(ChannelModel)
+                .where(ChannelModel.source_job_id == job_id)
+                .order_by(ChannelModel.id.asc())
+            )
+        ).all()
+        return [
+            PipelineChannelOutputRecord(
+                id=channel.id,
+                streamer_id=channel.streamer_id,
+                handle=channel.handle,
+                name=channel.name,
+                youtube_channel_id=channel.youtube_channel_id,
+                source_api_call_id=channel.source_api_call_id,
+                source_job_id=channel.source_job_id,
+            )
+            for channel in channels
+        ]
 
     async def _mark_attempt_finished(
         self,

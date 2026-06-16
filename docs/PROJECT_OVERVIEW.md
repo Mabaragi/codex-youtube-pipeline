@@ -27,6 +27,8 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /codex/login/device-code`: device-code login 실행.
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
+- `GET /pipeline/jobs`, `GET /pipeline/jobs/{id}`: pipeline job 목록과 상세 attempts/raw calls/domain outputs를 조회한다.
+- `POST /pipeline/jobs/{id}/retry`: 실패한 pipeline job을 같은 job 아래 새 attempt로 재시도한다. 현재는 `channel_resolve`만 지원한다.
 - `POST /streamers`, `GET /streamers`, `GET/PATCH/DELETE /streamers/{id}`: streamer metadata CRUD.
 - `POST /channels`, `GET /channels`, `GET/PATCH/DELETE /channels/{id}`: streamer에 속한 channel metadata CRUD.
 - `POST /youtube-data/channels/resolve`: 등록된 streamer의 YouTube handle을 공식 YouTube Data API로 resolve하고 pipeline job/attempt 및 raw 응답 metadata를 남긴 뒤 `channels` row 하나를 생성한다.
@@ -178,7 +180,7 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube Data client는 official channel metadata를 조회하면서 raw 응답을 MinIO에 저장하고 `external_api_calls` metadata row를 남긴 뒤 projection만 반환한다. YouTube Data use case는 `PipelineJobRepositoryPort`, 이 projection, `StreamerRepositoryPort`에 의존해 `channel_resolve` job/attempt와 local channel row 하나를 연결한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
+REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. YouTube Data client는 official channel metadata를 조회하면서 raw 응답을 MinIO에 저장하고 `external_api_calls` metadata row를 남긴 뒤 projection만 반환한다. YouTube Data use case는 `PipelineJobRepositoryPort`, 이 projection, `StreamerRepositoryPort`에 의존해 `channel_resolve` job/attempt와 local channel row 하나를 연결한다. Pipeline retry use case는 failed `channel_resolve` job의 저장된 입력으로 같은 job 아래 새 attempt를 만들고 같은 실행기를 재사용한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
 
 ## 설정
 

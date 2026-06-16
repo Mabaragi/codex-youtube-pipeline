@@ -6,7 +6,12 @@ from pydantic import ValidationError
 
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
 from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
-from codex_sdk_cli.domains.pipeline_jobs.exceptions import PipelineJobDomainError
+from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
+    PipelineJobDomainError,
+    PipelineJobNotFound,
+    PipelineJobPersistenceError,
+    PipelineJobRetryNotAllowed,
+)
 from codex_sdk_cli.domains.streamers.exceptions import (
     ChannelNotFound,
     StreamerDomainError,
@@ -75,8 +80,15 @@ def add_exception_handlers(app: FastAPI) -> None:
         _request: Request,
         exc: PipelineJobDomainError,
     ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, PipelineJobNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, PipelineJobRetryNotAllowed):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, PipelineJobPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=status_code,
             content={"detail": exc.message},
         )
 

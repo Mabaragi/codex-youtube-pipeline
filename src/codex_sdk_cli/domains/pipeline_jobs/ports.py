@@ -58,9 +58,73 @@ class PipelineJobAttemptRecord:
     output_json: JsonObject | None
 
 
+@dataclass(frozen=True, slots=True)
+class PipelineJobListQuery:
+    step: str | None = None
+    status: PipelineJobStatus | None = None
+    subject_type: str | None = None
+    subject_id: int | None = None
+    external_key: str | None = None
+    cursor: int | None = None
+    limit: int = 50
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineJobSummaryRecord:
+    job: PipelineJobRecord
+    latest_attempt_id: int | None
+    latest_attempt_status: PipelineJobAttemptStatus | None
+    attempt_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalApiCallSummaryRecord:
+    id: int
+    pipeline_job_attempt_id: int | None
+    provider: str
+    operation: str
+    response_status_code: int | None
+    validation_status: str
+    response_storage_uri: str | None
+    duration_ms: int
+    quota_cost: int | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineChannelOutputRecord:
+    id: int
+    streamer_id: int
+    handle: str
+    name: str
+    youtube_channel_id: str | None
+    source_api_call_id: int | None
+    source_job_id: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineJobDetailRecord:
+    job: PipelineJobRecord
+    attempts: list[PipelineJobAttemptRecord]
+    external_api_calls: list[ExternalApiCallSummaryRecord]
+    channels: list[PipelineChannelOutputRecord]
+
+
 class PipelineJobRepositoryPort(Protocol):
     async def create_job(self, job: PipelineJobCreate) -> PipelineJobRecord:
         """Create one logical pipeline job."""
+
+    async def get_job(self, job_id: int) -> PipelineJobRecord | None:
+        """Return one logical pipeline job by internal ID."""
+
+    async def list_job_summaries(
+        self,
+        query: PipelineJobListQuery,
+    ) -> list[PipelineJobSummaryRecord]:
+        """List pipeline jobs with operational summary fields."""
+
+    async def get_job_detail(self, job_id: int) -> PipelineJobDetailRecord | None:
+        """Return one pipeline job with attempts and linked outputs."""
 
     async def create_attempt(
         self,
@@ -92,3 +156,6 @@ class PipelineJobRepositoryPort(Protocol):
 
     async def mark_job_failed(self, job_id: int) -> PipelineJobRecord:
         """Mark one job as failed."""
+
+    async def mark_job_running(self, job_id: int) -> PipelineJobRecord:
+        """Mark one job as running."""

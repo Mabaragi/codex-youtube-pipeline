@@ -316,6 +316,22 @@ is returned as `channelId`. The YouTube external identifier is returned as
 metadata row as `sourceApiCallId`. The endpoint also creates a `channel_resolve`
 pipeline job/attempt and returns `jobId` and `jobAttemptId`.
 
+Failed `channel_resolve` jobs can be retried synchronously by the API server.
+Retry creates a new attempt under the same job:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8000/pipeline/jobs/<jobId>/retry
+```
+
+Pipeline jobs can also be inspected for operational debugging:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/pipeline/jobs?status=failed&limit=20"
+Invoke-RestMethod -Uri "http://localhost:8000/pipeline/jobs/<jobId>"
+```
+
 When running from a cloud host, YouTube may still block the host IP. The home PC
 deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows
 self-hosted runner, Docker Nginx, and an ephemeral Cloudflare quick tunnel so

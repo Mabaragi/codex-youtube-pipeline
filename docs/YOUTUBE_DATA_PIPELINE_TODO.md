@@ -22,11 +22,12 @@ Last updated: 2026-06-16
 - [x] `/youtube-data/channels/resolve`가 job/attempt를 생성하고, 성공 응답에 `jobId`, `jobAttemptId`를 포함하도록 연결한다.
 - [x] resolve 실패 시 channel row를 만들지 않고 job/attempt를 `failed`로 종료한다.
 - [x] docs/ERD와 database tests를 새 pipeline schema에 맞게 갱신한다.
+- [x] `POST /pipeline/jobs/{jobId}/retry`로 failed `channel_resolve` job을 같은 job 아래 새 attempt로 재시도한다.
+- [x] `GET /pipeline/jobs`와 `GET /pipeline/jobs/{jobId}`로 운영용 job 목록/상세 조회를 제공한다.
 
 ## Next Implementation
 
-- [ ] job 조회/list API가 필요해지는 시점에 filtering 기준과 response DTO를 설계한다.
-- [ ] retry 정책이 필요해지는 시점에 같은 job 아래 새 attempt를 만드는 command/use case를 설계한다.
+- [ ] retry가 필요한 pipeline step이 늘어나면 step별 executor registry를 도입한다.
 
 ## Future Domain Work
 
