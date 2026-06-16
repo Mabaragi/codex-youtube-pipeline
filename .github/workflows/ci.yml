@@ -298,24 +298,25 @@ jobs:
           $url = "${{ steps.quick_tunnel.outputs.url }}"
           $pair = "{0}:{1}" -f $env:HOME_BASIC_AUTH_USER, $env:HOME_BASIC_AUTH_PASSWORD
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair))
-          $headers = @{ Authorization = "Basic $encoded" }
-          $deadline = (Get-Date).AddSeconds(90)
-          $lastError = $null
+          $deadline = (Get-Date).AddMinutes(5)
+          $lastExitCode = $null
 
           while ((Get-Date) -lt $deadline) {
-            try {
-              Invoke-RestMethod -Uri "$url/health" -Headers $headers -TimeoutSec 15
+            & curl.exe `
+              --fail `
+              --silent `
+              --show-error `
+              --max-time 15 `
+              --header "Authorization: Basic $encoded" `
+              "$url/health"
+            if ($LASTEXITCODE -eq 0) {
               exit 0
-            } catch {
-              $lastError = $_
-              Start-Sleep -Seconds 5
             }
+            $lastExitCode = $LASTEXITCODE
+            Start-Sleep -Seconds 5
           }
 
-          if ($lastError) {
-            throw $lastError
-          }
-          throw "Public quick tunnel health check timed out."
+          throw "Public quick tunnel health check timed out. Last curl exit code: $lastExitCode"
 
       - name: Show home stack logs on failure
         if: failure()
