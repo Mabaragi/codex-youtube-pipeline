@@ -124,6 +124,8 @@ jobs:
       - home_deploy_preflight
     if: needs.home_deploy_preflight.outputs.deploy_ready == 'true'
     timeout-minutes: 30
+    outputs:
+      quick_tunnel_url: ${{ steps.quick_tunnel.outputs.url }}
     env:
       HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
       HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
@@ -291,36 +293,36 @@ jobs:
           "Public URL: $url" >> $env:GITHUB_STEP_SUMMARY
           "Latest URL file on runner: $urlPath" >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Verify public quick tunnel health through Basic Auth
-        shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
-          $url = "${{ steps.quick_tunnel.outputs.url }}"
-          $pair = "{0}:{1}" -f $env:HOME_BASIC_AUTH_USER, $env:HOME_BASIC_AUTH_PASSWORD
-          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair))
-          $deadline = (Get-Date).AddMinutes(5)
-          $lastExitCode = $null
-
-          while ((Get-Date) -lt $deadline) {
-            & curl.exe `
-              --fail `
-              --silent `
-              --show-error `
-              --max-time 15 `
-              --header "Authorization: Basic $encoded" `
-              "$url/health"
-            if ($LASTEXITCODE -eq 0) {
-              exit 0
-            }
-            $lastExitCode = $LASTEXITCODE
-            Start-Sleep -Seconds 5
-          }
-
-          throw "Public quick tunnel health check timed out. Last curl exit code: $lastExitCode"
-
       - name: Show home stack logs on failure
         if: failure()
         shell: powershell
         run: |
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
           docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api nginx cloudflared minio
+
+  public_tunnel_health:
+    name: Verify public quick tunnel health
+    runs-on: ubuntu-latest
+    needs:
+      - home_deploy
+    if: needs.home_deploy.outputs.quick_tunnel_url != ''
+    env:
+      HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
+      HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
+      QUICK_TUNNEL_URL: ${{ needs.home_deploy.outputs.quick_tunnel_url }}
+    steps:
+      - name: Verify public quick tunnel health through Basic Auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          basic_auth="$(printf '%s:%s' "$HOME_BASIC_AUTH_USER" "$HOME_BASIC_AUTH_PASSWORD" | base64 -w 0)"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 60 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            --max-time 15 \
+            --header "Authorization: Basic ${basic_auth}" \
+            "${QUICK_TUNNEL_URL}/health"

@@ -28,7 +28,7 @@ flowchart TD
     Migration --> ComposeDeploy["docker compose up -d --build --force-recreate api nginx cloudflared minio"]
     ComposeDeploy --> LocalHealth["local Basic Auth health check with retry"]
     LocalHealth --> CaptureUrl["capture latest trycloudflare.com URL"]
-    CaptureUrl --> PublicHealth["public Basic Auth health check"]
+    CaptureUrl --> PublicHealth["GitHub-hosted public Basic Auth health check"]
 
     Tag["push tag v*.*.*"] --> PublishTag["Docker Publish: GHCR version tag"]
     Manual["workflow_dispatch: CI"] --> QualityMain
@@ -85,6 +85,7 @@ flowchart LR
 sequenceDiagram
     participant GH as GitHub Actions
     participant Runner as Windows runner codex-home
+    participant PublicRunner as GitHub-hosted Ubuntu runner
     participant Docker as Docker Desktop
     participant Nginx as nginx
     participant CF as cloudflared quick tunnel
@@ -102,10 +103,12 @@ sequenceDiagram
     API-->>Nginx: {"status":"ok"}
     Runner->>CF: read cloudflared logs
     CF-->>Runner: latest https://*.trycloudflare.com URL
-    Runner->>CF: GET <quick-url>/health with Basic Auth
+    Runner-->>GH: expose quick tunnel URL as job output
+    GH->>PublicRunner: schedule public_tunnel_health job
+    PublicRunner->>CF: GET <quick-url>/health with Basic Auth
     CF->>Nginx: tunnel request to nginx:80
     Nginx->>API: proxy /health
-    API-->>Runner: {"status":"ok"}
+    API-->>PublicRunner: {"status":"ok"}
 ```
 
 Home deploy job의 주요 단계:
@@ -122,7 +125,8 @@ Home deploy job의 주요 단계:
 8. 로컬 Nginx health check를 Basic Auth로 확인한다.
 9. `cloudflared` 로그에서 가장 마지막 `https://*.trycloudflare.com` URL을
    찾아 `.home-deploy/latest-tunnel-url.txt`와 Actions summary에 기록한다.
-10. public quick tunnel URL의 `/health`도 Basic Auth로 확인한다.
+10. 별도 GitHub-hosted runner job이 public quick tunnel URL의 `/health`를
+    Basic Auth로 확인한다.
 
 가장 마지막 URL을 사용하는 이유는 `cloudflared` 컨테이너 로그에 이전 quick
 tunnel URL이 남아 있을 수 있기 때문이다. 재부팅 직후 첫 배포 실패는 이 로그의
@@ -307,5 +311,6 @@ docker compose --project-name codex-sdk-home -f compose.home.yaml down
 | `Show Docker version` 실패 | Docker Desktop | Docker Desktop을 실행한 뒤 workflow를 다시 돌린다. |
 | Preflight 실패 | GitHub secrets | `HOME_BASIC_AUTH_USER`, `HOME_BASIC_AUTH_PASSWORD`가 있는지 확인한다. |
 | Public health가 530/1033 | quick tunnel URL, cloudflared logs | 최신 URL을 확인한다. workflow는 마지막 URL을 선택하도록 되어 있다. |
+| Self-hosted runner DNS만 실패 | `public_tunnel_health` job | Windows runner 내부 DNS가 새 quick tunnel host를 늦게 반영할 수 있어 public health는 GitHub-hosted runner에서 확인한다. |
 | Browser에서 Basic Auth가 계속 실패 | browser auth cache | 다른 창, incognito, 또는 credential cache 삭제 후 다시 로그인한다. |
 | `/codex/runs` 인증 실패 | `codex-home` volume | `codex` utility service로 device-code login 상태를 확인한다. |
