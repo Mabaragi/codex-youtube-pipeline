@@ -26,7 +26,8 @@ The home stack is defined in `compose.home.yaml`.
 - `minio`: stores YouTube transcript and external API raw response JSON in the
   `raw` bucket by default and is reachable only inside the Docker network.
 - SQLite: stores metadata in `youtube_transcripts`, `external_api_calls`,
-  `streamers`, and `channels`; raw JSON remains in MinIO.
+  `pipeline_jobs`, `pipeline_job_attempts`, `streamers`, and `channels`; raw
+  JSON remains in MinIO.
 - `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
 - `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to

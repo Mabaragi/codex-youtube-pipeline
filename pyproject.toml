@@ -63,4 +63,4 @@ markers = [
 ]
 
 [tool.pyrefly]
-project-includes = ["src", "tests"]
+project-includes = ["src", "tests", "scripts"]

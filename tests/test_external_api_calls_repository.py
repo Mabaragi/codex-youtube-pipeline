@@ -8,8 +8,10 @@ from alembic.config import Config
 
 from alembic import command
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
+from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
+from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 
 
 def test_external_api_call_repository_creates_metadata_row(
@@ -29,6 +31,7 @@ def test_external_api_call_repository_creates_metadata_row(
     assert record.response_storage_object_name == "external-api-calls/object.json"
     assert record.response_sha256 == "0" * 64
     assert record.validation_status == "valid"
+    assert record.pipeline_job_attempt_id == 1
 
 
 async def _save_record(database_url: str):
@@ -36,6 +39,19 @@ async def _save_record(database_url: str):
     try:
         session_factory = create_session_factory(engine)
         async with session_factory() as session:
+            pipeline_jobs = SqlAlchemyPipelineJobRepository(session)
+            job = await pipeline_jobs.create_job(
+                PipelineJobCreate(
+                    step="channel_resolve",
+                    status="running",
+                    subject_type="streamer",
+                    subject_id=1,
+                    external_key="@GoogleDevelopers",
+                    input_json={"streamerId": 1, "handle": "@GoogleDevelopers"},
+                    input_hash="0" * 64,
+                )
+            )
+            attempt = await pipeline_jobs.create_attempt(job_id=job.id)
             repository = SqlAlchemyExternalApiCallRepository(session)
             return await repository.create_external_api_call(
                 ExternalApiCallCreate(
@@ -60,6 +76,7 @@ async def _save_record(database_url: str):
                     validation_error=None,
                     duration_ms=12,
                     quota_cost=1,
+                    pipeline_job_attempt_id=attempt.id,
                 )
             )
     finally:

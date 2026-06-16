@@ -18,6 +18,7 @@ class ChannelRecord:
     name: str
     youtube_channel_id: str | None
     source_api_call_id: int | None
+    source_job_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +28,7 @@ class ChannelCreate:
     name: str
     youtube_channel_id: str | None
     source_api_call_id: int | None = None
+    source_job_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

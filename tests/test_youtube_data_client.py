@@ -53,6 +53,7 @@ class FakeExternalApiCallRecorder(ExternalApiCallRecorderPort):
             duration_ms=request.duration_ms,
             quota_cost=request.quota_cost,
             created_at=datetime.now(UTC),
+            pipeline_job_attempt_id=request.pipeline_job_attempt_id,
         )
 
 
@@ -81,6 +82,7 @@ def test_youtube_data_client_resolves_channel_id_and_sends_api_key() -> None:
     }
     assert "key" not in recorder.requests[0].request_params
     assert recorder.requests[0].validation_status == "valid"
+    assert recorder.requests[0].pipeline_job_attempt_id == 7
 
 
 def test_youtube_data_client_maps_empty_items_to_not_found() -> None:
@@ -133,6 +135,7 @@ def test_youtube_data_client_records_invalid_schema_before_raising() -> None:
 
     assert recorder.requests[0].validation_status == "invalid"
     assert recorder.requests[0].schema_name == "YouTubeChannelsListResponse"
+    assert recorder.requests[0].pipeline_job_attempt_id == 7
 
 
 async def _resolve(
@@ -149,7 +152,10 @@ async def _resolve(
             api_key="AIza-test",
             api_call_recorder=recorder,
         )
-        return await client.resolve_youtube_channel_by_handle("@GoogleDevelopers")
+        return await client.resolve_youtube_channel_by_handle(
+            "@GoogleDevelopers",
+            pipeline_job_attempt_id=7,
+        )
 
 
 def _channels_list_payload(*, items: list[object] | None = None) -> dict[str, object]:

@@ -19,6 +19,8 @@ def test_database_base_registers_app_tables() -> None:
     assert set(Base.metadata.tables) == {
         "channels",
         "external_api_calls",
+        "pipeline_job_attempts",
+        "pipeline_jobs",
         "streamers",
         "youtube_transcripts",
     }
@@ -109,12 +111,25 @@ def test_alembic_upgrade_creates_app_tables(
         external_api_call_columns = {
             column["name"] for column in inspector.get_columns("external_api_calls")
         }
+        external_api_call_foreign_keys = inspector.get_foreign_keys("external_api_calls")
+        pipeline_job_columns = {
+            column["name"] for column in inspector.get_columns("pipeline_jobs")
+        }
+        pipeline_job_attempt_columns = {
+            column["name"] for column in inspector.get_columns("pipeline_job_attempts")
+        }
+        pipeline_job_attempt_foreign_keys = inspector.get_foreign_keys("pipeline_job_attempts")
     finally:
         engine.dispose()
 
-    assert {"channels", "external_api_calls", "streamers", "youtube_transcripts"}.issubset(
-        table_names
-    )
+    assert {
+        "channels",
+        "external_api_calls",
+        "pipeline_job_attempts",
+        "pipeline_jobs",
+        "streamers",
+        "youtube_transcripts",
+    }.issubset(table_names)
     assert {
         "video_id",
         "language_code",
@@ -134,15 +149,43 @@ def test_alembic_upgrade_creates_app_tables(
         "name",
         "youtube_channel_id",
         "source_api_call_id",
+        "source_job_id",
     }.issubset(channel_columns)
     assert {
         "provider",
         "operation",
         "request_params",
+        "pipeline_job_attempt_id",
         "response_storage_object_name",
         "response_sha256",
         "validation_status",
     }.issubset(external_api_call_columns)
+    assert {
+        "id",
+        "step",
+        "status",
+        "subject_type",
+        "subject_id",
+        "external_key",
+        "input_json",
+        "input_hash",
+        "parent_job_id",
+        "created_at",
+        "updated_at",
+        "completed_at",
+    }.issubset(pipeline_job_columns)
+    assert {
+        "id",
+        "job_id",
+        "attempt_no",
+        "status",
+        "started_at",
+        "finished_at",
+        "worker_id",
+        "error_type",
+        "error_message",
+        "output_json",
+    }.issubset(pipeline_job_attempt_columns)
     assert any(
         foreign_key["referred_table"] == "streamers"
         and foreign_key["constrained_columns"] == ["streamer_id"]
@@ -152,6 +195,21 @@ def test_alembic_upgrade_creates_app_tables(
         foreign_key["referred_table"] == "external_api_calls"
         and foreign_key["constrained_columns"] == ["source_api_call_id"]
         for foreign_key in channel_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["source_job_id"]
+        for foreign_key in channel_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_job_attempts"
+        and foreign_key["constrained_columns"] == ["pipeline_job_attempt_id"]
+        for foreign_key in external_api_call_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["job_id"]
+        for foreign_key in pipeline_job_attempt_foreign_keys
     )
 
 

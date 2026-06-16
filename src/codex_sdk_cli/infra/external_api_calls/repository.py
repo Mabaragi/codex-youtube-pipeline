@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, Integer, String, Text, func
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -61,6 +61,11 @@ class ExternalApiCallModel(Base):
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     quota_cost: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pipeline_job_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -97,6 +102,7 @@ class SqlAlchemyExternalApiCallRepository(ExternalApiCallRepositoryPort):
                 validation_error=record.validation_error,
                 duration_ms=record.duration_ms,
                 quota_cost=record.quota_cost,
+                pipeline_job_attempt_id=record.pipeline_job_attempt_id,
             )
             self._session.add(model)
             await self._session.commit()
@@ -131,6 +137,7 @@ def _record(model: ExternalApiCallModel) -> ExternalApiCallRecord:
         duration_ms=model.duration_ms,
         quota_cost=model.quota_cost,
         created_at=model.created_at,
+        pipeline_job_attempt_id=model.pipeline_job_attempt_id,
     )
 
 

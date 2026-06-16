@@ -158,6 +158,7 @@ class ChannelResponse(BaseModel):
     name: str
     youtube_channel_id: str | None = Field(alias="youtubeChannelId")
     source_api_call_id: int | None = Field(alias="sourceApiCallId")
+    source_job_id: int | None = Field(alias="sourceJobId")
 
     model_config = ConfigDict(populate_by_name=True)
 

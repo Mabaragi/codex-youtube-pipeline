@@ -42,7 +42,12 @@ class YouTubeDataClient(YouTubeDataClientPort):
         self._channels_endpoint = channels_endpoint
 
     @override
-    async def resolve_youtube_channel_by_handle(self, handle: str) -> YouTubeChannelResolution:
+    async def resolve_youtube_channel_by_handle(
+        self,
+        handle: str,
+        *,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeChannelResolution:
         request_params: dict[str, str] = {
             "part": "id,snippet",
             "forHandle": handle,
@@ -62,6 +67,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
                 validation_status="invalid",
                 validation_error=exc.__class__.__name__,
                 duration_ms=_duration_ms(started),
+                pipeline_job_attempt_id=pipeline_job_attempt_id,
             )
             raise YouTubeDataUpstreamError("YouTube Data API request failed.") from exc
 
@@ -73,6 +79,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
                 validation_error=None,
                 duration_ms=_duration_ms(started),
                 schema_name=None,
+                pipeline_job_attempt_id=pipeline_job_attempt_id,
             )
             raise YouTubeDataUpstreamError("YouTube Data API request failed upstream.")
 
@@ -86,6 +93,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
                 validation_error=str(exc),
                 duration_ms=_duration_ms(started),
                 schema_name="YouTubeChannelsListResponse",
+                pipeline_job_attempt_id=pipeline_job_attempt_id,
             )
             raise
 
@@ -96,6 +104,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
             validation_error=None,
             duration_ms=_duration_ms(started),
             schema_name="YouTubeChannelsListResponse",
+            pipeline_job_attempt_id=pipeline_job_attempt_id,
         )
         if not payload.items:
             raise YouTubeDataChannelNotFound("YouTube channel was not found for this handle.")
@@ -118,6 +127,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
         validation_error: str | None,
         duration_ms: int,
         schema_name: str | None,
+        pipeline_job_attempt_id: int | None,
     ) -> ExternalApiCallRecord:
         return await self._record_call(
             request_params=request_params,
@@ -128,6 +138,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
             validation_error=validation_error,
             duration_ms=duration_ms,
             schema_name=schema_name,
+            pipeline_job_attempt_id=pipeline_job_attempt_id,
         )
 
     async def _record_call(
@@ -141,6 +152,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
         validation_error: str | None,
         duration_ms: int,
         schema_name: str | None = None,
+        pipeline_job_attempt_id: int | None = None,
     ) -> ExternalApiCallRecord:
         return await self._api_call_recorder.record_call(
             ExternalApiCallRecordRequest(
@@ -159,6 +171,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
                 validation_error=validation_error,
                 duration_ms=duration_ms,
                 quota_cost=1,
+                pipeline_job_attempt_id=pipeline_job_attempt_id,
             )
         )
 

@@ -46,5 +46,7 @@ class ResolveYouTubeChannelResponse(BaseModel):
     name: str
     youtube_channel_id: str = Field(alias="youtubeChannelId")
     source_api_call_id: int = Field(alias="sourceApiCallId")
+    job_id: int = Field(alias="jobId")
+    job_attempt_id: int = Field(alias="jobAttemptId")
 
     model_config = ConfigDict(populate_by_name=True)

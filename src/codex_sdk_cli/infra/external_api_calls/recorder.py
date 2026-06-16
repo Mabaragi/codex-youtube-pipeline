@@ -69,6 +69,7 @@ class ExternalApiCallRecorder(ExternalApiCallRecorderPort):
                 validation_error=request.validation_error,
                 duration_ms=request.duration_ms,
                 quota_cost=request.quota_cost,
+                pipeline_job_attempt_id=request.pipeline_job_attempt_id,
             )
         )
 

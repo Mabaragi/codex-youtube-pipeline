@@ -42,6 +42,7 @@ class ExternalApiCallCreate:
     validation_error: str | None
     duration_ms: int
     quota_cost: int | None
+    pipeline_job_attempt_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +67,7 @@ class ExternalApiCallRecord:
     duration_ms: int
     quota_cost: int | None
     created_at: datetime
+    pipeline_job_attempt_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +87,7 @@ class ExternalApiCallRecordRequest:
     validation_error: str | None
     duration_ms: int
     quota_cost: int | None
+    pipeline_job_attempt_id: int | None = None
 
 
 class ExternalApiCallStoragePort(Protocol):

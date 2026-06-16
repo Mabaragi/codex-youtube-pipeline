@@ -71,6 +71,7 @@ class FakeStreamerRepository(StreamerRepositoryPort):
             name=channel.name,
             youtube_channel_id=channel.youtube_channel_id,
             source_api_call_id=channel.source_api_call_id,
+            source_job_id=channel.source_job_id,
         )
         self.channels[record.id] = record
         self.next_channel_id += 1
@@ -158,6 +159,7 @@ def test_streamer_and_channel_crud_api() -> None:
         "name": "Main",
         "youtubeChannelId": None,
         "sourceApiCallId": None,
+        "sourceJobId": None,
     }
     assert asyncio.run(_request(fake, "GET", "/channels?streamerId=1")) == [channel]
     assert asyncio.run(_request(fake, "GET", "/channels/1")) == channel

@@ -1,0 +1,304 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import select
+from typing_extensions import override
+
+from codex_sdk_cli.domains.pipeline_jobs.exceptions import PipelineJobPersistenceError
+from codex_sdk_cli.domains.pipeline_jobs.ports import (
+    JsonObject,
+    PipelineJobAttemptRecord,
+    PipelineJobAttemptStatus,
+    PipelineJobCreate,
+    PipelineJobRecord,
+    PipelineJobRepositoryPort,
+    PipelineJobStatus,
+)
+from codex_sdk_cli.infra.database.base import Base
+
+
+class PipelineJobModel(Base):
+    __tablename__ = "pipeline_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'succeeded', 'failed', 'skipped', 'canceled')",
+            name="pipeline_jobs_status_allowed",
+        ),
+        Index("ix_pipeline_jobs_step_status", "step", "status"),
+        Index("ix_pipeline_jobs_subject", "subject_type", "subject_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    step: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    subject_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    subject_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    external_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    input_json: Mapped[JsonObject] = mapped_column(JSON, nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    parent_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PipelineJobAttemptModel(Base):
+    __tablename__ = "pipeline_job_attempts"
+    __table_args__ = (
+        CheckConstraint("attempt_no >= 1", name="pipeline_job_attempts_attempt_no_min"),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed', 'canceled')",
+            name="pipeline_job_attempts_status_allowed",
+        ),
+        UniqueConstraint("job_id", "attempt_no", name="uq_pipeline_job_attempts_job_attempt_no"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_jobs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_json: Mapped[JsonObject | None] = mapped_column(JSON, nullable=True)
+
+
+class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    @override
+    async def create_job(self, job: PipelineJobCreate) -> PipelineJobRecord:
+        try:
+            model = PipelineJobModel(
+                step=job.step,
+                status=job.status,
+                subject_type=job.subject_type,
+                subject_id=job.subject_id,
+                external_key=job.external_key,
+                input_json=job.input_json,
+                input_hash=job.input_hash,
+                parent_job_id=job.parent_job_id,
+            )
+            self._session.add(model)
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _job_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+    @override
+    async def create_attempt(
+        self,
+        *,
+        job_id: int,
+        worker_id: str | None = None,
+    ) -> PipelineJobAttemptRecord:
+        try:
+            attempt_no = await self._next_attempt_no(job_id)
+            model = PipelineJobAttemptModel(
+                job_id=job_id,
+                attempt_no=attempt_no,
+                status="running",
+                worker_id=worker_id,
+            )
+            self._session.add(model)
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _attempt_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+    @override
+    async def mark_attempt_succeeded(
+        self,
+        attempt_id: int,
+        *,
+        output_json: JsonObject,
+    ) -> PipelineJobAttemptRecord:
+        return await self._mark_attempt_finished(
+            attempt_id,
+            status="succeeded",
+            output_json=output_json,
+            error_type=None,
+            error_message=None,
+        )
+
+    @override
+    async def mark_attempt_failed(
+        self,
+        attempt_id: int,
+        *,
+        error_type: str,
+        error_message: str,
+    ) -> PipelineJobAttemptRecord:
+        return await self._mark_attempt_finished(
+            attempt_id,
+            status="failed",
+            output_json=None,
+            error_type=error_type,
+            error_message=error_message,
+        )
+
+    @override
+    async def mark_job_succeeded(self, job_id: int) -> PipelineJobRecord:
+        return await self._mark_job_finished(job_id, status="succeeded")
+
+    @override
+    async def mark_job_failed(self, job_id: int) -> PipelineJobRecord:
+        return await self._mark_job_finished(job_id, status="failed")
+
+    async def _next_attempt_no(self, job_id: int) -> int:
+        current = await self._session.scalar(
+            select(func.max(PipelineJobAttemptModel.attempt_no)).where(
+                PipelineJobAttemptModel.job_id == job_id
+            )
+        )
+        return 1 if current is None else current + 1
+
+    async def _mark_attempt_finished(
+        self,
+        attempt_id: int,
+        *,
+        status: PipelineJobAttemptStatus,
+        output_json: JsonObject | None,
+        error_type: str | None,
+        error_message: str | None,
+    ) -> PipelineJobAttemptRecord:
+        try:
+            model = await self._session.get(PipelineJobAttemptModel, attempt_id)
+            if model is None:
+                raise PipelineJobPersistenceError("Pipeline job attempt was not found.")
+            model.status = status
+            model.output_json = output_json
+            model.error_type = error_type
+            model.error_message = error_message
+            model.finished_at = datetime.now(UTC)
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _attempt_record(model)
+        except PipelineJobPersistenceError:
+            await self._session.rollback()
+            raise
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+    async def _mark_job_finished(
+        self,
+        job_id: int,
+        *,
+        status: PipelineJobStatus,
+    ) -> PipelineJobRecord:
+        try:
+            model = await self._session.get(PipelineJobModel, job_id)
+            if model is None:
+                raise PipelineJobPersistenceError("Pipeline job was not found.")
+            model.status = status
+            model.completed_at = datetime.now(UTC)
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _job_record(model)
+        except PipelineJobPersistenceError:
+            await self._session.rollback()
+            raise
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
+
+
+def _job_status(value: str) -> PipelineJobStatus:
+    if value == "pending":
+        return "pending"
+    if value == "succeeded":
+        return "succeeded"
+    if value == "failed":
+        return "failed"
+    if value == "skipped":
+        return "skipped"
+    if value == "canceled":
+        return "canceled"
+    return "running"
+
+
+def _attempt_status(value: str) -> PipelineJobAttemptStatus:
+    if value == "succeeded":
+        return "succeeded"
+    if value == "failed":
+        return "failed"
+    if value == "canceled":
+        return "canceled"
+    return "running"
+
+
+def _job_record(model: PipelineJobModel) -> PipelineJobRecord:
+    return PipelineJobRecord(
+        id=model.id,
+        step=model.step,
+        status=_job_status(model.status),
+        subject_type=model.subject_type,
+        subject_id=model.subject_id,
+        external_key=model.external_key,
+        input_json=model.input_json,
+        input_hash=model.input_hash,
+        parent_job_id=model.parent_job_id,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+        completed_at=model.completed_at,
+    )
+
+
+def _attempt_record(model: PipelineJobAttemptModel) -> PipelineJobAttemptRecord:
+    return PipelineJobAttemptRecord(
+        id=model.id,
+        job_id=model.job_id,
+        attempt_no=model.attempt_no,
+        status=_attempt_status(model.status),
+        started_at=model.started_at,
+        finished_at=model.finished_at,
+        worker_id=model.worker_id,
+        error_type=model.error_type,
+        error_message=model.error_message,
+        output_json=model.output_json,
+    )

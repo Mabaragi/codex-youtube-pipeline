@@ -45,6 +45,11 @@ class ChannelModel(Base):
         index=True,
         nullable=True,
     )
+    source_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
 
 
 class SqlAlchemyStreamerRepository(StreamerRepositoryPort):
@@ -123,6 +128,7 @@ class SqlAlchemyStreamerRepository(StreamerRepositoryPort):
                 name=channel.name,
                 youtube_channel_id=channel.youtube_channel_id,
                 source_api_call_id=channel.source_api_call_id,
+                source_job_id=channel.source_job_id,
             )
             self._session.add(model)
             await self._session.commit()
@@ -203,4 +209,5 @@ def _channel_record(model: ChannelModel) -> ChannelRecord:
         name=model.name,
         youtube_channel_id=model.youtube_channel_id,
         source_api_call_id=model.source_api_call_id,
+        source_job_id=model.source_job_id,
     )

@@ -13,5 +13,10 @@ class YouTubeChannelResolution:
 
 
 class YouTubeDataClientPort(Protocol):
-    async def resolve_youtube_channel_by_handle(self, handle: str) -> YouTubeChannelResolution:
+    async def resolve_youtube_channel_by_handle(
+        self,
+        handle: str,
+        *,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeChannelResolution:
         """Resolve YouTube channel metadata from a public handle."""

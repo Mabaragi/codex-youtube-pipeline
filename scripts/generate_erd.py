@@ -4,12 +4,13 @@ import argparse
 import hashlib
 import json
 import sys
+from dataclasses import dataclass
 from html import escape
 from importlib import import_module
 from pathlib import Path
 
 from graphviz import Digraph
-from sqlalchemy import Column, Table
+from sqlalchemy import Column, Table, UniqueConstraint
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = REPO_ROOT / "src"
@@ -38,6 +39,7 @@ def main() -> None:
         format="svg",
         cleanup=True,
     )
+    _normalize_svg_newlines()
     _write_schema_hash(schema_hash)
 
 
@@ -67,19 +69,61 @@ def _build_graph(tables: list[Table]) -> Digraph:
     for table in tables:
         graph.node(table.name, label=_table_label(table))
 
+    for relation in _foreign_key_relations(tables):
+        graph.node(
+            relation.node_name,
+            label=relation.label,
+            shape="box",
+            style="rounded,filled",
+            fillcolor="#FFFFFF",
+            color="#9FB2C1",
+            fontcolor="#425466",
+            fontsize="10",
+            margin="0.06,0.04",
+        )
+        graph.edge(
+            relation.parent_column_ref,
+            relation.node_name,
+            arrowhead="none",
+            dir="forward",
+        )
+        graph.edge(
+            relation.node_name,
+            relation.child_column_ref,
+            arrowhead="crow",
+            arrowtail="none",
+            dir="forward",
+        )
+
+    return graph
+
+
+@dataclass(frozen=True)
+class _ForeignKeyRelation:
+    node_name: str
+    label: str
+    parent_column_ref: str
+    child_column_ref: str
+
+
+def _foreign_key_relations(tables: list[Table]) -> list[_ForeignKeyRelation]:
+    relations: list[_ForeignKeyRelation] = []
     for table in tables:
         for column in table.columns:
             for foreign_key in column.foreign_keys:
-                graph.edge(
-                    f"{foreign_key.column.table.name}:{foreign_key.column.name}",
-                    f"{table.name}:{column.name}",
-                    xlabel=f"{foreign_key.column.name} -> {column.name}",
-                    arrowhead="crow",
-                    arrowtail="none",
-                    dir="forward",
+                parent_column = foreign_key.column
+                relations.append(
+                    _ForeignKeyRelation(
+                        node_name=(
+                            f"rel_{parent_column.table.name}_{parent_column.name}_"
+                            f"{table.name}_{column.name}"
+                        ),
+                        label=f"{parent_column.name} -> {column.name}",
+                        parent_column_ref=f"{parent_column.table.name}:{parent_column.name}",
+                        child_column_ref=f"{table.name}:{column.name}",
+                    )
                 )
-
-    return graph
+    return relations
 
 
 def _graph_attrs() -> dict[str, str]:
@@ -94,8 +138,8 @@ def _graph_attrs() -> dict[str, str]:
         "outputorder": "edgesfirst",
         "pad": "0.25",
         "rankdir": "LR",
-        "ranksep": "1.15",
-        "splines": "ortho",
+        "ranksep": "1.35",
+        "splines": "polyline",
     }
 
 
@@ -163,9 +207,9 @@ def _schema_hash(tables: list[Table]) -> str:
                     "name": column.name,
                     "type": _column_type(column),
                     "nullable": bool(column.nullable),
-                    "primary_key": bool(column.primary_key),
-                    "unique": bool(column.unique or column.name in _unique_column_names(table)),
-                    "index": bool(column.index or column.name in _index_column_names(table)),
+                    "primary_key": column.primary_key,
+                    "unique": column.unique or column.name in _unique_column_names(table),
+                    "index": column.index or column.name in _index_column_names(table),
                     "foreign_keys": sorted(
                         f"{foreign_key.column.table.name}.{foreign_key.column.name}"
                         for foreign_key in column.foreign_keys
@@ -182,6 +226,11 @@ def _schema_hash(tables: list[Table]) -> str:
 
 def _write_schema_hash(schema_hash: str) -> None:
     SCHEMA_HASH_PATH.write_text(f"{schema_hash}\n", encoding="utf-8", newline="\n")
+
+
+def _normalize_svg_newlines() -> None:
+    svg = OUTPUT_PATH.read_text(encoding="utf-8")
+    OUTPUT_PATH.write_text(svg, encoding="utf-8", newline="\n")
 
 
 def _check_schema_hash(schema_hash: str) -> None:
@@ -207,7 +256,7 @@ def _unique_column_names(table: Table) -> set[str]:
     return {
         column.name
         for constraint in table.constraints
-        if getattr(constraint, "unique", False)
+        if isinstance(constraint, UniqueConstraint)
         for column in constraint.columns
     }
 
