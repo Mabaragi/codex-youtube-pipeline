@@ -288,6 +288,7 @@ jobs:
 
           $url | Set-Content -Encoding ascii $urlPath
           "url=$url" >> $env:GITHUB_OUTPUT
+          Write-Host "Public quick tunnel URL: $url"
           "### Home quick tunnel" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
           "Public URL: $url" >> $env:GITHUB_STEP_SUMMARY
@@ -316,6 +317,7 @@ jobs:
         run: |
           set -euo pipefail
           basic_auth="$(printf '%s:%s' "$HOME_BASIC_AUTH_USER" "$HOME_BASIC_AUTH_PASSWORD" | base64 -w 0)"
+          echo "Public quick tunnel URL: ${QUICK_TUNNEL_URL}"
           curl \
             --fail \
             --silent \
