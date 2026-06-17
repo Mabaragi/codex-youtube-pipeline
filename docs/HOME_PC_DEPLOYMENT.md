@@ -173,6 +173,20 @@ Preserve it across redeploys; deleting this volume clears `streamers`,
 
 ## Operations
 
+After a PC reboot, make sure both the GitHub self-hosted runner and Docker
+Desktop are actually ready before redeploying. The runner can accept a job while
+Docker Desktop's Linux engine is still down, which fails the deploy during
+Docker-backed steps such as Basic Auth file generation.
+
+```powershell
+docker info
+gh workflow run CI -R Mabaragi/codex-sdk --ref main
+```
+
+If `docker info` cannot connect to `npipe:////./pipe/dockerDesktopLinuxEngine`,
+start Docker Desktop, wait until the engine is ready, then run the workflow
+again.
+
 Redeploy manually:
 
 ```powershell

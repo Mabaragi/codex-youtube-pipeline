@@ -257,14 +257,16 @@ flowchart TD
 
 ```powershell
 docker version
+docker info
 docker compose version
 gh run list -R Mabaragi/codex-sdk --branch main --limit 5
 gh workflow run CI -R Mabaragi/codex-sdk --ref main
 ```
 
 Docker Desktop이 떠 있지 않으면 self-hosted runner는 job을 받을 수 있어도
-`Show Docker version` 단계에서 실패한다. 이 경우 Docker Desktop을 먼저 실행하고
-CI workflow를 다시 실행한다.
+`Show Docker version` 또는 `Prepare home deployment files` 단계에서 실패한다.
+`docker info`가 `npipe:////./pipe/dockerDesktopLinuxEngine`에 연결하지 못하면
+Docker Desktop을 먼저 실행하고 engine이 준비된 뒤 CI workflow를 다시 실행한다.
 
 ## 운영 명령
 
@@ -309,7 +311,7 @@ docker compose --project-name codex-sdk-home -f compose.home.yaml down
 | 증상 | 볼 곳 | 처리 |
 | --- | --- | --- |
 | `home_deploy`가 기다림 | GitHub runner 상태 | Windows self-hosted runner service가 online인지 확인한다. |
-| `Show Docker version` 실패 | Docker Desktop | Docker Desktop을 실행한 뒤 workflow를 다시 돌린다. |
+| `Show Docker version` 또는 `Prepare home deployment files` 실패 | Docker Desktop | `docker info`가 Linux engine에 연결되는지 확인하고, Docker Desktop을 실행한 뒤 workflow를 다시 돌린다. |
 | Preflight 실패 | GitHub secrets | `HOME_BASIC_AUTH_USER`, `HOME_BASIC_AUTH_PASSWORD`가 있는지 확인한다. |
 | Public health가 530/1033 | quick tunnel URL, cloudflared logs | 최신 URL을 확인한다. workflow는 마지막 URL을 선택하도록 되어 있다. |
 | Self-hosted runner DNS만 실패 | `public_tunnel_health` job | Windows runner 내부 DNS가 새 quick tunnel host를 늦게 반영할 수 있어 public health는 GitHub-hosted runner에서 확인한다. |
