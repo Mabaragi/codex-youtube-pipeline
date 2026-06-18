@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
+    YouTubeTranscriptMetadataRecord,
+)
+
 OpsFailureKind = Literal["pipeline_job", "video_task"]
 
 
@@ -79,6 +83,31 @@ class OpsVideoRecord:
 
 
 @dataclass(frozen=True)
+class OpsVideoDetailRecord:
+    video_id: int
+    channel_id: int
+    channel_name: str
+    youtube_video_id: str
+    title: str
+    description: str
+    published_at: datetime
+    duration: str | None
+    thumbnail_url: str | None
+    source_listing_api_call_id: int | None
+    source_details_api_call_id: int | None
+    source_job_id: int | None
+    created_at: datetime
+    updated_at: datetime
+    latest_task_id: int | None
+    latest_task_name: str | None
+    latest_task_status: str | None
+    latest_task_updated_at: datetime | None
+    transcript_id: int | None
+    tasks: tuple[OpsVideoTaskRecord, ...]
+    transcripts: tuple[YouTubeTranscriptMetadataRecord, ...]
+
+
+@dataclass(frozen=True)
 class OpsVideoListResult:
     items: tuple[OpsVideoRecord, ...]
     total: int
@@ -133,6 +162,9 @@ class OpsRepositoryPort(Protocol):
         ...
 
     async def list_videos(self, query: OpsVideoListQuery) -> OpsVideoListResult:
+        ...
+
+    async def get_video_detail(self, video_id: int) -> OpsVideoDetailRecord | None:
         ...
 
     async def list_video_tasks(

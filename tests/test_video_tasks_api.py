@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import (
     get_channel_repository,
+    get_operation_event_recorder,
     get_pipeline_job_repository,
     get_settings,
     get_video_repository,
@@ -24,6 +25,10 @@ from codex_sdk_cli.domains.channels.ports import (
     ChannelRecord,
     ChannelRepositoryPort,
     ChannelUpdate,
+)
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventCreate,
+    OperationEventRecorderPort,
 )
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
     JsonObject,
@@ -58,6 +63,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptSegment,
     YouTubeTranscriptStoragePort,
+    YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
 from codex_sdk_cli.settings import CliSettings
@@ -476,6 +482,12 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
         self.saves.append(request)
         return self.location_for(request.object_name)
 
+    async def read_transcript(
+        self,
+        request: YouTubeTranscriptStorageReadRequest,
+    ) -> bytes:
+        raise NotImplementedError
+
 
 class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
     def __init__(self) -> None:
@@ -541,6 +553,17 @@ class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         return False
 
 
+class FakeOperationEventRecorder(OperationEventRecorderPort):
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.events: list[OperationEventCreate] = []
+
+    async def record_event(self, event: OperationEventCreate) -> None:
+        if self.fail:
+            raise RuntimeError("event recorder unavailable")
+        self.events.append(event)
+
+
 def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> None:
     fakes = _fakes()
     _seed_channel(fakes.channels)
@@ -558,6 +581,12 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
     assert fakes.pipeline_jobs.attempts[1].status == "succeeded"
     assert fakes.video_tasks.tasks[1].status == "succeeded"
     assert fakes.transcript_client.requests[0].video_id == YOUTUBE_VIDEO_ID
+    assert [event.event_type for event in fakes.events.events] == [
+        "transcript_collect.batch_requested",
+        "transcript_collect.task_selected",
+        "transcript_collect.task_running",
+        "transcript_collect.task_succeeded",
+    ]
 
 
 def test_channel_transcript_collect_uses_existing_metadata_without_fetch() -> None:
@@ -582,6 +611,8 @@ def test_channel_transcript_collect_uses_existing_metadata_without_fetch() -> No
     assert fakes.transcript_client.requests == []
     assert fakes.pipeline_jobs.jobs == {}
     assert fakes.video_tasks.tasks[1].status == "succeeded"
+    assert fakes.events.events[-1].event_type == "transcript_collect.task_succeeded"
+    assert fakes.events.events[-1].metadata_json["reason"] == "existing_transcript"
 
 
 def test_channel_transcript_collect_skips_running_and_failed_until_retry_requested() -> None:
@@ -639,6 +670,7 @@ def test_channel_transcript_collect_marks_timeout() -> None:
     assert response["items"][0]["errorType"] == "TimeoutError"
     assert fakes.video_tasks.tasks[1].status == "timed_out"
     assert fakes.pipeline_jobs.jobs[1].status == "failed"
+    assert fakes.events.events[-1].event_type == "transcript_collect.task_timed_out"
 
 
 def test_channel_video_tasks_list_and_openapi() -> None:
@@ -681,6 +713,9 @@ def test_transcript_collect_retry_reexecutes_failed_video_task_job() -> None:
     assert fakes.pipeline_jobs.attempts[2].status == "succeeded"
     assert fakes.video_tasks.tasks[task.id].status == "succeeded"
     assert fakes.transcript_client.requests[0].video_id == YOUTUBE_VIDEO_ID
+    assert "pipeline_retry.succeeded" in {
+        event.event_type for event in fakes.events.events
+    }
 
 
 def test_transcript_collect_retry_reports_failed_job_status() -> None:
@@ -697,6 +732,7 @@ def test_transcript_collect_retry_reports_failed_job_status() -> None:
     assert response["result"]["status"] == "failed"
     assert fakes.pipeline_jobs.attempts[2].status == "failed"
     assert fakes.video_tasks.tasks[task.id].status == "failed"
+    assert fakes.events.events[-1].event_type == "pipeline_retry.failed"
 
 
 async def _collect(
@@ -752,6 +788,7 @@ class _Fakes:
         self.transcript_client = FakeYouTubeTranscriptClient()
         self.storage = FakeYouTubeTranscriptStorage()
         self.transcripts = FakeYouTubeTranscriptRepository()
+        self.events = FakeOperationEventRecorder()
         self.settings = CliSettings(
             transcript_collect_timeout_seconds=timeout_seconds,
             transcript_collect_concurrency_limit=1,
@@ -772,6 +809,7 @@ def _app(fakes: _Fakes) -> Any:
     app.dependency_overrides[get_youtube_transcript_client] = lambda: fakes.transcript_client
     app.dependency_overrides[get_youtube_transcript_storage] = lambda: fakes.storage
     app.dependency_overrides[get_youtube_transcript_repository] = lambda: fakes.transcripts
+    app.dependency_overrides[get_operation_event_recorder] = lambda: fakes.events
     app.dependency_overrides[get_settings] = lambda: fakes.settings
     return app
 

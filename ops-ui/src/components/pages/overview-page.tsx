@@ -1,13 +1,16 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, ScrollText } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { useOpsSummary } from "@/lib/queries";
-import { formatDateTime } from "@/lib/format";
+import { useOperationEvents, useOpsSummary } from "@/lib/queries";
+import { compactId, formatDateTime } from "@/lib/format";
+import { eventLogLinkFilters, eventSubjectLabel, logsHref } from "@/lib/logs";
 
 export function OverviewPage() {
   const { data, isLoading, error } = useOpsSummary();
+  const recentEvents = useOperationEvents({ limit: 10 });
 
   return (
     <>
@@ -66,6 +69,53 @@ export function OverviewPage() {
                       </span>
                     </div>
                   </div>
+                ))
+              )}
+            </div>
+          </section>
+          <section className="ops-panel p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <ScrollText size={16} />
+                Recent Events
+              </h2>
+              <Link className="ops-button" href="/logs">
+                Logs
+              </Link>
+            </div>
+            <div className="grid gap-2">
+              {recentEvents.isLoading ? (
+                <div className="text-sm text-slate-500">Loading...</div>
+              ) : null}
+              {recentEvents.error ? (
+                <div className="text-sm text-red-700">{String(recentEvents.error)}</div>
+              ) : null}
+              {recentEvents.data?.items.length === 0 ? (
+                <div className="text-sm text-slate-500">No rows.</div>
+              ) : (
+                recentEvents.data?.items.map((event) => (
+                  <Link
+                    key={event.eventId}
+                    className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 py-2 text-sm hover:bg-slate-50"
+                    href={logsHref(eventLogLinkFilters(event))}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{event.eventType}</div>
+                      <div className="text-xs text-slate-500">
+                        {eventSubjectLabel(event)}
+                        {event.externalKey ? ` - ${compactId(event.externalKey)}` : ""}
+                      </div>
+                      <div className="mt-1 max-w-[680px] text-slate-600">
+                        {event.message}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={event.severity} />
+                      <span className="text-xs text-slate-500">
+                        {formatDateTime(event.occurredAt)}
+                      </span>
+                    </div>
+                  </Link>
                 ))
               )}
             </div>

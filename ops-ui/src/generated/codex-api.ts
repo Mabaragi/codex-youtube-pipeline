@@ -244,6 +244,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Operation Events */
+        get: operations["list_operation_events_ops_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/schema-graph": {
         parameters: {
             query?: never;
@@ -304,6 +321,23 @@ export interface paths {
         };
         /** List Ops Videos */
         get: operations["list_ops_videos_ops_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ops Video Detail */
+        get: operations["get_ops_video_detail_ops_videos__video_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -470,6 +504,23 @@ export interface paths {
         head?: never;
         /** Update Youtube Transcript Metadata */
         patch: operations["update_youtube_transcript_metadata_youtube_transcripts__transcript_id__patch"];
+        trace?: never;
+    };
+    "/youtube-transcripts/{transcript_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Youtube Transcript Content */
+        get: operations["read_youtube_transcript_content_youtube_transcripts__transcript_id__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -704,6 +755,67 @@ export interface components {
             /** Success */
             success: boolean;
         };
+        /** OperationEventListResponse */
+        OperationEventListResponse: {
+            /** Items */
+            items: components["schemas"]["OperationEventResponse"][];
+            /** Nextcursor */
+            nextCursor?: number | null;
+        };
+        /** OperationEventResponse */
+        OperationEventResponse: {
+            /**
+             * Actortype
+             * @enum {string}
+             */
+            actorType: "manual_api" | "retry_executor" | "system";
+            /** Channelid */
+            channelId?: number | null;
+            /** Correlationid */
+            correlationId?: string | null;
+            /** Errormessage */
+            errorMessage?: string | null;
+            /** Errortype */
+            errorType?: string | null;
+            /** Eventid */
+            eventId: number;
+            /** Eventtype */
+            eventType: string;
+            /** Externalapicallid */
+            externalApiCallId?: number | null;
+            /** Externalkey */
+            externalKey?: string | null;
+            /** Jobattemptid */
+            jobAttemptId?: number | null;
+            /** Jobid */
+            jobId?: number | null;
+            /** Message */
+            message: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /**
+             * Occurredat
+             * Format: date-time
+             */
+            occurredAt: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "error";
+            /** Source */
+            source: string;
+            /** Subjectid */
+            subjectId?: number | null;
+            /** Subjecttype */
+            subjectType?: string | null;
+            /** Videoid */
+            videoId?: number | null;
+            /** Videotaskid */
+            videoTaskId?: number | null;
+        };
         /** OpsChannelListResponse */
         OpsChannelListResponse: {
             /** Items */
@@ -898,6 +1010,60 @@ export interface components {
             s3: {
                 [key: string]: unknown;
             };
+        };
+        /** OpsVideoDetailResponse */
+        OpsVideoDetailResponse: {
+            /** Channelid */
+            channelId: number;
+            /** Channelname */
+            channelName: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Description */
+            description: string;
+            /** Duration */
+            duration: string | null;
+            /** Latesttaskid */
+            latestTaskId: number | null;
+            /** Latesttaskname */
+            latestTaskName: string | null;
+            /** Latesttaskstatus */
+            latestTaskStatus: string | null;
+            /** Latesttaskupdatedat */
+            latestTaskUpdatedAt: string | null;
+            /**
+             * Publishedat
+             * Format: date-time
+             */
+            publishedAt: string;
+            /** Sourcedetailsapicallid */
+            sourceDetailsApiCallId: number | null;
+            /** Sourcejobid */
+            sourceJobId: number | null;
+            /** Sourcelistingapicallid */
+            sourceListingApiCallId: number | null;
+            /** Tasks */
+            tasks: components["schemas"]["OpsVideoTaskResponse"][];
+            /** Thumbnailurl */
+            thumbnailUrl: string | null;
+            /** Title */
+            title: string;
+            /** Transcriptid */
+            transcriptId: number | null;
+            /** Transcripts */
+            transcripts: components["schemas"]["TranscriptMetadataResponse"][];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Videoid */
+            videoId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
         };
         /** OpsVideoListResponse */
         OpsVideoListResponse: {
@@ -2006,6 +2172,46 @@ export interface operations {
             };
         };
     };
+    list_operation_events_ops_events_get: {
+        parameters: {
+            query?: {
+                severity?: ("info" | "warning" | "error") | null;
+                eventType?: string | null;
+                subjectType?: string | null;
+                subjectId?: number | null;
+                jobId?: number | null;
+                videoTaskId?: number | null;
+                channelId?: number | null;
+                videoId?: number | null;
+                cursor?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_ops_schema_graph_ops_schema_graph_get: {
         parameters: {
             query?: never;
@@ -2103,6 +2309,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpsVideoListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ops_video_detail_ops_videos__video_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsVideoDetailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2617,6 +2854,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TranscriptMetadataResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_youtube_transcript_content_youtube_transcripts__transcript_id__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transcript_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptResponse"];
                 };
             };
             /** @description Validation Error */

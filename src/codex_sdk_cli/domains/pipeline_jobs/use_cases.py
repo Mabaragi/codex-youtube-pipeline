@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from codex_sdk_cli.domains.channels.schemas import ResolveYouTubeChannelRequest
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventActorType,
+    OperationEventCreate,
+    OperationEventRecorderPort,
+    OperationEventSeverity,
+)
+from codex_sdk_cli.domains.operation_events.recording import record_operation_event
 from codex_sdk_cli.domains.video_tasks.use_cases import (
     CollectChannelTranscriptTasksUseCase,
 )
@@ -87,32 +94,129 @@ class RetryPipelineJobUseCase:
         self,
         pipeline_jobs: PipelineJobRepositoryPort,
         executors: dict[str, PipelineRetryExecutor],
+        events: OperationEventRecorderPort,
     ) -> None:
         self._pipeline_jobs = pipeline_jobs
         self._executors = executors
+        self._events = events
 
     async def execute(self, job_id: int) -> RetryPipelineJobResponse:
         job = await self._pipeline_jobs.get_job(job_id)
         if job is None:
             raise PipelineJobNotFound("Pipeline job not found.")
+        await self._record_retry_event(
+            "pipeline_retry.requested",
+            "info",
+            "Pipeline job retry was requested.",
+            job=job,
+            metadata_json={"currentStatus": job.status},
+        )
         if job.status != "failed":
+            await self._record_retry_event(
+                "pipeline_retry.failed",
+                "warning",
+                "Pipeline job retry was rejected because the job is not failed.",
+                job=job,
+                error_type="PipelineJobRetryNotAllowed",
+                error_message="Only failed pipeline jobs can be retried.",
+                metadata_json={"currentStatus": job.status},
+            )
             raise PipelineJobRetryNotAllowed("Only failed pipeline jobs can be retried.")
         executor = self._executors.get(job.step)
         if executor is None:
+            message = f"Retry is not supported for pipeline step '{job.step}'."
+            await self._record_retry_event(
+                "pipeline_retry.failed",
+                "warning",
+                "Pipeline job retry was rejected because the step is unsupported.",
+                job=job,
+                error_type="PipelineJobRetryNotAllowed",
+                error_message=message,
+            )
             raise PipelineJobRetryNotAllowed(
-                f"Retry is not supported for pipeline step '{job.step}'."
+                message
             )
 
         await self._pipeline_jobs.mark_job_running(job.id)
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
-        result = await executor.execute(job, attempt)
+        await self._record_retry_event(
+            "pipeline_retry.started",
+            "info",
+            "Pipeline job retry started.",
+            job=job,
+            job_attempt_id=attempt.id,
+            actor_type="retry_executor",
+        )
+        try:
+            result = await executor.execute(job, attempt)
+        except Exception as exc:
+            await self._record_retry_event(
+                "pipeline_retry.failed",
+                "error",
+                "Pipeline job retry failed.",
+                job=job,
+                job_attempt_id=attempt.id,
+                actor_type="retry_executor",
+                error_type=exc.__class__.__name__,
+                error_message=str(exc) or exc.__class__.__name__,
+            )
+            raise
         updated_job = await self._pipeline_jobs.get_job(job.id)
+        updated_status = updated_job.status if updated_job is not None else "succeeded"
+        await self._record_retry_event(
+            "pipeline_retry.succeeded"
+            if updated_status == "succeeded"
+            else "pipeline_retry.failed",
+            "info" if updated_status == "succeeded" else "error",
+            "Pipeline job retry succeeded."
+            if updated_status == "succeeded"
+            else "Pipeline job retry finished without success.",
+            job=job,
+            job_attempt_id=attempt.id,
+            actor_type="retry_executor",
+            metadata_json={"finalStatus": updated_status},
+        )
         return RetryPipelineJobResponse(
             jobId=job.id,
             jobAttemptId=attempt.id,
             step=job.step,
-            status=updated_job.status if updated_job is not None else "succeeded",
+            status=updated_status,
             result=result,
+        )
+
+    async def _record_retry_event(
+        self,
+        event_type: str,
+        severity: OperationEventSeverity,
+        message: str,
+        *,
+        job: PipelineJobRecord,
+        job_attempt_id: int | None = None,
+        actor_type: OperationEventActorType = "manual_api",
+        error_type: str | None = None,
+        error_message: str | None = None,
+        metadata_json: JsonObject | None = None,
+    ) -> None:
+        await record_operation_event(
+            self._events,
+            OperationEventCreate(
+                event_type=event_type,
+                severity=severity,
+                message=message,
+                actor_type=actor_type,
+                source="pipeline.retry",
+                job_id=job.id,
+                job_attempt_id=job_attempt_id,
+                subject_type=job.subject_type,
+                subject_id=job.subject_id,
+                external_key=job.external_key,
+                error_type=error_type,
+                error_message=error_message,
+                metadata_json={
+                    "step": job.step,
+                    **(metadata_json or {}),
+                },
+            ),
         )
 
 
@@ -159,6 +263,7 @@ class VideoCollectRetryExecutor(PipelineRetryExecutor):
             attempt,
             channel_id=channel_id,
             youtube_channel_id=youtube_channel_id,
+            actor_type="retry_executor",
         )
         return result.model_dump(by_alias=True)
 

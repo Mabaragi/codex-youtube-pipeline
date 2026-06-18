@@ -1,12 +1,14 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { RotateCw } from "lucide-react";
+import Link from "next/link";
+import { RotateCw, ScrollText } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { usePipelineJobs, useRetryJobMutation } from "@/lib/queries";
 import { formatDateTime } from "@/lib/format";
+import { logsHref } from "@/lib/logs";
 import type { PipelineJobSummary } from "@/lib/types";
 
 export function JobsPage() {
@@ -22,19 +24,24 @@ export function JobsPage() {
     { header: "Updated", cell: ({ row }) => formatDateTime(row.original.updatedAt) },
     {
       header: "Action",
-      cell: ({ row }) =>
-        row.original.status === "failed" ? (
-          <button
-            className="ops-button"
-            disabled={retryJob.isPending}
-            onClick={() => retryJob.mutate(row.original.jobId)}
-          >
-            <RotateCw size={15} />
-            Retry
-          </button>
-        ) : (
-          "-"
-        ),
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-2">
+          {row.original.status === "failed" ? (
+            <button
+              className="ops-button"
+              disabled={retryJob.isPending}
+              onClick={() => retryJob.mutate(row.original.jobId)}
+            >
+              <RotateCw size={15} />
+              Retry
+            </button>
+          ) : null}
+          <Link className="ops-button" href={logsHref({ jobId: row.original.jobId })}>
+            <ScrollText size={15} />
+            Logs
+          </Link>
+        </div>
+      ),
     },
   ];
 

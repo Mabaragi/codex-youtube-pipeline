@@ -9,6 +9,7 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsRepositoryPort,
     OpsVideoListQuery,
     OpsVideoTaskListQuery,
+    OpsVideoTaskRecord,
 )
 from codex_sdk_cli.domains.ops.schemas import (
     OpsChannelListResponse,
@@ -24,11 +25,21 @@ from codex_sdk_cli.domains.ops.schemas import (
     OpsStatusCountResponse,
     OpsSummaryCountsResponse,
     OpsSummaryResponse,
+    OpsVideoDetailResponse,
     OpsVideoListResponse,
     OpsVideoResponse,
     OpsVideoTaskListResponse,
     OpsVideoTaskResponse,
 )
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
+    YouTubeTranscriptMetadataRecord,
+)
+from codex_sdk_cli.domains.youtube_transcripts.schemas import (
+    TranscriptMetadataResponse,
+    TranscriptStorageResponse,
+)
+
+from .exceptions import OpsVideoNotFound
 
 SchemaRelationKind = Literal[
     "one_to_many",
@@ -158,6 +169,42 @@ class ListOpsVideosUseCase:
         )
 
 
+class GetOpsVideoDetailUseCase:
+    def __init__(self, repository: OpsRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(self, video_id: int) -> OpsVideoDetailResponse:
+        record = await self._repository.get_video_detail(video_id)
+        if record is None:
+            raise OpsVideoNotFound("Video not found.")
+        return OpsVideoDetailResponse(
+            videoId=record.video_id,
+            channelId=record.channel_id,
+            channelName=record.channel_name,
+            youtubeVideoId=record.youtube_video_id,
+            title=record.title,
+            description=record.description,
+            publishedAt=record.published_at,
+            duration=record.duration,
+            thumbnailUrl=record.thumbnail_url,
+            sourceListingApiCallId=record.source_listing_api_call_id,
+            sourceDetailsApiCallId=record.source_details_api_call_id,
+            sourceJobId=record.source_job_id,
+            createdAt=record.created_at,
+            updatedAt=record.updated_at,
+            latestTaskId=record.latest_task_id,
+            latestTaskName=record.latest_task_name,
+            latestTaskStatus=record.latest_task_status,
+            latestTaskUpdatedAt=record.latest_task_updated_at,
+            transcriptId=record.transcript_id,
+            tasks=[_video_task_response(task) for task in record.tasks],
+            transcripts=[
+                _transcript_metadata_response(transcript)
+                for transcript in record.transcripts
+            ],
+        )
+
+
 class ListOpsVideoTasksUseCase:
     def __init__(self, repository: OpsRepositoryPort) -> None:
         self._repository = repository
@@ -181,30 +228,7 @@ class ListOpsVideoTasksUseCase:
             )
         )
         return OpsVideoTaskListResponse(
-            items=[
-                OpsVideoTaskResponse(
-                    videoTaskId=record.video_task_id,
-                    videoId=record.video_id,
-                    channelId=record.channel_id,
-                    channelName=record.channel_name,
-                    youtubeVideoId=record.youtube_video_id,
-                    taskName=record.task_name,
-                    taskVersion=record.task_version,
-                    status=record.status,
-                    workerId=record.worker_id,
-                    timeoutSeconds=record.timeout_seconds,
-                    jobId=record.job_id,
-                    jobAttemptId=record.job_attempt_id,
-                    outputTranscriptId=record.output_transcript_id,
-                    errorType=record.error_type,
-                    errorMessage=record.error_message,
-                    startedAt=record.started_at,
-                    completedAt=record.completed_at,
-                    createdAt=record.created_at,
-                    updatedAt=record.updated_at,
-                )
-                for record in result.items
-            ],
+            items=[_video_task_response(record) for record in result.items],
             total=result.total,
             limit=limit,
             offset=offset,
@@ -384,3 +408,52 @@ def _is_single_column_unique(table: Table, column: Column[Any]) -> bool:
 
 def _constraint_name(item: Any) -> str:
     return str(item.name or "unnamed")
+
+
+def _video_task_response(record: OpsVideoTaskRecord) -> OpsVideoTaskResponse:
+    return OpsVideoTaskResponse(
+        videoTaskId=record.video_task_id,
+        videoId=record.video_id,
+        channelId=record.channel_id,
+        channelName=record.channel_name,
+        youtubeVideoId=record.youtube_video_id,
+        taskName=record.task_name,
+        taskVersion=record.task_version,
+        status=record.status,
+        workerId=record.worker_id,
+        timeoutSeconds=record.timeout_seconds,
+        jobId=record.job_id,
+        jobAttemptId=record.job_attempt_id,
+        outputTranscriptId=record.output_transcript_id,
+        errorType=record.error_type,
+        errorMessage=record.error_message,
+        startedAt=record.started_at,
+        completedAt=record.completed_at,
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )
+
+
+def _transcript_metadata_response(
+    record: YouTubeTranscriptMetadataRecord,
+) -> TranscriptMetadataResponse:
+    return TranscriptMetadataResponse(
+        id=record.id,
+        videoId=record.video_id,
+        language=record.language,
+        languageCode=record.language_code,
+        isGenerated=record.is_generated,
+        requestedLanguages=list(record.requested_languages),
+        preserveFormatting=record.preserve_formatting,
+        storage=TranscriptStorageResponse(
+            bucket=record.storage_bucket,
+            objectName=record.storage_object_name,
+            uri=record.storage_uri,
+        ),
+        responseSha256=record.response_sha256,
+        segmentCount=record.segment_count,
+        textLength=record.text_length,
+        notes=record.notes,
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )

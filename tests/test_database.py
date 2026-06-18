@@ -19,6 +19,7 @@ def test_database_base_registers_app_tables() -> None:
     assert set(Base.metadata.tables) == {
         "channels",
         "external_api_calls",
+        "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
@@ -134,12 +135,21 @@ def test_alembic_upgrade_creates_app_tables(
         }
         video_task_foreign_keys = inspector.get_foreign_keys("video_tasks")
         video_task_unique_constraints = inspector.get_unique_constraints("video_tasks")
+        operation_event_columns = {
+            column["name"] for column in inspector.get_columns("operation_events")
+        }
+        operation_event_foreign_keys = inspector.get_foreign_keys("operation_events")
+        operation_event_indexes = {
+            index["name"]: index["column_names"]
+            for index in inspector.get_indexes("operation_events")
+        }
     finally:
         engine.dispose()
 
     assert {
         "channels",
         "external_api_calls",
+        "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
@@ -316,6 +326,69 @@ def test_alembic_upgrade_creates_app_tables(
         and foreign_key["constrained_columns"] == ["output_transcript_id"]
         for foreign_key in video_task_foreign_keys
     )
+    assert {
+        "id",
+        "occurred_at",
+        "event_type",
+        "severity",
+        "message",
+        "actor_type",
+        "source",
+        "metadata_json",
+        "job_id",
+        "job_attempt_id",
+        "video_task_id",
+        "channel_id",
+        "video_id",
+        "external_api_call_id",
+        "subject_type",
+        "subject_id",
+        "external_key",
+        "correlation_id",
+        "error_type",
+        "error_message",
+    }.issubset(operation_event_columns)
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["job_id"]
+        for foreign_key in operation_event_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_job_attempts"
+        and foreign_key["constrained_columns"] == ["job_attempt_id"]
+        for foreign_key in operation_event_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "video_tasks"
+        and foreign_key["constrained_columns"] == ["video_task_id"]
+        for foreign_key in operation_event_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "channels"
+        and foreign_key["constrained_columns"] == ["channel_id"]
+        for foreign_key in operation_event_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "videos"
+        and foreign_key["constrained_columns"] == ["video_id"]
+        for foreign_key in operation_event_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "external_api_calls"
+        and foreign_key["constrained_columns"] == ["external_api_call_id"]
+        for foreign_key in operation_event_foreign_keys
+    )
+    assert operation_event_indexes["ix_operation_events_event_type"] == ["event_type"]
+    assert operation_event_indexes["ix_operation_events_severity"] == ["severity"]
+    assert operation_event_indexes["ix_operation_events_job_id"] == ["job_id"]
+    assert operation_event_indexes["ix_operation_events_video_task_id"] == ["video_task_id"]
+    assert operation_event_indexes["ix_operation_events_subject"] == [
+        "subject_type",
+        "subject_id",
+    ]
+    assert operation_event_indexes["ix_operation_events_correlation_id"] == [
+        "correlation_id"
+    ]
 
 
 async def _query_database(database_url: str) -> tuple[int | None, list[str]]:

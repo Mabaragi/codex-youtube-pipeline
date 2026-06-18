@@ -5,6 +5,12 @@ import json
 
 from codex_sdk_cli.domains.channels.exceptions import ChannelNotFound
 from codex_sdk_cli.domains.channels.ports import ChannelRecord, ChannelRepositoryPort
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventActorType,
+    OperationEventCreate,
+    OperationEventRecorderPort,
+)
+from codex_sdk_cli.domains.operation_events.recording import record_operation_event
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobAttemptRecord,
     PipelineJobCreate,
@@ -48,15 +54,31 @@ class CollectChannelVideosUseCase:
         channels: ChannelRepositoryPort,
         videos: VideoRepositoryPort,
         pipeline_jobs: PipelineJobRepositoryPort,
+        events: OperationEventRecorderPort,
     ) -> None:
         self._client = client
         self._channels = channels
         self._videos = videos
         self._pipeline_jobs = pipeline_jobs
+        self._events = events
 
     async def execute(self, channel_id: int) -> CollectChannelVideosResponse:
         channel = await _get_channel_or_raise(self._channels, channel_id)
         youtube_channel_id = _required_youtube_channel_id(channel)
+        await self._record_event(
+            OperationEventCreate(
+                event_type="video_collect.requested",
+                severity="info",
+                message="Channel video collection was requested.",
+                actor_type="manual_api",
+                source="videos.collect",
+                channel_id=channel_id,
+                subject_type="channel",
+                subject_id=channel_id,
+                external_key=youtube_channel_id,
+                metadata_json={"channelId": channel_id},
+            )
+        )
         input_json: dict[str, object] = {
             "channelId": channel_id,
             "youtubeChannelId": youtube_channel_id,
@@ -73,6 +95,22 @@ class CollectChannelVideosUseCase:
             )
         )
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
+        await self._record_event(
+            OperationEventCreate(
+                event_type="video_collect.started",
+                severity="info",
+                message="Channel video collection started.",
+                actor_type="manual_api",
+                source="videos.collect",
+                job_id=job.id,
+                job_attempt_id=attempt.id,
+                channel_id=channel_id,
+                subject_type="channel",
+                subject_id=channel_id,
+                external_key=youtube_channel_id,
+                metadata_json={"attemptId": attempt.id},
+            )
+        )
         return await self.execute_job_attempt(
             job,
             attempt,
@@ -87,6 +125,7 @@ class CollectChannelVideosUseCase:
         *,
         channel_id: int,
         youtube_channel_id: str,
+        actor_type: OperationEventActorType = "manual_api",
     ) -> CollectChannelVideosResponse:
         try:
             channel = await _get_channel_or_raise(self._channels, channel_id)
@@ -126,12 +165,32 @@ class CollectChannelVideosUseCase:
                 ),
             )
         except Exception as exc:
+            error_type = exc.__class__.__name__
+            error_message = str(exc) or error_type
             await self._pipeline_jobs.mark_attempt_failed(
                 attempt.id,
-                error_type=exc.__class__.__name__,
-                error_message=str(exc) or exc.__class__.__name__,
+                error_type=error_type,
+                error_message=error_message,
             )
             await self._pipeline_jobs.mark_job_failed(job.id)
+            await self._record_event(
+                OperationEventCreate(
+                    event_type="video_collect.failed",
+                    severity="error",
+                    message="Channel video collection failed.",
+                    actor_type=actor_type,
+                    source="videos.collect",
+                    job_id=job.id,
+                    job_attempt_id=attempt.id,
+                    channel_id=channel_id,
+                    subject_type="channel",
+                    subject_id=channel_id,
+                    external_key=youtube_channel_id,
+                    error_type=error_type,
+                    error_message=error_message,
+                    metadata_json={"attemptId": attempt.id},
+                )
+            )
             raise
 
         await self._pipeline_jobs.mark_attempt_succeeded(
@@ -139,7 +198,35 @@ class CollectChannelVideosUseCase:
             output_json=response.model_dump(by_alias=True),
         )
         await self._pipeline_jobs.mark_job_succeeded(job.id)
+        await self._record_event(
+            OperationEventCreate(
+                event_type="video_collect.succeeded",
+                severity="info",
+                message="Channel video collection succeeded.",
+                actor_type=actor_type,
+                source="videos.collect",
+                job_id=job.id,
+                job_attempt_id=attempt.id,
+                channel_id=channel_id,
+                subject_type="channel",
+                subject_id=channel_id,
+                external_key=youtube_channel_id,
+                metadata_json={
+                    "createdCount": response.created_count,
+                    "stoppedReason": response.stopped_reason,
+                    "pagesFetched": response.pages_fetched,
+                    "listingApiCallCount": len(response.listing_api_call_ids),
+                    "videoDetailsApiCallCount": len(response.video_details_api_call_ids),
+                    "skippedMissingDetailsCount": len(
+                        response.skipped_missing_details_youtube_video_ids
+                    ),
+                },
+            )
+        )
         return response
+
+    async def _record_event(self, event: OperationEventCreate) -> None:
+        await record_operation_event(self._events, event)
 
     async def _get_or_refresh_uploads_playlist_id(
         self,

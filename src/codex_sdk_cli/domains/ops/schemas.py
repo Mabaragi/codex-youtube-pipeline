@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from codex_sdk_cli.domains.youtube_transcripts.schemas import TranscriptMetadataResponse
+
 
 class OpsStatusCountResponse(BaseModel):
     status: str
@@ -120,6 +122,32 @@ class OpsVideoTaskListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class OpsVideoDetailResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    channel_id: int = Field(alias="channelId")
+    channel_name: str = Field(alias="channelName")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    title: str
+    description: str
+    published_at: datetime = Field(alias="publishedAt")
+    duration: str | None
+    thumbnail_url: str | None = Field(alias="thumbnailUrl")
+    source_listing_api_call_id: int | None = Field(alias="sourceListingApiCallId")
+    source_details_api_call_id: int | None = Field(alias="sourceDetailsApiCallId")
+    source_job_id: int | None = Field(alias="sourceJobId")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    latest_task_id: int | None = Field(alias="latestTaskId")
+    latest_task_name: str | None = Field(alias="latestTaskName")
+    latest_task_status: str | None = Field(alias="latestTaskStatus")
+    latest_task_updated_at: datetime | None = Field(alias="latestTaskUpdatedAt")
+    transcript_id: int | None = Field(alias="transcriptId")
+    tasks: list[OpsVideoTaskResponse]
+    transcripts: list[TranscriptMetadataResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OpsSchemaColumnResponse(BaseModel):

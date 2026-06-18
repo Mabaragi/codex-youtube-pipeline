@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import (
     get_channel_repository,
+    get_operation_event_recorder,
     get_pipeline_job_repository,
     get_settings,
     get_video_repository,
@@ -20,6 +21,10 @@ from codex_sdk_cli.domains.channels.ports import (
     ChannelRecord,
     ChannelRepositoryPort,
     ChannelUpdate,
+)
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventCreate,
+    OperationEventRecorderPort,
 )
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
     JsonObject,
@@ -400,8 +405,20 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         return updated
 
 
+class FakeOperationEventRecorder(OperationEventRecorderPort):
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.events: list[OperationEventCreate] = []
+
+    async def record_event(self, event: OperationEventCreate) -> None:
+        if self.fail:
+            raise RuntimeError("event recorder unavailable")
+        self.events.append(event)
+
+
 def test_collect_channel_videos_stops_at_first_existing_video() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
+    events = FakeOperationEventRecorder()
     _seed_channel(channels)
     _seed_existing_video(videos)
     client.listing_pages.append(
@@ -413,7 +430,7 @@ def test_collect_channel_videos_stops_at_first_existing_video() -> None:
     )
     _seed_details(client, "new-1", "new-2")
 
-    response = asyncio.run(_collect(client, channels, videos, pipeline_jobs))
+    response = asyncio.run(_collect(client, channels, videos, pipeline_jobs, events=events))
 
     assert response["createdCount"] == 2
     assert response["createdVideoIds"] == [2, 3]
@@ -426,6 +443,11 @@ def test_collect_channel_videos_stops_at_first_existing_video() -> None:
     assert pipeline_jobs.jobs[1].step == "video_collect"
     assert pipeline_jobs.jobs[1].status == "succeeded"
     assert pipeline_jobs.attempts[1].output_json == response
+    assert [event.event_type for event in events.events] == [
+        "video_collect.requested",
+        "video_collect.started",
+        "video_collect.succeeded",
+    ]
 
 
 def test_collect_channel_videos_first_item_existing_skips_details_call() -> None:
@@ -524,13 +546,14 @@ def test_collect_channel_videos_requires_youtube_data_api_key() -> None:
 
 def test_collect_channel_videos_records_failed_attempt_on_listing_error() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
+    events = FakeOperationEventRecorder()
     _seed_channel(channels)
     client.listing_error = YouTubeDataUpstreamError(
         "YouTube Data API request failed upstream."
     )
 
     response = asyncio.run(
-        _collect(client, channels, videos, pipeline_jobs, expected_status=502)
+        _collect(client, channels, videos, pipeline_jobs, events=events, expected_status=502)
     )
 
     assert response == {"detail": "YouTube Data API request failed upstream."}
@@ -538,10 +561,32 @@ def test_collect_channel_videos_records_failed_attempt_on_listing_error() -> Non
     assert pipeline_jobs.jobs[1].status == "failed"
     assert pipeline_jobs.attempts[1].status == "failed"
     assert pipeline_jobs.attempts[1].error_type == "YouTubeDataUpstreamError"
+    assert events.events[-1].event_type == "video_collect.failed"
+    assert events.events[-1].error_type == "YouTubeDataUpstreamError"
+
+
+def test_collect_channel_videos_ignores_event_recorder_failure() -> None:
+    client, channels, videos, pipeline_jobs = _fakes()
+    events = FakeOperationEventRecorder(fail=True)
+    _seed_channel(channels)
+    client.listing_pages.append(
+        _listing_page(
+            ("new-1",),
+            next_page_token=None,
+            source_api_call_id=10,
+        )
+    )
+    _seed_details(client, "new-1")
+
+    response = asyncio.run(_collect(client, channels, videos, pipeline_jobs, events=events))
+
+    assert response["createdCount"] == 1
+    assert pipeline_jobs.jobs[1].status == "succeeded"
 
 
 def test_video_collect_retry_reexecutes_failed_job() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
+    events = FakeOperationEventRecorder()
     _seed_channel(channels)
     _seed_failed_video_collect_job(pipeline_jobs)
     client.listing_pages.append(
@@ -554,7 +599,15 @@ def test_video_collect_retry_reexecutes_failed_job() -> None:
     _seed_details(client, "new-1")
 
     response = asyncio.run(
-        _retry(client, channels, videos, pipeline_jobs, job_id=1, expected_status=201)
+        _retry(
+            client,
+            channels,
+            videos,
+            pipeline_jobs,
+            events=events,
+            job_id=1,
+            expected_status=201,
+        )
     )
 
     assert response["step"] == "video_collect"
@@ -563,6 +616,9 @@ def test_video_collect_retry_reexecutes_failed_job() -> None:
     assert response["result"]["stoppedReason"] == "no_next_page"
     assert pipeline_jobs.attempts[2].status == "succeeded"
     assert client.listing_requests == [("UU_x5XG1OV2P6uZZ5FSM9Ttw", None, 2)]
+    assert "pipeline_retry.succeeded" in {
+        event.event_type for event in events.events
+    }
 
 
 def test_video_routes_are_in_openapi() -> None:
@@ -602,6 +658,7 @@ async def _collect(
     videos: FakeVideoRepository,
     pipeline_jobs: FakePipelineJobRepository,
     *,
+    events: FakeOperationEventRecorder | None = None,
     expected_status: int = 201,
 ) -> Any:
     app = create_app()
@@ -609,6 +666,9 @@ async def _collect(
     app.dependency_overrides[get_channel_repository] = lambda: channels
     app.dependency_overrides[get_video_repository] = lambda: videos
     app.dependency_overrides[get_pipeline_job_repository] = lambda: pipeline_jobs
+    app.dependency_overrides[get_operation_event_recorder] = lambda: (
+        events or FakeOperationEventRecorder()
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -632,6 +692,7 @@ async def _collect_without_client_override(
     app.dependency_overrides[get_channel_repository] = lambda: channels
     app.dependency_overrides[get_video_repository] = lambda: videos
     app.dependency_overrides[get_pipeline_job_repository] = lambda: pipeline_jobs
+    app.dependency_overrides[get_operation_event_recorder] = lambda: FakeOperationEventRecorder()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -649,6 +710,7 @@ async def _retry(
     videos: FakeVideoRepository,
     pipeline_jobs: FakePipelineJobRepository,
     *,
+    events: FakeOperationEventRecorder | None = None,
     job_id: int,
     expected_status: int,
 ) -> Any:
@@ -657,6 +719,9 @@ async def _retry(
     app.dependency_overrides[get_channel_repository] = lambda: channels
     app.dependency_overrides[get_video_repository] = lambda: videos
     app.dependency_overrides[get_pipeline_job_repository] = lambda: pipeline_jobs
+    app.dependency_overrides[get_operation_event_recorder] = lambda: (
+        events or FakeOperationEventRecorder()
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

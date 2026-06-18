@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 
 from codex_sdk_cli.api.dependencies import (
     ChannelRepositoryDep,
+    OperationEventRecorderDep,
     PipelineJobRepositoryDep,
     SettingsDep,
     StreamerRepositoryDep,
@@ -20,6 +21,7 @@ from codex_sdk_cli.api.dependencies import (
 )
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.operation_events.ports import OperationEventRecorderPort
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.domains.video_tasks.use_cases import (
     TRANSCRIPT_COLLECT_STEP,
@@ -103,6 +105,7 @@ def get_retry_pipeline_job_use_case(
         Depends(get_fetch_youtube_transcript_use_case_factory),
     ],
     settings: SettingsDep,
+    events: OperationEventRecorderDep,
 ) -> RetryPipelineJobUseCase:
     return RetryPipelineJobUseCase(
         pipeline_jobs,
@@ -111,7 +114,7 @@ def get_retry_pipeline_job_use_case(
                 ResolveYouTubeChannelUseCase(client, channels, streamers, pipeline_jobs)
             ),
             VIDEO_COLLECT_STEP: VideoCollectRetryExecutor(
-                CollectChannelVideosUseCase(client, channels, videos, pipeline_jobs)
+                CollectChannelVideosUseCase(client, channels, videos, pipeline_jobs, events)
             ),
             TRANSCRIPT_COLLECT_STEP: _LazyTranscriptCollectRetryExecutor(
                 channels=channels,
@@ -121,8 +124,10 @@ def get_retry_pipeline_job_use_case(
                 transcripts=transcripts,
                 fetch_transcript_factory=fetch_transcript_factory,
                 settings=settings,
+                events=events,
             ),
         },
+        events,
     )
 
 
@@ -137,6 +142,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
         transcripts: YouTubeTranscriptRepositoryPort,
         fetch_transcript_factory: FetchTranscriptUseCaseFactory,
         settings: CliSettings,
+        events: OperationEventRecorderPort,
     ) -> None:
         self._channels = channels
         self._videos = videos
@@ -145,6 +151,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
         self._transcripts = transcripts
         self._fetch_transcript_factory = fetch_transcript_factory
         self._settings = settings
+        self._events = events
 
     async def execute(
         self,
@@ -160,6 +167,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
             fetch_transcript=await self._fetch_transcript_factory(),
             timeout_seconds=self._settings.transcript_collect_timeout_seconds,
             concurrency_limit=self._settings.transcript_collect_concurrency_limit,
+            events=self._events,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
 

@@ -27,6 +27,7 @@ route behavior, or deployment wiring around `CODEX_OPS_BACKEND_BASE_URL`.
 - `/ops/videos`: stored videos and latest task/transcript state.
 - `/ops/tasks`: durable video task state and retry actions.
 - `/ops/jobs`: pipeline jobs and retry actions.
+- `/ops/logs`: operation event timeline with linked job/task/channel/video filters.
 - `/ops/erd`: React Flow schema viewer from `/ops/schema-graph`, including
   table groups, PK/FK/UQ/IX badges, column-level relationship anchors,
   crow's-foot cardinality markers, relation metadata, and constraint/index

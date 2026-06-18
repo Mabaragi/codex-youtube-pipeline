@@ -9,6 +9,7 @@ from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.domains.ops.use_cases import (
     GetOpsSchemaGraphUseCase,
     GetOpsSummaryUseCase,
+    GetOpsVideoDetailUseCase,
     ListOpsChannelsUseCase,
     ListOpsVideosUseCase,
     ListOpsVideoTasksUseCase,
@@ -36,6 +37,12 @@ def get_list_ops_videos_use_case(
     return ListOpsVideosUseCase(repository)
 
 
+def get_ops_video_detail_use_case(
+    repository: OpsRepositoryDep,
+) -> GetOpsVideoDetailUseCase:
+    return GetOpsVideoDetailUseCase(repository)
+
+
 def get_list_ops_video_tasks_use_case(
     repository: OpsRepositoryDep,
 ) -> ListOpsVideoTasksUseCase:
@@ -57,6 +64,10 @@ ListOpsChannelsUseCaseDep = Annotated[
 ListOpsVideosUseCaseDep = Annotated[
     ListOpsVideosUseCase,
     Depends(get_list_ops_videos_use_case),
+]
+OpsVideoDetailUseCaseDep = Annotated[
+    GetOpsVideoDetailUseCase,
+    Depends(get_ops_video_detail_use_case),
 ]
 ListOpsVideoTasksUseCaseDep = Annotated[
     ListOpsVideoTasksUseCase,

@@ -1,12 +1,14 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { RotateCw } from "lucide-react";
+import Link from "next/link";
+import { RotateCw, ScrollText } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { useOpsVideoTasks, useRetryJobMutation } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
+import { logsHref } from "@/lib/logs";
 import type { OpsVideoTask } from "@/lib/types";
 
 export function TasksPage() {
@@ -46,20 +48,27 @@ export function TasksPage() {
     },
     {
       header: "Action",
-      cell: ({ row }) =>
-        row.original.jobId &&
-        ["failed", "timed_out"].includes(row.original.status) ? (
-          <button
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-2">
+          {row.original.jobId && ["failed", "timed_out"].includes(row.original.status) ? (
+            <button
+              className="ops-button"
+              disabled={retryJob.isPending}
+              onClick={() => retryJob.mutate(row.original.jobId as number)}
+            >
+              <RotateCw size={15} />
+              Retry job
+            </button>
+          ) : null}
+          <Link
             className="ops-button"
-            disabled={retryJob.isPending}
-            onClick={() => retryJob.mutate(row.original.jobId as number)}
+            href={logsHref({ videoTaskId: row.original.videoTaskId })}
           >
-            <RotateCw size={15} />
-            Retry job
-          </button>
-        ) : (
-          "-"
-        ),
+            <ScrollText size={15} />
+            Logs
+          </Link>
+        </div>
+      ),
     },
   ];
 

@@ -11,6 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventRecorderPort,
+    OperationEventRepositoryPort,
+)
+from codex_sdk_cli.domains.operation_events.recorder import BestEffortOperationEventRecorder
 from codex_sdk_cli.domains.ops.ports import OpsRepositoryPort
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
@@ -33,6 +38,7 @@ from codex_sdk_cli.infra.database.session import (
 from codex_sdk_cli.infra.external_api_calls.recorder import ExternalApiCallRecorder
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
+from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
@@ -131,6 +137,18 @@ async def get_ops_repository(
     return SqlAlchemyOpsRepository(session)
 
 
+async def get_operation_event_repository(
+    session: DatabaseSessionDep,
+) -> OperationEventRepositoryPort:
+    return SQLAlchemyOperationEventRepository(session)
+
+
+async def get_operation_event_recorder(
+    repository: OperationEventRepositoryDep,
+) -> OperationEventRecorderPort:
+    return BestEffortOperationEventRecorder(repository)
+
+
 async def get_youtube_data_client(
     settings: Annotated[CliSettings, Depends(get_settings)],
     session: DatabaseSessionDep,
@@ -207,6 +225,14 @@ VideoTaskRepositoryDep = Annotated[
 OpsRepositoryDep = Annotated[
     OpsRepositoryPort,
     Depends(get_ops_repository),
+]
+OperationEventRepositoryDep = Annotated[
+    OperationEventRepositoryPort,
+    Depends(get_operation_event_repository),
+]
+OperationEventRecorderDep = Annotated[
+    OperationEventRecorderPort,
+    Depends(get_operation_event_recorder),
 ]
 YouTubeDataClientDep = Annotated[
     YouTubeDataClientPort,

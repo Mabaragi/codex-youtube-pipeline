@@ -10,6 +10,7 @@ import {
   ListChecks,
   PlaySquare,
   Rows3,
+  ScrollText,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/videos", label: "Videos", icon: Rows3 },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/jobs", label: "Jobs", icon: PlaySquare },
+  { href: "/logs", label: "Logs", icon: ScrollText },
   { href: "/erd", label: "ERD", icon: Database },
 ];
 

@@ -1,6 +1,8 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
+import { Eye } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -43,6 +45,15 @@ export function VideosPage() {
     {
       header: "Transcript",
       cell: ({ row }) => row.original.transcriptId ?? "-",
+    },
+    {
+      header: "Action",
+      cell: ({ row }) => (
+        <Link className="ops-button" href={`/videos/${row.original.videoId}`}>
+          <Eye size={15} />
+          Details
+        </Link>
+      ),
     },
   ];
 

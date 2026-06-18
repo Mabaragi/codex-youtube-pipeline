@@ -6,14 +6,21 @@ from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
-from codex_sdk_cli.api.dependencies import get_ops_repository
+from codex_sdk_cli.api.dependencies import get_operation_event_repository, get_ops_repository
 from codex_sdk_cli.api.main import create_app
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventCreate,
+    OperationEventListQuery,
+    OperationEventRecord,
+    OperationEventRepositoryPort,
+)
 from codex_sdk_cli.domains.ops.ports import (
     OpsChannelRecord,
     OpsRecentFailureRecord,
     OpsRepositoryPort,
     OpsStatusCountRecord,
     OpsSummaryCountsRecord,
+    OpsVideoDetailRecord,
     OpsVideoListQuery,
     OpsVideoListResult,
     OpsVideoRecord,
@@ -21,6 +28,44 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsVideoTaskListResult,
     OpsVideoTaskRecord,
 )
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
+    YouTubeTranscriptMetadataRecord,
+)
+
+
+class FakeOperationEventRepository(OperationEventRepositoryPort):
+    def __init__(self) -> None:
+        self.queries: list[OperationEventListQuery] = []
+
+    async def create_event(self, event: OperationEventCreate) -> OperationEventRecord:
+        raise NotImplementedError
+
+    async def list_events(self, query: OperationEventListQuery) -> list[OperationEventRecord]:
+        self.queries.append(query)
+        return [
+            OperationEventRecord(
+                id=12,
+                occurred_at=datetime.now(UTC),
+                event_type="video_collect.failed",
+                severity="error",
+                message="Channel video collection failed.",
+                actor_type="manual_api",
+                source="videos.collect",
+                metadata_json={"attemptId": 1},
+                job_id=1,
+                job_attempt_id=1,
+                video_task_id=None,
+                channel_id=2,
+                video_id=None,
+                external_api_call_id=None,
+                subject_type="channel",
+                subject_id=2,
+                external_key="UC123",
+                correlation_id=None,
+                error_type="UpstreamError",
+                error_message="failed",
+            )
+        ]
 
 
 class FakeOpsRepository(OpsRepositoryPort):
@@ -91,6 +136,73 @@ class FakeOpsRepository(OpsRepositoryPort):
             ),
         )
 
+    async def get_video_detail(self, video_id: int) -> OpsVideoDetailRecord | None:
+        if video_id != 1:
+            return None
+        now = datetime.now(UTC)
+        task = OpsVideoTaskRecord(
+            video_task_id=1,
+            video_id=1,
+            channel_id=1,
+            channel_name="Channel",
+            youtube_video_id="video1234567",
+            task_name="transcript_collect",
+            task_version="v1",
+            status="succeeded",
+            worker_id=None,
+            timeout_seconds=600,
+            job_id=1,
+            job_attempt_id=1,
+            output_transcript_id=3,
+            error_type=None,
+            error_message=None,
+            started_at=now,
+            completed_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        transcript = YouTubeTranscriptMetadataRecord(
+            id=3,
+            video_id="video1234567",
+            language="Korean",
+            language_code="ko",
+            is_generated=True,
+            requested_languages=("ko", "en"),
+            preserve_formatting=False,
+            storage_bucket="raw",
+            storage_object_name="youtube/transcripts/video1234567-hash.json",
+            storage_uri="s3://raw/youtube/transcripts/video1234567-hash.json",
+            response_sha256="a" * 64,
+            segment_count=2,
+            text_length=22,
+            notes=None,
+            created_at=now,
+            updated_at=now,
+        )
+        return OpsVideoDetailRecord(
+            video_id=1,
+            channel_id=1,
+            channel_name="Channel",
+            youtube_video_id="video1234567",
+            title="Video",
+            description="Stored video description",
+            published_at=now,
+            duration="PT1M",
+            thumbnail_url="https://i.ytimg.com/vi/video1234567/hqdefault.jpg",
+            source_listing_api_call_id=10,
+            source_details_api_call_id=11,
+            source_job_id=12,
+            created_at=now,
+            updated_at=now,
+            latest_task_id=1,
+            latest_task_name="transcript_collect",
+            latest_task_status="succeeded",
+            latest_task_updated_at=now,
+            transcript_id=3,
+            tasks=(task,),
+            transcripts=(transcript,),
+        )
+
     async def list_video_tasks(
         self,
         query: OpsVideoTaskListQuery,
@@ -139,13 +251,48 @@ async def _test_ops_summary_and_lists_are_available() -> None:
         summary = await client.get("/ops/summary")
         channels = await client.get("/ops/channels")
         videos = await client.get("/ops/videos")
+        video_detail = await client.get("/ops/videos/1")
+        missing_video_detail = await client.get("/ops/videos/999")
         tasks = await client.get("/ops/video-tasks")
 
     assert summary.status_code == 200, summary.text
     assert summary.json()["counts"]["channels"] == 2
     assert channels.json()["items"][0]["uploadsPlaylistId"] == "UU123"
     assert videos.json()["items"][0]["latestTaskStatus"] == "succeeded"
+    assert video_detail.status_code == 200, video_detail.text
+    assert video_detail.json()["description"] == "Stored video description"
+    assert video_detail.json()["tasks"][0]["jobId"] == 1
+    assert video_detail.json()["transcripts"][0]["languageCode"] == "ko"
+    assert missing_video_detail.status_code == 404
+    assert missing_video_detail.json() == {"detail": "Video not found."}
     assert tasks.json()["items"][0]["taskName"] == "transcript_collect"
+
+
+def test_ops_events_are_filterable() -> None:
+    asyncio.run(_test_ops_events_are_filterable())
+
+
+async def _test_ops_events_are_filterable() -> None:
+    event_repository = FakeOperationEventRepository()
+    app = create_app()
+    app.dependency_overrides[get_operation_event_repository] = lambda: event_repository
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get(
+            "/ops/events",
+            params={"severity": "error", "eventType": "video_collect.failed", "jobId": 1},
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["items"][0]["eventType"] == "video_collect.failed"
+    assert payload["items"][0]["metadata"] == {"attemptId": 1}
+    assert event_repository.queries[0].severity == "error"
+    assert event_repository.queries[0].event_type == "video_collect.failed"
+    assert event_repository.queries[0].job_id == 1
 
 
 def test_ops_schema_graph_uses_openapi_and_metadata() -> None:
@@ -189,5 +336,8 @@ def test_ops_routes_are_in_openapi() -> None:
     schema = create_app().openapi()
 
     assert schema["paths"]["/ops/summary"]["get"]["tags"] == ["ops"]
+    assert schema["paths"]["/ops/videos/{video_id}"]["get"]["tags"] == ["ops"]
+    assert schema["paths"]["/ops/events"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/schema-graph"]["get"]["tags"] == ["ops"]
+    assert "OperationEventListResponse" in schema["components"]["schemas"]
     assert "OpsSchemaGraphResponse" in schema["components"]["schemas"]

@@ -24,6 +24,7 @@ node_modules/
 *.tsbuildinfo
 ops-ui/.next/
 ops-ui/coverage/
+ops-ui/*.log
 data/
 *.db
 *.db-*

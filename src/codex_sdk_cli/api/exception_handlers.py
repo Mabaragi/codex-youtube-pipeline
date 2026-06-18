@@ -12,7 +12,8 @@ from codex_sdk_cli.domains.channels.exceptions import (
 )
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
 from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
-from codex_sdk_cli.domains.ops.exceptions import OpsDomainError
+from codex_sdk_cli.domains.operation_events.exceptions import OperationEventDomainError
+from codex_sdk_cli.domains.ops.exceptions import OpsDomainError, OpsVideoNotFound
 from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
     PipelineJobDomainError,
     PipelineJobNotFound,
@@ -111,6 +112,21 @@ def add_exception_handlers(app: FastAPI) -> None:
     async def ops_domain_error_handler(
         _request: Request,
         exc: OpsDomainError,
+    ) -> JSONResponse:
+        if isinstance(exc, OpsVideoNotFound):
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"detail": exc.message},
+            )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": exc.message},
+        )
+
+    @app.exception_handler(OperationEventDomainError)
+    async def operation_event_domain_error_handler(
+        _request: Request,
+        exc: OperationEventDomainError,
     ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

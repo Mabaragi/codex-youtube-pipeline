@@ -9,9 +9,14 @@ from minio.error import MinioException
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptStorageError
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     TranscriptStorageLocation,
+    YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
-from codex_sdk_cli.infra.youtube_transcripts.storage import MinioClientLike, MinioTranscriptStorage
+from codex_sdk_cli.infra.youtube_transcripts.storage import (
+    MinioClientLike,
+    MinioObjectLike,
+    MinioTranscriptStorage,
+)
 
 
 class FakeMinioClient(MinioClientLike):
@@ -19,6 +24,8 @@ class FakeMinioClient(MinioClientLike):
         self._bucket_exists = bucket_exists
         self.make_bucket_calls: list[str] = []
         self.put_object_calls: list[dict[str, object]] = []
+        self.get_object_calls: list[dict[str, object]] = []
+        self.objects: dict[tuple[str, str], bytes] = {}
         self.error: MinioException | None = None
 
     def bucket_exists(self, bucket_name: str) -> bool:
@@ -52,6 +59,33 @@ class FakeMinioClient(MinioClientLike):
             }
         )
         return object()
+
+    def get_object(self, bucket_name: str, object_name: str) -> MinioObjectLike:
+        if self.error is not None:
+            raise self.error
+        self.get_object_calls.append(
+            {
+                "bucket_name": bucket_name,
+                "object_name": object_name,
+            }
+        )
+        return FakeMinioObject(self.objects[(bucket_name, object_name)])
+
+
+class FakeMinioObject:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+        self.closed = False
+        self.released = False
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def close(self) -> None:
+        self.closed = True
+
+    def release_conn(self) -> None:
+        self.released = True
 
 
 def test_minio_storage_creates_bucket_and_uploads_json() -> None:
@@ -101,6 +135,28 @@ def test_minio_storage_reuses_existing_bucket() -> None:
     assert len(client.put_object_calls) == 1
 
 
+def test_minio_storage_reads_existing_object() -> None:
+    client = FakeMinioClient(bucket_exists=True)
+    client.objects[("raw", "youtube/transcripts/object.json")] = b'{"ok":true}'
+    storage = MinioTranscriptStorage(client, "raw")
+
+    payload = asyncio.run(
+        storage.read_transcript(
+            YouTubeTranscriptStorageReadRequest(
+                object_name="youtube/transcripts/object.json",
+            )
+        )
+    )
+
+    assert payload == b'{"ok":true}'
+    assert client.get_object_calls == [
+        {
+            "bucket_name": "raw",
+            "object_name": "youtube/transcripts/object.json",
+        }
+    ]
+
+
 def test_minio_storage_maps_sdk_errors_to_domain_error() -> None:
     client = FakeMinioClient(bucket_exists=True)
     client.error = MinioException("boom")
@@ -112,6 +168,21 @@ def test_minio_storage_maps_sdk_errors_to_domain_error() -> None:
                 YouTubeTranscriptStorageSaveRequest(
                     object_name="youtube/transcripts/object.json",
                     payload=b"{}",
+                )
+            )
+        )
+
+
+def test_minio_storage_maps_read_errors_to_domain_error() -> None:
+    client = FakeMinioClient(bucket_exists=True)
+    client.error = MinioException("boom")
+    storage = MinioTranscriptStorage(client, "raw")
+
+    with pytest.raises(YouTubeTranscriptStorageError, match="Transcript storage read failed."):
+        asyncio.run(
+            storage.read_transcript(
+                YouTubeTranscriptStorageReadRequest(
+                    object_name="youtube/transcripts/object.json",
                 )
             )
         )

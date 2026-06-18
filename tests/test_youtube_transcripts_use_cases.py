@@ -18,6 +18,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptSegment,
     YouTubeTranscriptStoragePort,
+    YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
 from codex_sdk_cli.domains.youtube_transcripts.schemas import TranscriptRequest
@@ -68,6 +69,12 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
     ) -> TranscriptStorageLocation:
         self.saves.append(request)
         return self.location_for(request.object_name)
+
+    async def read_transcript(
+        self,
+        request: YouTubeTranscriptStorageReadRequest,
+    ) -> bytes:
+        raise NotImplementedError
 
 
 class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):

@@ -6,6 +6,7 @@ from fastapi import Depends
 
 from codex_sdk_cli.api.dependencies import (
     ChannelRepositoryDep,
+    OperationEventRecorderDep,
     PipelineJobRepositoryDep,
     VideoRepositoryDep,
     YouTubeDataClientDep,
@@ -26,8 +27,9 @@ def get_collect_channel_videos_use_case(
     channels: ChannelRepositoryDep,
     videos: VideoRepositoryDep,
     pipeline_jobs: PipelineJobRepositoryDep,
+    events: OperationEventRecorderDep,
 ) -> CollectChannelVideosUseCase:
-    return CollectChannelVideosUseCase(client, channels, videos, pipeline_jobs)
+    return CollectChannelVideosUseCase(client, channels, videos, pipeline_jobs, events)
 
 
 ListChannelVideosUseCaseDep = Annotated[

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Path, Query
 
 from codex_sdk_cli.domains.ops.dependencies import (
     ListOpsChannelsUseCaseDep,
@@ -8,11 +10,13 @@ from codex_sdk_cli.domains.ops.dependencies import (
     ListOpsVideoTasksUseCaseDep,
     OpsSchemaGraphUseCaseDep,
     OpsSummaryUseCaseDep,
+    OpsVideoDetailUseCaseDep,
 )
 from codex_sdk_cli.domains.ops.schemas import (
     OpsChannelListResponse,
     OpsSchemaGraphResponse,
     OpsSummaryResponse,
+    OpsVideoDetailResponse,
     OpsVideoListResponse,
     OpsVideoTaskListResponse,
 )
@@ -48,6 +52,14 @@ async def list_ops_videos(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/videos/{video_id}", response_model=OpsVideoDetailResponse)
+async def get_ops_video_detail(
+    video_id: Annotated[int, Path(ge=1)],
+    use_case: OpsVideoDetailUseCaseDep,
+) -> OpsVideoDetailResponse:
+    return await use_case.execute(video_id)
 
 
 @router.get("/video-tasks", response_model=OpsVideoTaskListResponse)

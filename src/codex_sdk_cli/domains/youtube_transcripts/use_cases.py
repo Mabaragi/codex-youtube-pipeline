@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from urllib.parse import parse_qs, urlparse
 
-from .exceptions import InvalidYouTubeVideo, YouTubeTranscriptMetadataNotFound
+from .exceptions import (
+    InvalidYouTubeVideo,
+    YouTubeTranscriptMetadataNotFound,
+    YouTubeTranscriptStorageError,
+)
 from .ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptFetchRequest,
@@ -18,6 +22,7 @@ from .ports import (
     YouTubeTranscriptRecord,
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptStoragePort,
+    YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
 from .schemas import (
@@ -175,6 +180,33 @@ class GetYouTubeTranscriptMetadataUseCase:
         if record is None:
             raise YouTubeTranscriptMetadataNotFound("Transcript metadata not found.")
         return _metadata_response(record)
+
+
+class ReadYouTubeTranscriptContentUseCase:
+    def __init__(
+        self,
+        *,
+        repository: YouTubeTranscriptRepositoryPort,
+        storage: YouTubeTranscriptStoragePort,
+    ) -> None:
+        self._repository = repository
+        self._storage = storage
+
+    async def execute(self, transcript_id: int) -> TranscriptResponse:
+        record = await self._repository.get_transcript_metadata(transcript_id)
+        if record is None:
+            raise YouTubeTranscriptMetadataNotFound("Transcript metadata not found.")
+        payload = await self._storage.read_transcript(
+            YouTubeTranscriptStorageReadRequest(
+                object_name=record.storage_object_name,
+            )
+        )
+        try:
+            return TranscriptResponse.model_validate_json(payload)
+        except ValueError as exc:
+            raise YouTubeTranscriptStorageError(
+                "Stored transcript payload is invalid."
+            ) from exc
 
 
 class UpdateYouTubeTranscriptMetadataUseCase:

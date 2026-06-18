@@ -16,6 +16,7 @@ from .use_cases import (
     FetchYouTubeTranscriptUseCase,
     GetYouTubeTranscriptMetadataUseCase,
     ListYouTubeTranscriptMetadataUseCase,
+    ReadYouTubeTranscriptContentUseCase,
     UpdateYouTubeTranscriptMetadataUseCase,
 )
 
@@ -52,6 +53,16 @@ def get_update_youtube_transcript_metadata_use_case(
     return UpdateYouTubeTranscriptMetadataUseCase(repository)
 
 
+def get_read_youtube_transcript_content_use_case(
+    repository: YouTubeTranscriptRepositoryDep,
+    storage: YouTubeTranscriptStorageDep,
+) -> ReadYouTubeTranscriptContentUseCase:
+    return ReadYouTubeTranscriptContentUseCase(
+        repository=repository,
+        storage=storage,
+    )
+
+
 def get_delete_youtube_transcript_metadata_use_case(
     repository: YouTubeTranscriptRepositoryDep,
 ) -> DeleteYouTubeTranscriptMetadataUseCase:
@@ -69,6 +80,10 @@ ListYouTubeTranscriptMetadataUseCaseDep = Annotated[
 GetYouTubeTranscriptMetadataUseCaseDep = Annotated[
     GetYouTubeTranscriptMetadataUseCase,
     Depends(get_get_youtube_transcript_metadata_use_case),
+]
+ReadYouTubeTranscriptContentUseCaseDep = Annotated[
+    ReadYouTubeTranscriptContentUseCase,
+    Depends(get_read_youtube_transcript_content_use_case),
 ]
 UpdateYouTubeTranscriptMetadataUseCaseDep = Annotated[
     UpdateYouTubeTranscriptMetadataUseCase,

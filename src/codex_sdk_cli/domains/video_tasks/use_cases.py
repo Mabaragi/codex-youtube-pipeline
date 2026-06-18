@@ -7,6 +7,13 @@ from typing import cast
 
 from codex_sdk_cli.domains.channels.exceptions import ChannelNotFound
 from codex_sdk_cli.domains.channels.ports import ChannelRecord, ChannelRepositoryPort
+from codex_sdk_cli.domains.operation_events.ports import (
+    OperationEventActorType,
+    OperationEventCreate,
+    OperationEventRecorderPort,
+    OperationEventSeverity,
+)
+from codex_sdk_cli.domains.operation_events.recording import record_operation_event
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobAttemptRecord,
     PipelineJobCreate,
@@ -63,6 +70,7 @@ class CollectChannelTranscriptTasksUseCase:
         fetch_transcript: FetchYouTubeTranscriptUseCase,
         timeout_seconds: int,
         concurrency_limit: int,
+        events: OperationEventRecorderPort,
     ) -> None:
         self._channels = channels
         self._videos = videos
@@ -72,6 +80,7 @@ class CollectChannelTranscriptTasksUseCase:
         self._fetch_transcript = fetch_transcript
         self._timeout_seconds = timeout_seconds
         self._concurrency_limit = concurrency_limit
+        self._events = events
 
     async def execute(
         self,
@@ -81,6 +90,27 @@ class CollectChannelTranscriptTasksUseCase:
         await _get_channel_or_raise(self._channels, channel_id)
         languages = normalize_languages(request.languages)
         videos = (await self._videos.list_videos(channel_id=channel_id))[: request.limit]
+        await self._record_event(
+            OperationEventCreate(
+                event_type="transcript_collect.batch_requested",
+                severity="info",
+                message="Channel transcript collection batch was requested.",
+                actor_type="manual_api",
+                source="video_tasks.transcript_collect",
+                channel_id=channel_id,
+                subject_type="channel",
+                subject_id=channel_id,
+                metadata_json={
+                    "requestedLimit": request.limit,
+                    "selectedVideoCount": len(videos),
+                    "languages": list(languages),
+                    "preserveFormatting": request.preserve_formatting,
+                    "retryFailed": request.retry_failed,
+                    "timeoutSeconds": self._timeout_seconds,
+                    "concurrencyLimit": self._concurrency_limit,
+                },
+            )
+        )
         items = [
             await self._process_video(
                 video,
@@ -114,6 +144,20 @@ class CollectChannelTranscriptTasksUseCase:
                 timeout_seconds=self._timeout_seconds,
             )
         )
+        await self._record_task_event(
+            "transcript_collect.task_selected",
+            "info",
+            "Transcript collection task was selected.",
+            task=task,
+            video_id=video.id,
+            youtube_video_id=video.youtube_video_id,
+            metadata_json={
+                "taskStatus": task.status,
+                "retryFailed": retry_failed,
+                "languages": list(languages),
+                "preserveFormatting": preserve_formatting,
+            },
+        )
         existing_metadata = await self._transcripts.find_transcript_metadata_for_request(
             video_id=video.youtube_video_id,
             requested_languages=languages,
@@ -125,6 +169,16 @@ class CollectChannelTranscriptTasksUseCase:
                 output_transcript_id=existing_metadata.id,
                 output_json=_existing_transcript_output_json(video, existing_metadata),
             )
+            await self._record_task_event(
+                "transcript_collect.task_succeeded",
+                "info",
+                "Transcript collection task succeeded from existing metadata.",
+                task=succeeded,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="existing_transcript",
+                transcript_id=existing_metadata.id,
+            )
             return _item_response(
                 video,
                 succeeded,
@@ -134,6 +188,15 @@ class CollectChannelTranscriptTasksUseCase:
             )
 
         if task.status == "succeeded":
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "info",
+                "Transcript collection task was skipped.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="already_succeeded",
+            )
             return _item_response(
                 video,
                 task,
@@ -142,8 +205,26 @@ class CollectChannelTranscriptTasksUseCase:
                 transcript_id=task.output_transcript_id,
             )
         if task.status == "running":
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "warning",
+                "Transcript collection task was skipped because it is already running.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="already_running",
+            )
             return _item_response(video, task, status="skipped", reason="already_running")
         if task.status in {"failed", "timed_out"} and not retry_failed:
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "info",
+                "Transcript collection task was skipped because retryFailed is false.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason=f"previously_{task.status}",
+            )
             return _item_response(
                 video,
                 task,
@@ -152,12 +233,31 @@ class CollectChannelTranscriptTasksUseCase:
                 transcript_id=task.output_transcript_id,
             )
         if task.status in {"skipped", "canceled"}:
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "warning",
+                "Transcript collection task was skipped because its status is not retryable.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="not_retryable",
+            )
             return _item_response(video, task, status="skipped", reason="not_retryable")
 
         running_count = await self._video_tasks.count_running(
             task_name=TRANSCRIPT_COLLECT_TASK_NAME
         )
         if running_count >= self._concurrency_limit:
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "warning",
+                "Transcript collection task was skipped by concurrency limit.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="concurrency_limit",
+                metadata_json={"runningCount": running_count},
+            )
             return _item_response(video, task, status="skipped", reason="concurrency_limit")
 
         return await self._execute_task(
@@ -206,6 +306,15 @@ class CollectChannelTranscriptTasksUseCase:
             job_id=job.id,
             job_attempt_id=attempt.id,
         )
+        await self._record_task_event(
+            "transcript_collect.task_running",
+            "info",
+            "Transcript collection task started running.",
+            task=task,
+            video_id=video.id,
+            youtube_video_id=video.youtube_video_id,
+            metadata_json={"attemptId": attempt.id},
+        )
         return await self.execute_job_attempt(
             job,
             attempt,
@@ -228,6 +337,7 @@ class CollectChannelTranscriptTasksUseCase:
         languages: tuple[str, ...],
         preserve_formatting: bool,
         timeout_seconds: int,
+        actor_type: OperationEventActorType = "manual_api",
     ) -> TranscriptCollectItemResponse:
         try:
             stored = await asyncio.wait_for(
@@ -253,6 +363,19 @@ class CollectChannelTranscriptTasksUseCase:
                 error_message=message,
                 output_json={"jobId": job.id, "jobAttemptId": attempt.id},
             )
+            await self._record_task_event(
+                "transcript_collect.task_timed_out",
+                "error",
+                "Transcript collection task timed out.",
+                actor_type=actor_type,
+                task=updated,
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                reason="timeout",
+                error_type="TimeoutError",
+                error_message=message,
+                metadata_json={"timeoutSeconds": timeout_seconds},
+            )
             return _retry_item_response(
                 video_id=video_id,
                 youtube_video_id=youtube_video_id,
@@ -274,6 +397,18 @@ class CollectChannelTranscriptTasksUseCase:
                 error_type=error_type,
                 error_message=error_message,
                 output_json={"jobId": job.id, "jobAttemptId": attempt.id},
+            )
+            await self._record_task_event(
+                "transcript_collect.task_failed",
+                "error",
+                "Transcript collection task failed.",
+                actor_type=actor_type,
+                task=updated,
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                reason="error",
+                error_type=error_type,
+                error_message=error_message,
             )
             return _retry_item_response(
                 video_id=video_id,
@@ -300,6 +435,18 @@ class CollectChannelTranscriptTasksUseCase:
             output_json=output_json,
         )
         await self._pipeline_jobs.mark_job_succeeded(job.id)
+        await self._record_task_event(
+            "transcript_collect.task_succeeded",
+            "info",
+            "Transcript collection task succeeded.",
+            actor_type=actor_type,
+            task=updated,
+            video_id=video_id,
+            youtube_video_id=youtube_video_id,
+            reason="collected",
+            transcript_id=stored.metadata.id,
+            metadata_json={"languageCode": stored.metadata.language_code},
+        )
         return _retry_item_response(
             video_id=video_id,
             youtube_video_id=youtube_video_id,
@@ -334,6 +481,16 @@ class CollectChannelTranscriptTasksUseCase:
             job_id=job.id,
             job_attempt_id=attempt.id,
         )
+        await self._record_task_event(
+            "transcript_collect.task_running",
+            "info",
+            "Transcript collection task started running.",
+            actor_type="retry_executor",
+            task=task,
+            video_id=video_id,
+            youtube_video_id=youtube_video_id,
+            metadata_json={"attemptId": attempt.id},
+        )
         result = await self.execute_job_attempt(
             job,
             attempt,
@@ -343,8 +500,53 @@ class CollectChannelTranscriptTasksUseCase:
             languages=languages,
             preserve_formatting=preserve_formatting,
             timeout_seconds=timeout_seconds,
+            actor_type="retry_executor",
         )
         return result.model_dump(by_alias=True)
+
+    async def _record_event(self, event: OperationEventCreate) -> None:
+        await record_operation_event(self._events, event)
+
+    async def _record_task_event(
+        self,
+        event_type: str,
+        severity: OperationEventSeverity,
+        message: str,
+        *,
+        task: VideoTaskRecord,
+        video_id: int,
+        youtube_video_id: str,
+        actor_type: OperationEventActorType = "manual_api",
+        reason: str | None = None,
+        transcript_id: int | None = None,
+        error_type: str | None = None,
+        error_message: str | None = None,
+        metadata_json: JsonObject | None = None,
+    ) -> None:
+        metadata: JsonObject = dict(metadata_json or {})
+        if reason is not None:
+            metadata["reason"] = reason
+        if transcript_id is not None:
+            metadata["transcriptId"] = transcript_id
+        await self._record_event(
+            OperationEventCreate(
+                event_type=event_type,
+                severity=severity,
+                message=message,
+                actor_type=actor_type,
+                source="video_tasks.transcript_collect",
+                job_id=task.job_id,
+                job_attempt_id=task.job_attempt_id,
+                video_task_id=task.id,
+                video_id=video_id,
+                subject_type="video",
+                subject_id=video_id,
+                external_key=youtube_video_id,
+                error_type=error_type,
+                error_message=error_message,
+                metadata_json=metadata,
+            )
+        )
 
 
 class ListChannelVideoTasksUseCase:

@@ -42,6 +42,11 @@ class YouTubeTranscriptStorageSaveRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class YouTubeTranscriptStorageReadRequest:
+    object_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class YouTubeTranscriptRecord:
     video_id: str
     language: str
@@ -102,6 +107,12 @@ class YouTubeTranscriptStoragePort(Protocol):
         request: YouTubeTranscriptStorageSaveRequest,
     ) -> TranscriptStorageLocation:
         """Persist a transcript response JSON payload."""
+
+    async def read_transcript(
+        self,
+        request: YouTubeTranscriptStorageReadRequest,
+    ) -> bytes:
+        """Read a stored transcript response JSON payload."""
 
 
 class YouTubeTranscriptRepositoryPort(Protocol):

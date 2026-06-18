@@ -9,6 +9,7 @@ from .dependencies import (
     FetchYouTubeTranscriptUseCaseDep,
     GetYouTubeTranscriptMetadataUseCaseDep,
     ListYouTubeTranscriptMetadataUseCaseDep,
+    ReadYouTubeTranscriptContentUseCaseDep,
     UpdateYouTubeTranscriptMetadataUseCaseDep,
 )
 from .schemas import (
@@ -51,6 +52,14 @@ async def get_youtube_transcript_metadata(
     transcript_id: Annotated[int, Path(ge=1)],
     use_case: GetYouTubeTranscriptMetadataUseCaseDep,
 ) -> TranscriptMetadataResponse:
+    return await use_case.execute(transcript_id)
+
+
+@router.get("/{transcript_id}/content", response_model=TranscriptResponse)
+async def read_youtube_transcript_content(
+    transcript_id: Annotated[int, Path(ge=1)],
+    use_case: ReadYouTubeTranscriptContentUseCaseDep,
+) -> TranscriptResponse:
     return await use_case.execute(transcript_id)
 
 

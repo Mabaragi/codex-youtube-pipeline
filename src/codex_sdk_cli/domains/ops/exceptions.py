@@ -9,3 +9,7 @@ class OpsDomainError(Exception):
 
 class OpsPersistenceError(OpsDomainError):
     pass
+
+
+class OpsVideoNotFound(OpsDomainError):
+    pass

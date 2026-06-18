@@ -12,6 +12,7 @@ from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscri
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     TranscriptStorageLocation,
     YouTubeTranscriptStoragePort,
+    YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
 from codex_sdk_cli.settings import CliSettings
@@ -33,6 +34,20 @@ class MinioClientLike(Protocol):
         content_type: str = "application/octet-stream",
     ) -> object:
         """Upload one object."""
+
+    def get_object(self, bucket_name: str, object_name: str) -> MinioObjectLike:
+        """Download one object."""
+
+
+class MinioObjectLike(Protocol):
+    def read(self) -> bytes:
+        """Read object bytes."""
+
+    def close(self) -> None:
+        """Close the response."""
+
+    def release_conn(self) -> None:
+        """Release the underlying connection."""
 
 
 class MinioTranscriptStorage(YouTubeTranscriptStoragePort):
@@ -79,6 +94,16 @@ class MinioTranscriptStorage(YouTubeTranscriptStoragePort):
             raise YouTubeTranscriptStorageError("Transcript storage write failed.") from exc
         return self.location_for(request.object_name)
 
+    @override
+    async def read_transcript(
+        self,
+        request: YouTubeTranscriptStorageReadRequest,
+    ) -> bytes:
+        try:
+            return await run_in_threadpool(self._read_sync, request.object_name)
+        except MinioException as exc:
+            raise YouTubeTranscriptStorageError("Transcript storage read failed.") from exc
+
     def _save_sync(self, object_name: str, payload: bytes) -> None:
         if not self._client.bucket_exists(self._bucket):
             try:
@@ -94,3 +119,12 @@ class MinioTranscriptStorage(YouTubeTranscriptStoragePort):
             len(payload),
             content_type="application/json",
         )
+
+    def _read_sync(self, object_name: str) -> bytes:
+        response = self._client.get_object(self._bucket, object_name)
+        try:
+            payload = response.read()
+        finally:
+            response.close()
+            response.release_conn()
+        return payload

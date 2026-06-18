@@ -12,12 +12,16 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsRepositoryPort,
     OpsStatusCountRecord,
     OpsSummaryCountsRecord,
+    OpsVideoDetailRecord,
     OpsVideoListQuery,
     OpsVideoListResult,
     OpsVideoRecord,
     OpsVideoTaskListQuery,
     OpsVideoTaskListResult,
     OpsVideoTaskRecord,
+)
+from codex_sdk_cli.domains.youtube_transcripts.ports import (
+    YouTubeTranscriptMetadataRecord,
 )
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.pipeline_jobs.repository import (
@@ -260,6 +264,85 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
         )
 
     @override
+    async def get_video_detail(self, video_id: int) -> OpsVideoDetailRecord | None:
+        latest_task = self._latest_task_subquery()
+        task_alias = VideoTaskModel
+        try:
+            row = (
+                await self._session.execute(
+                    select(VideoModel, ChannelModel.name, task_alias)
+                    .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+                    .outerjoin(latest_task, latest_task.c.video_id == VideoModel.id)
+                    .outerjoin(task_alias, task_alias.id == latest_task.c.task_id)
+                    .where(VideoModel.id == video_id)
+                )
+            ).first()
+            if row is None:
+                return None
+
+            video, channel_name, latest_task_model = row
+            task_rows = (
+                await self._session.scalars(
+                    select(VideoTaskModel)
+                    .where(VideoTaskModel.video_id == video.id)
+                    .order_by(VideoTaskModel.id.desc())
+                )
+            ).all()
+            transcript_rows = (
+                await self._session.scalars(
+                    select(YouTubeTranscriptRecordModel)
+                    .where(
+                        YouTubeTranscriptRecordModel.video_id
+                        == video.youtube_video_id
+                    )
+                    .order_by(YouTubeTranscriptRecordModel.id.desc())
+                )
+            ).all()
+        except SQLAlchemyError as exc:
+            raise OpsPersistenceError("Ops metadata read failed.") from exc
+
+        return OpsVideoDetailRecord(
+            video_id=video.id,
+            channel_id=video.channel_id,
+            channel_name=channel_name,
+            youtube_video_id=video.youtube_video_id,
+            title=video.title,
+            description=video.description,
+            published_at=video.published_at,
+            duration=video.duration,
+            thumbnail_url=video.thumbnail_url,
+            source_listing_api_call_id=video.source_listing_api_call_id,
+            source_details_api_call_id=video.source_details_api_call_id,
+            source_job_id=video.source_job_id,
+            created_at=video.created_at,
+            updated_at=video.updated_at,
+            latest_task_id=latest_task_model.id if latest_task_model is not None else None,
+            latest_task_name=(
+                latest_task_model.task_name if latest_task_model is not None else None
+            ),
+            latest_task_status=(
+                latest_task_model.status if latest_task_model is not None else None
+            ),
+            latest_task_updated_at=(
+                latest_task_model.updated_at if latest_task_model is not None else None
+            ),
+            transcript_id=(
+                latest_task_model.output_transcript_id
+                if latest_task_model is not None
+                else None
+            ),
+            tasks=tuple(
+                _ops_video_task_record(
+                    task=task,
+                    video=video,
+                    channel_name=channel_name,
+                )
+                for task in task_rows
+            ),
+            transcripts=tuple(_transcript_record(row) for row in transcript_rows),
+        )
+
+    @override
     async def list_video_tasks(
         self,
         query: OpsVideoTaskListQuery,
@@ -295,26 +378,10 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
 
         return OpsVideoTaskListResult(
             items=tuple(
-                OpsVideoTaskRecord(
-                    video_task_id=task.id,
-                    video_id=task.video_id,
-                    channel_id=video.channel_id,
+                _ops_video_task_record(
+                    task=task,
+                    video=video,
                     channel_name=channel_name,
-                    youtube_video_id=video.youtube_video_id,
-                    task_name=task.task_name,
-                    task_version=task.task_version,
-                    status=task.status,
-                    worker_id=task.worker_id,
-                    timeout_seconds=task.timeout_seconds,
-                    job_id=task.job_id,
-                    job_attempt_id=task.job_attempt_id,
-                    output_transcript_id=task.output_transcript_id,
-                    error_type=task.error_type,
-                    error_message=task.error_message,
-                    started_at=task.started_at,
-                    completed_at=task.completed_at,
-                    created_at=task.created_at,
-                    updated_at=task.updated_at,
                 )
                 for task, video, channel_name in rows
             ),
@@ -349,3 +416,55 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             .group_by(VideoTaskModel.video_id)
             .subquery()
         )
+
+
+def _ops_video_task_record(
+    *,
+    task: VideoTaskModel,
+    video: VideoModel,
+    channel_name: str,
+) -> OpsVideoTaskRecord:
+    return OpsVideoTaskRecord(
+        video_task_id=task.id,
+        video_id=task.video_id,
+        channel_id=video.channel_id,
+        channel_name=channel_name,
+        youtube_video_id=video.youtube_video_id,
+        task_name=task.task_name,
+        task_version=task.task_version,
+        status=task.status,
+        worker_id=task.worker_id,
+        timeout_seconds=task.timeout_seconds,
+        job_id=task.job_id,
+        job_attempt_id=task.job_attempt_id,
+        output_transcript_id=task.output_transcript_id,
+        error_type=task.error_type,
+        error_message=task.error_message,
+        started_at=task.started_at,
+        completed_at=task.completed_at,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+    )
+
+
+def _transcript_record(
+    model: YouTubeTranscriptRecordModel,
+) -> YouTubeTranscriptMetadataRecord:
+    return YouTubeTranscriptMetadataRecord(
+        id=model.id,
+        video_id=model.video_id,
+        language=model.language,
+        language_code=model.language_code,
+        is_generated=model.is_generated,
+        requested_languages=tuple(model.requested_languages),
+        preserve_formatting=model.preserve_formatting,
+        storage_bucket=model.storage_bucket,
+        storage_object_name=model.storage_object_name,
+        storage_uri=model.storage_uri,
+        response_sha256=model.response_sha256,
+        segment_count=model.segment_count,
+        text_length=model.text_length,
+        notes=model.notes,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )

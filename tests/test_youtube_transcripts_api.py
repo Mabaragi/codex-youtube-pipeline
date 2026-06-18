@@ -32,6 +32,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptSegment,
     YouTubeTranscriptStoragePort,
+    YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
 
@@ -67,6 +68,8 @@ class FakeYouTubeTranscriptClient(YouTubeTranscriptPort):
 class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
     def __init__(self) -> None:
         self.saves: list[YouTubeTranscriptStorageSaveRequest] = []
+        self.reads: list[YouTubeTranscriptStorageReadRequest] = []
+        self.objects: dict[str, bytes] = {}
         self.error: YouTubeTranscriptStorageError | None = None
 
     def location_for(self, object_name: str) -> TranscriptStorageLocation:
@@ -84,6 +87,15 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
         if self.error is not None:
             raise self.error
         return self.location_for(request.object_name)
+
+    async def read_transcript(
+        self,
+        request: YouTubeTranscriptStorageReadRequest,
+    ) -> bytes:
+        self.reads.append(request)
+        if self.error is not None:
+            raise self.error
+        return self.objects[request.object_name]
 
 
 class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
@@ -290,6 +302,9 @@ def test_openapi_uses_youtube_transcripts_tag() -> None:
 
     assert path_items["post"]["tags"] == ["youtube-transcripts"]
     assert path_items["get"]["tags"] == ["youtube-transcripts"]
+    assert schema["paths"]["/youtube-transcripts/{transcript_id}/content"]["get"][
+        "tags"
+    ] == ["youtube-transcripts"]
 
 
 def test_transcript_endpoint_rejects_extra_fields() -> None:
@@ -449,6 +464,70 @@ def test_get_transcript_metadata_by_id() -> None:
     )
 
     assert response == _expected_metadata_response(id=1, language_code="ko")
+
+
+def test_get_transcript_content_reads_stored_payload_without_refetch() -> None:
+    fake = FakeYouTubeTranscriptClient()
+    storage = FakeYouTubeTranscriptStorage()
+    object_name = f"youtube/transcripts/2026/06/15/{VIDEO_ID}-hash.json"
+    storage.objects[object_name] = (
+        b'{"videoId":"dQw4w9WgXcQ","language":"Korean","languageCode":"ko",'
+        b'"isGenerated":true,"text":"first line\\nsecond line",'
+        b'"segments":[{"text":"first line","start":0.0,"duration":1.25}],'
+        b'"storage":{"bucket":"raw","objectName":"youtube/transcripts/2026/06/15/'
+        b'dQw4w9WgXcQ-hash.json","uri":"s3://raw/youtube/transcripts/2026/06/15/'
+        b'dQw4w9WgXcQ-hash.json"}}'
+    )
+
+    response = asyncio.run(
+        _request(
+            fake,
+            youtube_storage=storage,
+            method="GET",
+            path="/youtube-transcripts/1/content",
+        )
+    )
+
+    assert response["text"] == "first line\nsecond line"
+    assert response["segments"][0]["text"] == "first line"
+    assert storage.reads == [
+        YouTubeTranscriptStorageReadRequest(object_name=object_name)
+    ]
+    assert fake.requests == []
+
+
+def test_get_transcript_content_maps_missing_metadata_to_not_found() -> None:
+    fake = FakeYouTubeTranscriptClient()
+
+    response = asyncio.run(
+        _request(
+            fake,
+            method="GET",
+            path="/youtube-transcripts/999/content",
+            expected_status=404,
+        )
+    )
+
+    assert response == {"detail": "Transcript metadata not found."}
+
+
+def test_get_transcript_content_maps_storage_error_to_unavailable() -> None:
+    fake = FakeYouTubeTranscriptClient()
+    storage = FakeYouTubeTranscriptStorage()
+    storage.error = YouTubeTranscriptStorageError("Stored transcript unavailable.")
+
+    response = asyncio.run(
+        _request(
+            fake,
+            youtube_storage=storage,
+            method="GET",
+            path="/youtube-transcripts/1/content",
+            expected_status=503,
+        )
+    )
+
+    assert response == {"detail": "Stored transcript unavailable."}
+    assert fake.requests == []
 
 
 def test_get_transcript_metadata_maps_missing_row_to_not_found() -> None:
