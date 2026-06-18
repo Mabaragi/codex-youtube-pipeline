@@ -3,13 +3,18 @@
 import ELK from "elkjs/lib/elk.bundled.js";
 import {
   Background,
+  BaseEdge,
   Controls,
+  EdgeLabelRenderer,
   Handle,
   MiniMap,
   Position,
   ReactFlow,
   applyNodeChanges,
+  getSmoothStepPath,
   type Edge,
+  type EdgeProps,
+  type EdgeTypes,
   type Node,
   type NodeChange,
   type NodeProps,
@@ -17,10 +22,21 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OpsSchemaGraph, OpsSchemaTable } from "@/lib/types";
 import { useOpsStore } from "@/store/use-ops-store";
-import { getTableGroup, type SchemaTableGroup } from "./schema-display";
+import {
+  getRelationCardinality,
+  getTableGroup,
+  type RelationCardinality,
+  type SchemaTableGroup,
+} from "./schema-display";
 
 type SchemaRelation = OpsSchemaGraph["relations"][number];
 type SchemaColumn = OpsSchemaTable["columns"][number];
+
+type ErdRelationEdgeData = {
+  relation: SchemaRelation;
+  isConnected: boolean;
+  isSelected: boolean;
+};
 
 type TableNodeData = {
   table: OpsSchemaTable;
@@ -32,6 +48,10 @@ type TableNodeData = {
 
 const nodeTypes = {
   table: TableNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  erdRelation: ErdRelationEdge,
 };
 
 const EMPTY_POSITION = { x: 0, y: 0 };
@@ -236,9 +256,11 @@ export function ErdGraph({
           nodes={flowNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onEdgeClick={(_, edge) => onSelectRelation(edge.id)}
           fitView
+          fitViewOptions={{ padding: 0.08 }}
           minZoom={0.15}
           maxZoom={1.4}
         >
@@ -300,29 +322,299 @@ function buildEdges(
   relations: SchemaRelation[],
   selectedTableId: string | null,
   selectedRelationId: string | null,
-): Edge[] {
+): Edge<ErdRelationEdgeData>[] {
   return relations.map((relation) => {
     const isConnected =
       relation.sourceTable === selectedTableId || relation.targetTable === selectedTableId;
     const isSelected = relation.id === selectedRelationId;
     return {
       id: relation.id,
+      type: "erdRelation",
       source: relation.sourceTable,
       target: relation.targetTable,
+      sourceHandle: relationHandleId("source", relation.sourceColumn),
+      targetHandle: relationHandleId("target", relation.targetColumn),
       label: `${relation.sourceColumn} -> ${relation.targetColumn}`,
-      animated: isConnected || isSelected,
+      data: {
+        relation,
+        isConnected,
+        isSelected,
+      },
       style: {
         stroke: isSelected ? "#0f766e" : isConnected ? "var(--accent)" : "#8da0b3",
         strokeWidth: isSelected ? 2.5 : isConnected ? 2 : 1.25,
       },
-      labelStyle: {
-        fill: isSelected || isConnected ? "#0f172a" : "#64748b",
-        fontSize: 11,
-        fontWeight: isSelected ? 700 : 500,
-      },
-      interactionWidth: 24,
+      interactionWidth: 28,
     };
   });
+}
+
+function relationHandleId(type: "source" | "target", columnName: string) {
+  return `${type}:${columnName}`;
+}
+
+function ErdRelationEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+}: EdgeProps) {
+  const edgeData = data as ErdRelationEdgeData | undefined;
+  const relation = edgeData?.relation;
+  const cardinality = relation
+    ? getRelationCardinality(relation.relationKind)
+    : null;
+  const isSelected = edgeData?.isSelected ?? false;
+  const isConnected = edgeData?.isConnected ?? false;
+  const stroke = isSelected ? "#0f766e" : isConnected ? "var(--accent)" : "#64748b";
+  const strokeWidth = isSelected ? 2.5 : isConnected ? 2 : 1.35;
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    borderRadius: 2,
+    offset: 28,
+  });
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        interactionWidth={28}
+        style={{
+          stroke,
+          strokeWidth,
+          fill: "none",
+        }}
+        vectorEffect="non-scaling-stroke"
+      />
+      {cardinality ? (
+        <>
+          <ExactOneMarker
+            x={sourceX}
+            y={sourceY}
+            position={sourcePosition}
+            stroke={stroke}
+          />
+          <ChildCardinalityMarker
+            x={targetX}
+            y={targetY}
+            position={targetPosition}
+            cardinality={cardinality}
+            stroke={stroke}
+          />
+        </>
+      ) : null}
+      {relation && cardinality ? (
+        <EdgeLabelRenderer>
+          <div
+            className={`rounded border bg-white/95 px-1.5 py-0.5 font-mono text-[10px] shadow-sm ${
+              isSelected || isConnected
+                ? "border-teal-200 text-slate-900"
+                : "border-slate-200 text-slate-500"
+            }`}
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: "none",
+            }}
+          >
+            {cardinality.parentLabel}:{cardinality.childLabel} / {relation.targetColumn}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
+  );
+}
+
+function ExactOneMarker({
+  x,
+  y,
+  position,
+  stroke,
+}: {
+  x: number;
+  y: number;
+  position: Position;
+  stroke: string;
+}) {
+  return (
+    <g
+      data-testid="erd-parent-cardinality"
+      stroke={stroke}
+      strokeLinecap="round"
+      strokeWidth={2}
+      vectorEffect="non-scaling-stroke"
+    >
+      <EndpointBar x={x} y={y} position={position} distance={7} />
+      <EndpointBar x={x} y={y} position={position} distance={13} />
+    </g>
+  );
+}
+
+function ChildCardinalityMarker({
+  x,
+  y,
+  position,
+  cardinality,
+  stroke,
+}: {
+  x: number;
+  y: number;
+  position: Position;
+  cardinality: RelationCardinality;
+  stroke: string;
+}) {
+  return (
+    <g
+      data-cardinality={cardinality.childLabel}
+      data-testid="erd-child-cardinality"
+      stroke={stroke}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+    >
+      {cardinality.childIsOptional ? (
+        <EndpointCircle
+          x={x}
+          y={y}
+          position={position}
+          distance={cardinality.childIsMany ? 28 : 19}
+        />
+      ) : cardinality.childIsMany ? (
+        <EndpointBar x={x} y={y} position={position} distance={28} />
+      ) : null}
+      {cardinality.childIsMany ? (
+        <CrowFoot x={x} y={y} position={position} />
+      ) : (
+        <>
+          <EndpointBar x={x} y={y} position={position} distance={7} />
+          {!cardinality.childIsOptional ? (
+            <EndpointBar x={x} y={y} position={position} distance={13} />
+          ) : null}
+        </>
+      )}
+    </g>
+  );
+}
+
+function EndpointBar({
+  x,
+  y,
+  position,
+  distance,
+}: {
+  x: number;
+  y: number;
+  position: Position;
+  distance: number;
+}) {
+  const center = endpointPoint(x, y, position, distance);
+  if (position === Position.Left || position === Position.Right) {
+    return (
+      <path
+        d={`M ${center.x} ${center.y - 8} V ${center.y + 8}`}
+        vectorEffect="non-scaling-stroke"
+      />
+    );
+  }
+  return (
+    <path
+      d={`M ${center.x - 8} ${center.y} H ${center.x + 8}`}
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
+function EndpointCircle({
+  x,
+  y,
+  position,
+  distance,
+}: {
+  x: number;
+  y: number;
+  position: Position;
+  distance: number;
+}) {
+  const center = endpointPoint(x, y, position, distance);
+  return (
+    <circle
+      cx={center.x}
+      cy={center.y}
+      r={5}
+      fill="#ffffff"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
+function CrowFoot({
+  x,
+  y,
+  position,
+}: {
+  x: number;
+  y: number;
+  position: Position;
+}) {
+  const base = endpointPoint(x, y, position, 19);
+  const centerTip = endpointPoint(x, y, position, 4);
+  if (position === Position.Left || position === Position.Right) {
+    return (
+      <>
+        <path
+          d={`M ${base.x} ${base.y} L ${centerTip.x} ${centerTip.y - 9}`}
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d={`M ${base.x} ${base.y} L ${centerTip.x} ${centerTip.y}`}
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d={`M ${base.x} ${base.y} L ${centerTip.x} ${centerTip.y + 9}`}
+          vectorEffect="non-scaling-stroke"
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      <path
+        d={`M ${base.x} ${base.y} L ${centerTip.x - 9} ${centerTip.y}`}
+        vectorEffect="non-scaling-stroke"
+      />
+      <path
+        d={`M ${base.x} ${base.y} L ${centerTip.x} ${centerTip.y}`}
+        vectorEffect="non-scaling-stroke"
+      />
+      <path
+        d={`M ${base.x} ${base.y} L ${centerTip.x + 9} ${centerTip.y}`}
+        vectorEffect="non-scaling-stroke"
+      />
+    </>
+  );
+}
+
+function endpointPoint(x: number, y: number, position: Position, distance: number) {
+  if (position === Position.Left) {
+    return { x: x - distance, y };
+  }
+  if (position === Position.Right) {
+    return { x: x + distance, y };
+  }
+  if (position === Position.Top) {
+    return { x, y: y - distance };
+  }
+  return { x, y: y + distance };
 }
 
 function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
@@ -335,7 +627,6 @@ function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
         selected ? "border-[color:var(--accent)] ring-2 ring-sky-100" : "border-slate-300"
       }`}
     >
-      <Handle type="target" position={Position.Left} />
       <div className="flex items-start justify-between gap-3 bg-slate-900 px-3 py-2 text-white">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{table.name}</div>
@@ -352,14 +643,20 @@ function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
           <ColumnRow key={column.id} column={column} />
         ))}
       </div>
-      <Handle type="source" position={Position.Right} />
     </button>
   );
 }
 
 function ColumnRow({ column }: { column: SchemaColumn }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-2 border-t border-slate-200 px-3 py-1.5 text-xs">
+    <div className="relative grid grid-cols-[minmax(0,1fr)_112px] gap-2 border-t border-slate-200 px-3 py-1.5 text-xs">
+      <Handle
+        id={relationHandleId("target", column.name)}
+        type="target"
+        position={Position.Left}
+        isConnectable={false}
+        className="!h-2 !w-2 !border-0 !bg-transparent !opacity-0"
+      />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1">
           <span className="truncate font-semibold text-slate-900">{column.name}</span>
@@ -377,6 +674,13 @@ function ColumnRow({ column }: { column: SchemaColumn }) {
           {column.nullable ? "NULL" : "NOT NULL"}
         </div>
       </div>
+      <Handle
+        id={relationHandleId("source", column.name)}
+        type="source"
+        position={Position.Right}
+        isConnectable={false}
+        className="!h-2 !w-2 !border-0 !bg-transparent !opacity-0"
+      />
     </div>
   );
 }

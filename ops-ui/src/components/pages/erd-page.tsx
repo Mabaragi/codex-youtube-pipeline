@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ErdGraph } from "@/components/schema/erd-graph";
+import { getRelationCardinality } from "@/components/schema/schema-display";
 import { useSchemaGraph } from "@/lib/queries";
 import type { OpsSchemaGraph, OpsSchemaTable } from "@/lib/types";
 import { useOpsStore } from "@/store/use-ops-store";
@@ -44,7 +45,7 @@ export function ErdPage() {
       {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
       {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
       {data ? (
-        <div className="grid min-h-[720px] gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-h-[720px] gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <ErdGraph
             graph={data}
             selectedRelationId={selectedRelationId}
@@ -100,11 +101,11 @@ function SchemaInspector({
                 ))}
               </div>
             </InspectorSection>
-            <InspectorSection title="Outgoing Relations">
-              <RelationList relations={outgoingRelations} emptyLabel="No outgoing relations." />
+            <InspectorSection title="Referenced Child Tables">
+              <RelationList relations={outgoingRelations} emptyLabel="No child tables reference this table." />
             </InspectorSection>
-            <InspectorSection title="Incoming Relations">
-              <RelationList relations={incomingRelations} emptyLabel="No incoming relations." />
+            <InspectorSection title="Parent References">
+              <RelationList relations={incomingRelations} emptyLabel="No parent references." />
             </InspectorSection>
             <InspectorSection title="Indexes / Unique Constraints">
               <ConstraintList
@@ -123,21 +124,33 @@ function SchemaInspector({
 }
 
 function RelationDetail({ relation }: { relation: SchemaRelation }) {
+  const cardinality = getRelationCardinality(relation.relationKind);
   return (
     <section className="rounded border border-teal-200 bg-teal-50 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="text-sm font-semibold text-teal-900">Selected Relation</div>
-        <Pill label={formatRelationKind(relation.relationKind)} tone="teal" />
+        <Pill
+          label={`${cardinality.parentLabel}:${cardinality.childLabel}`}
+          tone="teal"
+        />
       </div>
       <div className="grid gap-1 text-xs text-teal-950">
+        <div className="text-teal-700">Parent key</div>
         <div className="font-mono">
           {relation.sourceTable}.{relation.sourceColumn}
         </div>
-        <div className="text-teal-700">references</div>
+        <div className="text-teal-700">Referenced by child FK</div>
         <div className="font-mono">
           {relation.targetTable}.{relation.targetColumn}
         </div>
-        <div className="mt-2 text-teal-700">{relation.constraintName}</div>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <Pill label={formatRelationKind(relation.relationKind)} tone="teal" />
+          <Pill
+            label={cardinality.childIsOptional ? "OPTIONAL CHILD" : "REQUIRED CHILD"}
+            tone="teal"
+          />
+        </div>
+        <div className="mt-1 text-teal-700">{relation.constraintName}</div>
       </div>
     </section>
   );
@@ -184,21 +197,26 @@ function RelationList({
   }
   return (
     <div className="grid gap-2">
-      {relations.map((relation) => (
-        <div key={relation.id} className="rounded border border-slate-200 p-2 text-xs">
-          <div className="font-mono text-slate-900">
-            {relation.sourceTable}.{relation.sourceColumn}
+      {relations.map((relation) => {
+        const cardinality = getRelationCardinality(relation.relationKind);
+        return (
+          <div key={relation.id} className="rounded border border-slate-200 p-2 text-xs">
+            <div className="text-slate-500">Parent key</div>
+            <div className="font-mono text-slate-900">
+              {relation.sourceTable}.{relation.sourceColumn}
+            </div>
+            <div className="mt-1 text-slate-500">Child FK</div>
+            <div className="font-mono text-slate-900">
+              {relation.targetTable}.{relation.targetColumn}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              <Pill label={`${cardinality.parentLabel}:${cardinality.childLabel}`} />
+              <Pill label={formatRelationKind(relation.relationKind)} />
+              <Pill label={cardinality.childIsOptional ? "OPTIONAL" : "REQUIRED"} />
+            </div>
           </div>
-          <div className="text-slate-500">to</div>
-          <div className="font-mono text-slate-900">
-            {relation.targetTable}.{relation.targetColumn}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            <Pill label={formatRelationKind(relation.relationKind)} />
-            <Pill label={relation.sourceNullable ? "OPTIONAL" : "REQUIRED"} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
