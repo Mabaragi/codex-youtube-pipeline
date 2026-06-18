@@ -280,20 +280,33 @@ jobs:
           $pair = "{0}:{1}" -f $env:HOME_BASIC_AUTH_USER, $env:HOME_BASIC_AUTH_PASSWORD
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair))
           $headers = @{ Authorization = "Basic $encoded" }
-          $uri = "http://127.0.0.1:$env:HOME_NGINX_PORT/health"
+          $healthUri = "http://127.0.0.1:$env:HOME_NGINX_PORT/health"
+          $opsUri = "http://127.0.0.1:$env:HOME_NGINX_PORT/ops"
+          $opsSummaryUri = "http://127.0.0.1:$env:HOME_NGINX_PORT/ops/api/backend/ops/summary"
           $deadline = (Get-Date).AddSeconds(90)
           $lastError = $null
 
           while ((Get-Date) -lt $deadline) {
             try {
-              Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 15
-              $opsResponse = Invoke-WebRequest -Uri "http://127.0.0.1:$env:HOME_NGINX_PORT/ops" -Headers $headers -TimeoutSec 15
+              $healthResponse = Invoke-WebRequest -Uri $healthUri -Headers $headers -TimeoutSec 15 -UseBasicParsing
+              if ($healthResponse.StatusCode -ne 200 -or $healthResponse.Content -notmatch '"status"\s*:\s*"ok"') {
+                throw "API health returned unexpected response."
+              }
+
+              $opsResponse = Invoke-WebRequest -Uri $opsUri -Headers $headers -TimeoutSec 15 -UseBasicParsing
               if ($opsResponse.StatusCode -ne 200) {
                 throw "Ops UI returned HTTP $($opsResponse.StatusCode)."
               }
+
+              $opsSummaryResponse = Invoke-WebRequest -Uri $opsSummaryUri -Headers $headers -TimeoutSec 15 -UseBasicParsing
+              if ($opsSummaryResponse.StatusCode -ne 200 -or $opsSummaryResponse.Content -notmatch '"apiStatus"\s*:\s*"ok"') {
+                throw "Ops UI BFF summary returned unexpected response."
+              }
+
               exit 0
             } catch {
               $lastError = $_
+              Write-Host "Local Nginx health attempt failed: $($_.Exception.Message)"
               Start-Sleep -Seconds 5
             }
           }
