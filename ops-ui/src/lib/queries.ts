@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requestJson } from "@/lib/api-client";
 import type {
+  CollectAllTranscriptsResult,
   CollectChannelTranscriptsResult,
   CollectChannelVideosResult,
   OperationEventFilters,
@@ -110,6 +111,14 @@ export function useRunningTranscriptTasks() {
   });
 }
 
+export function useRunningTranscriptBatches() {
+  return usePipelineJobs({
+    step: "transcript_collect_batch",
+    status: "running",
+    limit: 1,
+  });
+}
+
 export function usePipelineJobs(filters: PipelineJobFilters = {}) {
   return useQuery({
     queryKey: queryKeys.jobs(filters),
@@ -144,6 +153,26 @@ export function useCollectVideosMutation() {
     mutationFn: (channelId: number) =>
       requestJson<CollectChannelVideosResult>(`/channels/${channelId}/videos/collect`, {
         method: "POST",
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+      ]);
+    },
+  });
+}
+
+export function useCollectAllTranscriptsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ retryFailed = false }: { retryFailed?: boolean } = {}) =>
+      requestJson<CollectAllTranscriptsResult>("/video-tasks/transcript-collect", {
+        method: "POST",
+        body: {
+          preserveFormatting: false,
+          retryFailed,
+        },
       }),
     onSuccess: async () => {
       await Promise.all([

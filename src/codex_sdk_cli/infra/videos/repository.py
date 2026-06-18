@@ -79,6 +79,19 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
         self._session = session
 
     @override
+    async def list_all_videos(self) -> list[VideoRecord]:
+        try:
+            rows = await self._session.scalars(
+                select(VideoModel).order_by(
+                    VideoModel.published_at.desc(),
+                    VideoModel.id.desc(),
+                )
+            )
+            return [_video_record(row) for row in rows]
+        except SQLAlchemyError as exc:
+            raise VideoPersistenceError("Video persistence failed.") from exc
+
+    @override
     async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
         try:
             rows = await self._session.scalars(

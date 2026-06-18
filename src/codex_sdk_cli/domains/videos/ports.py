@@ -37,6 +37,9 @@ class VideoRecord:
 
 
 class VideoRepositoryPort(Protocol):
+    async def list_all_videos(self) -> list[VideoRecord]:
+        """List all stored videos."""
+
     async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
         """List stored videos for one channel."""
 

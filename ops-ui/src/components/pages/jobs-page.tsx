@@ -41,6 +41,7 @@ const JOB_STEP_OPTIONS = [
   { value: "", label: "All steps" },
   { value: "channel_resolve", label: "channel_resolve" },
   { value: "video_collect", label: "video_collect" },
+  { value: "transcript_collect_batch", label: "transcript_collect_batch" },
   { value: "transcript_collect", label: "transcript_collect" },
 ];
 

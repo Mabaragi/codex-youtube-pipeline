@@ -16,6 +16,7 @@ from sqlalchemy import (
     exists,
     func,
     or_,
+    text,
 )
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +53,14 @@ class PipelineJobModel(Base):
         ),
         Index("ix_pipeline_jobs_step_status", "step", "status"),
         Index("ix_pipeline_jobs_subject", "subject_type", "subject_id"),
+        Index(
+            "uq_pipeline_jobs_running_transcript_collect_batch",
+            "status",
+            unique=True,
+            sqlite_where=text(
+                "step = 'transcript_collect_batch' AND status = 'running'"
+            ),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

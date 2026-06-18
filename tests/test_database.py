@@ -125,6 +125,9 @@ def test_alembic_upgrade_creates_app_tables(
         pipeline_job_columns = {
             column["name"] for column in inspector.get_columns("pipeline_jobs")
         }
+        pipeline_job_indexes = {
+            index["name"]: index for index in inspector.get_indexes("pipeline_jobs")
+        }
         pipeline_job_attempt_columns = {
             column["name"] for column in inspector.get_columns("pipeline_job_attempts")
         }
@@ -203,6 +206,12 @@ def test_alembic_upgrade_creates_app_tables(
         "updated_at",
         "completed_at",
     }.issubset(pipeline_job_columns)
+    assert pipeline_job_indexes["uq_pipeline_jobs_running_transcript_collect_batch"][
+        "column_names"
+    ] == ["status"]
+    assert pipeline_job_indexes["uq_pipeline_jobs_running_transcript_collect_batch"][
+        "unique"
+    ]
     assert {
         "id",
         "job_id",

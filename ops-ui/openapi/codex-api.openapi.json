@@ -226,6 +226,89 @@
         "title": "ChannelUpdateRequest",
         "type": "object"
       },
+      "CollectAllTranscriptTasksRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "languages": [
+              "ko",
+              "en"
+            ],
+            "preserveFormatting": false,
+            "retryFailed": false
+          }
+        ],
+        "properties": {
+          "languages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Preferred transcript language codes, tried in order.",
+            "title": "Languages"
+          },
+          "preserveFormatting": {
+            "default": false,
+            "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          }
+        },
+        "title": "CollectAllTranscriptTasksRequest",
+        "type": "object"
+      },
+      "CollectAllTranscriptTasksResponse": {
+        "properties": {
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptCollectItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          },
+          "succeededCount": {
+            "title": "Succeededcount",
+            "type": "integer"
+          },
+          "timeoutCount": {
+            "title": "Timeoutcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "succeededCount",
+          "skippedCount",
+          "failedCount",
+          "timeoutCount",
+          "items"
+        ],
+        "title": "CollectAllTranscriptTasksResponse",
+        "type": "object"
+      },
       "CollectChannelTranscriptTasksRequest": {
         "additionalProperties": false,
         "examples": [
@@ -5230,6 +5313,54 @@
         "summary": "Resolve Streamer Channel",
         "tags": [
           "channels"
+        ]
+      }
+    },
+    "/video-tasks/transcript-collect": {
+      "post": {
+        "operationId": "collect_all_transcript_tasks_video_tasks_transcript_collect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CollectAllTranscriptTasksRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectAllTranscriptTasksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Collect All Transcript Tasks",
+        "tags": [
+          "video-tasks"
         ]
       }
     },

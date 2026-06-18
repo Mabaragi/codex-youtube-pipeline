@@ -4,6 +4,7 @@ import { ChannelsPage } from "../channels-page";
 import type {
   OpsChannel,
   OpsVideoTaskList,
+  PipelineJobList,
   ResolveYouTubeChannelResult,
   Streamer,
 } from "@/lib/types";
@@ -19,12 +20,21 @@ const queryMocks = vi.hoisted(() => ({
     isLoading: false,
     isError: false,
   },
+  runningTranscriptBatches: {
+    data: undefined as PipelineJobList | undefined,
+    isLoading: false,
+    isError: false,
+  },
   streamers: {
     data: undefined as Streamer[] | undefined,
     isLoading: false,
     error: null as Error | null,
   },
   collectVideos: {
+    isPending: false,
+    mutate: vi.fn(),
+  },
+  collectAllTranscripts: {
     isPending: false,
     mutate: vi.fn(),
   },
@@ -43,11 +53,13 @@ const queryMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/queries", () => ({
+  useCollectAllTranscriptsMutation: () => queryMocks.collectAllTranscripts,
   useCollectTranscriptsMutation: () => queryMocks.collectTranscripts,
   useCollectVideosMutation: () => queryMocks.collectVideos,
   useCreateStreamerMutation: () => queryMocks.createStreamer,
   useOpsChannels: () => queryMocks.channels,
   useResolveStreamerChannelMutation: () => queryMocks.resolveChannel,
+  useRunningTranscriptBatches: () => queryMocks.runningTranscriptBatches,
   useRunningTranscriptTasks: () => queryMocks.runningTranscriptTasks,
   useStreamers: () => queryMocks.streamers,
 }));
@@ -73,6 +85,26 @@ const emptyRunningTasks: OpsVideoTaskList = {
   total: 0,
   limit: 1,
   offset: 0,
+};
+
+const emptyRunningBatches: PipelineJobList = {
+  items: [],
+  nextCursor: null,
+};
+
+const runningBatch: PipelineJobList["items"][number] = {
+  jobId: 44,
+  step: "transcript_collect_batch",
+  status: "running",
+  subjectType: "channel",
+  subjectId: 1,
+  externalKey: null,
+  createdAt: "2026-06-18T00:00:00Z",
+  updatedAt: "2026-06-18T00:00:00Z",
+  completedAt: null,
+  latestAttemptId: 45,
+  latestAttemptStatus: "running",
+  attemptCount: 1,
 };
 
 const streamer: Streamer = {
@@ -108,8 +140,13 @@ describe("ChannelsPage transcript collection state", () => {
     queryMocks.runningTranscriptTasks.data = emptyRunningTasks;
     queryMocks.runningTranscriptTasks.isLoading = false;
     queryMocks.runningTranscriptTasks.isError = false;
+    queryMocks.runningTranscriptBatches.data = emptyRunningBatches;
+    queryMocks.runningTranscriptBatches.isLoading = false;
+    queryMocks.runningTranscriptBatches.isError = false;
     queryMocks.collectVideos.isPending = false;
     queryMocks.collectVideos.mutate.mockReset();
+    queryMocks.collectAllTranscripts.isPending = false;
+    queryMocks.collectAllTranscripts.mutate.mockReset();
     queryMocks.collectTranscripts.isPending = false;
     queryMocks.collectTranscripts.mutate.mockReset();
     queryMocks.createStreamer.isPending = false;
@@ -120,14 +157,15 @@ describe("ChannelsPage transcript collection state", () => {
     queryMocks.resolveChannel.mutateAsync.mockResolvedValue(resolvedChannel);
   });
 
-  it("disables transcript collection while checking running task state", () => {
+  it("disables transcript collection while checking running collection state", () => {
     queryMocks.runningTranscriptTasks.data = undefined;
     queryMocks.runningTranscriptTasks.isLoading = true;
 
     render(<ChannelsPage />);
 
-    expect(screen.getByText("Checking transcript task state...")).toBeTruthy();
+    expect(screen.getByText("Checking transcript collection state...")).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
+    expect(allTranscriptButton().disabled).toBe(true);
   });
 
   it("disables transcript collection when any transcript task is running", () => {
@@ -144,9 +182,27 @@ describe("ChannelsPage transcript collection state", () => {
       ),
     ).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
+    expect(allTranscriptButton().disabled).toBe(true);
   });
 
-  it("disables transcript collection when running task state cannot be verified", () => {
+  it("disables transcript collection when a transcript batch is running", () => {
+    queryMocks.runningTranscriptBatches.data = {
+      items: [runningBatch],
+      nextCursor: null,
+    };
+
+    render(<ChannelsPage />);
+
+    expect(
+      screen.getByText(
+        "Transcript collection is running; new collection is disabled until it finishes.",
+      ),
+    ).toBeTruthy();
+    expect(transcriptButton().disabled).toBe(true);
+    expect(allTranscriptButton().disabled).toBe(true);
+  });
+
+  it("disables transcript collection when running collection state cannot be verified", () => {
     queryMocks.runningTranscriptTasks.data = undefined;
     queryMocks.runningTranscriptTasks.isError = true;
 
@@ -154,17 +210,34 @@ describe("ChannelsPage transcript collection state", () => {
 
     expect(
       screen.getByText(
-        "Cannot verify transcript task state. Collection is disabled to avoid duplicate runs.",
+        "Cannot verify transcript collection state. Collection is disabled to avoid duplicate runs.",
       ),
     ).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
+    expect(allTranscriptButton().disabled).toBe(true);
   });
 
   it("enables transcript collection when no transcript task is running", () => {
     render(<ChannelsPage />);
 
-    expect(screen.queryByText("Checking transcript task state...")).toBeNull();
+    expect(screen.queryByText("Checking transcript collection state...")).toBeNull();
     expect(transcriptButton().disabled).toBe(false);
+    expect(allTranscriptButton().disabled).toBe(false);
+  });
+
+  it("collects transcripts for all stored videos", () => {
+    queryMocks.channels.data = {
+      items: [
+        { ...channel, channelId: 1, videoCount: 42 },
+        { ...channel, channelId: 2, handle: "@other", name: "Other", videoCount: 8 },
+      ],
+    };
+    render(<ChannelsPage />);
+
+    fireEvent.click(allTranscriptButton());
+
+    expect(queryMocks.collectAllTranscripts.mutate).toHaveBeenCalledTimes(1);
+    expect(queryMocks.collectAllTranscripts.mutate).toHaveBeenCalledWith({});
   });
 
   it("collects transcripts for all stored channel videos", () => {
@@ -184,9 +257,20 @@ describe("ChannelsPage transcript collection state", () => {
     render(<ChannelsPage />);
 
     const button = transcriptButton();
+    const globalButton = allTranscriptButton();
 
     expect(button.disabled).toBe(true);
     expect(button.title).toBe("No stored videos to collect transcripts for");
+    expect(globalButton.disabled).toBe(true);
+    expect(globalButton.title).toBe("No stored videos to collect transcripts for");
+  });
+
+  it("disables transcript actions while global transcript collection is pending", () => {
+    queryMocks.collectAllTranscripts.isPending = true;
+    render(<ChannelsPage />);
+
+    expect(allTranscriptButton().disabled).toBe(true);
+    expect(transcriptButton().disabled).toBe(true);
   });
 
   it("shows streamer suggestions for channel resolve", () => {
@@ -299,6 +383,12 @@ describe("ChannelsPage transcript collection state", () => {
 
 function transcriptButton() {
   return screen.getByRole("button", {
-    name: /Transcripts|Checking|Running/i,
+    name: /^(Transcripts|Checking|Running)$/i,
+  }) as HTMLButtonElement;
+}
+
+function allTranscriptButton() {
+  return screen.getByRole("button", {
+    name: /All transcripts/i,
   }) as HTMLButtonElement;
 }

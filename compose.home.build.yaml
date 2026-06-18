@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+    image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}
+
+  codex:
+    build:
+      context: .
+    image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}
+
+  ops-ui:
+    build:
+      context: .
+      dockerfile: ops-ui/Dockerfile
+    image: ${CODEX_OPS_UI_IMAGE:-codex-sdk-ops-ui:home}

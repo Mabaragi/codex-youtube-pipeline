@@ -10,8 +10,9 @@ failure handling, see `docs/CICD.md`.
 
 ```text
 GitHub main push or workflow_dispatch
-  -> GitHub-hosted quality and Docker checks
+  -> GitHub-hosted quality checks and GHCR image publish
   -> Windows self-hosted runner on the home PC
+  -> Pull immutable API and ops-ui images from GHCR
   -> Alembic migration against the API SQLite database
   -> Docker Compose home stack
   -> Next.js ops-ui
@@ -21,11 +22,15 @@ GitHub main push or workflow_dispatch
   -> codex-api and /ops
 ```
 
-The home stack is defined in `compose.home.yaml`.
+The home stack is defined in `compose.home.yaml`. It is image-based for normal
+deployment. Use `compose.home.build.yaml` only when manually rebuilding images
+on the home PC.
 
-- `api`: runs `codex-api` and exposes port `8000` only inside Docker.
-- `ops-ui`: runs the Next.js operational console and exposes port `3000` only
-  inside Docker. Browser-visible backend calls go through `/ops/api/backend/*`.
+- `api`: runs `codex-api` from `CODEX_API_IMAGE` and exposes port `8000`
+  only inside Docker.
+- `ops-ui`: runs the Next.js operational console from `CODEX_OPS_UI_IMAGE` and
+  exposes port `3000` only inside Docker. Browser-visible backend calls go
+  through `/ops/api/backend/*`.
 - `minio`: stores YouTube transcript and external API raw response JSON in the
   `raw` bucket by default and is reachable only inside the Docker network.
 - SQLite: stores metadata in `youtube_transcripts`, `external_api_calls`,
@@ -109,19 +114,31 @@ guessable local MinIO credential.
 Home deployment runs on `main` pushes and can also be started from the GitHub
 Actions `CI` workflow with `Run workflow`.
 
-The deploy workflow builds the API image, runs `alembic upgrade head` with the
-same `CODEX_CLI_DATABASE_URL` used by the API container, then recreates the home
-stack. On the first deploy after moving SQLite out of the checkout, the workflow
-backs up a legacy `data/app.db` before checkout cleanup and copies it into the
-`db-data` volume only if that volume does not already contain `app.db`.
+The CI workflow publishes immutable SHA-tagged images to GHCR, then the home
+runner pulls those images, runs `alembic upgrade head` with the same
+`CODEX_CLI_DATABASE_URL` used by the API container, and updates the home stack
+without rebuilding locally. On the first deploy after moving SQLite out of the
+checkout, the workflow backs up a legacy `data/app.db` before checkout cleanup
+and copies it into the `db-data` volume only if that volume does not already
+contain `app.db`.
 
-If you redeploy manually from the runner checkout, run the same migration step
-before starting the API:
+If you redeploy manually from the runner checkout using already-published GHCR
+images, set `CODEX_API_IMAGE` and `CODEX_OPS_UI_IMAGE`, then run:
 
 ```powershell
-docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
+docker login ghcr.io
+docker compose --project-name codex-sdk-home -f compose.home.yaml pull api codex ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+```
+
+If you intentionally need to rebuild images on the home PC, add the build
+override:
+
+```powershell
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml build api ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml run --rm --no-deps --entrypoint alembic api upgrade head
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
 ```
 
 On the home PC, inspect the stack:

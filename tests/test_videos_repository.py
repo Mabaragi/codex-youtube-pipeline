@@ -53,6 +53,15 @@ async def _exercise_repository(database_url: str) -> None:
                     uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
                 )
             )
+            other_channel = await channels.create_channel(
+                ChannelCreate(
+                    streamer_id=streamer.id,
+                    handle="@GoogleChrome",
+                    name="Google Chrome Developers",
+                    youtube_channel_id="UCnUYZLuoy1rq1aVMwx4aTzw",
+                    uploads_playlist_id="UUnUYZLuoy1rq1aVMwx4aTzw",
+                )
+            )
             job = await pipeline_jobs.create_job(
                 PipelineJobCreate(
                     step="video_collect",
@@ -93,16 +102,34 @@ async def _exercise_repository(database_url: str) -> None:
                         details_call.id,
                         job.id,
                     ),
+                    _video_create(
+                        other_channel.id,
+                        "video-other",
+                        now + timedelta(hours=1),
+                        listing_call.id,
+                        details_call.id,
+                        job.id,
+                    ),
                 ]
             )
             listed = await videos.list_videos(channel_id=channel.id)
+            all_listed = await videos.list_all_videos()
             existing = await videos.find_existing_youtube_video_id(
                 channel_id=channel.id,
                 youtube_video_ids=("missing", "video-new", "video-old"),
             )
 
-            assert [record.youtube_video_id for record in created] == ["video-old", "video-new"]
+            assert [record.youtube_video_id for record in created] == [
+                "video-old",
+                "video-new",
+                "video-other",
+            ]
             assert [record.youtube_video_id for record in listed] == ["video-new", "video-old"]
+            assert [record.youtube_video_id for record in all_listed] == [
+                "video-other",
+                "video-new",
+                "video-old",
+            ]
             assert existing == "video-new"
 
             with pytest.raises(VideoAlreadyExists):

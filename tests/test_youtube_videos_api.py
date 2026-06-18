@@ -213,6 +213,13 @@ class FakeVideoRepository(VideoRepositoryPort):
         self.videos: dict[int, VideoRecord] = {}
         self.next_video_id = 1
 
+    async def list_all_videos(self) -> list[VideoRecord]:
+        return sorted(
+            self.videos.values(),
+            key=lambda record: (record.published_at, record.id),
+            reverse=True,
+        )
+
     async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
         records = [record for record in self.videos.values() if record.channel_id == channel_id]
         return sorted(records, key=lambda record: (record.published_at, record.id), reverse=True)

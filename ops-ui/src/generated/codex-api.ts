@@ -469,6 +469,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/transcript-collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Collect All Transcript Tasks */
+        post: operations["collect_all_transcript_tasks_video_tasks_transcript_collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/youtube-transcripts": {
         parameters: {
             query?: never;
@@ -618,6 +635,49 @@ export interface components {
              * @example UC_x5XG1OV2P6uZZ5FSM9Ttw
              */
             youtubeChannelId?: string | null;
+        };
+        /**
+         * CollectAllTranscriptTasksRequest
+         * @example {
+         *       "languages": [
+         *         "ko",
+         *         "en"
+         *       ],
+         *       "preserveFormatting": false,
+         *       "retryFailed": false
+         *     }
+         */
+        CollectAllTranscriptTasksRequest: {
+            /**
+             * Languages
+             * @description Preferred transcript language codes, tried in order.
+             */
+            languages?: string[] | null;
+            /**
+             * Preserveformatting
+             * @default false
+             */
+            preserveFormatting: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+        };
+        /** CollectAllTranscriptTasksResponse */
+        CollectAllTranscriptTasksResponse: {
+            /** Failedcount */
+            failedCount: number;
+            /** Items */
+            items: components["schemas"]["TranscriptCollectItemResponse"][];
+            /** Requestedcount */
+            requestedCount: number;
+            /** Skippedcount */
+            skippedCount: number;
+            /** Succeededcount */
+            succeededCount: number;
+            /** Timeoutcount */
+            timeoutCount: number;
         };
         /**
          * CollectChannelTranscriptTasksRequest
@@ -2691,6 +2751,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveYouTubeChannelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collect_all_transcript_tasks_video_tasks_transcript_collect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CollectAllTranscriptTasksRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectAllTranscriptTasksResponse"];
                 };
             };
             /** @description Validation Error */

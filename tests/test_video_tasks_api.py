@@ -116,6 +116,13 @@ class FakeVideoRepository(VideoRepositoryPort):
     def __init__(self) -> None:
         self.videos: dict[int, VideoRecord] = {}
 
+    async def list_all_videos(self) -> list[VideoRecord]:
+        return sorted(
+            self.videos.values(),
+            key=lambda record: (record.published_at, record.id),
+            reverse=True,
+        )
+
     async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
         records = [record for record in self.videos.values() if record.channel_id == channel_id]
         return sorted(records, key=lambda record: (record.published_at, record.id), reverse=True)
@@ -335,7 +342,37 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         self,
         query: PipelineJobListQuery,
     ) -> list[PipelineJobSummaryRecord]:
-        return []
+        records = list(self.jobs.values())
+        if query.step is not None:
+            records = [record for record in records if record.step == query.step]
+        if query.status is not None:
+            records = [record for record in records if record.status == query.status]
+        if query.subject_type is not None:
+            records = [
+                record for record in records if record.subject_type == query.subject_type
+            ]
+        if query.subject_id is not None:
+            records = [record for record in records if record.subject_id == query.subject_id]
+        if query.external_key is not None:
+            records = [record for record in records if record.external_key == query.external_key]
+        if query.cursor is not None:
+            records = [record for record in records if record.id < query.cursor]
+        records = sorted(records, key=lambda record: record.id, reverse=True)[: query.limit]
+
+        summaries: list[PipelineJobSummaryRecord] = []
+        for record in records:
+            latest = self._latest_attempt(record.id)
+            summaries.append(
+                PipelineJobSummaryRecord(
+                    job=record,
+                    latest_attempt_id=latest.id if latest is not None else None,
+                    latest_attempt_status=latest.status if latest is not None else None,
+                    attempt_count=sum(
+                        attempt.job_id == record.id for attempt in self.attempts.values()
+                    ),
+                )
+            )
+        return summaries
 
     async def get_job_detail(self, job_id: int) -> PipelineJobDetailRecord | None:
         job = self.jobs.get(job_id)
@@ -430,6 +467,12 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         )
         self.attempts[attempt_id] = updated
         return updated
+
+    def _latest_attempt(self, job_id: int) -> PipelineJobAttemptRecord | None:
+        attempts = [
+            attempt for attempt in self.attempts.values() if attempt.job_id == job_id
+        ]
+        return max(attempts, key=lambda attempt: attempt.attempt_no, default=None)
 
     def _update_job(self, job_id: int, *, status: PipelineJobStatus) -> PipelineJobRecord:
         completed_at = None if status == "running" else NOW
@@ -579,9 +622,14 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
     assert response["items"][0]["status"] == "succeeded"
     assert response["items"][0]["reason"] == "collected"
     assert response["items"][0]["transcriptId"] == 1
-    assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect"
-    assert fakes.pipeline_jobs.jobs[1].subject_type == "video"
+    assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
+    assert fakes.pipeline_jobs.jobs[1].subject_type == "channel"
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    assert fakes.pipeline_jobs.jobs[2].step == "transcript_collect"
+    assert fakes.pipeline_jobs.jobs[2].subject_type == "video"
+    assert fakes.pipeline_jobs.jobs[2].parent_job_id == 1
     assert fakes.pipeline_jobs.attempts[1].status == "succeeded"
+    assert fakes.pipeline_jobs.attempts[2].status == "succeeded"
     assert fakes.video_tasks.tasks[1].status == "succeeded"
     assert fakes.transcript_client.requests[0].video_id == YOUTUBE_VIDEO_ID
     assert [event.event_type for event in fakes.events.events] == [
@@ -589,7 +637,72 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
         "transcript_collect.task_selected",
         "transcript_collect.task_running",
         "transcript_collect.task_succeeded",
+        "transcript_collect.batch_succeeded",
     ]
+
+
+def test_all_transcript_collect_creates_tasks_for_all_stored_videos() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels, channel_id=1)
+    _seed_channel(fakes.channels, channel_id=2, handle="@other", name="Other")
+    _seed_video(fakes.videos, video_id=1, channel_id=1, youtube_video_id=YOUTUBE_VIDEO_ID)
+    _seed_video(fakes.videos, video_id=2, channel_id=2, youtube_video_id="def456GHI78")
+
+    response = asyncio.run(_collect_all(fakes))
+
+    assert "channelId" not in response
+    assert response["requestedCount"] == 2
+    assert response["succeededCount"] == 2
+    assert [request.video_id for request in fakes.transcript_client.requests] == [
+        "def456GHI78",
+        YOUTUBE_VIDEO_ID,
+    ]
+    assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
+    assert fakes.pipeline_jobs.jobs[1].subject_type == "all_videos"
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    parent_job_ids = {
+        fakes.pipeline_jobs.jobs[2].parent_job_id,
+        fakes.pipeline_jobs.jobs[3].parent_job_id,
+    }
+    assert parent_job_ids == {1}
+    event = fakes.events.events[0]
+    assert event.event_type == "transcript_collect.batch_requested"
+    assert event.subject_type == "all_videos"
+    assert event.job_id == 1
+    assert event.channel_id is None
+    assert event.metadata_json["selectedVideoCount"] == 2
+    assert event.metadata_json["languages"] == ["ko", "en"]
+
+
+def test_all_transcript_collect_reuses_metadata_and_skips_failed_without_retry() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels, channel_id=1)
+    _seed_channel(fakes.channels, channel_id=2, handle="@other", name="Other")
+    _seed_video(fakes.videos, video_id=1, channel_id=1, youtube_video_id=YOUTUBE_VIDEO_ID)
+    _seed_video(fakes.videos, video_id=2, channel_id=2, youtube_video_id="def456GHI78")
+    fakes.transcripts.metadata_records.append(
+        _metadata_record(
+            id=7,
+            video_id=YOUTUBE_VIDEO_ID,
+            requested_languages=("ko", "en"),
+            preserve_formatting=False,
+            language_code="ko",
+        )
+    )
+    _seed_task(fakes.video_tasks, video_id=2, status="failed")
+
+    response = asyncio.run(_collect_all(fakes))
+
+    items = {item["videoId"]: item for item in response["items"]}
+    assert response["requestedCount"] == 2
+    assert response["succeededCount"] == 1
+    assert response["skippedCount"] == 1
+    assert items[1]["status"] == "succeeded"
+    assert items[1]["reason"] == "existing_transcript"
+    assert items[1]["transcriptId"] == 7
+    assert items[2]["status"] == "skipped"
+    assert items[2]["reason"] == "previously_failed"
+    assert fakes.transcript_client.requests == []
 
 
 def test_channel_transcript_collect_uses_existing_metadata_without_fetch() -> None:
@@ -612,10 +725,12 @@ def test_channel_transcript_collect_uses_existing_metadata_without_fetch() -> No
     assert response["items"][0]["reason"] == "existing_transcript"
     assert response["items"][0]["transcriptId"] == 7
     assert fakes.transcript_client.requests == []
-    assert fakes.pipeline_jobs.jobs == {}
+    assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert fakes.video_tasks.tasks[1].status == "succeeded"
-    assert fakes.events.events[-1].event_type == "transcript_collect.task_succeeded"
-    assert fakes.events.events[-1].metadata_json["reason"] == "existing_transcript"
+    assert fakes.events.events[-2].event_type == "transcript_collect.task_succeeded"
+    assert fakes.events.events[-2].metadata_json["reason"] == "existing_transcript"
+    assert fakes.events.events[-1].event_type == "transcript_collect.batch_succeeded"
 
 
 def test_channel_transcript_collect_skips_running_and_failed_until_retry_requested() -> None:
@@ -624,10 +739,9 @@ def test_channel_transcript_collect_skips_running_and_failed_until_retry_request
     _seed_video(fakes.videos)
     running = _seed_task(fakes.video_tasks, video_id=1, status="running")
 
-    running_response = asyncio.run(_collect(fakes))
+    running_response = asyncio.run(_collect(fakes, expected_status=409))
 
-    assert running_response["items"][0]["status"] == "skipped"
-    assert running_response["items"][0]["reason"] == "already_running"
+    assert running_response == {"detail": "Transcript collection is already running."}
 
     fakes.video_tasks.tasks[running.id] = replace(
         running,
@@ -644,6 +758,18 @@ def test_channel_transcript_collect_skips_running_and_failed_until_retry_request
     assert fakes.transcript_client.requests
 
 
+def test_channel_transcript_collect_rejects_when_batch_is_running() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    _seed_running_transcript_batch(fakes.pipeline_jobs)
+
+    response = asyncio.run(_collect(fakes, expected_status=409))
+
+    assert response == {"detail": "Transcript collection is already running."}
+    assert fakes.transcript_client.requests == []
+
+
 def test_channel_transcript_collect_marks_item_failed_and_continues() -> None:
     fakes = _fakes()
     _seed_channel(fakes.channels)
@@ -657,7 +783,12 @@ def test_channel_transcript_collect_marks_item_failed_and_continues() -> None:
     assert response["failedCount"] == 2
     assert {item["status"] for item in response["items"]} == {"failed"}
     assert all(task.status == "failed" for task in fakes.video_tasks.tasks.values())
-    assert all(job.status == "failed" for job in fakes.pipeline_jobs.jobs.values())
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    assert all(
+        job.status == "failed"
+        for job in fakes.pipeline_jobs.jobs.values()
+        if job.parent_job_id == 1
+    )
 
 
 def test_channel_transcript_collect_marks_timeout() -> None:
@@ -672,8 +803,10 @@ def test_channel_transcript_collect_marks_timeout() -> None:
     assert response["items"][0]["status"] == "timed_out"
     assert response["items"][0]["errorType"] == "TimeoutError"
     assert fakes.video_tasks.tasks[1].status == "timed_out"
-    assert fakes.pipeline_jobs.jobs[1].status == "failed"
-    assert fakes.events.events[-1].event_type == "transcript_collect.task_timed_out"
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    assert fakes.pipeline_jobs.jobs[2].status == "failed"
+    assert fakes.events.events[-2].event_type == "transcript_collect.task_timed_out"
+    assert fakes.events.events[-1].event_type == "transcript_collect.batch_succeeded"
 
 
 def test_channel_transcript_collect_sleeps_between_fetch_attempts() -> None:
@@ -684,6 +817,8 @@ def test_channel_transcript_collect_sleeps_between_fetch_attempts() -> None:
     sleep_calls: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:
+        assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
+        assert fakes.pipeline_jobs.jobs[1].status == "running"
         sleep_calls.append(seconds)
 
     response = asyncio.run(
@@ -711,6 +846,7 @@ def test_channel_transcript_collect_sleeps_between_fetch_attempts() -> None:
 
     assert response.requested_count == 2
     assert sleep_calls == [300]
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert [request.video_id for request in fakes.transcript_client.requests] == [
         "def456GHI78",
         YOUTUBE_VIDEO_ID,
@@ -734,6 +870,14 @@ def test_channel_video_tasks_list_and_openapi() -> None:
     assert schema["paths"]["/channels/{channel_id}/video-tasks/transcript-collect"]["post"][
         "tags"
     ] == ["video-tasks"]
+    assert schema["paths"]["/video-tasks/transcript-collect"]["post"]["tags"] == [
+        "video-tasks"
+    ]
+    assert schema["paths"]["/video-tasks/transcript-collect"]["post"]["responses"]["201"][
+        "content"
+    ]["application/json"]["schema"]["$ref"].endswith(
+        "/CollectAllTranscriptTasksResponse"
+    )
 
 
 def test_transcript_collect_accepts_limit_above_twenty() -> None:
@@ -820,6 +964,26 @@ async def _collect(
     return response.json()
 
 
+async def _collect_all(
+    fakes: _Fakes,
+    *,
+    json: dict[str, Any] | None = None,
+    expected_status: int = 201,
+) -> Any:
+    app = _app(fakes)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/video-tasks/transcript-collect",
+            json=json,
+        )
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
 async def _retry(fakes: _Fakes, *, job_id: int, expected_status: int = 201) -> Any:
     app = _app(fakes)
     async with AsyncClient(
@@ -880,14 +1044,20 @@ def _app(fakes: _Fakes) -> Any:
     return app
 
 
-def _seed_channel(channels: FakeChannelRepository) -> None:
-    channels.channels[1] = ChannelRecord(
-        id=1,
+def _seed_channel(
+    channels: FakeChannelRepository,
+    *,
+    channel_id: int = 1,
+    handle: str = "@creator",
+    name: str = "Creator",
+) -> None:
+    channels.channels[channel_id] = ChannelRecord(
+        id=channel_id,
         streamer_id=1,
-        handle="@creator",
-        name="Creator",
-        youtube_channel_id="UC-test",
-        uploads_playlist_id="UU-test",
+        handle=handle,
+        name=name,
+        youtube_channel_id=f"UC-test-{channel_id}",
+        uploads_playlist_id=f"UU-test-{channel_id}",
         source_api_call_id=None,
         source_job_id=None,
     )
@@ -897,11 +1067,12 @@ def _seed_video(
     videos: FakeVideoRepository,
     *,
     video_id: int = 1,
+    channel_id: int = 1,
     youtube_video_id: str = YOUTUBE_VIDEO_ID,
 ) -> None:
     videos.videos[video_id] = VideoRecord(
         id=video_id,
-        channel_id=1,
+        channel_id=channel_id,
         youtube_video_id=youtube_video_id,
         title=f"Video {video_id}",
         description="Description",
@@ -922,12 +1093,15 @@ def _seed_task(
     video_id: int,
     status: VideoTaskStatus,
 ) -> VideoTaskRecord:
+    video = video_tasks.videos.videos.get(video_id)
     record = VideoTaskRecord(
         id=video_tasks.next_id,
         video_id=video_id,
         task_name="transcript_collect",
         task_version="v1",
-        input_hash=_input_hash(YOUTUBE_VIDEO_ID),
+        input_hash=_input_hash(
+            video.youtube_video_id if video is not None else YOUTUBE_VIDEO_ID
+        ),
         status=status,
         worker_id=None,
         timeout_seconds=600,
@@ -984,6 +1158,41 @@ def _seed_failed_transcript_collect_job(
         worker_id=None,
         error_type="YouTubeTranscriptNotFound",
         error_message="No transcript.",
+        output_json=None,
+    )
+    pipeline_jobs.next_job_id = 2
+    pipeline_jobs.next_attempt_id = 2
+
+
+def _seed_running_transcript_batch(pipeline_jobs: FakePipelineJobRepository) -> None:
+    pipeline_jobs.jobs[1] = PipelineJobRecord(
+        id=1,
+        step="transcript_collect_batch",
+        status="running",
+        subject_type="channel",
+        subject_id=1,
+        external_key=None,
+        input_json={
+            "scope": "channel",
+            "channelId": 1,
+            "selectedVideoCount": 1,
+        },
+        input_hash="b" * 64,
+        parent_job_id=None,
+        created_at=NOW,
+        updated_at=NOW,
+        completed_at=None,
+    )
+    pipeline_jobs.attempts[1] = PipelineJobAttemptRecord(
+        id=1,
+        job_id=1,
+        attempt_no=1,
+        status="running",
+        started_at=NOW,
+        finished_at=None,
+        worker_id="manual-api",
+        error_type=None,
+        error_message=None,
         output_json=None,
     )
     pipeline_jobs.next_job_id = 2

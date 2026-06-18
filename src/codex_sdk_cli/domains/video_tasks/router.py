@@ -10,12 +10,29 @@ from .dependencies import (
 )
 from .ports import VideoTaskStatus
 from .schemas import (
+    CollectAllTranscriptTasksRequest,
+    CollectAllTranscriptTasksResponse,
     CollectChannelTranscriptTasksRequest,
     CollectChannelTranscriptTasksResponse,
     VideoTaskResponse,
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/video-tasks/transcript-collect",
+    response_model=CollectAllTranscriptTasksResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def collect_all_transcript_tasks(
+    use_case: CollectChannelTranscriptTasksUseCaseDep,
+    request: Annotated[
+        CollectAllTranscriptTasksRequest | None,
+        Body(),
+    ] = None,
+) -> CollectAllTranscriptTasksResponse:
+    return await use_case.execute_all(request or CollectAllTranscriptTasksRequest())
 
 
 @router.post(

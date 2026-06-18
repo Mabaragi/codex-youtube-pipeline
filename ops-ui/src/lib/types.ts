@@ -18,6 +18,8 @@ export type PipelineJobList = components["schemas"]["ListPipelineJobsResponse"];
 export type PipelineJobSummary = components["schemas"]["PipelineJobSummaryResponse"];
 export type CollectChannelVideosResult =
   components["schemas"]["CollectChannelVideosResponse"];
+export type CollectAllTranscriptsResult =
+  components["schemas"]["CollectAllTranscriptTasksResponse"];
 export type CollectChannelTranscriptsResult =
   components["schemas"]["CollectChannelTranscriptTasksResponse"];
 export type ResolveYouTubeChannelResult =

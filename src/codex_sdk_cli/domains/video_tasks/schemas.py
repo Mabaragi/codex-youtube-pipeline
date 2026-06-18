@@ -35,6 +35,29 @@ class CollectChannelTranscriptTasksRequest(BaseModel):
     )
 
 
+class CollectAllTranscriptTasksRequest(BaseModel):
+    languages: list[str] | None = Field(
+        default=None,
+        description="Preferred transcript language codes, tried in order.",
+    )
+    preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "languages": ["ko", "en"],
+                    "preserveFormatting": False,
+                    "retryFailed": False,
+                }
+            ]
+        },
+    )
+
+
 class TranscriptCollectItemResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str = Field(alias="youtubeVideoId")
@@ -52,6 +75,17 @@ class TranscriptCollectItemResponse(BaseModel):
 
 class CollectChannelTranscriptTasksResponse(BaseModel):
     channel_id: int = Field(alias="channelId")
+    requested_count: int = Field(alias="requestedCount")
+    succeeded_count: int = Field(alias="succeededCount")
+    skipped_count: int = Field(alias="skippedCount")
+    failed_count: int = Field(alias="failedCount")
+    timeout_count: int = Field(alias="timeoutCount")
+    items: list[TranscriptCollectItemResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CollectAllTranscriptTasksResponse(BaseModel):
     requested_count: int = Field(alias="requestedCount")
     succeeded_count: int = Field(alias="succeededCount")
     skipped_count: int = Field(alias="skippedCount")

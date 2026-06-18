@@ -16,9 +16,11 @@ from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventSeverity,
 )
 from codex_sdk_cli.domains.operation_events.recording import record_operation_event
+from codex_sdk_cli.domains.pipeline_jobs.exceptions import PipelineJobPersistenceError
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobAttemptRecord,
     PipelineJobCreate,
+    PipelineJobListQuery,
     PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
@@ -36,7 +38,11 @@ from codex_sdk_cli.domains.youtube_transcripts.use_cases import (
     normalize_languages,
 )
 
-from .exceptions import VideoTaskNotFound, VideoTaskRetryNotAllowed
+from .exceptions import (
+    TranscriptCollectAlreadyRunning,
+    VideoTaskNotFound,
+    VideoTaskRetryNotAllowed,
+)
 from .ports import (
     JsonObject,
     VideoTaskCreate,
@@ -47,6 +53,8 @@ from .ports import (
     VideoTaskStatus,
 )
 from .schemas import (
+    CollectAllTranscriptTasksRequest,
+    CollectAllTranscriptTasksResponse,
     CollectChannelTranscriptTasksRequest,
     CollectChannelTranscriptTasksResponse,
     TranscriptCollectItemResponse,
@@ -55,6 +63,7 @@ from .schemas import (
 )
 
 TRANSCRIPT_COLLECT_STEP = "transcript_collect"
+TRANSCRIPT_COLLECT_BATCH_STEP = "transcript_collect_batch"
 TRANSCRIPT_COLLECT_TASK_NAME = "transcript_collect"
 TRANSCRIPT_COLLECT_TASK_VERSION = "v1"
 TRANSCRIPT_COLLECT_WORKER_ID = "manual-api"
@@ -65,6 +74,12 @@ SleepFunction = Callable[[float], Awaitable[None]]
 class _ProcessedTranscriptCollectItem:
     response: TranscriptCollectItemResponse
     attempted_fetch: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _TranscriptCollectBatch:
+    job: PipelineJobRecord
+    attempt: PipelineJobAttemptRecord
 
 
 class CollectChannelTranscriptTasksUseCase:
@@ -103,6 +118,26 @@ class CollectChannelTranscriptTasksUseCase:
         await _get_channel_or_raise(self._channels, channel_id)
         languages = normalize_languages(request.languages)
         videos = (await self._videos.list_videos(channel_id=channel_id))[: request.limit]
+        metadata_json: JsonObject = {
+            "requestedLimit": request.limit,
+            "selectedVideoCount": len(videos),
+            "languages": list(languages),
+            "preserveFormatting": request.preserve_formatting,
+            "retryFailed": request.retry_failed,
+            "timeoutSeconds": self._timeout_seconds,
+            "concurrencyLimit": self._concurrency_limit,
+            "delaySeconds": self._delay_seconds,
+        }
+        batch = await self._start_batch_job(
+            subject_type="channel",
+            subject_id=channel_id,
+            external_key=None,
+            input_json={
+                "scope": "channel",
+                "channelId": channel_id,
+                **metadata_json,
+            },
+        )
         await self._record_event(
             OperationEventCreate(
                 event_type="transcript_collect.batch_requested",
@@ -110,28 +145,98 @@ class CollectChannelTranscriptTasksUseCase:
                 message="Channel transcript collection batch was requested.",
                 actor_type="manual_api",
                 source="video_tasks.transcript_collect",
+                job_id=batch.job.id,
+                job_attempt_id=batch.attempt.id,
                 channel_id=channel_id,
                 subject_type="channel",
                 subject_id=channel_id,
-                metadata_json={
-                    "requestedLimit": request.limit,
-                    "selectedVideoCount": len(videos),
-                    "languages": list(languages),
-                    "preserveFormatting": request.preserve_formatting,
-                    "retryFailed": request.retry_failed,
-                    "timeoutSeconds": self._timeout_seconds,
-                    "concurrencyLimit": self._concurrency_limit,
-                    "delaySeconds": self._delay_seconds,
-                },
+                metadata_json=metadata_json,
             )
         )
+        try:
+            items = await self._process_videos(
+                videos,
+                languages=languages,
+                preserve_formatting=request.preserve_formatting,
+                retry_failed=request.retry_failed,
+                parent_job_id=batch.job.id,
+            )
+            response = _collect_response(channel_id, items)
+        except Exception as exc:
+            await self._finish_batch_failed(batch, exc)
+            raise
+        await self._finish_batch_succeeded(batch, _collect_response_output(response))
+        return response
+
+    async def execute_all(
+        self,
+        request: CollectAllTranscriptTasksRequest,
+    ) -> CollectAllTranscriptTasksResponse:
+        languages = normalize_languages(request.languages)
+        videos = await self._videos.list_all_videos()
+        metadata_json: JsonObject = {
+            "selectedVideoCount": len(videos),
+            "languages": list(languages),
+            "preserveFormatting": request.preserve_formatting,
+            "retryFailed": request.retry_failed,
+            "timeoutSeconds": self._timeout_seconds,
+            "concurrencyLimit": self._concurrency_limit,
+            "delaySeconds": self._delay_seconds,
+        }
+        batch = await self._start_batch_job(
+            subject_type="all_videos",
+            subject_id=None,
+            external_key=None,
+            input_json={
+                "scope": "all_videos",
+                **metadata_json,
+            },
+        )
+        await self._record_event(
+            OperationEventCreate(
+                event_type="transcript_collect.batch_requested",
+                severity="info",
+                message="All stored videos transcript collection batch was requested.",
+                actor_type="manual_api",
+                source="video_tasks.transcript_collect",
+                job_id=batch.job.id,
+                job_attempt_id=batch.attempt.id,
+                subject_type="all_videos",
+                metadata_json=metadata_json,
+            )
+        )
+        try:
+            items = await self._process_videos(
+                videos,
+                languages=languages,
+                preserve_formatting=request.preserve_formatting,
+                retry_failed=request.retry_failed,
+                parent_job_id=batch.job.id,
+            )
+            response = _collect_all_response(items)
+        except Exception as exc:
+            await self._finish_batch_failed(batch, exc)
+            raise
+        await self._finish_batch_succeeded(batch, _collect_response_output(response))
+        return response
+
+    async def _process_videos(
+        self,
+        videos: list[VideoRecord],
+        *,
+        languages: tuple[str, ...],
+        preserve_formatting: bool,
+        retry_failed: bool,
+        parent_job_id: int,
+    ) -> list[TranscriptCollectItemResponse]:
         items: list[TranscriptCollectItemResponse] = []
         for index, video in enumerate(videos):
             processed = await self._process_video(
                 video,
                 languages=languages,
-                preserve_formatting=request.preserve_formatting,
-                retry_failed=request.retry_failed,
+                preserve_formatting=preserve_formatting,
+                retry_failed=retry_failed,
+                parent_job_id=parent_job_id,
             )
             items.append(processed.response)
             if (
@@ -140,7 +245,7 @@ class CollectChannelTranscriptTasksUseCase:
                 and index < len(videos) - 1
             ):
                 await self._sleep(self._delay_seconds)
-        return _collect_response(channel_id, items)
+        return items
 
     async def _process_video(
         self,
@@ -149,6 +254,7 @@ class CollectChannelTranscriptTasksUseCase:
         languages: tuple[str, ...],
         preserve_formatting: bool,
         retry_failed: bool,
+        parent_job_id: int,
     ) -> _ProcessedTranscriptCollectItem:
         input_hash = _task_input_hash(
             youtube_video_id=video.youtube_video_id,
@@ -305,6 +411,7 @@ class CollectChannelTranscriptTasksUseCase:
                 languages=languages,
                 preserve_formatting=preserve_formatting,
                 input_hash=input_hash,
+                parent_job_id=parent_job_id,
             ),
             attempted_fetch=True,
         )
@@ -317,6 +424,7 @@ class CollectChannelTranscriptTasksUseCase:
         languages: tuple[str, ...],
         preserve_formatting: bool,
         input_hash: str,
+        parent_job_id: int,
     ) -> TranscriptCollectItemResponse:
         input_json: JsonObject = {
             "videoTaskId": task.id,
@@ -337,6 +445,7 @@ class CollectChannelTranscriptTasksUseCase:
                 external_key=video.youtube_video_id,
                 input_json=input_json,
                 input_hash=input_hash,
+                parent_job_id=parent_job_id,
             )
         )
         attempt = await self._pipeline_jobs.create_attempt(job_id=job.id)
@@ -545,6 +654,139 @@ class CollectChannelTranscriptTasksUseCase:
         )
         return result.model_dump(by_alias=True)
 
+    async def _start_batch_job(
+        self,
+        *,
+        subject_type: str,
+        subject_id: int | None,
+        external_key: str | None,
+        input_json: JsonObject,
+    ) -> _TranscriptCollectBatch:
+        await self._ensure_no_running_transcript_collection()
+        try:
+            job = await self._pipeline_jobs.create_job(
+                PipelineJobCreate(
+                    step=TRANSCRIPT_COLLECT_BATCH_STEP,
+                    status="running",
+                    subject_type=subject_type,
+                    subject_id=subject_id,
+                    external_key=external_key,
+                    input_json=input_json,
+                    input_hash=_batch_input_hash(input_json),
+                )
+            )
+        except PipelineJobPersistenceError as exc:
+            if await self._has_running_transcript_batch_job():
+                raise TranscriptCollectAlreadyRunning(
+                    "Transcript collection is already running."
+                ) from exc
+            raise
+
+        try:
+            attempt = await self._pipeline_jobs.create_attempt(
+                job_id=job.id,
+                worker_id=TRANSCRIPT_COLLECT_WORKER_ID,
+            )
+        except PipelineJobPersistenceError:
+            await self._pipeline_jobs.mark_job_failed(job.id)
+            raise
+
+        return _TranscriptCollectBatch(job=job, attempt=attempt)
+
+    async def _ensure_no_running_transcript_collection(self) -> None:
+        if await self._has_running_transcript_batch_job():
+            raise TranscriptCollectAlreadyRunning("Transcript collection is already running.")
+        running_tasks = await self._video_tasks.count_running(
+            task_name=TRANSCRIPT_COLLECT_TASK_NAME
+        )
+        if running_tasks > 0:
+            raise TranscriptCollectAlreadyRunning("Transcript collection is already running.")
+
+    async def _has_running_transcript_batch_job(self) -> bool:
+        records = await self._pipeline_jobs.list_job_summaries(
+            PipelineJobListQuery(
+                step=TRANSCRIPT_COLLECT_BATCH_STEP,
+                status="running",
+                limit=1,
+            )
+        )
+        return len(records) > 0
+
+    async def _finish_batch_succeeded(
+        self,
+        batch: _TranscriptCollectBatch,
+        output_json: JsonObject,
+    ) -> None:
+        await self._pipeline_jobs.mark_attempt_succeeded(
+            batch.attempt.id,
+            output_json=output_json,
+        )
+        await self._pipeline_jobs.mark_job_succeeded(batch.job.id)
+        await self._record_batch_event(
+            "transcript_collect.batch_succeeded",
+            "info",
+            "Transcript collection batch finished.",
+            batch=batch,
+            metadata_json=output_json,
+        )
+
+    async def _finish_batch_failed(
+        self,
+        batch: _TranscriptCollectBatch,
+        exc: Exception,
+    ) -> None:
+        error_type = exc.__class__.__name__
+        error_message = str(exc) or error_type
+        try:
+            await self._pipeline_jobs.mark_attempt_failed(
+                batch.attempt.id,
+                error_type=error_type,
+                error_message=error_message,
+            )
+            await self._pipeline_jobs.mark_job_failed(batch.job.id)
+            await self._record_batch_event(
+                "transcript_collect.batch_failed",
+                "error",
+                "Transcript collection batch failed.",
+                batch=batch,
+                error_type=error_type,
+                error_message=error_message,
+            )
+        except Exception:
+            return
+
+    async def _record_batch_event(
+        self,
+        event_type: str,
+        severity: OperationEventSeverity,
+        message: str,
+        *,
+        batch: _TranscriptCollectBatch,
+        metadata_json: JsonObject | None = None,
+        error_type: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        await self._record_event(
+            OperationEventCreate(
+                event_type=event_type,
+                severity=severity,
+                message=message,
+                actor_type="manual_api",
+                source="video_tasks.transcript_collect",
+                job_id=batch.job.id,
+                job_attempt_id=batch.attempt.id,
+                channel_id=(
+                    batch.job.subject_id if batch.job.subject_type == "channel" else None
+                ),
+                subject_type=batch.job.subject_type,
+                subject_id=batch.job.subject_id,
+                external_key=batch.job.external_key,
+                error_type=error_type,
+                error_message=error_message,
+                metadata_json=metadata_json or {},
+            )
+        )
+
     async def _record_event(self, event: OperationEventCreate) -> None:
         await record_operation_event(self._events, event)
 
@@ -647,6 +889,31 @@ def _collect_response(
     )
 
 
+def _collect_all_response(
+    items: list[TranscriptCollectItemResponse],
+) -> CollectAllTranscriptTasksResponse:
+    return CollectAllTranscriptTasksResponse(
+        requestedCount=len(items),
+        succeededCount=sum(item.status == "succeeded" for item in items),
+        skippedCount=sum(item.status == "skipped" for item in items),
+        failedCount=sum(item.status == "failed" for item in items),
+        timeoutCount=sum(item.status == "timed_out" for item in items),
+        items=items,
+    )
+
+
+def _collect_response_output(
+    response: CollectChannelTranscriptTasksResponse | CollectAllTranscriptTasksResponse,
+) -> JsonObject:
+    return {
+        "requestedCount": response.requested_count,
+        "succeededCount": response.succeeded_count,
+        "skippedCount": response.skipped_count,
+        "failedCount": response.failed_count,
+        "timeoutCount": response.timeout_count,
+    }
+
+
 def _item_response(
     video: VideoRecord,
     task: VideoTaskRecord,
@@ -738,6 +1005,12 @@ def _task_input_hash(
     }
     return hashlib.sha256(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _batch_input_hash(input_json: JsonObject) -> str:
+    return hashlib.sha256(
+        json.dumps(input_json, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
 
 

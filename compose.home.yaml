@@ -1,8 +1,6 @@
 services:
   api:
-    build:
-      context: .
-    image: codex-sdk-cli:home
+    image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}
     restart: unless-stopped
     entrypoint: ["codex-api"]
     command: []
@@ -42,9 +40,7 @@ services:
 
   codex:
     profiles: ["tools"]
-    build:
-      context: .
-    image: codex-sdk-cli:home
+    image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}
     stdin_open: true
     tty: true
     working_dir: /work
@@ -98,10 +94,7 @@ services:
         read_only: true
 
   ops-ui:
-    build:
-      context: .
-      dockerfile: ops-ui/Dockerfile
-    image: codex-sdk-ops-ui:home
+    image: ${CODEX_OPS_UI_IMAGE:-codex-sdk-ops-ui:home}
     restart: unless-stopped
     depends_on:
       - api

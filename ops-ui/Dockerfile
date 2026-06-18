@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:22-alpine AS deps
 
 WORKDIR /repo
@@ -8,7 +10,8 @@ RUN corepack enable
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY ops-ui/package.json ./ops-ui/package.json
-RUN pnpm install --filter codex-sdk-ops-ui --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --filter codex-sdk-ops-ui --frozen-lockfile
 
 FROM node:22-alpine AS builder
 
@@ -25,7 +28,8 @@ COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/ops-ui/node_modules ./ops-ui/node_modules
 COPY ops-ui ./ops-ui
 WORKDIR /repo/ops-ui
-RUN ./node_modules/.bin/next build
+RUN --mount=type=cache,target=/repo/ops-ui/.next/cache \
+    ./node_modules/.bin/next build
 
 FROM node:22-alpine AS runner
 
