@@ -15,23 +15,27 @@ deployment가 어떻게 연결되어 있는지 설명한다. 실제 source of tr
 ```mermaid
 flowchart TD
     PR["pull_request"] --> QualityPR["CI: Python quality gates"]
+    PR --> FrontendPR["CI: frontend contract and build"]
     PR --> DockerPR["CI: Docker build smoke test"]
 
     Main["push to main"] --> QualityMain["CI: Python quality gates"]
+    Main --> FrontendMain["CI: frontend contract and build"]
     Main --> DockerMain["CI: Docker build smoke test"]
     Main --> PublishMain["Docker Publish: GHCR latest and sha tag"]
 
     QualityMain --> Preflight["Home deploy readiness"]
+    FrontendMain --> Preflight
     DockerMain --> Preflight
     Preflight --> HomeRunner["Windows self-hosted runner: codex-home"]
     HomeRunner --> Migration["docker compose run api alembic upgrade head"]
-    Migration --> ComposeDeploy["docker compose up -d --build --force-recreate api nginx cloudflared minio"]
-    ComposeDeploy --> LocalHealth["local Basic Auth health check with retry"]
+    Migration --> ComposeDeploy["docker compose up -d --build --force-recreate api ops-ui nginx cloudflared minio"]
+    ComposeDeploy --> LocalHealth["local Basic Auth /health and /ops checks with retry"]
     LocalHealth --> CaptureUrl["capture latest trycloudflare.com URL"]
     CaptureUrl --> PublicHealth["GitHub-hosted public Basic Auth health check"]
 
     Tag["push tag v*.*.*"] --> PublishTag["Docker Publish: GHCR version tag"]
     Manual["workflow_dispatch: CI"] --> QualityMain
+    Manual --> FrontendMain
     Manual --> DockerMain
 ```
 
@@ -46,8 +50,8 @@ flowchart TD
 
 | Workflow | Trigger | Runner | 역할 |
 | --- | --- | --- | --- |
-| `CI` | `pull_request` | GitHub-hosted Ubuntu | 테스트, Ruff, Pyrefly, Docker build smoke test. Home deploy는 실행하지 않는다. |
-| `CI` | `push` to `main` | GitHub-hosted Ubuntu + Windows self-hosted | 품질 검증 후 Home PC에 API를 배포한다. |
+| `CI` | `pull_request` | GitHub-hosted Ubuntu | 테스트, Ruff, Pyrefly, OpenAPI export, ops-ui lint/typecheck/test/build, Docker build smoke test. Home deploy는 실행하지 않는다. |
+| `CI` | `push` to `main` | GitHub-hosted Ubuntu + Windows self-hosted | 품질 검증 후 Home PC에 API와 ops-ui를 배포한다. |
 | `CI` | `workflow_dispatch` | GitHub-hosted Ubuntu + Windows self-hosted | 수동으로 같은 CI/deploy 흐름을 실행한다. |
 | `Docker Publish` | `push` to `main` | GitHub-hosted Ubuntu | GHCR에 `latest`와 `sha-<commit>` image를 push한다. |
 | `Docker Publish` | `push` tag `v*.*.*` | GitHub-hosted Ubuntu | GHCR에 version tag까지 push한다. |
@@ -77,7 +81,7 @@ flowchart LR
     CliSmoke --> ApiSmoke["API import smoke test in container"]
 ```
 
-`quality`와 `docker` job이 모두 성공해야 Home PC deploy preflight가 실행된다.
+`quality`, `frontend`, `docker` job이 모두 성공해야 Home PC deploy preflight가 실행된다.
 
 ## Home PC deploy 흐름
 
@@ -95,10 +99,10 @@ sequenceDiagram
     Runner->>Docker: docker version and compose version
     Runner->>Docker: generate .home-deploy/nginx.htpasswd
     Runner->>Docker: docker compose config
-    Runner->>Docker: docker compose build api
+    Runner->>Docker: docker compose build api ops-ui
     Runner->>Docker: docker compose run api alembic upgrade head
-    Runner->>Docker: docker compose up -d --build --force-recreate api nginx cloudflared minio
-    Runner->>Nginx: Retry GET http://127.0.0.1:18080/health with Basic Auth
+    Runner->>Docker: docker compose up -d --build --force-recreate api ops-ui nginx cloudflared minio
+    Runner->>Nginx: Retry GET http://127.0.0.1:18080/health and /ops with Basic Auth
     Nginx->>API: proxy /health
     API-->>Nginx: {"status":"ok"}
     Runner->>CF: read cloudflared logs
@@ -120,9 +124,9 @@ Home deploy job의 주요 단계:
 4. `docker compose --project-name codex-sdk-home -f compose.home.yaml config`로
    stack 설정을 검증한다.
 5. `db-data` volume이 비어 있으면 legacy DB 백업을 `/data/db/app.db`로 옮긴다.
-6. `api` image를 build하고 같은 compose env로 `alembic upgrade head`를 실행한다.
-7. `api`, `nginx`, `cloudflared`, `minio`를 `up -d --build`로 배포한다.
-8. 로컬 Nginx health check를 Basic Auth로 확인한다.
+6. `api`와 `ops-ui` image를 build하고 같은 compose env로 `alembic upgrade head`를 실행한다.
+7. `api`, `ops-ui`, `nginx`, `cloudflared`, `minio`를 `up -d --build`로 배포한다.
+8. 로컬 Nginx `/health`와 `/ops`를 Basic Auth로 확인한다.
 9. `cloudflared` 로그에서 가장 마지막 `https://*.trycloudflare.com` URL을
    찾아 `.home-deploy/latest-tunnel-url.txt`와 Actions summary에 기록한다.
 10. 별도 GitHub-hosted runner job이 public quick tunnel URL의 `/health`를
@@ -140,6 +144,8 @@ flowchart LR
     Tunnel --> Cloudflared["cloudflared container"]
     Cloudflared --> Nginx["nginx container<br/>Basic Auth<br/>127.0.0.1:18080"]
     Nginx --> API["api container<br/>codex-api on 8000"]
+    Nginx --> OpsUI["ops-ui container<br/>Next.js on 3000"]
+    OpsUI --> API
 
     API --> CodexVolume["Docker volume<br/>codex-home:/home/codex/.codex"]
     CodexTool["codex utility service"] --> CodexVolume
@@ -155,7 +161,10 @@ flowchart LR
 
 - `api`: FastAPI app인 `codex-api`를 실행한다. Docker network 내부에서만
   `8000`을 expose한다.
-- `nginx`: 모든 endpoint에 Basic Auth를 적용하고 `api:8000`으로 proxy한다.
+- `ops-ui`: Next.js 운영 콘솔을 실행한다. `/ops` 아래에 mount되며 BFF가
+  `CODEX_OPS_BACKEND_BASE_URL`로 FastAPI를 호출한다.
+- `nginx`: 모든 endpoint에 Basic Auth를 적용하고 `/ops`는 `ops-ui:3000`,
+  API route는 `api:8000`으로 proxy한다.
   호스트에는 `127.0.0.1:${HOME_NGINX_PORT:-18080}`만 연다.
 - `cloudflared`: account-less quick tunnel을 열고 `nginx:80`으로 라우팅한다.
 - `minio`: YouTube transcript와 외부 API raw response JSON을 내부 Docker
@@ -281,7 +290,7 @@ Home stack 확인:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api nginx cloudflared minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api ops-ui nginx cloudflared minio
 ```
 
 수동 재배포:

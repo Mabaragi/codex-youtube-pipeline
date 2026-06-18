@@ -14,21 +14,25 @@ GitHub main push or workflow_dispatch
   -> Windows self-hosted runner on the home PC
   -> Alembic migration against the API SQLite database
   -> Docker Compose home stack
+  -> Next.js ops-ui
   -> MinIO raw JSON storage
   -> cloudflared quick tunnel
   -> nginx Basic Auth
-  -> codex-api
+  -> codex-api and /ops
 ```
 
 The home stack is defined in `compose.home.yaml`.
 
 - `api`: runs `codex-api` and exposes port `8000` only inside Docker.
+- `ops-ui`: runs the Next.js operational console and exposes port `3000` only
+  inside Docker. Browser-visible backend calls go through `/ops/api/backend/*`.
 - `minio`: stores YouTube transcript and external API raw response JSON in the
   `raw` bucket by default and is reachable only inside the Docker network.
 - SQLite: stores metadata in `youtube_transcripts`, `external_api_calls`,
-  `pipeline_jobs`, `pipeline_job_attempts`, `streamers`, and `channels`; raw
-  JSON remains in MinIO.
-- `nginx`: reverse proxies to `api:8000`, requires Basic Auth, and binds
+  `pipeline_jobs`, `pipeline_job_attempts`, `streamers`, `channels`, `videos`,
+  and `video_tasks`; raw JSON remains in MinIO.
+- `nginx`: reverse proxies `/ops` to `ops-ui:3000` and API routes to
+  `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
 - `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to
   `nginx:80`.
@@ -115,16 +119,16 @@ If you redeploy manually from the runner checkout, run the same migration step
 before starting the API:
 
 ```powershell
-docker compose --project-name codex-sdk-home -f compose.home.yaml build api
+docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api nginx cloudflared minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api ops-ui nginx cloudflared minio
 ```
 
 On the home PC, inspect the stack:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api nginx cloudflared minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api ops-ui nginx cloudflared minio
 ```
 
 Check the local Nginx endpoint with Basic Auth:
@@ -151,6 +155,9 @@ Test the public quick tunnel URL:
 $url = Get-Content .home-deploy/latest-tunnel-url.txt
 Invoke-RestMethod `
   -Uri "$url/health" `
+  -Headers @{ Authorization = "Basic $encoded" }
+Invoke-WebRequest `
+  -Uri "$url/ops" `
   -Headers @{ Authorization = "Basic $encoded" }
 ```
 

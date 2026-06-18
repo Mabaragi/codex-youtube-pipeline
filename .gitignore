@@ -20,6 +20,10 @@ override.tf.json
 .wrangler/
 __pycache__/
 *.py[cod]
+node_modules/
+*.tsbuildinfo
+ops-ui/.next/
+ops-ui/coverage/
 data/
 *.db
 *.db-*

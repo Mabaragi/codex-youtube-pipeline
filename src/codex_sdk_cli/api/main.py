@@ -7,6 +7,7 @@ from codex_sdk_cli.api.exception_handlers import add_exception_handlers
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.domains.channels.router import router as channels_router
 from codex_sdk_cli.domains.codex.router import router as codex_router
+from codex_sdk_cli.domains.ops.router import router as ops_router
 from codex_sdk_cli.domains.pipeline_jobs.router import router as pipeline_jobs_router
 from codex_sdk_cli.domains.streamers.router import router as streamers_router
 from codex_sdk_cli.domains.video_tasks.router import router as video_tasks_router
@@ -22,6 +23,7 @@ def create_app() -> FastAPI:
     )
     add_exception_handlers(app)
     app.include_router(codex_router, prefix="/codex", tags=["codex"])
+    app.include_router(ops_router, prefix="/ops", tags=["ops"])
     app.include_router(pipeline_jobs_router, prefix="/pipeline", tags=["pipeline-jobs"])
     app.include_router(streamers_router, tags=["streamers"])
     app.include_router(channels_router, tags=["channels"])

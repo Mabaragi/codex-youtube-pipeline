@@ -7,6 +7,7 @@
 ## Context Vault
 
 상세 문서는 `vaults/INDEX.md`에서 라우팅한다. 루트 문서는 항상 지켜야 할 규칙만 담고, 구현 세부사항과 반복 workflow는 vault 문서를 읽는다.
+운영 UI 프론트엔드 작업은 `ops-ui/AGENTS.md`를 먼저 읽고, 백엔드 내부 문서는 API contract나 배포 경계를 바꿀 때만 추가로 읽는다.
 
 ## Suggested Reading Order
 

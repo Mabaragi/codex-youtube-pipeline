@@ -5,6 +5,11 @@
 .venv
 __pycache__
 *.py[cod]
+node_modules
+ops-ui/node_modules
+ops-ui/.next
+ops-ui/coverage
+*.log
 
 .terraform
 *.tfstate

@@ -82,6 +82,7 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+      - ops-ui
     ports:
       - "127.0.0.1:${HOME_NGINX_PORT:-18080}:80"
     volumes:
@@ -93,6 +94,19 @@ services:
         source: ./.home-deploy/nginx.htpasswd
         target: /etc/nginx/.htpasswd
         read_only: true
+
+  ops-ui:
+    build:
+      context: .
+      dockerfile: ops-ui/Dockerfile
+    image: codex-sdk-ops-ui:home
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3000"
+    environment:
+      CODEX_OPS_BACKEND_BASE_URL: http://api:8000
 
   cloudflared:
     image: cloudflare/cloudflared:latest

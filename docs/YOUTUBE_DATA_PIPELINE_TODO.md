@@ -21,7 +21,7 @@ Last updated: 2026-06-16
 - [x] domain result row가 source job을 참조할 수 있도록 현재 `channels`부터 `source_job_id` nullable FK를 추가한다.
 - [x] `/streamers/{streamer_id}/channels/resolve`가 job/attempt를 생성하고, 성공 응답에 `jobId`, `jobAttemptId`를 포함하도록 연결한다.
 - [x] resolve 실패 시 channel row를 만들지 않고 job/attempt를 `failed`로 종료한다.
-- [x] docs/ERD와 database tests를 새 pipeline schema에 맞게 갱신한다.
+- [x] ops schema graph와 database tests를 새 pipeline schema에 맞게 갱신한다.
 - [x] `POST /pipeline/jobs/{jobId}/retry`로 failed `channel_resolve` job을 같은 job 아래 새 attempt로 재시도한다.
 - [x] `GET /pipeline/jobs`와 `GET /pipeline/jobs/{jobId}`로 운영용 job 목록/상세 조회를 제공한다.
 - [x] Channel code를 `channels` domain/infra로 분리하고 public resolve route에서 `youtube_data` 이름을 제거한다.

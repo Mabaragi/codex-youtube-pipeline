@@ -34,11 +34,6 @@ jobs:
       - name: Install uv
         run: python -m pip install uv
 
-      - name: Install Graphviz
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y graphviz
-
       - name: Install dependencies
         run: uv sync --dev --locked
 
@@ -54,8 +49,52 @@ jobs:
       - name: Import FastAPI app
         run: uv run python -c "from codex_sdk_cli.api.main import app; print(app.title)"
 
-      - name: Verify ERD is up to date
-        run: uv run python scripts/generate_erd.py --check
+      - name: Verify OpenAPI export is up to date
+        run: uv run python scripts/export_openapi.py --check
+
+  frontend:
+    name: Ops UI gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Install Python dependencies
+        run: uv sync --dev --locked
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify generated API client
+        run: pnpm --filter codex-sdk-ops-ui api:check
+
+      - name: Lint ops UI
+        run: pnpm --filter codex-sdk-ops-ui lint
+
+      - name: Typecheck ops UI
+        run: pnpm --filter codex-sdk-ops-ui typecheck
+
+      - name: Test ops UI
+        run: pnpm --filter codex-sdk-ops-ui test
+
+      - name: Build ops UI
+        run: pnpm --filter codex-sdk-ops-ui build
 
   docker:
     name: Docker build
@@ -82,6 +121,7 @@ jobs:
     needs:
       - quality
       - docker
+      - frontend
     if: github.event_name != 'pull_request'
     outputs:
       deploy_ready: ${{ steps.readiness.outputs.deploy_ready }}
@@ -228,9 +268,9 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          docker compose --project-name codex-sdk-home -f compose.home.yaml build api
+          docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
           docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api nginx cloudflared minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api ops-ui nginx cloudflared minio
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 
       - name: Verify local Nginx health through Basic Auth
@@ -247,6 +287,10 @@ jobs:
           while ((Get-Date) -lt $deadline) {
             try {
               Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 15
+              $opsResponse = Invoke-WebRequest -Uri "http://127.0.0.1:$env:HOME_NGINX_PORT/ops" -Headers $headers -TimeoutSec 15
+              if ($opsResponse.StatusCode -ne 200) {
+                throw "Ops UI returned HTTP $($opsResponse.StatusCode)."
+              }
               exit 0
             } catch {
               $lastError = $_
@@ -299,7 +343,7 @@ jobs:
         shell: powershell
         run: |
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api nginx cloudflared minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api ops-ui nginx cloudflared minio
 
   public_tunnel_health:
     name: Verify public quick tunnel health
@@ -328,3 +372,14 @@ jobs:
             --max-time 15 \
             --header "Authorization: Basic ${basic_auth}" \
             "${QUICK_TUNNEL_URL}/health"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 60 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            --max-time 15 \
+            --output /dev/null \
+            --header "Authorization: Basic ${basic_auth}" \
+            "${QUICK_TUNNEL_URL}/ops"

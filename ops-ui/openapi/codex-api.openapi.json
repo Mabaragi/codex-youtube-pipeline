@@ -1,0 +1,4681 @@
+{
+  "components": {
+    "schemas": {
+      "AccountResponse": {
+        "title": "AccountResponse"
+      },
+      "ApiKeyLoginRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "apiKey": "sk-proj-example"
+          }
+        ],
+        "properties": {
+          "apiKey": {
+            "description": "OpenAI API key used for Codex authentication.",
+            "examples": [
+              "sk-proj-example"
+            ],
+            "format": "password",
+            "minLength": 1,
+            "title": "Apikey",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "apiKey"
+        ],
+        "title": "ApiKeyLoginRequest",
+        "type": "object"
+      },
+      "ChannelCreateRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "handle": "@archive-live",
+            "name": "Archive Live",
+            "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+          }
+        ],
+        "properties": {
+          "handle": {
+            "description": "Public channel handle or short identifier.",
+            "examples": [
+              "@archive-live"
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Handle",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name of the channel.",
+            "examples": [
+              "Archive Live"
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "youtubeChannelId": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional YouTube channel ID, not the handle.",
+            "examples": [
+              "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+            ],
+            "title": "Youtubechannelid"
+          }
+        },
+        "required": [
+          "handle",
+          "name"
+        ],
+        "title": "ChannelCreateRequest",
+        "type": "object"
+      },
+      "ChannelResponse": {
+        "properties": {
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sourceApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceapicallid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "streamerId": {
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "uploadsPlaylistId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploadsplaylistid"
+          },
+          "youtubeChannelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubechannelid"
+          }
+        },
+        "required": [
+          "id",
+          "streamerId",
+          "handle",
+          "name",
+          "youtubeChannelId",
+          "uploadsPlaylistId",
+          "sourceApiCallId",
+          "sourceJobId"
+        ],
+        "title": "ChannelResponse",
+        "type": "object"
+      },
+      "ChannelUpdateRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "handle": "@archive-shorts",
+            "name": "Archive Shorts",
+            "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+          }
+        ],
+        "properties": {
+          "handle": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New public channel handle or short identifier.",
+            "examples": [
+              "@archive-shorts"
+            ],
+            "title": "Handle"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New display name of the channel.",
+            "examples": [
+              "Archive Shorts"
+            ],
+            "title": "Name"
+          },
+          "youtubeChannelId": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New YouTube channel ID. Use null to clear this optional field.",
+            "examples": [
+              "UC_x5XG1OV2P6uZZ5FSM9Ttw"
+            ],
+            "title": "Youtubechannelid"
+          }
+        },
+        "title": "ChannelUpdateRequest",
+        "type": "object"
+      },
+      "CollectChannelTranscriptTasksRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "languages": [
+              "ko",
+              "en"
+            ],
+            "limit": 5,
+            "preserveFormatting": false,
+            "retryFailed": false
+          }
+        ],
+        "properties": {
+          "languages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Preferred transcript language codes, tried in order.",
+            "title": "Languages"
+          },
+          "limit": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "preserveFormatting": {
+            "default": false,
+            "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          }
+        },
+        "title": "CollectChannelTranscriptTasksRequest",
+        "type": "object"
+      },
+      "CollectChannelTranscriptTasksResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptCollectItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          },
+          "succeededCount": {
+            "title": "Succeededcount",
+            "type": "integer"
+          },
+          "timeoutCount": {
+            "title": "Timeoutcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channelId",
+          "requestedCount",
+          "succeededCount",
+          "skippedCount",
+          "failedCount",
+          "timeoutCount",
+          "items"
+        ],
+        "title": "CollectChannelTranscriptTasksResponse",
+        "type": "object"
+      },
+      "CollectChannelVideosResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "createdCount": {
+            "title": "Createdcount",
+            "type": "integer"
+          },
+          "createdVideoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Createdvideoids",
+            "type": "array"
+          },
+          "firstExistingYoutubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstexistingyoutubevideoid"
+          },
+          "jobAttemptId": {
+            "title": "Jobattemptid",
+            "type": "integer"
+          },
+          "jobId": {
+            "title": "Jobid",
+            "type": "integer"
+          },
+          "listingApiCallIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Listingapicallids",
+            "type": "array"
+          },
+          "pagesFetched": {
+            "title": "Pagesfetched",
+            "type": "integer"
+          },
+          "skippedMissingDetailsYoutubeVideoIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skippedmissingdetailsyoutubevideoids",
+            "type": "array"
+          },
+          "stoppedReason": {
+            "enum": [
+              "existing_video",
+              "no_next_page",
+              "listing_limit_reached"
+            ],
+            "title": "Stoppedreason",
+            "type": "string"
+          },
+          "videoDetailsApiCallIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Videodetailsapicallids",
+            "type": "array"
+          },
+          "youtubeChannelId": {
+            "title": "Youtubechannelid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId",
+          "youtubeChannelId",
+          "jobId",
+          "jobAttemptId",
+          "createdCount",
+          "createdVideoIds",
+          "firstExistingYoutubeVideoId",
+          "stoppedReason",
+          "pagesFetched",
+          "listingApiCallIds",
+          "videoDetailsApiCallIds",
+          "skippedMissingDetailsYoutubeVideoIds"
+        ],
+        "title": "CollectChannelVideosResponse",
+        "type": "object"
+      },
+      "DeleteResponse": {
+        "properties": {
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "DeleteResponse",
+        "type": "object"
+      },
+      "ExternalApiCallSummaryResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "durationMs": {
+            "title": "Durationms",
+            "type": "integer"
+          },
+          "externalApiCallId": {
+            "title": "Externalapicallid",
+            "type": "integer"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "quotaCost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quotacost"
+          },
+          "responseStatusCode": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responsestatuscode"
+          },
+          "responseStorageUri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responsestorageuri"
+          },
+          "validationStatus": {
+            "title": "Validationstatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "externalApiCallId",
+          "jobAttemptId",
+          "provider",
+          "operation",
+          "responseStatusCode",
+          "validationStatus",
+          "responseStorageUri",
+          "durationMs",
+          "quotaCost",
+          "createdAt"
+        ],
+        "title": "ExternalApiCallSummaryResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ListPipelineJobsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineJobSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "ListPipelineJobsResponse",
+        "type": "object"
+      },
+      "LoginResponse": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "LoginResponse",
+        "type": "object"
+      },
+      "LogoutResponse": {
+        "properties": {
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "title": "LogoutResponse",
+        "type": "object"
+      },
+      "OpsChannelListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpsChannelResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "OpsChannelListResponse",
+        "type": "object"
+      },
+      "OpsChannelResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "latestTaskUpdatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskupdatedat"
+          },
+          "latestVideoPublishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestvideopublishedat"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "streamerId": {
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "streamerName": {
+            "title": "Streamername",
+            "type": "string"
+          },
+          "taskFailedCount": {
+            "title": "Taskfailedcount",
+            "type": "integer"
+          },
+          "taskRunningCount": {
+            "title": "Taskrunningcount",
+            "type": "integer"
+          },
+          "transcriptSucceededCount": {
+            "title": "Transcriptsucceededcount",
+            "type": "integer"
+          },
+          "uploadsPlaylistId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploadsplaylistid"
+          },
+          "videoCount": {
+            "title": "Videocount",
+            "type": "integer"
+          },
+          "youtubeChannelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubechannelid"
+          }
+        },
+        "required": [
+          "channelId",
+          "streamerId",
+          "streamerName",
+          "handle",
+          "name",
+          "youtubeChannelId",
+          "uploadsPlaylistId",
+          "videoCount",
+          "transcriptSucceededCount",
+          "taskFailedCount",
+          "taskRunningCount",
+          "latestVideoPublishedAt",
+          "latestTaskUpdatedAt"
+        ],
+        "title": "OpsChannelResponse",
+        "type": "object"
+      },
+      "OpsRecentFailureResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "pipeline_job",
+              "video_task"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "status",
+          "label",
+          "errorType",
+          "errorMessage",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "OpsRecentFailureResponse",
+        "type": "object"
+      },
+      "OpsSchemaColumnResponse": {
+        "properties": {
+          "foreignKeys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Foreignkeys",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nullable": {
+            "title": "Nullable",
+            "type": "boolean"
+          },
+          "primaryKey": {
+            "title": "Primarykey",
+            "type": "boolean"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unique": {
+            "title": "Unique",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "nullable",
+          "primaryKey",
+          "unique",
+          "index",
+          "foreignKeys"
+        ],
+        "title": "OpsSchemaColumnResponse",
+        "type": "object"
+      },
+      "OpsSchemaGraphResponse": {
+        "properties": {
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/OpsSchemaRelationResponse"
+            },
+            "title": "Relations",
+            "type": "array"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/OpsSchemaTableResponse"
+            },
+            "title": "Tables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tables",
+          "relations"
+        ],
+        "title": "OpsSchemaGraphResponse",
+        "type": "object"
+      },
+      "OpsSchemaRelationResponse": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "sourceColumn": {
+            "title": "Sourcecolumn",
+            "type": "string"
+          },
+          "sourceTable": {
+            "title": "Sourcetable",
+            "type": "string"
+          },
+          "targetColumn": {
+            "title": "Targetcolumn",
+            "type": "string"
+          },
+          "targetTable": {
+            "title": "Targettable",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sourceTable",
+          "sourceColumn",
+          "targetTable",
+          "targetColumn"
+        ],
+        "title": "OpsSchemaRelationResponse",
+        "type": "object"
+      },
+      "OpsSchemaTableResponse": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/OpsSchemaColumnResponse"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "columns"
+        ],
+        "title": "OpsSchemaTableResponse",
+        "type": "object"
+      },
+      "OpsStatusCountResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "count"
+        ],
+        "title": "OpsStatusCountResponse",
+        "type": "object"
+      },
+      "OpsSummaryCountsResponse": {
+        "properties": {
+          "channels": {
+            "title": "Channels",
+            "type": "integer"
+          },
+          "pipelineJobs": {
+            "items": {
+              "$ref": "#/components/schemas/OpsStatusCountResponse"
+            },
+            "title": "Pipelinejobs",
+            "type": "array"
+          },
+          "streamers": {
+            "title": "Streamers",
+            "type": "integer"
+          },
+          "transcripts": {
+            "title": "Transcripts",
+            "type": "integer"
+          },
+          "videoTasks": {
+            "items": {
+              "$ref": "#/components/schemas/OpsStatusCountResponse"
+            },
+            "title": "Videotasks",
+            "type": "array"
+          },
+          "videos": {
+            "title": "Videos",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "streamers",
+          "channels",
+          "videos",
+          "transcripts",
+          "videoTasks",
+          "pipelineJobs"
+        ],
+        "title": "OpsSummaryCountsResponse",
+        "type": "object"
+      },
+      "OpsSummaryResponse": {
+        "properties": {
+          "apiStatus": {
+            "const": "ok",
+            "title": "Apistatus",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/OpsSummaryCountsResponse"
+          },
+          "recentFailures": {
+            "items": {
+              "$ref": "#/components/schemas/OpsRecentFailureResponse"
+            },
+            "title": "Recentfailures",
+            "type": "array"
+          },
+          "s3": {
+            "additionalProperties": true,
+            "title": "S3",
+            "type": "object"
+          }
+        },
+        "required": [
+          "apiStatus",
+          "s3",
+          "counts",
+          "recentFailures"
+        ],
+        "title": "OpsSummaryResponse",
+        "type": "object"
+      },
+      "OpsVideoListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpsVideoResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "OpsVideoListResponse",
+        "type": "object"
+      },
+      "OpsVideoResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "channelName": {
+            "title": "Channelname",
+            "type": "string"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "latestTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskid"
+          },
+          "latestTaskName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskname"
+          },
+          "latestTaskStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskstatus"
+          },
+          "latestTaskUpdatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskupdatedat"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Publishedat",
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnailurl"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "channelId",
+          "channelName",
+          "youtubeVideoId",
+          "title",
+          "publishedAt",
+          "duration",
+          "thumbnailUrl",
+          "latestTaskId",
+          "latestTaskName",
+          "latestTaskStatus",
+          "latestTaskUpdatedAt",
+          "transcriptId"
+        ],
+        "title": "OpsVideoResponse",
+        "type": "object"
+      },
+      "OpsVideoTaskListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpsVideoTaskResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "OpsVideoTaskListResponse",
+        "type": "object"
+      },
+      "OpsVideoTaskResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "channelName": {
+            "title": "Channelname",
+            "type": "string"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "outputTranscriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputtranscriptid"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "taskName": {
+            "title": "Taskname",
+            "type": "string"
+          },
+          "taskVersion": {
+            "title": "Taskversion",
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "title": "Timeoutseconds",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "workerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workerid"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "videoId",
+          "channelId",
+          "channelName",
+          "youtubeVideoId",
+          "taskName",
+          "taskVersion",
+          "status",
+          "workerId",
+          "timeoutSeconds",
+          "jobId",
+          "jobAttemptId",
+          "outputTranscriptId",
+          "errorType",
+          "errorMessage",
+          "startedAt",
+          "completedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "OpsVideoTaskResponse",
+        "type": "object"
+      },
+      "PipelineChannelOutputResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sourceApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceapicallid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "streamerId": {
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "uploadsPlaylistId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploadsplaylistid"
+          },
+          "youtubeChannelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubechannelid"
+          }
+        },
+        "required": [
+          "channelId",
+          "streamerId",
+          "handle",
+          "name",
+          "youtubeChannelId",
+          "uploadsPlaylistId",
+          "sourceApiCallId",
+          "sourceJobId"
+        ],
+        "title": "PipelineChannelOutputResponse",
+        "type": "object"
+      },
+      "PipelineJobAttemptResponse": {
+        "properties": {
+          "attemptNo": {
+            "title": "Attemptno",
+            "type": "integer"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "jobAttemptId": {
+            "title": "Jobattemptid",
+            "type": "integer"
+          },
+          "outputJson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputjson"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "title": "Startedat",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "workerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workerid"
+          }
+        },
+        "required": [
+          "jobAttemptId",
+          "attemptNo",
+          "status",
+          "startedAt",
+          "finishedAt",
+          "workerId",
+          "errorType",
+          "errorMessage",
+          "outputJson"
+        ],
+        "title": "PipelineJobAttemptResponse",
+        "type": "object"
+      },
+      "PipelineJobDetailResponse": {
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineJobAttemptResponse"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineChannelOutputResponse"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "externalApiCalls": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalApiCallSummaryResponse"
+            },
+            "title": "Externalapicalls",
+            "type": "array"
+          },
+          "externalKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Externalkey"
+          },
+          "inputHash": {
+            "title": "Inputhash",
+            "type": "string"
+          },
+          "inputJson": {
+            "additionalProperties": true,
+            "title": "Inputjson",
+            "type": "object"
+          },
+          "jobId": {
+            "title": "Jobid",
+            "type": "integer"
+          },
+          "parentJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parentjobid"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjectid"
+          },
+          "subjectType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjecttype"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineTranscriptOutputResponse"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videos": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineVideoOutputResponse"
+            },
+            "title": "Videos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobId",
+          "step",
+          "status",
+          "subjectType",
+          "subjectId",
+          "externalKey",
+          "inputJson",
+          "inputHash",
+          "parentJobId",
+          "createdAt",
+          "updatedAt",
+          "completedAt",
+          "attempts",
+          "externalApiCalls",
+          "channels",
+          "videos",
+          "transcripts"
+        ],
+        "title": "PipelineJobDetailResponse",
+        "type": "object"
+      },
+      "PipelineJobSummaryResponse": {
+        "properties": {
+          "attemptCount": {
+            "title": "Attemptcount",
+            "type": "integer"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "externalKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Externalkey"
+          },
+          "jobId": {
+            "title": "Jobid",
+            "type": "integer"
+          },
+          "latestAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestattemptid"
+          },
+          "latestAttemptStatus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "canceled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestattemptstatus"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjectid"
+          },
+          "subjectType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjecttype"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "step",
+          "status",
+          "subjectType",
+          "subjectId",
+          "externalKey",
+          "createdAt",
+          "updatedAt",
+          "completedAt",
+          "latestAttemptId",
+          "latestAttemptStatus",
+          "attemptCount"
+        ],
+        "title": "PipelineJobSummaryResponse",
+        "type": "object"
+      },
+      "PipelineTranscriptOutputResponse": {
+        "properties": {
+          "languageCode": {
+            "title": "Languagecode",
+            "type": "string"
+          },
+          "storageUri": {
+            "title": "Storageuri",
+            "type": "string"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcriptId",
+          "videoTaskId",
+          "videoId",
+          "youtubeVideoId",
+          "languageCode",
+          "storageUri"
+        ],
+        "title": "PipelineTranscriptOutputResponse",
+        "type": "object"
+      },
+      "PipelineVideoOutputResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Publishedat",
+            "type": "string"
+          },
+          "sourceDetailsApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcedetailsapicallid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "sourceListingApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcelistingapicallid"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "channelId",
+          "youtubeVideoId",
+          "title",
+          "publishedAt",
+          "sourceListingApiCallId",
+          "sourceDetailsApiCallId",
+          "sourceJobId"
+        ],
+        "title": "PipelineVideoOutputResponse",
+        "type": "object"
+      },
+      "ResolveYouTubeChannelRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "handle": "@GoogleDevelopers"
+          }
+        ],
+        "properties": {
+          "handle": {
+            "description": "YouTube handle to resolve. The leading @ is optional.",
+            "examples": [
+              "@GoogleDevelopers"
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle"
+        ],
+        "title": "ResolveYouTubeChannelRequest",
+        "type": "object"
+      },
+      "ResolveYouTubeChannelResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "jobAttemptId": {
+            "title": "Jobattemptid",
+            "type": "integer"
+          },
+          "jobId": {
+            "title": "Jobid",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sourceApiCallId": {
+            "title": "Sourceapicallid",
+            "type": "integer"
+          },
+          "streamerId": {
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "uploadsPlaylistId": {
+            "title": "Uploadsplaylistid",
+            "type": "string"
+          },
+          "youtubeChannelId": {
+            "title": "Youtubechannelid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId",
+          "streamerId",
+          "handle",
+          "name",
+          "youtubeChannelId",
+          "uploadsPlaylistId",
+          "sourceApiCallId",
+          "jobId",
+          "jobAttemptId"
+        ],
+        "title": "ResolveYouTubeChannelResponse",
+        "type": "object"
+      },
+      "RetryPipelineJobResponse": {
+        "properties": {
+          "jobAttemptId": {
+            "title": "Jobattemptid",
+            "type": "integer"
+          },
+          "jobId": {
+            "title": "Jobid",
+            "type": "integer"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "jobAttemptId",
+          "step",
+          "status",
+          "result"
+        ],
+        "title": "RetryPipelineJobResponse",
+        "type": "object"
+      },
+      "RunRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "baseInstructions": "Answer concisely and include file paths when relevant.",
+            "developerInstructions": "Do not modify files; only inspect the repository.",
+            "prompt": "Explain how this project is structured."
+          }
+        ],
+        "properties": {
+          "baseInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional base instructions applied before the prompt.",
+            "examples": [
+              "Answer concisely and include file paths when relevant."
+            ],
+            "title": "Baseinstructions"
+          },
+          "developerInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional developer instructions for this run.",
+            "examples": [
+              "Do not modify files; only inspect the repository."
+            ],
+            "title": "Developerinstructions"
+          },
+          "prompt": {
+            "description": "User prompt to send to a Codex thread.",
+            "examples": [
+              "Explain how this project is structured."
+            ],
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "RunRequest",
+        "type": "object"
+      },
+      "RunResponse": {
+        "properties": {
+          "finalResponse": {
+            "title": "Finalresponse",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "threadId": {
+            "title": "Threadid",
+            "type": "string"
+          },
+          "turnId": {
+            "title": "Turnid",
+            "type": "string"
+          },
+          "usage": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId",
+          "status",
+          "finalResponse"
+        ],
+        "title": "RunResponse",
+        "type": "object"
+      },
+      "StreamerCreateRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "name": "Chzzk Archive"
+          }
+        ],
+        "properties": {
+          "name": {
+            "description": "Display name of the streamer.",
+            "examples": [
+              "Chzzk Archive"
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "StreamerCreateRequest",
+        "type": "object"
+      },
+      "StreamerResponse": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "StreamerResponse",
+        "type": "object"
+      },
+      "StreamerUpdateRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "name": "Chzzk Archive KR"
+          }
+        ],
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New display name of the streamer.",
+            "examples": [
+              "Chzzk Archive KR"
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "StreamerUpdateRequest",
+        "type": "object"
+      },
+      "TranscriptCollectItemResponse": {
+        "properties": {
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "timed_out",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "status",
+          "reason",
+          "jobId",
+          "jobAttemptId",
+          "transcriptId",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "TranscriptCollectItemResponse",
+        "type": "object"
+      },
+      "TranscriptMetadataResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "isGenerated": {
+            "title": "Isgenerated",
+            "type": "boolean"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "languageCode": {
+            "title": "Languagecode",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "preserveFormatting": {
+            "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "requestedLanguages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requestedlanguages",
+            "type": "array"
+          },
+          "responseSha256": {
+            "title": "Responsesha256",
+            "type": "string"
+          },
+          "segmentCount": {
+            "title": "Segmentcount",
+            "type": "integer"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/TranscriptStorageResponse"
+          },
+          "textLength": {
+            "title": "Textlength",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "videoId",
+          "language",
+          "languageCode",
+          "isGenerated",
+          "requestedLanguages",
+          "preserveFormatting",
+          "storage",
+          "responseSha256",
+          "segmentCount",
+          "textLength",
+          "notes",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "TranscriptMetadataResponse",
+        "type": "object"
+      },
+      "TranscriptMetadataUpdateRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "notes": "Reviewed transcript quality; keep for downstream summarization."
+          }
+        ],
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operator notes for this metadata row. Use null to clear notes.",
+            "examples": [
+              "Reviewed transcript quality; keep for downstream summarization."
+            ],
+            "title": "Notes"
+          }
+        },
+        "title": "TranscriptMetadataUpdateRequest",
+        "type": "object"
+      },
+      "TranscriptRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "languages": [
+              "ko",
+              "en"
+            ],
+            "preserveFormatting": false,
+            "video": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          }
+        ],
+        "properties": {
+          "languages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Preferred transcript language codes, tried in order.",
+            "examples": [
+              [
+                "ko",
+                "en"
+              ]
+            ],
+            "title": "Languages"
+          },
+          "preserveFormatting": {
+            "default": false,
+            "description": "Whether to preserve transcript formatting from YouTube.",
+            "examples": [
+              false
+            ],
+            "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "video": {
+            "description": "YouTube video URL or 11-character video ID.",
+            "examples": [
+              "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            ],
+            "minLength": 1,
+            "title": "Video",
+            "type": "string"
+          }
+        },
+        "required": [
+          "video"
+        ],
+        "title": "TranscriptRequest",
+        "type": "object"
+      },
+      "TranscriptResponse": {
+        "properties": {
+          "isGenerated": {
+            "title": "Isgenerated",
+            "type": "boolean"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "languageCode": {
+            "title": "Languagecode",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegmentResponse"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/TranscriptStorageResponse"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "language",
+          "languageCode",
+          "isGenerated",
+          "text",
+          "segments",
+          "storage"
+        ],
+        "title": "TranscriptResponse",
+        "type": "object"
+      },
+      "TranscriptSegmentResponse": {
+        "properties": {
+          "duration": {
+            "title": "Duration",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "start",
+          "duration"
+        ],
+        "title": "TranscriptSegmentResponse",
+        "type": "object"
+      },
+      "TranscriptStorageResponse": {
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "objectName": {
+            "title": "Objectname",
+            "type": "string"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bucket",
+          "objectName",
+          "uri"
+        ],
+        "title": "TranscriptStorageResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VideoResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Publishedat",
+            "type": "string"
+          },
+          "sourceDetailsApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcedetailsapicallid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "sourceListingApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcelistingapicallid"
+          },
+          "thumbnailUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnailurl"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "channelId",
+          "youtubeVideoId",
+          "title",
+          "description",
+          "publishedAt",
+          "duration",
+          "thumbnailUrl",
+          "sourceListingApiCallId",
+          "sourceDetailsApiCallId",
+          "sourceJobId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "VideoResponse",
+        "type": "object"
+      },
+      "VideoTaskResponse": {
+        "properties": {
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "inputHash": {
+            "title": "Inputhash",
+            "type": "string"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "outputJson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputjson"
+          },
+          "outputTranscriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputtranscriptid"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "timed_out",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "taskName": {
+            "title": "Taskname",
+            "type": "string"
+          },
+          "taskVersion": {
+            "title": "Taskversion",
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "title": "Timeoutseconds",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "workerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workerid"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "videoId",
+          "youtubeVideoId",
+          "taskName",
+          "taskVersion",
+          "inputHash",
+          "status",
+          "workerId",
+          "timeoutSeconds",
+          "jobId",
+          "jobAttemptId",
+          "outputTranscriptId",
+          "outputJson",
+          "errorType",
+          "errorMessage",
+          "startedAt",
+          "completedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "VideoTaskResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "REST API wrapper for Codex SDK run/account/logout workflows.",
+    "title": "Codex SDK CLI API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/channels": {
+      "get": {
+        "operationId": "list_channels_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelResponse"
+                  },
+                  "title": "Response List Channels Channels Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Channels",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/channels/{channel_id}": {
+      "delete": {
+        "operationId": "delete_channel_channels__channel_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Channel",
+        "tags": [
+          "channels"
+        ]
+      },
+      "get": {
+        "operationId": "get_channel_channels__channel_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Channel",
+        "tags": [
+          "channels"
+        ]
+      },
+      "patch": {
+        "operationId": "update_channel_channels__channel_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Channel",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/channels/{channel_id}/video-tasks": {
+      "get": {
+        "operationId": "list_channel_video_tasks_channels__channel_id__video_tasks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "taskName",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Taskname"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "timed_out",
+                    "skipped",
+                    "canceled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VideoTaskResponse"
+                  },
+                  "title": "Response List Channel Video Tasks Channels  Channel Id  Video Tasks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Channel Video Tasks",
+        "tags": [
+          "video-tasks"
+        ]
+      }
+    },
+    "/channels/{channel_id}/video-tasks/transcript-collect": {
+      "post": {
+        "operationId": "collect_channel_transcript_tasks_channels__channel_id__video_tasks_transcript_collect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CollectChannelTranscriptTasksRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectChannelTranscriptTasksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Collect Channel Transcript Tasks",
+        "tags": [
+          "video-tasks"
+        ]
+      }
+    },
+    "/channels/{channel_id}/videos": {
+      "get": {
+        "operationId": "list_channel_videos_channels__channel_id__videos_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VideoResponse"
+                  },
+                  "title": "Response List Channel Videos Channels  Channel Id  Videos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Channel Videos",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/channels/{channel_id}/videos/collect": {
+      "post": {
+        "operationId": "collect_channel_videos_channels__channel_id__videos_collect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectChannelVideosResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Collect Channel Videos",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/codex/account": {
+      "get": {
+        "operationId": "get_codex_account_codex_account_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "refreshToken",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refreshtoken",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Codex Account",
+        "tags": [
+          "codex"
+        ]
+      }
+    },
+    "/codex/login/api-key": {
+      "post": {
+        "operationId": "login_codex_with_api_key_codex_login_api_key_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login Codex With Api Key",
+        "tags": [
+          "codex"
+        ]
+      }
+    },
+    "/codex/login/device-code": {
+      "post": {
+        "operationId": "login_codex_with_device_code_codex_login_device_code_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Login Codex With Device Code",
+        "tags": [
+          "codex"
+        ]
+      }
+    },
+    "/codex/logout": {
+      "post": {
+        "operationId": "logout_codex_codex_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout Codex",
+        "tags": [
+          "codex"
+        ]
+      }
+    },
+    "/codex/runs": {
+      "post": {
+        "operationId": "run_codex_prompt_codex_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Codex Prompt",
+        "tags": [
+          "codex"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/health/s3": {
+      "get": {
+        "operationId": "s3_health_health_s3_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response S3 Health Health S3 Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "S3 Health",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/ops/channels": {
+      "get": {
+        "operationId": "list_ops_channels_ops_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsChannelListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Ops Channels",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/schema-graph": {
+      "get": {
+        "operationId": "get_ops_schema_graph_ops_schema_graph_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsSchemaGraphResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Ops Schema Graph",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/summary": {
+      "get": {
+        "operationId": "get_ops_summary_ops_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Ops Summary",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/video-tasks": {
+      "get": {
+        "operationId": "list_ops_video_tasks_ops_video_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "taskName",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Taskname"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsVideoTaskListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ops Video Tasks",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/videos": {
+      "get": {
+        "operationId": "list_ops_videos_ops_videos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "taskStatus",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Taskstatus"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsVideoListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ops Videos",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/pipeline/jobs": {
+      "get": {
+        "operationId": "list_pipeline_jobs_pipeline_jobs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "step",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Step"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "skipped",
+                    "canceled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subjectType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subjecttype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subjectId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subjectid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "externalKey",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Externalkey"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPipelineJobsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Pipeline Jobs",
+        "tags": [
+          "pipeline-jobs"
+        ]
+      }
+    },
+    "/pipeline/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_pipeline_job_pipeline_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineJobDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Pipeline Job",
+        "tags": [
+          "pipeline-jobs"
+        ]
+      }
+    },
+    "/pipeline/jobs/{job_id}/retry": {
+      "post": {
+        "operationId": "retry_pipeline_job_pipeline_jobs__job_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryPipelineJobResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Pipeline Job",
+        "tags": [
+          "pipeline-jobs"
+        ]
+      }
+    },
+    "/streamers": {
+      "get": {
+        "operationId": "list_streamers_streamers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StreamerResponse"
+                  },
+                  "title": "Response List Streamers Streamers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Streamers",
+        "tags": [
+          "streamers"
+        ]
+      },
+      "post": {
+        "operationId": "create_streamer_streamers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamerCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Streamer",
+        "tags": [
+          "streamers"
+        ]
+      }
+    },
+    "/streamers/{streamer_id}": {
+      "delete": {
+        "operationId": "delete_streamer_streamers__streamer_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Streamer",
+        "tags": [
+          "streamers"
+        ]
+      },
+      "get": {
+        "operationId": "get_streamer_streamers__streamer_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Streamer",
+        "tags": [
+          "streamers"
+        ]
+      },
+      "patch": {
+        "operationId": "update_streamer_streamers__streamer_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamerUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Streamer",
+        "tags": [
+          "streamers"
+        ]
+      }
+    },
+    "/streamers/{streamer_id}/channels": {
+      "get": {
+        "operationId": "list_streamer_channels_streamers__streamer_id__channels_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelResponse"
+                  },
+                  "title": "Response List Streamer Channels Streamers  Streamer Id  Channels Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Streamer Channels",
+        "tags": [
+          "channels"
+        ]
+      },
+      "post": {
+        "operationId": "create_streamer_channel_streamers__streamer_id__channels_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Streamer Channel",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/streamers/{streamer_id}/channels/resolve": {
+      "post": {
+        "operationId": "resolve_streamer_channel_streamers__streamer_id__channels_resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveYouTubeChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveYouTubeChannelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Streamer Channel",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/youtube-transcripts": {
+      "get": {
+        "operationId": "list_youtube_transcript_metadata_youtube_transcripts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "videoId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Videoid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "languageCode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Languagecode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TranscriptMetadataResponse"
+                  },
+                  "title": "Response List Youtube Transcript Metadata Youtube Transcripts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Youtube Transcript Metadata",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      },
+      "post": {
+        "operationId": "fetch_youtube_transcript_youtube_transcripts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Youtube Transcript",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      }
+    },
+    "/youtube-transcripts/{transcript_id}": {
+      "delete": {
+        "operationId": "delete_youtube_transcript_metadata_youtube_transcripts__transcript_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transcript_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transcript Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Youtube Transcript Metadata",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      },
+      "get": {
+        "operationId": "get_youtube_transcript_metadata_youtube_transcripts__transcript_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transcript_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transcript Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptMetadataResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Youtube Transcript Metadata",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      },
+      "patch": {
+        "operationId": "update_youtube_transcript_metadata_youtube_transcripts__transcript_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transcript_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transcript Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptMetadataUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptMetadataResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Youtube Transcript Metadata",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      }
+    }
+  }
+}

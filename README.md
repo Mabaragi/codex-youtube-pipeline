@@ -8,6 +8,8 @@ YouTube transcript/data workflows.
 
 ```powershell
 uv sync --dev
+corepack enable
+pnpm install
 ```
 
 ## Login
@@ -124,6 +126,12 @@ configured with SQLite batch rendering for future alter-table compatibility.
 uv run pytest
 uv run ruff check .
 uv run pyrefly check --min-severity warn
+uv run python scripts/export_openapi.py --check
+pnpm --filter codex-sdk-ops-ui api:check
+pnpm --filter codex-sdk-ops-ui lint
+pnpm --filter codex-sdk-ops-ui typecheck
+pnpm --filter codex-sdk-ops-ui test
+pnpm --filter codex-sdk-ops-ui build
 ```
 
 ## AWS Deployment
@@ -198,6 +206,11 @@ docker compose build api
 docker compose run --rm --no-deps --entrypoint alembic api upgrade head
 docker compose up api
 ```
+
+The home deployment also builds `ops-ui`, a Next.js operational console mounted
+at `/ops` behind the same Nginx Basic Auth boundary. The UI calls FastAPI through
+its Next BFF at `/ops/api/backend/*`; in Docker Compose the BFF target is
+`CODEX_OPS_BACKEND_BASE_URL=http://api:8000`.
 
 To expose a host S3 mount to the container, set `CODEX_CLI_S3_DIR`:
 
@@ -331,6 +344,11 @@ Pipeline jobs can also be inspected for operational debugging:
 Invoke-RestMethod -Uri "http://localhost:8000/pipeline/jobs?status=failed&limit=20"
 Invoke-RestMethod -Uri "http://localhost:8000/pipeline/jobs/<jobId>"
 ```
+
+Operational read APIs for the UI are exposed under `/ops/*`, including
+`/ops/summary`, `/ops/channels`, `/ops/videos`, `/ops/video-tasks`, and
+`/ops/schema-graph`. The deployed UI renders the schema graph interactively at
+`/ops/erd`; static ERD SVG artifacts are no longer generated.
 
 When running from a cloud host, YouTube may still block the host IP. The home PC
 deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows
