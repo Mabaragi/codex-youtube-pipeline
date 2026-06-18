@@ -16,7 +16,7 @@ GitHub main push or workflow_dispatch
   -> Docker Compose home stack
   -> Next.js ops-ui
   -> MinIO raw JSON storage
-  -> cloudflared quick tunnel
+  -> ngrok dev domain tunnel
   -> nginx Basic Auth
   -> codex-api and /ops
 ```
@@ -34,8 +34,7 @@ The home stack is defined in `compose.home.yaml`.
 - `nginx`: reverse proxies `/ops` to `ops-ui:3000` and API routes to
   `api:8000`, requires Basic Auth, and binds
   `127.0.0.1:${HOME_NGINX_PORT:-18080}` for local checks.
-- `cloudflared`: starts an ephemeral `trycloudflare.com` quick tunnel to
-  `nginx:80`.
+- `ngrok`: starts a fixed dev domain tunnel to `nginx:80`.
 - `codex`: utility service for one-time `codex-demo login device`.
 
 ## One-Time Windows PC Setup
@@ -69,25 +68,26 @@ The workflow uses a GitHub-hosted preflight job to verify required secrets. If
 the runner is offline, the home deployment job will wait until the runner comes
 back online.
 
-## Cloudflare Quick Tunnel Setup
+## ngrok Tunnel Setup
 
-The home stack uses Cloudflare's quick tunnel mode. It does not require a
-Cloudflare account, domain, DNS record, or tunnel token. Each `cloudflared`
-restart can produce a new `https://*.trycloudflare.com` URL, so the deploy job
-extracts the latest URL from container logs and writes it to both the GitHub
-Actions summary and `.home-deploy/latest-tunnel-url.txt` on the runner.
+The home stack uses an ngrok dev domain tunnel. The `ngrok` container forwards
+`https://mutation-runny-smelting.ngrok-free.dev` to Docker Nginx at `nginx:80`.
+The deploy job writes this URL to both the GitHub Actions summary and
+`.home-deploy/latest-tunnel-url.txt` on the runner.
 
-Store only the Basic Auth credentials as GitHub repository secrets:
+Store Basic Auth and ngrok credentials as GitHub repository secrets:
 
 ```powershell
 gh secret set HOME_BASIC_AUTH_USER -R Mabaragi/codex-sdk
 gh secret set HOME_BASIC_AUTH_PASSWORD -R Mabaragi/codex-sdk
+gh secret set NGROK_AUTHTOKEN -R Mabaragi/codex-sdk
 ```
 
 Optional repository variables:
 
 ```powershell
 gh variable set HOME_NGINX_PORT --body 18080 -R Mabaragi/codex-sdk
+gh variable set NGROK_DOMAIN --body mutation-runny-smelting.ngrok-free.dev -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_SANDBOX --body workspace-write -R Mabaragi/codex-sdk
 gh variable set CODEX_CLI_APPROVAL --body auto-review -R Mabaragi/codex-sdk
 gh secret set CODEX_CLI_YOUTUBE_DATA_API_KEY -R Mabaragi/codex-sdk
@@ -121,14 +121,14 @@ before starting the API:
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api ops-ui nginx cloudflared minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate --remove-orphans api ops-ui nginx ngrok minio
 ```
 
 On the home PC, inspect the stack:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api ops-ui nginx cloudflared minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api ops-ui nginx ngrok minio
 ```
 
 Check the local Nginx endpoint with Basic Auth:
@@ -143,13 +143,13 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Basic $encoded" }
 ```
 
-Read the latest quick tunnel URL on the home PC:
+Read the current public tunnel URL on the home PC:
 
 ```powershell
 Get-Content .home-deploy/latest-tunnel-url.txt
 ```
 
-Test the public quick tunnel URL:
+Test the public ngrok URL:
 
 ```powershell
 $url = Get-Content .home-deploy/latest-tunnel-url.txt
@@ -158,6 +158,10 @@ Invoke-RestMethod `
   -Headers @{ Authorization = "Basic $encoded" }
 Invoke-WebRequest `
   -Uri "$url/ops" `
+  -Headers @{ Authorization = "Basic $encoded" } `
+  -UseBasicParsing
+Invoke-RestMethod `
+  -Uri "$url/ops/api/backend/ops/summary" `
   -Headers @{ Authorization = "Basic $encoded" }
 ```
 

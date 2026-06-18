@@ -133,11 +133,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
           HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+          NGROK_DOMAIN: ${{ vars.NGROK_DOMAIN }}
         run: |
           set -eu
 
           missing=()
-          required=(HOME_BASIC_AUTH_USER HOME_BASIC_AUTH_PASSWORD)
+          required=(HOME_BASIC_AUTH_USER HOME_BASIC_AUTH_PASSWORD NGROK_AUTHTOKEN NGROK_DOMAIN)
           for name in "${required[@]}"; do
             if [[ -z "${!name}" ]]; then
               missing+=("${name}")
@@ -165,11 +167,13 @@ jobs:
     if: needs.home_deploy_preflight.outputs.deploy_ready == 'true'
     timeout-minutes: 30
     outputs:
-      quick_tunnel_url: ${{ steps.quick_tunnel.outputs.url }}
+      public_tunnel_url: ${{ steps.public_tunnel.outputs.url }}
     env:
       HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
       HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
       HOME_NGINX_PORT: ${{ vars.HOME_NGINX_PORT || '18080' }}
+      NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+      NGROK_DOMAIN: ${{ vars.NGROK_DOMAIN }}
       CODEX_CLI_MODEL: ${{ vars.CODEX_CLI_MODEL }}
       CODEX_CLI_SANDBOX: ${{ vars.CODEX_CLI_SANDBOX || 'workspace-write' }}
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
@@ -270,7 +274,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
           docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate api ops-ui nginx cloudflared minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate --remove-orphans api ops-ui nginx ngrok minio
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 
       - name: Verify local Nginx health through Basic Auth
@@ -316,8 +320,8 @@ jobs:
           }
           throw "Local Nginx health check timed out."
 
-      - name: Capture Cloudflare quick tunnel URL
-        id: quick_tunnel
+      - name: Capture ngrok public URL
+        id: public_tunnel
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -326,27 +330,20 @@ jobs:
             Remove-Item -LiteralPath $urlPath -Force
           }
 
-          $url = $null
-          $deadline = (Get-Date).AddSeconds(90)
-          while ((Get-Date) -lt $deadline) {
-            $logs = docker compose --project-name codex-sdk-home -f compose.home.yaml logs --no-color cloudflared 2>$null
-            $matches = [regex]::Matches($logs, "https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-            if ($matches.Count -gt 0) {
-              $url = $matches[$matches.Count - 1].Value
-              break
-            }
-            Start-Sleep -Seconds 3
+          $domain = $env:NGROK_DOMAIN.Trim()
+          if ([string]::IsNullOrWhiteSpace($domain)) {
+            throw "NGROK_DOMAIN is required."
           }
-
-          if (-not $url) {
-            docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 cloudflared
-            throw "Cloudflare quick tunnel URL was not found in cloudflared logs."
+          if ($domain -match "^https?://") {
+            $url = $domain.TrimEnd("/")
+          } else {
+            $url = "https://$domain"
           }
 
           $url | Set-Content -Encoding ascii $urlPath
           "url=$url" >> $env:GITHUB_OUTPUT
-          Write-Host "Public quick tunnel URL: $url"
-          "### Home quick tunnel" >> $env:GITHUB_STEP_SUMMARY
+          Write-Host "Public ngrok URL: $url"
+          "### Home ngrok tunnel" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
           "Public URL: $url" >> $env:GITHUB_STEP_SUMMARY
           "Latest URL file on runner: $urlPath" >> $env:GITHUB_STEP_SUMMARY
@@ -356,25 +353,25 @@ jobs:
         shell: powershell
         run: |
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api ops-ui nginx cloudflared minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api ops-ui nginx ngrok minio
 
   public_tunnel_health:
-    name: Verify public quick tunnel health
+    name: Verify public ngrok health
     runs-on: ubuntu-latest
     needs:
       - home_deploy
-    if: needs.home_deploy.outputs.quick_tunnel_url != ''
+    if: needs.home_deploy.outputs.public_tunnel_url != ''
     env:
       HOME_BASIC_AUTH_USER: ${{ secrets.HOME_BASIC_AUTH_USER }}
       HOME_BASIC_AUTH_PASSWORD: ${{ secrets.HOME_BASIC_AUTH_PASSWORD }}
-      QUICK_TUNNEL_URL: ${{ needs.home_deploy.outputs.quick_tunnel_url }}
+      PUBLIC_TUNNEL_URL: ${{ needs.home_deploy.outputs.public_tunnel_url }}
     steps:
-      - name: Verify public quick tunnel health through Basic Auth
+      - name: Verify public ngrok health through Basic Auth
         shell: bash
         run: |
           set -euo pipefail
           basic_auth="$(printf '%s:%s' "$HOME_BASIC_AUTH_USER" "$HOME_BASIC_AUTH_PASSWORD" | base64 -w 0)"
-          echo "Public quick tunnel URL: ${QUICK_TUNNEL_URL}"
+          echo "Public ngrok URL: ${PUBLIC_TUNNEL_URL}"
           curl \
             --fail \
             --silent \
@@ -384,7 +381,7 @@ jobs:
             --retry-delay 5 \
             --max-time 15 \
             --header "Authorization: Basic ${basic_auth}" \
-            "${QUICK_TUNNEL_URL}/health"
+            "${PUBLIC_TUNNEL_URL}/health"
           curl \
             --fail \
             --silent \
@@ -395,4 +392,14 @@ jobs:
             --max-time 15 \
             --output /dev/null \
             --header "Authorization: Basic ${basic_auth}" \
-            "${QUICK_TUNNEL_URL}/ops"
+            "${PUBLIC_TUNNEL_URL}/ops"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 60 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            --max-time 15 \
+            --header "Authorization: Basic ${basic_auth}" \
+            "${PUBLIC_TUNNEL_URL}/ops/api/backend/ops/summary"

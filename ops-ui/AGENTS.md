@@ -42,3 +42,18 @@ pnpm --filter codex-sdk-ops-ui typecheck
 pnpm --filter codex-sdk-ops-ui test
 pnpm --filter codex-sdk-ops-ui build
 ```
+
+## Deployment Pitfalls
+
+- `pnpm --filter codex-sdk-ops-ui build`만으로 Home PC 배포 가능성을 판단하지
+  않는다. Docker or Compose wiring을 바꿨다면
+  `docker compose -f compose.home.yaml build ops-ui`도 확인한다.
+- Next standalone output은 monorepo path를 포함한다. Runtime server는
+  `/app/ops-ui/server.js`에서 뜨고, static assets는
+  `/app/ops-ui/.next/static` 아래에 있어야 한다.
+- Browser API calls stay under `/ops/api/backend/*`; only the Next BFF calls
+  `CODEX_OPS_BACKEND_BASE_URL`.
+- 배포 검증은 `/ops` page뿐 아니라 `/ops/api/backend/ops/summary`도 확인한다.
+  page가 떠도 BFF-to-FastAPI wiring이 깨질 수 있다.
+- Windows PowerShell 5.1 deploy checks that call `Invoke-WebRequest` against
+  Next HTML must use `-UseBasicParsing`.

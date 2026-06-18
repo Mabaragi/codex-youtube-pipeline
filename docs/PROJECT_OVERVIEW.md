@@ -112,9 +112,8 @@ docker compose up api
 ```
 
 Home PC deployment uses a Windows self-hosted runner, Docker Compose, Nginx
-Basic Auth, and Cloudflare quick tunnel. The quick tunnel URL can change when
-cloudflared restarts, and the deploy job records the latest URL in the GitHub
-Actions summary and `.home-deploy/latest-tunnel-url.txt`. See
+Basic Auth, and an ngrok dev domain tunnel. The deploy job records the public
+URL in the GitHub Actions summary and `.home-deploy/latest-tunnel-url.txt`. See
 `docs/HOME_PC_DEPLOYMENT.md`.
 
 YouTube 자막 조회 API는 URL과 raw video ID를 모두 받는다.
