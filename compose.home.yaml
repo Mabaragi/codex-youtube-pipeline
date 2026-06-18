@@ -114,8 +114,8 @@ services:
     depends_on:
       - nginx
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?NGROK_AUTHTOKEN is required}
-    command: ["http", "--url", "${NGROK_DOMAIN:?NGROK_DOMAIN is required}", "nginx:80"]
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command: ["http", "--url", "${NGROK_DOMAIN:-}", "nginx:80"]
 
   minio:
     image: minio/minio:latest
