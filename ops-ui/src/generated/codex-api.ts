@@ -768,6 +768,10 @@ export interface components {
         };
         /** OpsSchemaColumnResponse */
         OpsSchemaColumnResponse: {
+            /** Constraintnames */
+            constraintNames: string[];
+            /** Default */
+            default: string | null;
             /** Foreignkeys */
             foreignKeys: string[];
             /** Id */
@@ -785,6 +789,17 @@ export interface components {
             /** Unique */
             unique: boolean;
         };
+        /** OpsSchemaForeignKeyConstraintResponse */
+        OpsSchemaForeignKeyConstraintResponse: {
+            /** Columnnames */
+            columnNames: string[];
+            /** Name */
+            name: string;
+            /** Targetcolumnnames */
+            targetColumnNames: string[];
+            /** Targettable */
+            targetTable: string;
+        };
         /** OpsSchemaGraphResponse */
         OpsSchemaGraphResponse: {
             /** Relations */
@@ -792,16 +807,36 @@ export interface components {
             /** Tables */
             tables: components["schemas"]["OpsSchemaTableResponse"][];
         };
+        /** OpsSchemaIndexResponse */
+        OpsSchemaIndexResponse: {
+            /** Columnnames */
+            columnNames: string[];
+            /** Name */
+            name: string;
+            /** Unique */
+            unique: boolean;
+        };
         /** OpsSchemaRelationResponse */
         OpsSchemaRelationResponse: {
+            /** Constraintname */
+            constraintName: string;
             /** Id */
             id: string;
+            /**
+             * Relationkind
+             * @enum {string}
+             */
+            relationKind: "one_to_many" | "one_to_one" | "optional_one_to_many" | "optional_one_to_one";
             /** Sourcecolumn */
             sourceColumn: string;
+            /** Sourcenullable */
+            sourceNullable: boolean;
             /** Sourcetable */
             sourceTable: string;
             /** Targetcolumn */
             targetColumn: string;
+            /** Targetprimarykey */
+            targetPrimaryKey: boolean;
             /** Targettable */
             targetTable: string;
         };
@@ -809,8 +844,21 @@ export interface components {
         OpsSchemaTableResponse: {
             /** Columns */
             columns: components["schemas"]["OpsSchemaColumnResponse"][];
+            /** Foreignkeyconstraints */
+            foreignKeyConstraints: components["schemas"]["OpsSchemaForeignKeyConstraintResponse"][];
             /** Id */
             id: string;
+            /** Indexes */
+            indexes: components["schemas"]["OpsSchemaIndexResponse"][];
+            /** Name */
+            name: string;
+            /** Uniqueconstraints */
+            uniqueConstraints: components["schemas"]["OpsSchemaUniqueConstraintResponse"][];
+        };
+        /** OpsSchemaUniqueConstraintResponse */
+        OpsSchemaUniqueConstraintResponse: {
+            /** Columnnames */
+            columnNames: string[];
             /** Name */
             name: string;
         };

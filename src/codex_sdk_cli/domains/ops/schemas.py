@@ -130,7 +130,33 @@ class OpsSchemaColumnResponse(BaseModel):
     primary_key: bool = Field(alias="primaryKey")
     unique: bool
     index: bool
+    default: str | None
     foreign_keys: list[str] = Field(alias="foreignKeys")
+    constraint_names: list[str] = Field(alias="constraintNames")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsSchemaIndexResponse(BaseModel):
+    name: str
+    column_names: list[str] = Field(alias="columnNames")
+    unique: bool
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsSchemaUniqueConstraintResponse(BaseModel):
+    name: str
+    column_names: list[str] = Field(alias="columnNames")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsSchemaForeignKeyConstraintResponse(BaseModel):
+    name: str
+    column_names: list[str] = Field(alias="columnNames")
+    target_table: str = Field(alias="targetTable")
+    target_column_names: list[str] = Field(alias="targetColumnNames")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -139,14 +165,32 @@ class OpsSchemaTableResponse(BaseModel):
     id: str
     name: str
     columns: list[OpsSchemaColumnResponse]
+    indexes: list[OpsSchemaIndexResponse]
+    unique_constraints: list[OpsSchemaUniqueConstraintResponse] = Field(
+        alias="uniqueConstraints"
+    )
+    foreign_key_constraints: list[OpsSchemaForeignKeyConstraintResponse] = Field(
+        alias="foreignKeyConstraints"
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OpsSchemaRelationResponse(BaseModel):
     id: str
+    constraint_name: str = Field(alias="constraintName")
     source_table: str = Field(alias="sourceTable")
     source_column: str = Field(alias="sourceColumn")
     target_table: str = Field(alias="targetTable")
     target_column: str = Field(alias="targetColumn")
+    source_nullable: bool = Field(alias="sourceNullable")
+    target_primary_key: bool = Field(alias="targetPrimaryKey")
+    relation_kind: Literal[
+        "one_to_many",
+        "one_to_one",
+        "optional_one_to_many",
+        "optional_one_to_one",
+    ] = Field(alias="relationKind")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -154,4 +198,3 @@ class OpsSchemaRelationResponse(BaseModel):
 class OpsSchemaGraphResponse(BaseModel):
     tables: list[OpsSchemaTableResponse]
     relations: list[OpsSchemaRelationResponse]
-

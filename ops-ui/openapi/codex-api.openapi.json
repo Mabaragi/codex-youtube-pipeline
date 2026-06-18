@@ -781,6 +781,24 @@
       },
       "OpsSchemaColumnResponse": {
         "properties": {
+          "constraintNames": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Constraintnames",
+            "type": "array"
+          },
+          "default": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default"
+          },
           "foreignKeys": {
             "items": {
               "type": "string"
@@ -825,9 +843,45 @@
           "primaryKey",
           "unique",
           "index",
-          "foreignKeys"
+          "default",
+          "foreignKeys",
+          "constraintNames"
         ],
         "title": "OpsSchemaColumnResponse",
+        "type": "object"
+      },
+      "OpsSchemaForeignKeyConstraintResponse": {
+        "properties": {
+          "columnNames": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columnnames",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "targetColumnNames": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Targetcolumnnames",
+            "type": "array"
+          },
+          "targetTable": {
+            "title": "Targettable",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "columnNames",
+          "targetTable",
+          "targetColumnNames"
+        ],
+        "title": "OpsSchemaForeignKeyConstraintResponse",
         "type": "object"
       },
       "OpsSchemaGraphResponse": {
@@ -854,15 +908,59 @@
         "title": "OpsSchemaGraphResponse",
         "type": "object"
       },
+      "OpsSchemaIndexResponse": {
+        "properties": {
+          "columnNames": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columnnames",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unique": {
+            "title": "Unique",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "columnNames",
+          "unique"
+        ],
+        "title": "OpsSchemaIndexResponse",
+        "type": "object"
+      },
       "OpsSchemaRelationResponse": {
         "properties": {
+          "constraintName": {
+            "title": "Constraintname",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "relationKind": {
+            "enum": [
+              "one_to_many",
+              "one_to_one",
+              "optional_one_to_many",
+              "optional_one_to_one"
+            ],
+            "title": "Relationkind",
             "type": "string"
           },
           "sourceColumn": {
             "title": "Sourcecolumn",
             "type": "string"
+          },
+          "sourceNullable": {
+            "title": "Sourcenullable",
+            "type": "boolean"
           },
           "sourceTable": {
             "title": "Sourcetable",
@@ -872,6 +970,10 @@
             "title": "Targetcolumn",
             "type": "string"
           },
+          "targetPrimaryKey": {
+            "title": "Targetprimarykey",
+            "type": "boolean"
+          },
           "targetTable": {
             "title": "Targettable",
             "type": "string"
@@ -879,10 +981,14 @@
         },
         "required": [
           "id",
+          "constraintName",
           "sourceTable",
           "sourceColumn",
           "targetTable",
-          "targetColumn"
+          "targetColumn",
+          "sourceNullable",
+          "targetPrimaryKey",
+          "relationKind"
         ],
         "title": "OpsSchemaRelationResponse",
         "type": "object"
@@ -896,9 +1002,55 @@
             "title": "Columns",
             "type": "array"
           },
+          "foreignKeyConstraints": {
+            "items": {
+              "$ref": "#/components/schemas/OpsSchemaForeignKeyConstraintResponse"
+            },
+            "title": "Foreignkeyconstraints",
+            "type": "array"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "indexes": {
+            "items": {
+              "$ref": "#/components/schemas/OpsSchemaIndexResponse"
+            },
+            "title": "Indexes",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "uniqueConstraints": {
+            "items": {
+              "$ref": "#/components/schemas/OpsSchemaUniqueConstraintResponse"
+            },
+            "title": "Uniqueconstraints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "columns",
+          "indexes",
+          "uniqueConstraints",
+          "foreignKeyConstraints"
+        ],
+        "title": "OpsSchemaTableResponse",
+        "type": "object"
+      },
+      "OpsSchemaUniqueConstraintResponse": {
+        "properties": {
+          "columnNames": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Columnnames",
+            "type": "array"
           },
           "name": {
             "title": "Name",
@@ -906,11 +1058,10 @@
           }
         },
         "required": [
-          "id",
           "name",
-          "columns"
+          "columnNames"
         ],
-        "title": "OpsSchemaTableResponse",
+        "title": "OpsSchemaUniqueConstraintResponse",
         "type": "object"
       },
       "OpsStatusCountResponse": {

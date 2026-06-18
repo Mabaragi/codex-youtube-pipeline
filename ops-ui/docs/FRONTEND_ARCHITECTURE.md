@@ -24,7 +24,9 @@ The ops UI is a Next.js App Router application mounted at `/ops`.
 - `/ops/videos`: stored videos and latest task/transcript state.
 - `/ops/tasks`: durable video task state and retry actions.
 - `/ops/jobs`: pipeline jobs and retry actions.
-- `/ops/erd`: interactive schema graph from `/ops/schema-graph`.
+- `/ops/erd`: React Flow schema viewer from `/ops/schema-graph`, including
+  table groups, PK/FK/UQ/IX badges, relation metadata, and constraint/index
+  inspector panels.
 
 ## Mutation Rules
 

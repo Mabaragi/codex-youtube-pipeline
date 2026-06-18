@@ -165,9 +165,24 @@ async def _test_ops_schema_graph_uses_openapi_and_metadata() -> None:
     payload: dict[str, Any] = response.json()
     table_names = {table["name"] for table in payload["tables"]}
     relation_ids = {relation["id"] for relation in payload["relations"]}
+    channels = next(table for table in payload["tables"] if table["name"] == "channels")
+    channel_streamer_relation = next(
+        relation
+        for relation in payload["relations"]
+        if relation["id"] == "streamers.id->channels.streamer_id"
+    )
     assert "channels" in table_names
     assert "videos" in table_names
     assert "channels.id->videos.channel_id" in relation_ids
+    assert any(
+        constraint["targetTable"] == "streamers"
+        for constraint in channels["foreignKeyConstraints"]
+    )
+    assert any("streamer_id" in index["columnNames"] for index in channels["indexes"])
+    assert channel_streamer_relation["constraintName"] == "fk_channels_streamer_id_streamers"
+    assert channel_streamer_relation["relationKind"] == "one_to_many"
+    assert channel_streamer_relation["sourceNullable"] is False
+    assert channel_streamer_relation["targetPrimaryKey"] is False
 
 
 def test_ops_routes_are_in_openapi() -> None:
