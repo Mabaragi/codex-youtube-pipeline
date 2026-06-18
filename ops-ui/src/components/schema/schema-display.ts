@@ -12,6 +12,19 @@ export type RelationCardinality = {
   childIsOptional: boolean;
 };
 
+type TableHeightColumn = {
+  default?: string | null;
+};
+
+type TableHeightTable = {
+  columns: TableHeightColumn[];
+};
+
+const TABLE_HEADER_HEIGHT = 58;
+const TABLE_MIN_HEIGHT = 148;
+const TABLE_ROW_HEIGHT = 44;
+const TABLE_ROW_WITH_DEFAULT_HEIGHT = 60;
+
 export function getTableGroup(tableName: string): SchemaTableGroup {
   if (["streamers", "channels", "videos"].includes(tableName)) {
     return "core";
@@ -23,6 +36,15 @@ export function getTableGroup(tableName: string): SchemaTableGroup {
     return "artifacts";
   }
   return "support";
+}
+
+export function estimateTableNodeHeight(table: TableHeightTable): number {
+  const columnsHeight = table.columns.reduce(
+    (height, column) =>
+      height + (column.default ? TABLE_ROW_WITH_DEFAULT_HEIGHT : TABLE_ROW_HEIGHT),
+    0,
+  );
+  return Math.max(TABLE_MIN_HEIGHT, TABLE_HEADER_HEIGHT + columnsHeight);
 }
 
 export function getRelationCardinality(

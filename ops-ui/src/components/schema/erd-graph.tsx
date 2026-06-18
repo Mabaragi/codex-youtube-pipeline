@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OpsSchemaGraph, OpsSchemaTable } from "@/lib/types";
 import { useOpsStore } from "@/store/use-ops-store";
 import {
+  estimateTableNodeHeight,
   getRelationCardinality,
   getTableGroup,
   type RelationCardinality,
@@ -302,7 +303,7 @@ async function calculateLayoutPositions(
     children: tables.map((table) => ({
       id: table.id,
       width: TABLE_WIDTH,
-      height: Math.max(148, 74 + table.columns.length * 32),
+      height: estimateTableNodeHeight(table),
     })),
     edges: relations.map((relation) => ({
       id: relation.id,
@@ -638,7 +639,7 @@ function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
           {GROUP_LABELS[group]}
         </span>
       </div>
-      <div className="max-h-[420px] overflow-hidden">
+      <div>
         {table.columns.map((column) => (
           <ColumnRow key={column.id} column={column} />
         ))}

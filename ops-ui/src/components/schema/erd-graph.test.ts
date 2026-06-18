@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getRelationCardinality, getTableGroup } from "./schema-display";
+import {
+  estimateTableNodeHeight,
+  getRelationCardinality,
+  getTableGroup,
+} from "./schema-display";
 
 describe("getTableGroup", () => {
   it("groups known operational tables", () => {
@@ -24,5 +28,24 @@ describe("getRelationCardinality", () => {
       childIsMany: false,
       childIsOptional: true,
     });
+  });
+});
+
+describe("estimateTableNodeHeight", () => {
+  it("does not cap tables with more than ten columns", () => {
+    const height = estimateTableNodeHeight({
+      columns: Array.from({ length: 16 }, () => ({})),
+    });
+
+    expect(height).toBeGreaterThan(420);
+  });
+
+  it("accounts for default rows that render with an extra line", () => {
+    const compactHeight = estimateTableNodeHeight({ columns: [{}, {}, {}, {}] });
+    const defaultHeight = estimateTableNodeHeight({
+      columns: [{ default: "now()" }, {}, {}, {}],
+    });
+
+    expect(defaultHeight).toBeGreaterThan(compactHeight);
   });
 });
