@@ -8,13 +8,17 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  applyNodeChanges,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OpsSchemaGraph, OpsSchemaTable } from "@/lib/types";
 import { useOpsStore } from "@/store/use-ops-store";
+
+type SchemaRelation = OpsSchemaGraph["relations"][number];
 
 type TableNodeData = {
   table: OpsSchemaTable;
@@ -26,12 +30,17 @@ const nodeTypes = {
   table: TableNode,
 };
 
+const EMPTY_POSITION = { x: 0, y: 0 };
+
 export function ErdGraph({ graph }: { graph: OpsSchemaGraph }) {
   const selectedTableId = useOpsStore((state) => state.selectedSchemaTableId);
   const setSelectedTableId = useOpsStore((state) => state.setSelectedSchemaTableId);
+  const setSchemaNodePosition = useOpsStore((state) => state.setSchemaNodePosition);
+  const setSchemaNodePositions = useOpsStore((state) => state.setSchemaNodePositions);
+  const resetSchemaNodePositions = useOpsStore((state) => state.resetSchemaNodePositions);
   const [nodes, setNodes] = useState<Node<TableNodeData>[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
   const [query, setQuery] = useState("");
+  const [layoutVersion, setLayoutVersion] = useState(0);
 
   const filteredTables = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -45,100 +54,124 @@ export function ErdGraph({ graph }: { graph: OpsSchemaGraph }) {
     );
   }, [graph.tables, query]);
 
+  const visibleRelations = useMemo(() => {
+    const visibleIds = new Set(filteredTables.map((table) => table.id));
+    return graph.relations.filter(
+      (relation) =>
+        visibleIds.has(relation.sourceTable) && visibleIds.has(relation.targetTable),
+    );
+  }, [filteredTables, graph.relations]);
+
+  const edges = useMemo(
+    () => buildEdges(visibleRelations, selectedTableId),
+    [selectedTableId, visibleRelations],
+  );
+  const flowNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          selected: node.id === selectedTableId,
+        },
+      })),
+    [nodes, selectedTableId],
+  );
+
   useEffect(() => {
     let canceled = false;
     async function layout() {
-      const visibleIds = new Set(filteredTables.map((table) => table.id));
-      const elk = new ELK();
-      const elkGraph = {
-        id: "root",
-        layoutOptions: {
-          "elk.algorithm": "layered",
-          "elk.direction": "RIGHT",
-          "elk.spacing.nodeNode": "80",
-          "elk.layered.spacing.nodeNodeBetweenLayers": "100",
-        },
-        children: filteredTables.map((table) => ({
-          id: table.id,
-          width: 300,
-          height: Math.max(120, 48 + table.columns.length * 26),
-        })),
-        edges: graph.relations
-          .filter(
-            (relation) =>
-              visibleIds.has(relation.sourceTable) && visibleIds.has(relation.targetTable),
-          )
-          .map((relation) => ({
-            id: relation.id,
-            sources: [relation.sourceTable],
-            targets: [relation.targetTable],
-          })),
-      };
-      const layouted = await elk.layout(elkGraph);
+      const layoutPositions = await calculateLayoutPositions(filteredTables, visibleRelations);
       if (canceled) {
         return;
       }
-      const childrenById = new Map(layouted.children?.map((child) => [child.id, child]));
+      const savedPositions = useOpsStore.getState().schemaNodePositions;
+      const currentSelectedTableId = useOpsStore.getState().selectedSchemaTableId;
       setNodes(
-        filteredTables.map((table) => {
-          const child = childrenById.get(table.id);
-          return {
-            id: table.id,
-            type: "table",
-            position: { x: child?.x ?? 0, y: child?.y ?? 0 },
-            data: {
-              table,
-              selected: table.id === selectedTableId,
-              onSelect: setSelectedTableId,
-            },
-          };
-        }),
-      );
-      setEdges(
-        graph.relations
-          .filter(
-            (relation) =>
-              visibleIds.has(relation.sourceTable) && visibleIds.has(relation.targetTable),
-          )
-          .map((relation) => ({
-            id: relation.id,
-            source: relation.sourceTable,
-            target: relation.targetTable,
-            label: `${relation.sourceColumn} -> ${relation.targetColumn}`,
-            animated:
-              relation.sourceTable === selectedTableId ||
-              relation.targetTable === selectedTableId,
-            style: {
-              stroke:
-                relation.sourceTable === selectedTableId ||
-                relation.targetTable === selectedTableId
-                  ? "var(--accent)"
-                  : "#8da0b3",
-            },
-          })),
+        filteredTables.map((table) => ({
+          id: table.id,
+          type: "table",
+          position: savedPositions[table.id] ?? layoutPositions[table.id] ?? EMPTY_POSITION,
+          data: {
+            table,
+            selected: table.id === currentSelectedTableId,
+            onSelect: setSelectedTableId,
+          },
+        })),
       );
     }
     void layout();
     return () => {
       canceled = true;
     };
-  }, [filteredTables, graph.relations, selectedTableId, setSelectedTableId]);
+  }, [filteredTables, layoutVersion, setSelectedTableId, visibleRelations]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<Node<TableNodeData>>[]) => {
+      setNodes((currentNodes) => applyNodeChanges(changes, currentNodes));
+      for (const change of changes) {
+        if (change.type === "position" && change.position && !change.dragging) {
+          setSchemaNodePosition(change.id, change.position);
+        }
+      }
+    },
+    [setSchemaNodePosition],
+  );
+
+  const applyAutoLayout = useCallback(async () => {
+    const layoutPositions = await calculateLayoutPositions(filteredTables, visibleRelations);
+    const currentPositions = useOpsStore.getState().schemaNodePositions;
+    setSchemaNodePositions({
+      ...currentPositions,
+      ...layoutPositions,
+    });
+    setNodes(
+      filteredTables.map((table) => ({
+        id: table.id,
+        type: "table",
+        position: layoutPositions[table.id] ?? EMPTY_POSITION,
+        data: {
+          table,
+          selected: table.id === selectedTableId,
+          onSelect: setSelectedTableId,
+        },
+      })),
+    );
+  }, [
+    filteredTables,
+    selectedTableId,
+    setSchemaNodePositions,
+    setSelectedTableId,
+    visibleRelations,
+  ]);
+
+  const resetLayout = useCallback(() => {
+    resetSchemaNodePositions();
+    setLayoutVersion((current) => current + 1);
+  }, [resetSchemaNodePositions]);
 
   return (
     <div className="ops-panel min-h-[720px] overflow-hidden">
-      <div className="border-b border-slate-200 p-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
         <input
           className="ops-input w-full max-w-sm"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search table or column"
         />
+        <button type="button" className="ops-button" onClick={applyAutoLayout}>
+          Auto layout
+        </button>
+        <button type="button" className="ops-button" onClick={resetLayout}>
+          Reset layout
+        </button>
       </div>
       <div className="h-[670px]">
         <ReactFlow
-          nodes={nodes}
+          nodes={flowNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
           fitView
           minZoom={0.15}
           maxZoom={1.4}
@@ -150,6 +183,55 @@ export function ErdGraph({ graph }: { graph: OpsSchemaGraph }) {
       </div>
     </div>
   );
+}
+
+async function calculateLayoutPositions(
+  tables: OpsSchemaTable[],
+  relations: SchemaRelation[],
+) {
+  const elk = new ELK();
+  const layouted = await elk.layout({
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "RIGHT",
+      "elk.spacing.nodeNode": "80",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "100",
+    },
+    children: tables.map((table) => ({
+      id: table.id,
+      width: 300,
+      height: Math.max(120, 48 + table.columns.length * 26),
+    })),
+    edges: relations.map((relation) => ({
+      id: relation.id,
+      sources: [relation.sourceTable],
+      targets: [relation.targetTable],
+    })),
+  });
+  return Object.fromEntries(
+    layouted.children?.map((child) => [
+      child.id,
+      { x: child.x ?? 0, y: child.y ?? 0 },
+    ]) ?? [],
+  );
+}
+
+function buildEdges(relations: SchemaRelation[], selectedTableId: string | null): Edge[] {
+  return relations.map((relation) => ({
+    id: relation.id,
+    source: relation.sourceTable,
+    target: relation.targetTable,
+    label: `${relation.sourceColumn} -> ${relation.targetColumn}`,
+    animated:
+      relation.sourceTable === selectedTableId || relation.targetTable === selectedTableId,
+    style: {
+      stroke:
+        relation.sourceTable === selectedTableId || relation.targetTable === selectedTableId
+          ? "var(--accent)"
+          : "#8da0b3",
+    },
+  }));
 }
 
 function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
