@@ -1,0 +1,147 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { JobsPage } from "../jobs-page";
+import type {
+  OpsChannel,
+  PipelineJobFilters,
+  PipelineJobList,
+} from "@/lib/types";
+
+const routerPush = vi.hoisted(() => vi.fn());
+const queryMocks = vi.hoisted(() => ({
+  channels: {
+    data: undefined as { items: OpsChannel[] } | undefined,
+    isLoading: false,
+    error: null as Error | null,
+  },
+  jobs: {
+    data: undefined as PipelineJobList | undefined,
+    isLoading: false,
+    error: null as Error | null,
+  },
+  jobFilters: undefined as PipelineJobFilters | undefined,
+  retryJob: {
+    isPending: false,
+    mutate: vi.fn(),
+  },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush }),
+}));
+
+vi.mock("@/lib/queries", () => ({
+  useOpsChannels: () => queryMocks.channels,
+  usePipelineJobs: (filters: PipelineJobFilters) => {
+    queryMocks.jobFilters = filters;
+    return queryMocks.jobs;
+  },
+  useRetryJobMutation: () => queryMocks.retryJob,
+}));
+
+const channel: OpsChannel = {
+  channelId: 7,
+  streamerId: 1,
+  streamerName: "Streamer",
+  handle: "@channel",
+  name: "Channel",
+  youtubeChannelId: "UC123456789",
+  uploadsPlaylistId: "UU123456789",
+  videoCount: 1,
+  transcriptSucceededCount: 1,
+  taskFailedCount: 0,
+  taskRunningCount: 0,
+  latestVideoPublishedAt: "2026-06-18T00:00:00Z",
+  latestTaskUpdatedAt: null,
+};
+
+describe("JobsPage filters", () => {
+  beforeEach(() => {
+    routerPush.mockReset();
+    queryMocks.channels.data = { items: [channel] };
+    queryMocks.jobs.data = {
+      items: [
+        {
+          jobId: 1,
+          step: "video_collect",
+          status: "failed",
+          subjectType: "channel",
+          subjectId: 7,
+          externalKey: "UC123456789",
+          createdAt: "2026-06-18T00:00:00Z",
+          updatedAt: "2026-06-18T01:00:00Z",
+          completedAt: "2026-06-18T01:00:00Z",
+          latestAttemptId: 1,
+          latestAttemptStatus: "failed",
+          attemptCount: 1,
+        },
+      ],
+      nextCursor: 1,
+    };
+    queryMocks.jobs.isLoading = false;
+    queryMocks.jobs.error = null;
+    queryMocks.jobFilters = undefined;
+    queryMocks.retryJob.isPending = false;
+    queryMocks.retryJob.mutate.mockReset();
+  });
+
+  it("passes initial URL filters to the jobs query", () => {
+    render(
+      <JobsPage
+        initialFilters={{
+          channelId: 7,
+          status: "failed",
+          step: "video_collect",
+          limit: 50,
+        }}
+      />,
+    );
+
+    expect(queryMocks.jobFilters).toEqual({
+      channelId: 7,
+      status: "failed",
+      step: "video_collect",
+      limit: 50,
+    });
+  });
+
+  it("submits filters through the jobs route", () => {
+    render(<JobsPage initialFilters={{ limit: 50 }} />);
+
+    fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "failed" } });
+    fireEvent.change(screen.getByLabelText("Step"), {
+      target: { value: "video_collect" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
+
+    expect(routerPush).toHaveBeenCalledWith(
+      "/jobs?channelId=7&status=failed&step=video_collect&limit=50",
+    );
+  });
+
+  it("keeps filters when linking to older jobs", () => {
+    render(
+      <JobsPage
+        initialFilters={{
+          channelId: 7,
+          status: "failed",
+          step: "video_collect",
+          limit: 50,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /Older/i }).getAttribute("href")).toBe(
+      "/jobs?channelId=7&status=failed&step=video_collect&limit=50&cursor=1",
+    );
+  });
+
+  it("preserves an unknown selected channel option", () => {
+    queryMocks.channels.data = { items: [] };
+
+    render(<JobsPage initialFilters={{ channelId: 99, limit: 50 }} />);
+
+    expect(screen.getByRole("option", { name: "#99" })).toBeTruthy();
+  });
+});

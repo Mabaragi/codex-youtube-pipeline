@@ -108,6 +108,7 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         self.attempts: dict[int, PipelineJobAttemptRecord] = {}
         self.external_api_calls: list[ExternalApiCallSummaryRecord] = []
         self.channels: list[PipelineChannelOutputRecord] = []
+        self.queries: list[PipelineJobListQuery] = []
         self.next_job_id = 1
         self.next_attempt_id = 1
 
@@ -138,11 +139,22 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         self,
         query: PipelineJobListQuery,
     ) -> list[PipelineJobSummaryRecord]:
+        self.queries.append(query)
         jobs = sorted(self.jobs.values(), key=lambda job: job.id, reverse=True)
         if query.step is not None:
             jobs = [job for job in jobs if job.step == query.step]
         if query.status is not None:
             jobs = [job for job in jobs if job.status == query.status]
+        if query.channel_id is not None:
+            jobs = [
+                job
+                for job in jobs
+                if (
+                    job.subject_type == "channel"
+                    and job.subject_id == query.channel_id
+                )
+                or job.input_json.get("channelId") == query.channel_id
+            ]
         if query.subject_type is not None:
             jobs = [job for job in jobs if job.subject_type == query.subject_type]
         if query.subject_id is not None:
@@ -751,6 +763,13 @@ def test_pipeline_retry_records_failed_attempt_on_upstream_error() -> None:
 def test_pipeline_jobs_list_filters_and_paginates_operational_summary() -> None:
     pipeline_jobs = FakePipelineJobRepository()
     _seed_channel_resolve_job(pipeline_jobs, status="failed")
+    pipeline_jobs.jobs[1] = replace(
+        pipeline_jobs.jobs[1],
+        input_json={
+            **pipeline_jobs.jobs[1].input_json,
+            "channelId": 1,
+        },
+    )
     _seed_failed_attempt(pipeline_jobs, job_id=1)
     _seed_channel_resolve_job(pipeline_jobs, job_id=2, status="succeeded", handle="@Other")
     pipeline_jobs.attempts[2] = replace(
@@ -766,7 +785,7 @@ def test_pipeline_jobs_list_filters_and_paginates_operational_summary() -> None:
         _pipeline_request(
             pipeline_jobs,
             "GET",
-            "/pipeline/jobs?status=failed&limit=1",
+            "/pipeline/jobs?channelId=1&status=failed&step=channel_resolve&limit=1",
         )
     )
     next_page = asyncio.run(
@@ -778,6 +797,9 @@ def test_pipeline_jobs_list_filters_and_paginates_operational_summary() -> None:
     )
 
     assert failed_response["nextCursor"] is None
+    assert pipeline_jobs.queries[0].channel_id == 1
+    assert pipeline_jobs.queries[0].status == "failed"
+    assert pipeline_jobs.queries[0].step == "channel_resolve"
     assert failed_response["items"] == [
         {
             "jobId": 1,
@@ -861,6 +883,10 @@ def test_channel_resolve_openapi_path_and_tag() -> None:
     assert "/youtube-data/channels/resolve" not in schema["paths"]
     assert path_item["post"]["tags"] == ["channels"]
     assert list_path_item["get"]["tags"] == ["pipeline-jobs"]
+    query_parameters = {
+        parameter["name"] for parameter in list_path_item["get"]["parameters"]
+    }
+    assert "channelId" in query_parameters
     assert detail_path_item["get"]["tags"] == ["pipeline-jobs"]
     assert retry_path_item["post"]["tags"] == ["pipeline-jobs"]
     assert set(request_schema["properties"]) == {"handle"}

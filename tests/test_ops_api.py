@@ -69,6 +69,10 @@ class FakeOperationEventRepository(OperationEventRepositoryPort):
 
 
 class FakeOpsRepository(OpsRepositoryPort):
+    def __init__(self) -> None:
+        self.video_queries: list[OpsVideoListQuery] = []
+        self.video_task_queries: list[OpsVideoTaskListQuery] = []
+
     async def get_summary_counts(self) -> OpsSummaryCountsRecord:
         return OpsSummaryCountsRecord(
             streamers=1,
@@ -114,6 +118,7 @@ class FakeOpsRepository(OpsRepositoryPort):
         ]
 
     async def list_videos(self, query: OpsVideoListQuery) -> OpsVideoListResult:
+        self.video_queries.append(query)
         now = datetime.now(UTC)
         return OpsVideoListResult(
             total=1,
@@ -207,6 +212,7 @@ class FakeOpsRepository(OpsRepositoryPort):
         self,
         query: OpsVideoTaskListQuery,
     ) -> OpsVideoTaskListResult:
+        self.video_task_queries.append(query)
         now = datetime.now(UTC)
         return OpsVideoTaskListResult(
             total=1,
@@ -266,6 +272,58 @@ async def _test_ops_summary_and_lists_are_available() -> None:
     assert missing_video_detail.status_code == 404
     assert missing_video_detail.json() == {"detail": "Video not found."}
     assert tasks.json()["items"][0]["taskName"] == "transcript_collect"
+
+
+def test_ops_video_and_task_filters_are_forwarded() -> None:
+    asyncio.run(_test_ops_video_and_task_filters_are_forwarded())
+
+
+async def _test_ops_video_and_task_filters_are_forwarded() -> None:
+    repository = FakeOpsRepository()
+    app = create_app()
+    app.dependency_overrides[get_ops_repository] = lambda: repository
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        videos = await client.get(
+            "/ops/videos",
+            params={
+                "channelId": 1,
+                "taskStatus": "failed",
+                "search": "needle",
+                "limit": 25,
+                "offset": 5,
+            },
+        )
+        tasks = await client.get(
+            "/ops/video-tasks",
+            params={
+                "channelId": 1,
+                "taskName": "transcript_collect",
+                "status": "running",
+                "limit": 25,
+                "offset": 5,
+            },
+        )
+
+    assert videos.status_code == 200, videos.text
+    assert tasks.status_code == 200, tasks.text
+    assert repository.video_queries[0] == OpsVideoListQuery(
+        channel_id=1,
+        task_status="failed",
+        search="needle",
+        limit=25,
+        offset=5,
+    )
+    assert repository.video_task_queries[0] == OpsVideoTaskListQuery(
+        channel_id=1,
+        task_name="transcript_collect",
+        status="running",
+        limit=25,
+        offset=5,
+    )
 
 
 def test_ops_events_are_filterable() -> None:

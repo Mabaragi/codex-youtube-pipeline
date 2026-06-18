@@ -53,6 +53,7 @@ class ListPipelineJobsUseCase:
         *,
         step: str | None,
         status: PipelineJobStatus | None,
+        channel_id: int | None,
         subject_type: str | None,
         subject_id: int | None,
         external_key: str | None,
@@ -63,6 +64,7 @@ class ListPipelineJobsUseCase:
             PipelineJobListQuery(
                 step=step,
                 status=status,
+                channel_id=channel_id,
                 subject_type=subject_type,
                 subject_id=subject_id,
                 external_key=external_key,

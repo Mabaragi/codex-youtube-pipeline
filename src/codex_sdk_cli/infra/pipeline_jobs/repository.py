@@ -12,6 +12,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
+    exists,
     func,
     or_,
 )
@@ -156,6 +158,8 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 statement = statement.where(PipelineJobModel.step == query.step)
             if query.status is not None:
                 statement = statement.where(PipelineJobModel.status == query.status)
+            if query.channel_id is not None:
+                statement = statement.where(_job_channel_filter(query.channel_id))
             if query.subject_type is not None:
                 statement = statement.where(PipelineJobModel.subject_type == query.subject_type)
             if query.subject_id is not None:
@@ -538,6 +542,46 @@ def _attempt_status(value: str) -> PipelineJobAttemptStatus:
 def _output_channel_id(output_json: JsonObject) -> int | None:
     value = output_json.get("channelId")
     return value if isinstance(value, int) else None
+
+
+def _job_channel_filter(channel_id: int):
+    from codex_sdk_cli.infra.channels.repository import ChannelModel
+    from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
+    from codex_sdk_cli.infra.videos.repository import VideoModel
+
+    return or_(
+        and_(
+            PipelineJobModel.subject_type == "channel",
+            PipelineJobModel.subject_id == channel_id,
+        ),
+        PipelineJobModel.input_json["channelId"].as_integer() == channel_id,
+        exists(
+            select(PipelineJobAttemptModel.id).where(
+                PipelineJobAttemptModel.job_id == PipelineJobModel.id,
+                PipelineJobAttemptModel.output_json["channelId"].as_integer() == channel_id,
+            )
+        ),
+        exists(
+            select(ChannelModel.id).where(
+                ChannelModel.source_job_id == PipelineJobModel.id,
+                ChannelModel.id == channel_id,
+            )
+        ),
+        exists(
+            select(VideoModel.id).where(
+                VideoModel.source_job_id == PipelineJobModel.id,
+                VideoModel.channel_id == channel_id,
+            )
+        ),
+        exists(
+            select(VideoTaskModel.id)
+            .join(VideoModel, VideoTaskModel.video_id == VideoModel.id)
+            .where(
+                VideoTaskModel.job_id == PipelineJobModel.id,
+                VideoModel.channel_id == channel_id,
+            )
+        ),
+    )
 
 
 def _output_video_ids(output_json: JsonObject) -> list[int]:

@@ -62,6 +62,7 @@ class PipelineJobAttemptRecord:
 class PipelineJobListQuery:
     step: str | None = None
     status: PipelineJobStatus | None = None
+    channel_id: int | None = None
     subject_type: str | None = None
     subject_id: int | None = None
     external_key: str | None = None

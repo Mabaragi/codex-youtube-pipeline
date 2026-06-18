@@ -88,6 +88,7 @@ Environment variables use the `CODEX_CLI_` prefix:
 - `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX` (default: `youtube/transcripts`)
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE` (default: `false`)
+- `CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS` (default: `300`)
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX` (default: `external-api-calls`)
 - `CODEX_CLI_DATABASE_URL` (app default:
   `sqlite+aiosqlite:///./data/app.db`; Docker Compose default:

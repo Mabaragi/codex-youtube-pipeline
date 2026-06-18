@@ -50,6 +50,8 @@ from codex_sdk_cli.domains.video_tasks.ports import (
     VideoTaskRepositoryPort,
     VideoTaskStatus,
 )
+from codex_sdk_cli.domains.video_tasks.schemas import CollectChannelTranscriptTasksRequest
+from codex_sdk_cli.domains.video_tasks.use_cases import CollectChannelTranscriptTasksUseCase
 from codex_sdk_cli.domains.videos.ports import VideoCreate, VideoRecord, VideoRepositoryPort
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptNotFound
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
@@ -66,6 +68,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
+from codex_sdk_cli.domains.youtube_transcripts.use_cases import FetchYouTubeTranscriptUseCase
 from codex_sdk_cli.settings import CliSettings
 
 YOUTUBE_VIDEO_ID = "abc123DEF45"
@@ -673,6 +676,47 @@ def test_channel_transcript_collect_marks_timeout() -> None:
     assert fakes.events.events[-1].event_type == "transcript_collect.task_timed_out"
 
 
+def test_channel_transcript_collect_sleeps_between_fetch_attempts() -> None:
+    fakes = _fakes(delay_seconds=300)
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos, video_id=1, youtube_video_id=YOUTUBE_VIDEO_ID)
+    _seed_video(fakes.videos, video_id=2, youtube_video_id="def456GHI78")
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    response = asyncio.run(
+        CollectChannelTranscriptTasksUseCase(
+            channels=fakes.channels,
+            videos=fakes.videos,
+            video_tasks=fakes.video_tasks,
+            pipeline_jobs=fakes.pipeline_jobs,
+            transcripts=fakes.transcripts,
+            fetch_transcript=FetchYouTubeTranscriptUseCase(
+                fakes.transcript_client,
+                fakes.storage,
+                fakes.transcripts,
+            ),
+            timeout_seconds=600,
+            concurrency_limit=1,
+            delay_seconds=300,
+            sleep=fake_sleep,
+            events=fakes.events,
+        ).execute(
+            1,
+            CollectChannelTranscriptTasksRequest(limit=2),
+        )
+    )
+
+    assert response.requested_count == 2
+    assert sleep_calls == [300]
+    assert [request.video_id for request in fakes.transcript_client.requests] == [
+        "def456GHI78",
+        YOUTUBE_VIDEO_ID,
+    ]
+
+
 def test_channel_video_tasks_list_and_openapi() -> None:
     fakes = _fakes()
     _seed_channel(fakes.channels)
@@ -690,6 +734,27 @@ def test_channel_video_tasks_list_and_openapi() -> None:
     assert schema["paths"]["/channels/{channel_id}/video-tasks/transcript-collect"]["post"][
         "tags"
     ] == ["video-tasks"]
+
+
+def test_transcript_collect_accepts_limit_above_twenty() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+
+    response = asyncio.run(
+        _collect(
+            fakes,
+            json={
+                "limit": 21,
+                "languages": ["ko", "en"],
+                "preserveFormatting": False,
+                "retryFailed": False,
+            },
+        )
+    )
+
+    assert response["requestedCount"] == 1
+    assert response["items"][0]["status"] == "succeeded"
 
 
 def test_channel_video_tasks_missing_channel_returns_not_found() -> None:
@@ -780,7 +845,7 @@ async def _list_tasks(fakes: _Fakes, *, expected_status: int = 200) -> Any:
 
 
 class _Fakes:
-    def __init__(self, *, timeout_seconds: int = 600) -> None:
+    def __init__(self, *, timeout_seconds: int = 600, delay_seconds: int = 0) -> None:
         self.channels = FakeChannelRepository()
         self.videos = FakeVideoRepository()
         self.video_tasks = FakeVideoTaskRepository(self.videos)
@@ -792,11 +857,12 @@ class _Fakes:
         self.settings = CliSettings(
             transcript_collect_timeout_seconds=timeout_seconds,
             transcript_collect_concurrency_limit=1,
+            transcript_collect_delay_seconds=delay_seconds,
         )
 
 
-def _fakes(*, timeout_seconds: int = 600) -> _Fakes:
-    return _Fakes(timeout_seconds=timeout_seconds)
+def _fakes(*, timeout_seconds: int = 600, delay_seconds: int = 0) -> _Fakes:
+    return _Fakes(timeout_seconds=timeout_seconds, delay_seconds=delay_seconds)
 
 
 def _app(fakes: _Fakes) -> Any:

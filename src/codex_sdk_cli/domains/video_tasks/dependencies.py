@@ -39,6 +39,7 @@ def get_collect_channel_transcript_tasks_use_case(
         fetch_transcript=fetch_transcript,
         timeout_seconds=settings.transcript_collect_timeout_seconds,
         concurrency_limit=settings.transcript_collect_concurrency_limit,
+        delay_seconds=settings.transcript_collect_delay_seconds,
         events=events,
     )
 

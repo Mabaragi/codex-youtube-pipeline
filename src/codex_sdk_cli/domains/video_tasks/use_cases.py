@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import cast
 
 from codex_sdk_cli.domains.channels.exceptions import ChannelNotFound
@@ -56,6 +58,13 @@ TRANSCRIPT_COLLECT_STEP = "transcript_collect"
 TRANSCRIPT_COLLECT_TASK_NAME = "transcript_collect"
 TRANSCRIPT_COLLECT_TASK_VERSION = "v1"
 TRANSCRIPT_COLLECT_WORKER_ID = "manual-api"
+SleepFunction = Callable[[float], Awaitable[None]]
+
+
+@dataclass(frozen=True, slots=True)
+class _ProcessedTranscriptCollectItem:
+    response: TranscriptCollectItemResponse
+    attempted_fetch: bool
 
 
 class CollectChannelTranscriptTasksUseCase:
@@ -71,6 +80,8 @@ class CollectChannelTranscriptTasksUseCase:
         timeout_seconds: int,
         concurrency_limit: int,
         events: OperationEventRecorderPort,
+        delay_seconds: int = 0,
+        sleep: SleepFunction | None = None,
     ) -> None:
         self._channels = channels
         self._videos = videos
@@ -81,6 +92,8 @@ class CollectChannelTranscriptTasksUseCase:
         self._timeout_seconds = timeout_seconds
         self._concurrency_limit = concurrency_limit
         self._events = events
+        self._delay_seconds = delay_seconds
+        self._sleep = sleep or asyncio.sleep
 
     async def execute(
         self,
@@ -108,18 +121,25 @@ class CollectChannelTranscriptTasksUseCase:
                     "retryFailed": request.retry_failed,
                     "timeoutSeconds": self._timeout_seconds,
                     "concurrencyLimit": self._concurrency_limit,
+                    "delaySeconds": self._delay_seconds,
                 },
             )
         )
-        items = [
-            await self._process_video(
+        items: list[TranscriptCollectItemResponse] = []
+        for index, video in enumerate(videos):
+            processed = await self._process_video(
                 video,
                 languages=languages,
                 preserve_formatting=request.preserve_formatting,
                 retry_failed=request.retry_failed,
             )
-            for video in videos
-        ]
+            items.append(processed.response)
+            if (
+                processed.attempted_fetch
+                and self._delay_seconds > 0
+                and index < len(videos) - 1
+            ):
+                await self._sleep(self._delay_seconds)
         return _collect_response(channel_id, items)
 
     async def _process_video(
@@ -129,7 +149,7 @@ class CollectChannelTranscriptTasksUseCase:
         languages: tuple[str, ...],
         preserve_formatting: bool,
         retry_failed: bool,
-    ) -> TranscriptCollectItemResponse:
+    ) -> _ProcessedTranscriptCollectItem:
         input_hash = _task_input_hash(
             youtube_video_id=video.youtube_video_id,
             languages=languages,
@@ -179,12 +199,15 @@ class CollectChannelTranscriptTasksUseCase:
                 reason="existing_transcript",
                 transcript_id=existing_metadata.id,
             )
-            return _item_response(
-                video,
-                succeeded,
-                status="succeeded",
-                reason="existing_transcript",
-                transcript_id=existing_metadata.id,
+            return _processed_response(
+                _item_response(
+                    video,
+                    succeeded,
+                    status="succeeded",
+                    reason="existing_transcript",
+                    transcript_id=existing_metadata.id,
+                ),
+                attempted_fetch=False,
             )
 
         if task.status == "succeeded":
@@ -197,12 +220,15 @@ class CollectChannelTranscriptTasksUseCase:
                 youtube_video_id=video.youtube_video_id,
                 reason="already_succeeded",
             )
-            return _item_response(
-                video,
-                task,
-                status="skipped",
-                reason="already_succeeded",
-                transcript_id=task.output_transcript_id,
+            return _processed_response(
+                _item_response(
+                    video,
+                    task,
+                    status="skipped",
+                    reason="already_succeeded",
+                    transcript_id=task.output_transcript_id,
+                ),
+                attempted_fetch=False,
             )
         if task.status == "running":
             await self._record_task_event(
@@ -214,7 +240,10 @@ class CollectChannelTranscriptTasksUseCase:
                 youtube_video_id=video.youtube_video_id,
                 reason="already_running",
             )
-            return _item_response(video, task, status="skipped", reason="already_running")
+            return _processed_response(
+                _item_response(video, task, status="skipped", reason="already_running"),
+                attempted_fetch=False,
+            )
         if task.status in {"failed", "timed_out"} and not retry_failed:
             await self._record_task_event(
                 "transcript_collect.task_skipped",
@@ -225,12 +254,15 @@ class CollectChannelTranscriptTasksUseCase:
                 youtube_video_id=video.youtube_video_id,
                 reason=f"previously_{task.status}",
             )
-            return _item_response(
-                video,
-                task,
-                status="skipped",
-                reason=f"previously_{task.status}",
-                transcript_id=task.output_transcript_id,
+            return _processed_response(
+                _item_response(
+                    video,
+                    task,
+                    status="skipped",
+                    reason=f"previously_{task.status}",
+                    transcript_id=task.output_transcript_id,
+                ),
+                attempted_fetch=False,
             )
         if task.status in {"skipped", "canceled"}:
             await self._record_task_event(
@@ -242,7 +274,10 @@ class CollectChannelTranscriptTasksUseCase:
                 youtube_video_id=video.youtube_video_id,
                 reason="not_retryable",
             )
-            return _item_response(video, task, status="skipped", reason="not_retryable")
+            return _processed_response(
+                _item_response(video, task, status="skipped", reason="not_retryable"),
+                attempted_fetch=False,
+            )
 
         running_count = await self._video_tasks.count_running(
             task_name=TRANSCRIPT_COLLECT_TASK_NAME
@@ -258,14 +293,20 @@ class CollectChannelTranscriptTasksUseCase:
                 reason="concurrency_limit",
                 metadata_json={"runningCount": running_count},
             )
-            return _item_response(video, task, status="skipped", reason="concurrency_limit")
+            return _processed_response(
+                _item_response(video, task, status="skipped", reason="concurrency_limit"),
+                attempted_fetch=False,
+            )
 
-        return await self._execute_task(
-            task,
-            video,
-            languages=languages,
-            preserve_formatting=preserve_formatting,
-            input_hash=input_hash,
+        return _processed_response(
+            await self._execute_task(
+                task,
+                video,
+                languages=languages,
+                preserve_formatting=preserve_formatting,
+                input_hash=input_hash,
+            ),
+            attempted_fetch=True,
         )
 
     async def _execute_task(
@@ -621,6 +662,17 @@ def _item_response(
         status=status,
         reason=reason,
         transcript_id=transcript_id,
+    )
+
+
+def _processed_response(
+    response: TranscriptCollectItemResponse,
+    *,
+    attempted_fetch: bool,
+) -> _ProcessedTranscriptCollectItem:
+    return _ProcessedTranscriptCollectItem(
+        response=response,
+        attempted_fetch=attempted_fetch,
     )
 
 

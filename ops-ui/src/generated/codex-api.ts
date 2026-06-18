@@ -2358,6 +2358,7 @@ export interface operations {
             query?: {
                 step?: string | null;
                 status?: ("pending" | "running" | "succeeded" | "failed" | "skipped" | "canceled") | null;
+                channelId?: number | null;
                 subjectType?: string | null;
                 subjectId?: number | null;
                 externalKey?: string | null;

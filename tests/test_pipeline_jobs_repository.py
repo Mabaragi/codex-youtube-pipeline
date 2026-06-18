@@ -9,14 +9,21 @@ from alembic.config import Config
 from alembic import command
 from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
-from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate, PipelineJobListQuery
+from codex_sdk_cli.domains.pipeline_jobs.ports import (
+    JsonObject,
+    PipelineJobCreate,
+    PipelineJobListQuery,
+    PipelineJobRecord,
+    PipelineJobStatus,
+)
 from codex_sdk_cli.domains.videos.ports import VideoCreate
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
-from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
+from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
+from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
 
 
 def test_pipeline_job_repository_tracks_attempt_lifecycle(
@@ -28,6 +35,17 @@ def test_pipeline_job_repository_tracks_attempt_lifecycle(
     command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_repository(database_url))
+
+
+def test_pipeline_job_repository_filters_by_related_channel(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'pipeline-job-filters.db').as_posix()}"
+    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
+    command.upgrade(_alembic_config(), "head")
+
+    asyncio.run(_exercise_channel_filter_repository(database_url))
 
 
 async def _exercise_repository(database_url: str) -> None:
@@ -156,6 +174,161 @@ async def _exercise_repository(database_url: str) -> None:
             assert await repository.get_job_detail(404) is None
     finally:
         await engine.dispose()
+
+
+async def _exercise_channel_filter_repository(database_url: str) -> None:
+    engine = create_database_engine(database_url)
+    try:
+        session_factory = create_session_factory(engine)
+        async with session_factory() as session:
+            pipeline_jobs = SqlAlchemyPipelineJobRepository(session)
+            streamers = SqlAlchemyStreamerRepository(session)
+            channels = SqlAlchemyChannelRepository(session)
+            streamer = await streamers.create_streamer(name="Filter Streamer")
+
+            produced_channel_job = await _create_job(
+                pipeline_jobs,
+                step="channel_resolve",
+                subject_type="streamer",
+                subject_id=streamer.id,
+                input_json={"streamerId": streamer.id},
+            )
+            channel = await channels.create_channel(
+                ChannelCreate(
+                    streamer_id=streamer.id,
+                    handle="@filter",
+                    name="Filter Channel",
+                    youtube_channel_id="UC_FILTER",
+                    uploads_playlist_id="UU_FILTER",
+                    source_job_id=produced_channel_job.id,
+                )
+            )
+            other_channel = await channels.create_channel(
+                ChannelCreate(
+                    streamer_id=streamer.id,
+                    handle="@other",
+                    name="Other Channel",
+                    youtube_channel_id="UC_OTHER",
+                    uploads_playlist_id="UU_OTHER",
+                )
+            )
+            subject_job = await _create_job(
+                pipeline_jobs,
+                step="video_collect",
+                status="failed",
+                subject_type="channel",
+                subject_id=channel.id,
+                input_json={},
+            )
+            input_job = await _create_job(
+                pipeline_jobs,
+                step="video_collect",
+                subject_type=None,
+                subject_id=None,
+                input_json={"channelId": channel.id},
+            )
+            output_job = await _create_job(
+                pipeline_jobs,
+                step="channel_resolve",
+                subject_type="streamer",
+                subject_id=streamer.id,
+                input_json={"streamerId": streamer.id},
+            )
+            output_attempt = await pipeline_jobs.create_attempt(job_id=output_job.id)
+            await pipeline_jobs.mark_attempt_succeeded(
+                output_attempt.id,
+                output_json={"channelId": channel.id},
+            )
+            produced_video_job = await _create_job(
+                pipeline_jobs,
+                step="video_collect",
+                subject_type="channel",
+                subject_id=other_channel.id,
+                input_json={"channelId": other_channel.id},
+            )
+            video = VideoModel(
+                channel_id=channel.id,
+                youtube_video_id="filterVideo1",
+                title="Filter Video",
+                description="Filter video",
+                published_at=produced_video_job.created_at,
+                duration="PT1M",
+                source_job_id=produced_video_job.id,
+            )
+            session.add(video)
+            await session.flush()
+            linked_task_job = await _create_job(
+                pipeline_jobs,
+                step="transcript_collect",
+                subject_type="video",
+                subject_id=video.id,
+                input_json={"videoId": video.id},
+            )
+            session.add(
+                VideoTaskModel(
+                    video_id=video.id,
+                    task_name="transcript_collect",
+                    task_version="v1",
+                    input_hash="1" * 64,
+                    status="running",
+                    timeout_seconds=600,
+                    job_id=linked_task_job.id,
+                )
+            )
+            unrelated_job = await _create_job(
+                pipeline_jobs,
+                step="video_collect",
+                subject_type="channel",
+                subject_id=other_channel.id,
+                input_json={"channelId": other_channel.id},
+            )
+            await session.commit()
+
+            records = await pipeline_jobs.list_job_summaries(
+                PipelineJobListQuery(channel_id=channel.id, limit=20)
+            )
+            failed_records = await pipeline_jobs.list_job_summaries(
+                PipelineJobListQuery(channel_id=channel.id, status="failed", limit=20)
+            )
+
+            job_ids = {record.job.id for record in records}
+            assert {
+                produced_channel_job.id,
+                subject_job.id,
+                input_job.id,
+                output_job.id,
+                produced_video_job.id,
+                linked_task_job.id,
+            }.issubset(job_ids)
+            assert unrelated_job.id not in job_ids
+            assert [record.job.id for record in failed_records] == [subject_job.id]
+    finally:
+        await engine.dispose()
+
+
+async def _create_job(
+    repository: SqlAlchemyPipelineJobRepository,
+    *,
+    step: str,
+    status: PipelineJobStatus = "succeeded",
+    subject_type: str | None,
+    subject_id: int | None,
+    input_json: JsonObject,
+) -> PipelineJobRecord:
+    return await repository.create_job(
+        PipelineJobCreate(
+            step=step,
+            status=status,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            external_key=None,
+            input_json=input_json,
+            input_hash=f"{step}:{subject_type}:{subject_id}:{len(input_json)}"[:64].ljust(
+                64,
+                "0",
+            ),
+        )
+    )
 
 
 def _alembic_config() -> Config:

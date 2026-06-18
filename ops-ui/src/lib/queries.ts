@@ -11,10 +11,12 @@ import type {
   OpsSchemaGraph,
   OpsSummary,
   OpsVideoDetail,
+  OpsVideoFilters,
   OpsVideoList,
+  OpsVideoTaskFilters,
   OpsVideoTaskList,
+  PipelineJobFilters,
   PipelineJobList,
-  PipelineJobStatusFilter,
   ResolveYouTubeChannelResult,
   RetryPipelineJobResult,
   Streamer,
@@ -29,8 +31,7 @@ export const queryKeys = {
   tasks: (filters: Record<string, unknown>) => ["ops", "tasks", filters] as const,
   events: (filters: Record<string, unknown>) => ["ops", "events", filters] as const,
   streamers: ["streamers"] as const,
-  jobs: (status?: PipelineJobStatusFilter) =>
-    ["pipeline", "jobs", status ?? "all"] as const,
+  jobs: (filters: Record<string, unknown>) => ["pipeline", "jobs", filters] as const,
   schemaGraph: ["ops", "schema-graph"] as const,
   transcriptContent: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "content"] as const,
@@ -58,13 +59,7 @@ export function useStreamers() {
   });
 }
 
-export function useOpsVideos(filters: {
-  channelId?: number;
-  taskStatus?: string;
-  search?: string;
-  limit?: number;
-  offset?: number;
-}) {
+export function useOpsVideos(filters: OpsVideoFilters) {
   return useQuery({
     queryKey: queryKeys.videos(filters),
     queryFn: () => requestJson<OpsVideoList>("/ops/videos", { query: filters }),
@@ -89,13 +84,7 @@ export function useTranscriptContent(transcriptId: number, enabled: boolean) {
   });
 }
 
-export function useOpsVideoTasks(filters: {
-  channelId?: number;
-  taskName?: string;
-  status?: string;
-  limit?: number;
-  offset?: number;
-}) {
+export function useOpsVideoTasks(filters: OpsVideoTaskFilters) {
   return useQuery({
     queryKey: queryKeys.tasks(filters),
     queryFn: () =>
@@ -121,12 +110,21 @@ export function useRunningTranscriptTasks() {
   });
 }
 
-export function usePipelineJobs(status?: PipelineJobStatusFilter) {
+export function usePipelineJobs(filters: PipelineJobFilters = {}) {
   return useQuery({
-    queryKey: queryKeys.jobs(status),
+    queryKey: queryKeys.jobs(filters),
     queryFn: () =>
       requestJson<PipelineJobList>("/pipeline/jobs", {
-        query: { status, limit: 50 },
+        query: {
+          channelId: filters.channelId,
+          status: filters.status,
+          step: filters.step,
+          subjectType: filters.subjectType,
+          subjectId: filters.subjectId,
+          externalKey: filters.externalKey,
+          cursor: filters.cursor,
+          limit: filters.limit ?? 50,
+        },
       }),
     refetchInterval: 5_000,
   });
@@ -162,11 +160,11 @@ export function useCollectTranscriptsMutation() {
     mutationFn: ({
       channelId,
       retryFailed = false,
-      limit = 5,
+      limit,
     }: {
       channelId: number;
       retryFailed?: boolean;
-      limit?: number;
+      limit: number;
     }) =>
       requestJson<CollectChannelTranscriptsResult>(
         `/channels/${channelId}/video-tasks/transcript-collect`,

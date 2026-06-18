@@ -176,11 +176,18 @@ export function ChannelsPage() {
           </button>
           <button
             className="ops-button ops-button-primary"
-            disabled={isTranscriptCollectionDisabled}
+            disabled={isTranscriptCollectionDisabled || row.original.videoCount < 1}
             onClick={() =>
-              collectTranscripts.mutate({ channelId: row.original.channelId, limit: 5 })
+              collectTranscripts.mutate({
+                channelId: row.original.channelId,
+                limit: row.original.videoCount,
+              })
             }
-            title={transcriptButtonTitle}
+            title={
+              row.original.videoCount < 1
+                ? "No stored videos to collect transcripts for"
+                : transcriptButtonTitle
+            }
           >
             <Captions size={15} />
             {transcriptButtonLabel}
@@ -405,7 +412,7 @@ function transcriptTaskButtonTitle({
   if (hasRunningTask) {
     return "Transcript collection is already running";
   }
-  return "Collect transcripts for newest stored videos";
+  return "Collect transcripts for all stored videos";
 }
 
 function transcriptTaskButtonLabel({

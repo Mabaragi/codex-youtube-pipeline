@@ -11,7 +11,7 @@ TranscriptCollectItemStatus = Literal["succeeded", "failed", "timed_out", "skipp
 
 
 class CollectChannelTranscriptTasksRequest(BaseModel):
-    limit: int = Field(default=5, ge=1, le=20)
+    limit: int = Field(default=5, ge=1)
     languages: list[str] | None = Field(
         default=None,
         description="Preferred transcript language codes, tried in order.",

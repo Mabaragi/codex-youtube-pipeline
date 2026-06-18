@@ -257,7 +257,6 @@
           },
           "limit": {
             "default": 5,
-            "maximum": 20.0,
             "minimum": 1.0,
             "title": "Limit",
             "type": "integer"
@@ -4674,6 +4673,23 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
             }
           },
           {

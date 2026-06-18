@@ -26,6 +26,15 @@ export type RetryPipelineJobResult = components["schemas"]["RetryPipelineJobResp
 export type PipelineJobStatusFilter = NonNullable<
   NonNullable<paths["/pipeline/jobs"]["get"]["parameters"]["query"]>["status"]
 >;
+export type PipelineJobFilters = NonNullable<
+  paths["/pipeline/jobs"]["get"]["parameters"]["query"]
+>;
+export type OpsVideoFilters = NonNullable<
+  paths["/ops/videos"]["get"]["parameters"]["query"]
+>;
+export type OpsVideoTaskFilters = NonNullable<
+  paths["/ops/video-tasks"]["get"]["parameters"]["query"]
+>;
 export type OperationEventFilters = NonNullable<
   NonNullable<paths["/ops/events"]["get"]["parameters"]["query"]>
 >;

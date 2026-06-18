@@ -167,6 +167,28 @@ describe("ChannelsPage transcript collection state", () => {
     expect(transcriptButton().disabled).toBe(false);
   });
 
+  it("collects transcripts for all stored channel videos", () => {
+    queryMocks.channels.data = { items: [{ ...channel, videoCount: 42 }] };
+    render(<ChannelsPage />);
+
+    fireEvent.click(transcriptButton());
+
+    expect(queryMocks.collectTranscripts.mutate).toHaveBeenCalledWith({
+      channelId: 1,
+      limit: 42,
+    });
+  });
+
+  it("disables transcript collection when a channel has no stored videos", () => {
+    queryMocks.channels.data = { items: [{ ...channel, videoCount: 0 }] };
+    render(<ChannelsPage />);
+
+    const button = transcriptButton();
+
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe("No stored videos to collect transcripts for");
+  });
+
   it("shows streamer suggestions for channel resolve", () => {
     render(<ChannelsPage />);
 

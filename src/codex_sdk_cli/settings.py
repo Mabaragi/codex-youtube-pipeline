@@ -26,6 +26,7 @@ class CliSettings(BaseSettings):
     youtube_data_timeout_seconds: float = 10.0
     transcript_collect_timeout_seconds: int = 600
     transcript_collect_concurrency_limit: int = 1
+    transcript_collect_delay_seconds: int = 300
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
@@ -72,6 +73,13 @@ class CliSettings(BaseSettings):
     def _positive_int(cls, value: int) -> int:
         if value < 1:
             raise ValueError("value must be greater than or equal to 1")
+        return value
+
+    @field_validator("transcript_collect_delay_seconds")
+    @classmethod
+    def _non_negative_int(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("value must be greater than or equal to 0")
         return value
 
     def codex_config(self) -> CodexConfig:

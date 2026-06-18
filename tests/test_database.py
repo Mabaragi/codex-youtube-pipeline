@@ -67,6 +67,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS", "3.5")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS", "300")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT", "2")
+    monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS", "30")
 
     settings = CliSettings()
 
@@ -74,6 +75,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert settings.youtube_data_timeout_seconds == 3.5
     assert settings.transcript_collect_timeout_seconds == 300
     assert settings.transcript_collect_concurrency_limit == 2
+    assert settings.transcript_collect_delay_seconds == 30
 
 
 def test_blank_database_url_uses_default() -> None:

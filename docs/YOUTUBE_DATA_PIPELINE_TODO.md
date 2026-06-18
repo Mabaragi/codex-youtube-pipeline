@@ -44,6 +44,7 @@ Last updated: 2026-06-16
 - [x] `POST /channels/{channel_id}/video-tasks/transcript-collect`로 channel selector 기반 manual transcript 수집을 지원한다.
 - [x] `GET /channels/{channel_id}/video-tasks`로 저장된 task 상태를 조회한다.
 - [x] `transcript_collect` task 기본 정책을 `timeoutSeconds=600`, `concurrencyLimit=1`로 둔다.
+- [x] `transcript_collect` 실제 fetch 사이 기본 대기 시간을 300초로 둔다.
 - [x] `transcript_collect` failed job retry를 executor registry에 연결한다.
 - [x] pipeline job detail에서 linked transcript output을 반환한다.
 

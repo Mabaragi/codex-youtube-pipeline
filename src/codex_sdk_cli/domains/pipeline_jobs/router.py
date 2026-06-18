@@ -20,6 +20,7 @@ async def list_pipeline_jobs(
     use_case: ListPipelineJobsUseCaseDep,
     step: str | None = None,
     status_filter: Annotated[PipelineJobStatus | None, Query(alias="status")] = None,
+    channel_id: Annotated[int | None, Query(alias="channelId", ge=1)] = None,
     subject_type: Annotated[str | None, Query(alias="subjectType")] = None,
     subject_id: Annotated[int | None, Query(alias="subjectId", ge=1)] = None,
     external_key: Annotated[str | None, Query(alias="externalKey")] = None,
@@ -29,6 +30,7 @@ async def list_pipeline_jobs(
     return await use_case.execute(
         step=step,
         status=status_filter,
+        channel_id=channel_id,
         subject_type=subject_type,
         subject_id=subject_id,
         external_key=external_key,

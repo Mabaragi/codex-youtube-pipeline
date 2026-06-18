@@ -167,6 +167,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
             fetch_transcript=await self._fetch_transcript_factory(),
             timeout_seconds=self._settings.transcript_collect_timeout_seconds,
             concurrency_limit=self._settings.transcript_collect_concurrency_limit,
+            delay_seconds=self._settings.transcript_collect_delay_seconds,
             events=self._events,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)

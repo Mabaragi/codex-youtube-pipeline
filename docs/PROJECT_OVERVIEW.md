@@ -35,7 +35,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /streamers/{id}/channels/resolve`: 등록된 streamer에 붙일 YouTube handle을 공식 YouTube Data API로 resolve하고 pipeline job/attempt 및 raw 응답 metadata를 남긴 뒤 `channels` row 하나를 생성하거나 같은 streamer의 기존 row를 재사용한다.
 - `POST /channels/{id}/videos/collect`: local channel row의 uploads playlist ID로 `playlistItems.list` 최신순 수집을 실행하고, 기존 video를 만나면 중단하며, `videos.list(part=contentDetails)`로 duration metadata와 raw API call metadata를 남긴다.
 - `GET /channels/{id}/videos`: 저장된 video metadata를 `publishedAt desc` 순서로 조회한다.
-- `POST /channels/{id}/video-tasks/transcript-collect`: 저장된 최신 videos를 채널 단위로 고른 뒤 `video_tasks` 상태를 기준으로 transcript 수집을 순차 실행한다. 기본 limit은 5, 최대 20이며 `transcript_collect` task timeout은 기본 600초다.
+- `POST /channels/{id}/video-tasks/transcript-collect`: 저장된 최신 videos를 채널 단위로 고른 뒤 `video_tasks` 상태를 기준으로 transcript 수집을 순차 실행한다. API 기본 limit은 5이며, 운영 UI는 채널에 저장된 전체 영상 수를 limit으로 보낸다. `transcript_collect` task timeout은 기본 600초이고 실제 transcript fetch 뒤 다음 영상 처리 전 기본 300초를 쉰다.
 - `GET /channels/{id}/video-tasks`: 저장된 video task rows를 `taskName`, `status`, `limit`, `offset`으로 조회한다.
 - `POST /youtube-transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회하고 응답 JSON을 MinIO에 저장한 뒤 DB에 메타데이터와 object 경로를 저장한다.
 - `GET /youtube-transcripts`: 저장된 transcript metadata를 조회한다.
@@ -217,6 +217,7 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: MinIO HTTPS 사용 여부. 기본값은 `false`.
 - `CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS`: manual `transcript_collect` task timeout. 기본값은 `600`.
 - `CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT`: manual `transcript_collect` 동시 실행 제한. 기본값은 `1`.
+- `CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS`: manual `transcript_collect` 실제 fetch 사이 대기 시간. 기본값은 `300`.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.
 - `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 앱 기본값은
   `sqlite+aiosqlite:///./data/app.db`이고, Docker Compose 기본값은
