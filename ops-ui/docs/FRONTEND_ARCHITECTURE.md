@@ -10,6 +10,9 @@ The ops UI is a Next.js App Router application mounted at `/ops`.
   Docker Compose.
 - Browser code never calls the FastAPI container directly.
 
+Read `ops-ui/docs/BFF_PROXY.md` before changing browser/backend calls, proxy
+route behavior, or deployment wiring around `CODEX_OPS_BACKEND_BASE_URL`.
+
 ## State Boundaries
 
 - TanStack Query owns server state and mutation invalidation.
@@ -25,7 +28,8 @@ The ops UI is a Next.js App Router application mounted at `/ops`.
 - `/ops/tasks`: durable video task state and retry actions.
 - `/ops/jobs`: pipeline jobs and retry actions.
 - `/ops/erd`: React Flow schema viewer from `/ops/schema-graph`, including
-  table groups, PK/FK/UQ/IX badges, relation metadata, and constraint/index
+  table groups, PK/FK/UQ/IX badges, column-level relationship anchors,
+  crow's-foot cardinality markers, relation metadata, and constraint/index
   inspector panels.
 
 ## Mutation Rules

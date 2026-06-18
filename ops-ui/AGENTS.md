@@ -10,9 +10,13 @@ generated OpenAPI contract.
 
 1. Root `AGENTS.md`.
 2. This `ops-ui/AGENTS.md`.
-3. `ops-ui/docs/FRONTEND_ARCHITECTURE.md`.
-4. `ops-ui/docs/API_CONTRACT.md` when API calls or generated types change.
-5. Relevant UI code and tests.
+3. `ops-ui/docs/INDEX.md`.
+4. `ops-ui/docs/FRONTEND_ARCHITECTURE.md` for UI runtime, state, routing, or
+   screen structure work.
+5. `ops-ui/docs/BFF_PROXY.md` when browser/backend calls, proxy routes, or
+   deployment wiring change.
+6. `ops-ui/docs/API_CONTRACT.md` when API calls or generated types change.
+7. Relevant UI code and tests.
 
 ## Boundaries
 
@@ -22,6 +26,8 @@ generated OpenAPI contract.
 - Treat `ops-ui/openapi/codex-api.openapi.json` and
   `ops-ui/src/generated/codex-api.ts` as the frontend contract.
 - Keep browser calls behind the Next BFF at `/ops/api/backend/*`.
+- Keep BFF details in `ops-ui/docs/BFF_PROXY.md` instead of repeating the full
+  proxy explanation in this guide.
 
 ## Implementation Rules
 

@@ -23,3 +23,5 @@ have uncommitted diffs.
 - Do not hand-write backend DTO types in frontend code.
 - Backend endpoint shape changes must update the generated contract.
 - Frontend agents can rely on generated types without reading backend internals.
+- Runtime requests still go through the Next BFF described in
+  `ops-ui/docs/BFF_PROXY.md`; generated types do not replace the BFF boundary.

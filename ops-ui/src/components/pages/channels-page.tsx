@@ -9,14 +9,39 @@ import {
   useCollectTranscriptsMutation,
   useCollectVideosMutation,
   useOpsChannels,
+  useRunningTranscriptTasks,
 } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
 import type { OpsChannel } from "@/lib/types";
 
 export function ChannelsPage() {
   const { data, isLoading, error } = useOpsChannels();
+  const runningTranscriptTasks = useRunningTranscriptTasks();
   const collectVideos = useCollectVideosMutation();
   const collectTranscripts = useCollectTranscriptsMutation();
+  const isCheckingTranscriptTasks = runningTranscriptTasks.isLoading;
+  const cannotVerifyTranscriptTasks = runningTranscriptTasks.isError;
+  const hasRunningTranscriptTask = (runningTranscriptTasks.data?.total ?? 0) > 0;
+  const isTranscriptCollectionDisabled =
+    collectTranscripts.isPending ||
+    isCheckingTranscriptTasks ||
+    cannotVerifyTranscriptTasks ||
+    hasRunningTranscriptTask;
+  const transcriptFeedback = transcriptTaskFeedback({
+    isChecking: isCheckingTranscriptTasks,
+    cannotVerify: cannotVerifyTranscriptTasks,
+    hasRunningTask: hasRunningTranscriptTask,
+  });
+  const transcriptButtonTitle = transcriptTaskButtonTitle({
+    isPending: collectTranscripts.isPending,
+    isChecking: isCheckingTranscriptTasks,
+    cannotVerify: cannotVerifyTranscriptTasks,
+    hasRunningTask: hasRunningTranscriptTask,
+  });
+  const transcriptButtonLabel = transcriptTaskButtonLabel({
+    isChecking: isCheckingTranscriptTasks,
+    hasRunningTask: hasRunningTranscriptTask,
+  });
 
   const columns: ColumnDef<OpsChannel>[] = [
     {
@@ -71,14 +96,14 @@ export function ChannelsPage() {
           </button>
           <button
             className="ops-button ops-button-primary"
-            disabled={collectTranscripts.isPending || row.original.taskRunningCount > 0}
+            disabled={isTranscriptCollectionDisabled}
             onClick={() =>
               collectTranscripts.mutate({ channelId: row.original.channelId, limit: 5 })
             }
-            title="Collect transcripts for newest stored videos"
+            title={transcriptButtonTitle}
           >
             <Captions size={15} />
-            Transcripts
+            {transcriptButtonLabel}
           </button>
         </div>
       ),
@@ -90,6 +115,11 @@ export function ChannelsPage() {
       <PageHeader title="Channels" />
       {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
       {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      {transcriptFeedback ? (
+        <div className="mb-3 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {transcriptFeedback}
+        </div>
+      ) : null}
       <div className="mb-3 flex gap-2 text-sm">
         <StatusBadge status={collectVideos.isPending ? "running" : "ready"} />
         <StatusBadge status={collectTranscripts.isPending ? "running" : "ready"} />
@@ -97,4 +127,67 @@ export function ChannelsPage() {
       <DataTable columns={columns} data={data?.items ?? []} />
     </>
   );
+}
+
+function transcriptTaskFeedback({
+  isChecking,
+  cannotVerify,
+  hasRunningTask,
+}: {
+  isChecking: boolean;
+  cannotVerify: boolean;
+  hasRunningTask: boolean;
+}) {
+  if (isChecking) {
+    return "Checking transcript task state...";
+  }
+  if (cannotVerify) {
+    return "Cannot verify transcript task state. Collection is disabled to avoid duplicate runs.";
+  }
+  if (hasRunningTask) {
+    return "Transcript collection is running; new collection is disabled until it finishes.";
+  }
+  return null;
+}
+
+function transcriptTaskButtonTitle({
+  isPending,
+  isChecking,
+  cannotVerify,
+  hasRunningTask,
+}: {
+  isPending: boolean;
+  isChecking: boolean;
+  cannotVerify: boolean;
+  hasRunningTask: boolean;
+}) {
+  if (isPending) {
+    return "Starting transcript collection";
+  }
+  if (isChecking) {
+    return "Checking transcript task state";
+  }
+  if (cannotVerify) {
+    return "Cannot verify transcript task state";
+  }
+  if (hasRunningTask) {
+    return "Transcript collection is already running";
+  }
+  return "Collect transcripts for newest stored videos";
+}
+
+function transcriptTaskButtonLabel({
+  isChecking,
+  hasRunningTask,
+}: {
+  isChecking: boolean;
+  hasRunningTask: boolean;
+}) {
+  if (isChecking) {
+    return "Checking";
+  }
+  if (hasRunningTask) {
+    return "Running";
+  }
+  return "Transcripts";
 }

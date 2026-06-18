@@ -68,6 +68,15 @@ export function useOpsVideoTasks(filters: {
   });
 }
 
+export function useRunningTranscriptTasks() {
+  return useOpsVideoTasks({
+    taskName: "transcript_collect",
+    status: "running",
+    limit: 1,
+    offset: 0,
+  });
+}
+
 export function usePipelineJobs(status?: PipelineJobStatusFilter) {
   return useQuery({
     queryKey: queryKeys.jobs(status),
