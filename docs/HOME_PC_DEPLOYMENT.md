@@ -4,7 +4,9 @@ This guide runs the FastAPI API from a Windows PC so YouTube transcript requests
 use the PC's residential network instead of a cloud provider IP.
 
 For the full GitHub Actions CI/CD topology, including Mermaid diagrams and
-failure handling, see `docs/CICD.md`.
+failure handling, see `docs/CICD.md`. For the concrete before/after deployment
+flow change from Home PC local builds to GHCR pulls, see
+`docs/HOME_DEPLOYMENT_FLOW.md`.
 
 ## Architecture
 
@@ -121,6 +123,9 @@ without rebuilding locally. On the first deploy after moving SQLite out of the
 checkout, the workflow backs up a legacy `data/app.db` before checkout cleanup
 and copies it into the `db-data` volume only if that volume does not already
 contain `app.db`.
+
+The detailed command-by-command flow, image naming rules, and local-build
+fallback are recorded in `docs/HOME_DEPLOYMENT_FLOW.md`.
 
 If you redeploy manually from the runner checkout using already-published GHCR
 images, set `CODEX_API_IMAGE` and `CODEX_OPS_UI_IMAGE`, then run:

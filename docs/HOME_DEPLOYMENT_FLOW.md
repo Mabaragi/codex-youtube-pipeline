@@ -1,0 +1,125 @@
+# Home Deployment Flow
+
+This document records the current Home PC deployment flow and the concrete
+change from local Docker builds to GHCR image pulls.
+
+## What Changed
+
+Before the optimization, a `main` push used two separate image paths:
+
+| Area | Previous behavior | Current behavior |
+| --- | --- | --- |
+| Main CI image publish | `Docker Publish` workflow also ran on `main` and pushed the API image. | `CI` workflow owns deploy images for `main`; `Docker Publish` is tag-only. |
+| API image | Home PC rebuilt `codex-sdk-cli:home` from the checkout. | CI publishes `ghcr.io/mabaragi/codex-sdk:sha-<short-sha>` and Home PC pulls it. |
+| Ops UI image | Home PC rebuilt `codex-sdk-ops-ui:home` from the checkout. | CI publishes `ghcr.io/mabaragi/codex-sdk-ops-ui:sha-<short-sha>` and Home PC pulls it. |
+| Home deploy command | `docker compose build api ops-ui`, then `up -d --build --force-recreate ...`. | `docker compose pull api codex ops-ui`, then `up -d --no-build --remove-orphans ...`. |
+| Recreate policy | Every deploy forced service recreation. | Compose updates services whose image/config changed; infra containers are not forced. |
+| Local fallback | Normal deploy and local rebuild used the same compose file. | `compose.home.yaml` is image-based; `compose.home.build.yaml` is the explicit local-build fallback. |
+
+The goal is to keep the quality gates while removing the slow Home PC Docker
+build from the deployment path.
+
+## Main Push Flow
+
+`main` push now runs only the `CI` workflow:
+
+1. `quality` runs backend tests, Ruff, Pyrefly, FastAPI import, and OpenAPI export check.
+2. `frontend` runs OpenAPI client check, ops-ui lint/typecheck/test/build.
+3. `publish_images` builds and pushes immutable SHA images:
+   - `ghcr.io/mabaragi/codex-sdk:sha-<short-sha>`
+   - `ghcr.io/mabaragi/codex-sdk-ops-ui:sha-<short-sha>`
+4. `home_deploy_preflight` checks required Home PC secrets and variables.
+5. `home_deploy` runs on the Windows self-hosted runner labeled `codex-home`.
+6. `public_tunnel_health` verifies the ngrok URL from a GitHub-hosted runner.
+
+`Docker Publish` no longer runs on `main`. It only runs for release tags
+matching `v*.*.*` and publishes release/version image tags.
+
+## Home PC Deploy Steps
+
+The Home PC runner receives the exact image tags from `publish_images` outputs:
+
+- `CODEX_API_IMAGE`
+- `CODEX_OPS_UI_IMAGE`
+
+The deploy job then runs:
+
+```powershell
+docker compose --project-name codex-sdk-home -f compose.home.yaml pull api codex ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml ps
+```
+
+Important details:
+
+- `api` and `codex` use the same API image through `CODEX_API_IMAGE`.
+- `ops-ui` uses `CODEX_OPS_UI_IMAGE`.
+- Alembic runs from the pulled API image before the stack is updated.
+- Nginx, ngrok, MinIO, the SQLite `db-data` volume, MinIO data, and Codex login
+  volume remain part of the same Home stack.
+- The job still validates local `/health`, `/ops`, and
+  `/ops/api/backend/ops/summary` through Nginx Basic Auth.
+
+## Compose Files
+
+`compose.home.yaml` is the normal deployment compose file. It should not contain
+build instructions for deployable app services:
+
+```yaml
+api:
+  image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}
+
+codex:
+  image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}
+
+ops-ui:
+  image: ${CODEX_OPS_UI_IMAGE:-codex-sdk-ops-ui:home}
+```
+
+`compose.home.build.yaml` is the manual fallback for building on the Home PC:
+
+```powershell
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml build api ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml run --rm --no-deps --entrypoint alembic api upgrade head
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+```
+
+Use this fallback only when GHCR pull is unavailable or when intentionally
+testing local images on the Home PC.
+
+## Caching
+
+The deployment speedup is paired with cache-friendly builds:
+
+- GitHub Actions caches uv and pnpm dependency stores.
+- Docker Buildx uses GitHub Actions cache scopes:
+  - API image: `type=gha,scope=api`
+  - Ops UI image: `type=gha,scope=ops-ui`
+- The API Dockerfile separates third-party dependency install from app wheel
+  install, so app-only changes do not invalidate the dependency layer.
+- The ops-ui Dockerfile uses BuildKit cache mounts for pnpm store and Next.js
+  build cache.
+
+The first run after this change can still be slower while cache is populated.
+Later runs should benefit from BuildKit and dependency cache reuse.
+
+## Verification
+
+For a successful deploy, confirm:
+
+- `CI` run succeeds.
+- No `Docker Publish` run is created for a normal `main` push.
+- `Publish deploy images` publishes both SHA images.
+- Home deploy logs show `docker compose pull api codex ops-ui`.
+- Home deploy logs do not show `docker compose build api ops-ui`.
+- Home deploy logs show `up -d --no-build --remove-orphans`.
+- `Verify public ngrok health` succeeds.
+- `https://mutation-runny-smelting.ngrok-free.dev` reaches Nginx and requires
+  Basic Auth for protected endpoints.
+
+The first verified run after the change was:
+
+- Commit: `d4a8243`
+- CI run: `https://github.com/Mabaragi/codex-sdk/actions/runs/27795139217`
+- Home deploy job time: `62s`, down from the previous observed `137s`.

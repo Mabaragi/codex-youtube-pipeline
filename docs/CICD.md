@@ -9,6 +9,7 @@ deployment가 어떻게 연결되어 있는지 설명한다. 실제 source of tr
 - `compose.home.yaml`: Home PC Docker Compose stack.
 - `deploy/nginx/home.conf`: Nginx reverse proxy와 Basic Auth 설정.
 - `docs/HOME_PC_DEPLOYMENT.md`: Home PC 배포 운영 절차.
+- `docs/HOME_DEPLOYMENT_FLOW.md`: GHCR pull 기반 Home deploy 변경점과 현재 실행 순서.
 
 ## 전체 흐름
 
@@ -277,6 +278,9 @@ Docker Desktop을 먼저 실행하고 engine이 준비된 뒤 CI workflow를 다
 main branch 배포는 `CI` workflow에서 immutable GHCR 이미지를 먼저 publish하고,
 Home PC runner는 그 이미지를 pull해서 실행한다. Home PC에서 매번 Docker build를
 다시 하지 않는다.
+
+구체적인 before/after, 이미지 태그, compose 명령, fallback 절차는
+`docs/HOME_DEPLOYMENT_FLOW.md`에 정리한다.
 
 - API image: `ghcr.io/mabaragi/codex-sdk:sha-<short-sha>`
 - Ops UI image: `ghcr.io/mabaragi/codex-sdk-ops-ui:sha-<short-sha>`
