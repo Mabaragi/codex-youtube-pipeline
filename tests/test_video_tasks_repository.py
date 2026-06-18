@@ -64,6 +64,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     handle="@creator",
                     name="Creator",
                     youtube_channel_id="UC-test",
+                    uploads_playlist_id="UU-test",
                 )
             )
             collect_job = await pipeline_jobs.create_job(
@@ -77,8 +78,8 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     input_hash="0" * 64,
                 )
             )
-            search_call = await external_api_calls.create_external_api_call(
-                _external_call("search.list")
+            listing_call = await external_api_calls.create_external_api_call(
+                _external_call("playlistItems.list")
             )
             details_call = await external_api_calls.create_external_api_call(
                 _external_call("videos.list")
@@ -93,14 +94,8 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                             description="Description",
                             published_at=datetime(2026, 6, 16, tzinfo=UTC),
                             duration="PT1M",
-                            privacy_status="public",
-                            upload_status="processed",
-                            live_broadcast_content="none",
-                            view_count=1,
-                            like_count=2,
-                            comment_count=3,
                             thumbnail_url=None,
-                            source_search_api_call_id=search_call.id,
+                            source_listing_api_call_id=listing_call.id,
                             source_details_api_call_id=details_call.id,
                             source_job_id=collect_job.id,
                         )

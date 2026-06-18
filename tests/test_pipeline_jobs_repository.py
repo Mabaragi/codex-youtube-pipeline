@@ -97,6 +97,7 @@ async def _exercise_repository(database_url: str) -> None:
                     handle="@GoogleDevelopers",
                     name="Google for Developers",
                     youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+                    uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
                     source_api_call_id=1,
                     source_job_id=job.id,
                 )
@@ -110,14 +111,8 @@ async def _exercise_repository(database_url: str) -> None:
                         description="Collected video",
                         published_at=succeeded_job.created_at,
                         duration="PT1M",
-                        privacy_status="public",
-                        upload_status="processed",
-                        live_broadcast_content="none",
-                        view_count=1,
-                        like_count=2,
-                        comment_count=3,
                         thumbnail_url=None,
-                        source_search_api_call_id=1,
+                        source_listing_api_call_id=1,
                         source_details_api_call_id=1,
                         source_job_id=job.id,
                     )

@@ -11,6 +11,7 @@ class ChannelRecord:
     handle: str
     name: str
     youtube_channel_id: str | None
+    uploads_playlist_id: str | None
     source_api_call_id: int | None
     source_job_id: int | None = None
 
@@ -21,6 +22,7 @@ class ChannelCreate:
     handle: str
     name: str
     youtube_channel_id: str | None
+    uploads_playlist_id: str | None = None
     source_api_call_id: int | None = None
     source_job_id: int | None = None
 
@@ -55,6 +57,13 @@ class ChannelRepositoryPort(Protocol):
         update: ChannelUpdate,
     ) -> ChannelRecord | None:
         """Update one channel by internal ID."""
+
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        """Update the cached uploads playlist ID for one channel."""
 
     async def delete_channel(self, channel_id: int) -> bool:
         """Delete one channel by internal ID."""

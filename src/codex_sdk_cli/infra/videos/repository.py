@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
-    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -28,18 +27,6 @@ class VideoModel(Base):
     __tablename__ = "videos"
     __table_args__ = (
         UniqueConstraint("youtube_video_id", name="uq_videos_youtube_video_id"),
-        CheckConstraint(
-            "view_count IS NULL OR view_count >= 0",
-            name="videos_view_count_non_negative",
-        ),
-        CheckConstraint(
-            "like_count IS NULL OR like_count >= 0",
-            name="videos_like_count_non_negative",
-        ),
-        CheckConstraint(
-            "comment_count IS NULL OR comment_count >= 0",
-            name="videos_comment_count_non_negative",
-        ),
         Index("ix_videos_channel_published", "channel_id", "published_at", "id"),
     )
 
@@ -58,14 +45,8 @@ class VideoModel(Base):
         nullable=False,
     )
     duration: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    privacy_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    upload_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    live_broadcast_content: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    view_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    like_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    comment_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    source_search_api_call_id: Mapped[int | None] = mapped_column(
+    source_listing_api_call_id: Mapped[int | None] = mapped_column(
         ForeignKey("external_api_calls.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
@@ -150,14 +131,8 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
                     description=video.description,
                     published_at=video.published_at,
                     duration=video.duration,
-                    privacy_status=video.privacy_status,
-                    upload_status=video.upload_status,
-                    live_broadcast_content=video.live_broadcast_content,
-                    view_count=video.view_count,
-                    like_count=video.like_count,
-                    comment_count=video.comment_count,
                     thumbnail_url=video.thumbnail_url,
-                    source_search_api_call_id=video.source_search_api_call_id,
+                    source_listing_api_call_id=video.source_listing_api_call_id,
                     source_details_api_call_id=video.source_details_api_call_id,
                     source_job_id=video.source_job_id,
                 )
@@ -185,14 +160,8 @@ def _video_record(model: VideoModel) -> VideoRecord:
         description=model.description,
         published_at=model.published_at,
         duration=model.duration,
-        privacy_status=model.privacy_status,
-        upload_status=model.upload_status,
-        live_broadcast_content=model.live_broadcast_content,
-        view_count=model.view_count,
-        like_count=model.like_count,
-        comment_count=model.comment_count,
         thumbnail_url=model.thumbnail_url,
-        source_search_api_call_id=model.source_search_api_call_id,
+        source_listing_api_call_id=model.source_listing_api_call_id,
         source_details_api_call_id=model.source_details_api_call_id,
         source_job_id=model.source_job_id,
         created_at=model.created_at,

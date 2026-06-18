@@ -66,6 +66,7 @@ class PipelineChannelOutputResponse(BaseModel):
     handle: str
     name: str
     youtube_channel_id: str | None = Field(alias="youtubeChannelId")
+    uploads_playlist_id: str | None = Field(alias="uploadsPlaylistId")
     source_api_call_id: int | None = Field(alias="sourceApiCallId")
     source_job_id: int | None = Field(alias="sourceJobId")
 
@@ -78,7 +79,7 @@ class PipelineVideoOutputResponse(BaseModel):
     youtube_video_id: str = Field(alias="youtubeVideoId")
     title: str
     published_at: datetime = Field(alias="publishedAt")
-    source_search_api_call_id: int | None = Field(alias="sourceSearchApiCallId")
+    source_listing_api_call_id: int | None = Field(alias="sourceListingApiCallId")
     source_details_api_call_id: int | None = Field(alias="sourceDetailsApiCallId")
     source_job_id: int | None = Field(alias="sourceJobId")
 

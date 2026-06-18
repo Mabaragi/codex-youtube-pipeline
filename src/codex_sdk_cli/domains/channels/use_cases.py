@@ -54,6 +54,7 @@ class CreateChannelUseCase:
                 handle=request.handle,
                 name=request.name,
                 youtube_channel_id=request.youtube_channel_id,
+                uploads_playlist_id=None,
             )
         )
         return _channel_response(record)
@@ -193,7 +194,11 @@ class ResolveYouTubeChannelUseCase:
             )
             if existing is not None:
                 _ensure_channel_belongs_to_streamer(existing, streamer_id)
-                record = existing
+                record = await _update_uploads_playlist_if_needed(
+                    self._channels,
+                    existing,
+                    result.uploads_playlist_id,
+                )
             else:
                 record = await self._channels.create_channel(
                     ChannelCreate(
@@ -201,6 +206,7 @@ class ResolveYouTubeChannelUseCase:
                         handle=request.handle,
                         name=result.title,
                         youtube_channel_id=result.youtube_channel_id,
+                        uploads_playlist_id=result.uploads_playlist_id,
                         source_api_call_id=result.source_api_call_id,
                         source_job_id=job.id,
                     )
@@ -261,6 +267,7 @@ def _channel_response(record: ChannelRecord) -> ChannelResponse:
         handle=record.handle,
         name=record.name,
         youtubeChannelId=record.youtube_channel_id,
+        uploadsPlaylistId=record.uploads_playlist_id,
         sourceApiCallId=record.source_api_call_id,
         sourceJobId=record.source_job_id,
     )
@@ -277,13 +284,31 @@ def _resolve_response(
         raise YouTubeDataChannelResolutionError(
             "Resolved channel row did not include a YouTube channel ID."
         )
+    if record.uploads_playlist_id is None:
+        raise YouTubeDataChannelResolutionError(
+            "Resolved channel row did not include an uploads playlist ID."
+        )
     return ResolveYouTubeChannelResponse(
         channelId=record.id,
         streamerId=record.streamer_id,
         handle=record.handle,
         name=record.name,
         youtubeChannelId=record.youtube_channel_id,
+        uploadsPlaylistId=record.uploads_playlist_id,
         sourceApiCallId=source_api_call_id,
         jobId=job_id,
         jobAttemptId=job_attempt_id,
     )
+
+
+async def _update_uploads_playlist_if_needed(
+    repository: ChannelRepositoryPort,
+    record: ChannelRecord,
+    uploads_playlist_id: str,
+) -> ChannelRecord:
+    if record.uploads_playlist_id == uploads_playlist_id:
+        return record
+    updated = await repository.update_uploads_playlist_id(record.id, uploads_playlist_id)
+    if updated is None:
+        raise ChannelNotFound("Channel not found.")
+    return updated

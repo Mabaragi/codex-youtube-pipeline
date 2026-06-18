@@ -13,14 +13,8 @@ class VideoCreate:
     description: str
     published_at: datetime
     duration: str | None
-    privacy_status: str | None
-    upload_status: str | None
-    live_broadcast_content: str | None
-    view_count: int | None
-    like_count: int | None
-    comment_count: int | None
     thumbnail_url: str | None
-    source_search_api_call_id: int
+    source_listing_api_call_id: int
     source_details_api_call_id: int
     source_job_id: int
 
@@ -34,14 +28,8 @@ class VideoRecord:
     description: str
     published_at: datetime
     duration: str | None
-    privacy_status: str | None
-    upload_status: str | None
-    live_broadcast_content: str | None
-    view_count: int | None
-    like_count: int | None
-    comment_count: int | None
     thumbnail_url: str | None
-    source_search_api_call_id: int | None
+    source_listing_api_call_id: int | None
     source_details_api_call_id: int | None
     source_job_id: int | None
     created_at: datetime

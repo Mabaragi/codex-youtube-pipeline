@@ -223,6 +223,10 @@ def test_alembic_upgrade_creates_app_tables(
         for unique_constraint in channel_unique_constraints
     )
     assert any(
+        unique_constraint["column_names"] == ["uploads_playlist_id"]
+        for unique_constraint in channel_unique_constraints
+    )
+    assert any(
         foreign_key["referred_table"] == "pipeline_job_attempts"
         and foreign_key["constrained_columns"] == ["pipeline_job_attempt_id"]
         for foreign_key in external_api_call_foreign_keys
@@ -240,14 +244,8 @@ def test_alembic_upgrade_creates_app_tables(
         "description",
         "published_at",
         "duration",
-        "privacy_status",
-        "upload_status",
-        "live_broadcast_content",
-        "view_count",
-        "like_count",
-        "comment_count",
         "thumbnail_url",
-        "source_search_api_call_id",
+        "source_listing_api_call_id",
         "source_details_api_call_id",
         "source_job_id",
     }.issubset(video_columns)
@@ -262,7 +260,7 @@ def test_alembic_upgrade_creates_app_tables(
     )
     assert any(
         foreign_key["referred_table"] == "external_api_calls"
-        and foreign_key["constrained_columns"] == ["source_search_api_call_id"]
+        and foreign_key["constrained_columns"] == ["source_listing_api_call_id"]
         for foreign_key in video_foreign_keys
     )
     assert any(

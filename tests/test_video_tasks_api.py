@@ -92,6 +92,13 @@ class FakeChannelRepository(ChannelRepositoryPort):
     ) -> ChannelRecord | None:
         return None
 
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        return None
+
     async def delete_channel(self, channel_id: int) -> bool:
         return False
 
@@ -776,6 +783,7 @@ def _seed_channel(channels: FakeChannelRepository) -> None:
         handle="@creator",
         name="Creator",
         youtube_channel_id="UC-test",
+        uploads_playlist_id="UU-test",
         source_api_call_id=None,
         source_job_id=None,
     )
@@ -795,14 +803,8 @@ def _seed_video(
         description="Description",
         published_at=NOW,
         duration="PT1M",
-        privacy_status="public",
-        upload_status="processed",
-        live_broadcast_content="none",
-        view_count=1,
-        like_count=2,
-        comment_count=3,
         thumbnail_url=None,
-        source_search_api_call_id=None,
+        source_listing_api_call_id=None,
         source_details_api_call_id=None,
         source_job_id=None,
         created_at=NOW,

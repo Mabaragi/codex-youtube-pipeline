@@ -50,6 +50,7 @@ async def _exercise_repository(database_url: str) -> None:
                     handle="@GoogleDevelopers",
                     name="Google for Developers",
                     youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+                    uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
                 )
             )
             job = await pipeline_jobs.create_job(
@@ -66,8 +67,8 @@ async def _exercise_repository(database_url: str) -> None:
                     input_hash="0" * 64,
                 )
             )
-            search_call = await external_api_calls.create_external_api_call(
-                _external_call("search.list")
+            listing_call = await external_api_calls.create_external_api_call(
+                _external_call("playlistItems.list")
             )
             details_call = await external_api_calls.create_external_api_call(
                 _external_call("videos.list")
@@ -80,7 +81,7 @@ async def _exercise_repository(database_url: str) -> None:
                         channel.id,
                         "video-old",
                         now - timedelta(days=1),
-                        search_call.id,
+                        listing_call.id,
                         details_call.id,
                         job.id,
                     ),
@@ -88,7 +89,7 @@ async def _exercise_repository(database_url: str) -> None:
                         channel.id,
                         "video-new",
                         now,
-                        search_call.id,
+                        listing_call.id,
                         details_call.id,
                         job.id,
                     ),
@@ -111,7 +112,7 @@ async def _exercise_repository(database_url: str) -> None:
                             channel.id,
                             "video-new",
                             now,
-                            search_call.id,
+                            listing_call.id,
                             details_call.id,
                             job.id,
                         )
@@ -125,7 +126,7 @@ def _video_create(
     channel_id: int,
     youtube_video_id: str,
     published_at: datetime,
-    source_search_api_call_id: int,
+    source_listing_api_call_id: int,
     source_details_api_call_id: int,
     source_job_id: int,
 ) -> VideoCreate:
@@ -136,14 +137,8 @@ def _video_create(
         description="description",
         published_at=published_at,
         duration="PT1M",
-        privacy_status="public",
-        upload_status="processed",
-        live_broadcast_content="none",
-        view_count=1,
-        like_count=2,
-        comment_count=3,
         thumbnail_url="https://img.example/high.jpg",
-        source_search_api_call_id=source_search_api_call_id,
+        source_listing_api_call_id=source_listing_api_call_id,
         source_details_api_call_id=source_details_api_call_id,
         source_job_id=source_job_id,
     )

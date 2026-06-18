@@ -24,6 +24,7 @@ class ChannelModel(Base):
     __tablename__ = "channels"
     __table_args__ = (
         UniqueConstraint("youtube_channel_id", name="uq_channels_youtube_channel_id"),
+        UniqueConstraint("uploads_playlist_id", name="uq_channels_uploads_playlist_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -35,6 +36,7 @@ class ChannelModel(Base):
     handle: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     youtube_channel_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    uploads_playlist_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_api_call_id: Mapped[int | None] = mapped_column(
         ForeignKey("external_api_calls.id", ondelete="SET NULL"),
         index=True,
@@ -59,6 +61,7 @@ class SqlAlchemyChannelRepository(ChannelRepositoryPort):
                 handle=channel.handle,
                 name=channel.name,
                 youtube_channel_id=channel.youtube_channel_id,
+                uploads_playlist_id=channel.uploads_playlist_id,
                 source_api_call_id=channel.source_api_call_id,
                 source_job_id=channel.source_job_id,
             )
@@ -138,6 +141,27 @@ class SqlAlchemyChannelRepository(ChannelRepositoryPort):
             raise ChannelPersistenceError("Channel persistence failed.") from exc
 
     @override
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        try:
+            model = await self._session.get(ChannelModel, channel_id)
+            if model is None:
+                return None
+            model.uploads_playlist_id = uploads_playlist_id
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _channel_record(model)
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise ChannelAlreadyExists("Uploads playlist already exists.") from exc
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise ChannelPersistenceError("Channel persistence failed.") from exc
+
+    @override
     async def delete_channel(self, channel_id: int) -> bool:
         try:
             model = await self._session.get(ChannelModel, channel_id)
@@ -158,6 +182,7 @@ def _channel_record(model: ChannelModel) -> ChannelRecord:
         handle=model.handle,
         name=model.name,
         youtube_channel_id=model.youtube_channel_id,
+        uploads_playlist_id=model.uploads_playlist_id,
         source_api_call_id=model.source_api_call_id,
         source_job_id=model.source_job_id,
     )

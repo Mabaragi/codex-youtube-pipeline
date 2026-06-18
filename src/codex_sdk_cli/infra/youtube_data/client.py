@@ -19,21 +19,24 @@ from codex_sdk_cli.domains.youtube_data.exceptions import (
 )
 from codex_sdk_cli.domains.youtube_data.ports import (
     YouTubeChannelResolution,
+    YouTubeChannelUploadsPlaylist,
     YouTubeDataClientPort,
     YouTubeVideoDetails,
     YouTubeVideoDetailsBatch,
-    YouTubeVideoSearchPage,
+    YouTubeVideoListing,
+    YouTubeVideoListingPage,
 )
 
 from .schemas import (
     YouTubeChannelsListResponse,
-    YouTubeSearchListResponse,
+    YouTubePlaylistItemResource,
+    YouTubePlaylistItemsListResponse,
     YouTubeVideoResource,
     YouTubeVideosListResponse,
 )
 
 YOUTUBE_CHANNELS_ENDPOINT = "https://www.googleapis.com/youtube/v3/channels"
-YOUTUBE_SEARCH_ENDPOINT = "https://www.googleapis.com/youtube/v3/search"
+YOUTUBE_PLAYLIST_ITEMS_ENDPOINT = "https://www.googleapis.com/youtube/v3/playlistItems"
 YOUTUBE_VIDEOS_ENDPOINT = "https://www.googleapis.com/youtube/v3/videos"
 
 
@@ -45,14 +48,14 @@ class YouTubeDataClient(YouTubeDataClientPort):
         api_key: str,
         api_call_recorder: ExternalApiCallRecorderPort,
         channels_endpoint: str = YOUTUBE_CHANNELS_ENDPOINT,
-        search_endpoint: str = YOUTUBE_SEARCH_ENDPOINT,
+        playlist_items_endpoint: str = YOUTUBE_PLAYLIST_ITEMS_ENDPOINT,
         videos_endpoint: str = YOUTUBE_VIDEOS_ENDPOINT,
     ) -> None:
         self._http_client = http_client
         self._api_key = api_key
         self._api_call_recorder = api_call_recorder
         self._channels_endpoint = channels_endpoint
-        self._search_endpoint = search_endpoint
+        self._playlist_items_endpoint = playlist_items_endpoint
         self._videos_endpoint = videos_endpoint
 
     @override
@@ -63,7 +66,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
         pipeline_job_attempt_id: int | None = None,
     ) -> YouTubeChannelResolution:
         request_params: dict[str, str] = {
-            "part": "id,snippet",
+            "part": "id,snippet,contentDetails",
             "forHandle": handle,
         }
         started = perf_counter()
@@ -141,46 +144,41 @@ class YouTubeDataClient(YouTubeDataClientPort):
             handle=handle,
             youtube_channel_id=channel.youtube_channel_id,
             title=channel.snippet.title,
+            uploads_playlist_id=channel.content_details.related_playlists.uploads,
             source_api_call_id=api_call.id,
         )
 
     @override
-    async def search_channel_videos(
+    async def get_channel_uploads_playlist(
         self,
         youtube_channel_id: str,
         *,
-        page_token: str | None = None,
         pipeline_job_attempt_id: int | None = None,
-    ) -> YouTubeVideoSearchPage:
+    ) -> YouTubeChannelUploadsPlaylist:
         request_params: dict[str, str] = {
-            "part": "snippet",
-            "channelId": youtube_channel_id,
-            "type": "video",
-            "order": "date",
-            "maxResults": "50",
+            "part": "id,snippet,contentDetails",
+            "id": youtube_channel_id,
         }
-        if page_token is not None:
-            request_params["pageToken"] = page_token
 
         response, duration_ms = await self._get_response(
-            request_url=self._search_endpoint,
-            operation="search.list",
+            request_url=self._channels_endpoint,
+            operation="channels.list",
             request_params=request_params,
             pipeline_job_attempt_id=pipeline_job_attempt_id,
         )
         try:
-            payload = _search_list_response(response)
+            payload = _channels_list_response(response)
         except YouTubeDataUpstreamError as exc:
             await self._record_response(
                 response=response,
                 request_params=request_params,
-                request_url=self._search_endpoint,
-                operation="search.list",
+                request_url=self._channels_endpoint,
+                operation="channels.list",
                 validation_status="invalid",
                 validation_error=str(exc),
                 duration_ms=duration_ms,
-                schema_name="YouTubeSearchListResponse",
-                quota_cost=100,
+                schema_name="YouTubeChannelsListResponse",
+                quota_cost=1,
                 pipeline_job_attempt_id=pipeline_job_attempt_id,
             )
             raise
@@ -188,17 +186,80 @@ class YouTubeDataClient(YouTubeDataClientPort):
         api_call = await self._record_response(
             response=response,
             request_params=request_params,
-            request_url=self._search_endpoint,
-            operation="search.list",
+            request_url=self._channels_endpoint,
+            operation="channels.list",
             validation_status="valid",
             validation_error=None,
             duration_ms=duration_ms,
-            schema_name="YouTubeSearchListResponse",
-            quota_cost=100,
+            schema_name="YouTubeChannelsListResponse",
+            quota_cost=1,
             pipeline_job_attempt_id=pipeline_job_attempt_id,
         )
-        return YouTubeVideoSearchPage(
-            youtube_video_ids=tuple(item.id.video_id for item in payload.items),
+        if not payload.items:
+            raise YouTubeDataChannelNotFound("YouTube channel was not found for this ID.")
+        channel = payload.items[0]
+        return YouTubeChannelUploadsPlaylist(
+            youtube_channel_id=channel.youtube_channel_id,
+            uploads_playlist_id=channel.content_details.related_playlists.uploads,
+            source_api_call_id=api_call.id,
+        )
+
+    @override
+    async def list_upload_playlist_videos(
+        self,
+        uploads_playlist_id: str,
+        *,
+        page_token: str | None = None,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeVideoListingPage:
+        request_params: dict[str, str] = {
+            "part": "snippet,contentDetails",
+            "playlistId": uploads_playlist_id,
+            "maxResults": "50",
+        }
+        if page_token is not None:
+            request_params["pageToken"] = page_token
+
+        response, duration_ms = await self._get_response(
+            request_url=self._playlist_items_endpoint,
+            operation="playlistItems.list",
+            request_params=request_params,
+            pipeline_job_attempt_id=pipeline_job_attempt_id,
+        )
+        try:
+            payload = _playlist_items_list_response(response)
+        except YouTubeDataUpstreamError as exc:
+            await self._record_response(
+                response=response,
+                request_params=request_params,
+                request_url=self._playlist_items_endpoint,
+                operation="playlistItems.list",
+                validation_status="invalid",
+                validation_error=str(exc),
+                duration_ms=duration_ms,
+                schema_name="YouTubePlaylistItemsListResponse",
+                quota_cost=1,
+                pipeline_job_attempt_id=pipeline_job_attempt_id,
+            )
+            raise
+
+        api_call = await self._record_response(
+            response=response,
+            request_params=request_params,
+            request_url=self._playlist_items_endpoint,
+            operation="playlistItems.list",
+            validation_status="valid",
+            validation_error=None,
+            duration_ms=duration_ms,
+            schema_name="YouTubePlaylistItemsListResponse",
+            quota_cost=1,
+            pipeline_job_attempt_id=pipeline_job_attempt_id,
+        )
+        return YouTubeVideoListingPage(
+            videos=tuple(
+                _video_listing(item, source_api_call_id=api_call.id)
+                for item in payload.items
+            ),
             next_page_token=payload.next_page_token,
             source_api_call_id=api_call.id,
         )
@@ -214,7 +275,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
             return YouTubeVideoDetailsBatch(videos=(), source_api_call_id=0)
 
         request_params: dict[str, str] = {
-            "part": "snippet,contentDetails,status,statistics",
+            "part": "contentDetails",
             "id": ",".join(youtube_video_ids),
         }
         response, duration_ms = await self._get_response(
@@ -392,9 +453,9 @@ def _channels_list_response(response: httpx.Response) -> YouTubeChannelsListResp
         raise YouTubeDataUpstreamError("YouTube Data API response was invalid.") from exc
 
 
-def _search_list_response(response: httpx.Response) -> YouTubeSearchListResponse:
+def _playlist_items_list_response(response: httpx.Response) -> YouTubePlaylistItemsListResponse:
     try:
-        return YouTubeSearchListResponse.model_validate(_json_object(response))
+        return YouTubePlaylistItemsListResponse.model_validate(_json_object(response))
     except ValidationError as exc:
         raise YouTubeDataUpstreamError("YouTube Data API response was invalid.") from exc
 
@@ -411,45 +472,39 @@ def _video_details(
     *,
     source_api_call_id: int,
 ) -> YouTubeVideoDetails:
-    statistics = video.statistics
-    status = video.status
     content_details = video.content_details
     return YouTubeVideoDetails(
         youtube_video_id=video.youtube_video_id,
-        title=video.snippet.title,
-        description=video.snippet.description,
-        published_at=video.snippet.published_at,
         duration=content_details.duration if content_details is not None else None,
-        privacy_status=status.privacy_status if status is not None else None,
-        upload_status=status.upload_status if status is not None else None,
-        live_broadcast_content=video.snippet.live_broadcast_content,
-        view_count=_optional_int(statistics.view_count if statistics is not None else None),
-        like_count=_optional_int(statistics.like_count if statistics is not None else None),
-        comment_count=_optional_int(statistics.comment_count if statistics is not None else None),
-        thumbnail_url=_best_thumbnail_url(video),
         source_api_call_id=source_api_call_id,
     )
 
 
-def _best_thumbnail_url(video: YouTubeVideoResource) -> str | None:
+def _video_listing(
+    item: YouTubePlaylistItemResource,
+    *,
+    source_api_call_id: int,
+) -> YouTubeVideoListing:
+    return YouTubeVideoListing(
+        youtube_video_id=item.content_details.video_id,
+        title=item.snippet.title,
+        description=item.snippet.description,
+        published_at=item.content_details.video_published_at,
+        thumbnail_url=_best_thumbnail_url(item),
+        source_api_call_id=source_api_call_id,
+    )
+
+
+def _best_thumbnail_url(item: YouTubePlaylistItemResource) -> str | None:
     for key in ("maxres", "standard", "high", "medium", "default"):
-        thumbnail = video.snippet.thumbnails.get(key)
+        thumbnail = item.snippet.thumbnails.get(key)
         if thumbnail is not None:
             return thumbnail.url
     return None
 
 
-def _optional_int(value: str | None) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise YouTubeDataUpstreamError("YouTube Data API response was invalid.") from exc
-
-
 def _quota_cost(operation: str) -> int:
-    return 100 if operation == "search.list" else 1
+    return 1
 
 
 def _duration_ms(started: float) -> int:

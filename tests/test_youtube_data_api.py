@@ -44,9 +44,10 @@ from codex_sdk_cli.domains.youtube_data.exceptions import (
 )
 from codex_sdk_cli.domains.youtube_data.ports import (
     YouTubeChannelResolution,
+    YouTubeChannelUploadsPlaylist,
     YouTubeDataClientPort,
     YouTubeVideoDetailsBatch,
-    YouTubeVideoSearchPage,
+    YouTubeVideoListingPage,
 )
 from codex_sdk_cli.settings import CliSettings
 
@@ -71,16 +72,25 @@ class FakeYouTubeDataClient(YouTubeDataClientPort):
             handle=handle,
             youtube_channel_id=self.youtube_channel_id,
             title=self.title,
+            uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
             source_api_call_id=42,
         )
 
-    async def search_channel_videos(
+    async def get_channel_uploads_playlist(
         self,
         youtube_channel_id: str,
         *,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeChannelUploadsPlaylist:
+        raise NotImplementedError
+
+    async def list_upload_playlist_videos(
+        self,
+        uploads_playlist_id: str,
+        *,
         page_token: str | None = None,
         pipeline_job_attempt_id: int | None = None,
-    ) -> YouTubeVideoSearchPage:
+    ) -> YouTubeVideoListingPage:
         raise NotImplementedError
 
     async def get_video_details(
@@ -317,6 +327,7 @@ class FakeChannelRepository(ChannelRepositoryPort):
             handle=channel.handle,
             name=channel.name,
             youtube_channel_id=channel.youtube_channel_id,
+            uploads_playlist_id=channel.uploads_playlist_id,
             source_api_call_id=channel.source_api_call_id,
             source_job_id=channel.source_job_id,
         )
@@ -367,6 +378,18 @@ class FakeChannelRepository(ChannelRepositoryPort):
         self.channels[channel_id] = updated
         return updated
 
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        record = self.channels.get(channel_id)
+        if record is None:
+            return None
+        updated = replace(record, uploads_playlist_id=uploads_playlist_id)
+        self.channels[channel_id] = updated
+        return updated
+
     async def delete_channel(self, channel_id: int) -> bool:
         return self.channels.pop(channel_id, None) is not None
 
@@ -396,6 +419,7 @@ def test_youtube_data_resolve_creates_one_channel_for_streamer() -> None:
         "handle": "@GoogleDevelopers",
         "name": "Google for Developers",
         "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "uploadsPlaylistId": "UU_x5XG1OV2P6uZZ5FSM9Ttw",
         "sourceApiCallId": 42,
         "jobId": 1,
         "jobAttemptId": 1,
@@ -407,6 +431,7 @@ def test_youtube_data_resolve_creates_one_channel_for_streamer() -> None:
         handle="@GoogleDevelopers",
         name="Google for Developers",
         youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
         source_api_call_id=42,
         source_job_id=1,
     )
@@ -552,6 +577,7 @@ def test_youtube_data_resolve_reuses_existing_channel_for_same_streamer() -> Non
         handle="@GoogleDevelopers",
         name="Google for Developers",
         youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        uploads_playlist_id=None,
         source_api_call_id=11,
         source_job_id=99,
     )
@@ -570,8 +596,10 @@ def test_youtube_data_resolve_reuses_existing_channel_for_same_streamer() -> Non
     )
 
     assert response["channelId"] == 7
+    assert response["uploadsPlaylistId"] == "UU_x5XG1OV2P6uZZ5FSM9Ttw"
     assert response["sourceApiCallId"] == 42
     assert len(channels.channels) == 1
+    assert channels.channels[7].uploads_playlist_id == "UU_x5XG1OV2P6uZZ5FSM9Ttw"
     assert pipeline_jobs.attempts[1].output_json == response
 
 
@@ -588,6 +616,7 @@ def test_youtube_data_resolve_rejects_existing_channel_for_other_streamer() -> N
         handle="@GoogleDevelopers",
         name="Google for Developers",
         youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
         source_api_call_id=11,
         source_job_id=99,
     )
@@ -637,6 +666,7 @@ def test_pipeline_retry_retries_failed_channel_resolve_job() -> None:
         "handle": "@GoogleDevelopers",
         "name": "Google for Developers",
         "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "uploadsPlaylistId": "UU_x5XG1OV2P6uZZ5FSM9Ttw",
         "sourceApiCallId": 42,
         "jobId": 1,
         "jobAttemptId": 2,
@@ -780,6 +810,7 @@ def test_pipeline_job_detail_returns_attempts_raw_calls_and_outputs() -> None:
             handle="@GoogleDevelopers",
             name="Google for Developers",
             youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
+            uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
             source_api_call_id=42,
             source_job_id=1,
         )
@@ -800,6 +831,7 @@ def test_pipeline_job_detail_returns_attempts_raw_calls_and_outputs() -> None:
     assert response["externalApiCalls"][0]["externalApiCallId"] == 42
     assert response["externalApiCalls"][0]["jobAttemptId"] == 1
     assert response["channels"][0]["channelId"] == 7
+    assert response["channels"][0]["uploadsPlaylistId"] == "UU_x5XG1OV2P6uZZ5FSM9Ttw"
 
 
 def test_pipeline_job_detail_maps_missing_job_to_not_found() -> None:

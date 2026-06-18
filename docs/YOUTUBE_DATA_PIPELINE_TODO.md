@@ -32,6 +32,14 @@ Last updated: 2026-06-16
 - [x] `POST /channels/{channel_id}/videos/collect`로 local channel 기반 YouTube video 수집을 지원한다.
 - [x] `GET /channels/{channel_id}/videos`로 저장된 videos를 최신순 조회한다.
 - [x] `video_collect` failed job retry를 지원하도록 step별 executor registry를 도입한다.
+- [x] `video_collect` 후보 수집을 `search.list`에서 uploads playlist 기반
+  `playlistItems.list`로 전환한다.
+- [x] `channels.uploads_playlist_id`를 추가하고 channel resolve 또는 first collect 시
+  `channels.list(part=id,snippet,contentDetails)`로 채운다.
+- [x] `videos.source_search_api_call_id`를 playlist 방식에 맞춰
+  `source_listing_api_call_id`로 교체한다.
+- [x] `videos` normalized projection에서 `statistics`, `status`,
+  `liveBroadcastContent`를 제거하고 duration/details만 유지한다.
 - [x] `video_tasks` table과 repository를 추가해 video 단위 task 상태와 중복 방지를 저장한다.
 - [x] `POST /channels/{channel_id}/video-tasks/transcript-collect`로 channel selector 기반 manual transcript 수집을 지원한다.
 - [x] `GET /channels/{channel_id}/video-tasks`로 저장된 task 상태를 조회한다.
@@ -41,7 +49,6 @@ Last updated: 2026-06-16
 
 ## Future Domain Work
 
-- [ ] `search.list` v1 500개 제한을 넘어서는 전체 백필이 필요하면 uploads playlist 또는 publishedBefore windowing 전략을 도입한다.
 - [ ] LLM summary 결과는 transcript metadata와 분리된 summary domain table에 저장한다.
 - [ ] summary 생성 request/response raw도 재현성과 감사 가능성을 위해 저장한다.
 

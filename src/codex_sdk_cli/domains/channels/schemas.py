@@ -98,6 +98,7 @@ class ChannelResponse(BaseModel):
     handle: str
     name: str
     youtube_channel_id: str | None = Field(alias="youtubeChannelId")
+    uploads_playlist_id: str | None = Field(alias="uploadsPlaylistId")
     source_api_call_id: int | None = Field(alias="sourceApiCallId")
     source_job_id: int | None = Field(alias="sourceJobId")
 
@@ -131,6 +132,7 @@ class ResolveYouTubeChannelResponse(BaseModel):
     handle: str
     name: str
     youtube_channel_id: str = Field(alias="youtubeChannelId")
+    uploads_playlist_id: str = Field(alias="uploadsPlaylistId")
     source_api_call_id: int = Field(alias="sourceApiCallId")
     job_id: int = Field(alias="jobId")
     job_attempt_id: int = Field(alias="jobAttemptId")

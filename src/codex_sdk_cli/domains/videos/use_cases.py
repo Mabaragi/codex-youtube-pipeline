@@ -14,6 +14,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
 from codex_sdk_cli.domains.youtube_data.ports import (
     YouTubeDataClientPort,
     YouTubeVideoDetails,
+    YouTubeVideoListing,
 )
 
 from .exceptions import ChannelMissingYouTubeId
@@ -21,8 +22,8 @@ from .ports import VideoCreate, VideoRecord, VideoRepositoryPort
 from .schemas import CollectChannelVideosResponse, VideoCollectStoppedReason, VideoResponse
 
 VIDEO_COLLECT_STEP = "video_collect"
-SEARCH_PAGE_LIMIT = 10
-SEARCH_CANDIDATE_LIMIT = 500
+LISTING_PAGE_LIMIT = 10
+LISTING_CANDIDATE_LIMIT = 500
 
 
 class ListChannelVideosUseCase:
@@ -93,9 +94,13 @@ class CollectChannelVideosUseCase:
                 raise ChannelMissingYouTubeId(
                     "Channel YouTube ID changed since this pipeline job was created."
                 )
-            collected = await self._collect_candidate_video_ids(
+            uploads_playlist_id = await self._get_or_refresh_uploads_playlist_id(
+                channel,
+                attempt_id=attempt.id,
+            )
+            collected = await self._collect_candidate_videos(
                 channel_id=channel_id,
-                youtube_channel_id=youtube_channel_id,
+                uploads_playlist_id=uploads_playlist_id,
                 attempt_id=attempt.id,
             )
             created = await self._create_video_rows(
@@ -114,7 +119,7 @@ class CollectChannelVideosUseCase:
                 firstExistingYoutubeVideoId=collected.first_existing_youtube_video_id,
                 stoppedReason=collected.stopped_reason,
                 pagesFetched=collected.pages_fetched,
-                searchApiCallIds=collected.search_api_call_ids,
+                listingApiCallIds=collected.listing_api_call_ids,
                 videoDetailsApiCallIds=created.video_details_api_call_ids,
                 skippedMissingDetailsYoutubeVideoIds=(
                     created.skipped_missing_details_youtube_video_ids
@@ -136,48 +141,74 @@ class CollectChannelVideosUseCase:
         await self._pipeline_jobs.mark_job_succeeded(job.id)
         return response
 
-    async def _collect_candidate_video_ids(
+    async def _get_or_refresh_uploads_playlist_id(
+        self,
+        channel: ChannelRecord,
+        *,
+        attempt_id: int,
+    ) -> str:
+        if channel.uploads_playlist_id is not None:
+            return channel.uploads_playlist_id
+        if channel.youtube_channel_id is None:
+            raise ChannelMissingYouTubeId("Channel does not have a YouTube channel ID.")
+        result = await self._client.get_channel_uploads_playlist(
+            channel.youtube_channel_id,
+            pipeline_job_attempt_id=attempt_id,
+        )
+        updated = await self._channels.update_uploads_playlist_id(
+            channel.id,
+            result.uploads_playlist_id,
+        )
+        if updated is None:
+            raise ChannelNotFound("Channel not found.")
+        return updated.uploads_playlist_id or result.uploads_playlist_id
+
+    async def _collect_candidate_videos(
         self,
         *,
         channel_id: int,
-        youtube_channel_id: str,
+        uploads_playlist_id: str,
         attempt_id: int,
     ) -> _CollectedVideoIds:
         page_token: str | None = None
         pages_fetched = 0
         candidate_ids: list[str] = []
-        search_api_call_ids: list[int] = []
-        search_api_call_by_video_id: dict[str, int] = {}
+        listing_api_call_ids: list[int] = []
+        listings_by_video_id: dict[str, YouTubeVideoListing] = {}
         seen: set[str] = set()
         first_existing: str | None = None
 
         while True:
-            if pages_fetched >= SEARCH_PAGE_LIMIT or len(candidate_ids) >= SEARCH_CANDIDATE_LIMIT:
-                stopped_reason: VideoCollectStoppedReason = "search_limit_reached"
+            if pages_fetched >= LISTING_PAGE_LIMIT or len(candidate_ids) >= LISTING_CANDIDATE_LIMIT:
+                stopped_reason: VideoCollectStoppedReason = "listing_limit_reached"
                 break
 
-            page = await self._client.search_channel_videos(
-                youtube_channel_id,
+            page = await self._client.list_upload_playlist_videos(
+                uploads_playlist_id,
                 page_token=page_token,
                 pipeline_job_attempt_id=attempt_id,
             )
             pages_fetched += 1
-            search_api_call_ids.append(page.source_api_call_id)
+            listing_api_call_ids.append(page.source_api_call_id)
+            page_video_ids = tuple(video.youtube_video_id for video in page.videos)
 
             first_existing = await self._videos.find_existing_youtube_video_id(
                 channel_id=channel_id,
-                youtube_video_ids=page.youtube_video_ids,
+                youtube_video_ids=page_video_ids,
             )
-            page_candidate_ids = list(page.youtube_video_ids)
+            page_candidate_videos = list(page.videos)
             if first_existing is not None:
-                page_candidate_ids = page_candidate_ids[: page_candidate_ids.index(first_existing)]
+                page_candidate_videos = page_candidate_videos[
+                    : page_video_ids.index(first_existing)
+                ]
 
-            for youtube_video_id in page_candidate_ids:
-                if youtube_video_id in seen or len(candidate_ids) >= SEARCH_CANDIDATE_LIMIT:
+            for video in page_candidate_videos:
+                youtube_video_id = video.youtube_video_id
+                if youtube_video_id in seen or len(candidate_ids) >= LISTING_CANDIDATE_LIMIT:
                     continue
                 seen.add(youtube_video_id)
                 candidate_ids.append(youtube_video_id)
-                search_api_call_by_video_id[youtube_video_id] = page.source_api_call_id
+                listings_by_video_id[youtube_video_id] = video
 
             if first_existing is not None:
                 stopped_reason = "existing_video"
@@ -185,18 +216,18 @@ class CollectChannelVideosUseCase:
             if not page.next_page_token:
                 stopped_reason = "no_next_page"
                 break
-            if pages_fetched >= SEARCH_PAGE_LIMIT or len(candidate_ids) >= SEARCH_CANDIDATE_LIMIT:
-                stopped_reason = "search_limit_reached"
+            if pages_fetched >= LISTING_PAGE_LIMIT or len(candidate_ids) >= LISTING_CANDIDATE_LIMIT:
+                stopped_reason = "listing_limit_reached"
                 break
             page_token = page.next_page_token
 
         return _CollectedVideoIds(
             youtube_video_ids=tuple(candidate_ids),
-            search_api_call_by_video_id=search_api_call_by_video_id,
+            listings_by_video_id=listings_by_video_id,
             first_existing_youtube_video_id=first_existing,
             stopped_reason=stopped_reason,
             pages_fetched=pages_fetched,
-            search_api_call_ids=search_api_call_ids,
+            listing_api_call_ids=listing_api_call_ids,
         )
 
     async def _create_video_rows(
@@ -226,11 +257,9 @@ class CollectChannelVideosUseCase:
         records = await self._videos.create_videos(
             [
                 _video_create(
+                    collected.listings_by_video_id[youtube_video_id],
                     details_by_id[youtube_video_id],
                     channel_id=channel_id,
-                    source_search_api_call_id=collected.search_api_call_by_video_id[
-                        youtube_video_id
-                    ],
                     source_job_id=job_id,
                 )
                 for youtube_video_id in collected.youtube_video_ids
@@ -249,18 +278,18 @@ class _CollectedVideoIds:
         self,
         *,
         youtube_video_ids: tuple[str, ...],
-        search_api_call_by_video_id: dict[str, int],
+        listings_by_video_id: dict[str, YouTubeVideoListing],
         first_existing_youtube_video_id: str | None,
         stopped_reason: VideoCollectStoppedReason,
         pages_fetched: int,
-        search_api_call_ids: list[int],
+        listing_api_call_ids: list[int],
     ) -> None:
         self.youtube_video_ids = youtube_video_ids
-        self.search_api_call_by_video_id = search_api_call_by_video_id
+        self.listings_by_video_id = listings_by_video_id
         self.first_existing_youtube_video_id = first_existing_youtube_video_id
         self.stopped_reason = stopped_reason
         self.pages_fetched = pages_fetched
-        self.search_api_call_ids = search_api_call_ids
+        self.listing_api_call_ids = listing_api_call_ids
 
 
 class _CreatedVideos:
@@ -293,27 +322,21 @@ def _required_youtube_channel_id(channel: ChannelRecord) -> str:
 
 
 def _video_create(
+    listing: YouTubeVideoListing,
     details: YouTubeVideoDetails,
     *,
     channel_id: int,
-    source_search_api_call_id: int,
     source_job_id: int,
 ) -> VideoCreate:
     return VideoCreate(
         channel_id=channel_id,
-        youtube_video_id=details.youtube_video_id,
-        title=details.title,
-        description=details.description,
-        published_at=details.published_at,
+        youtube_video_id=listing.youtube_video_id,
+        title=listing.title,
+        description=listing.description,
+        published_at=listing.published_at,
         duration=details.duration,
-        privacy_status=details.privacy_status,
-        upload_status=details.upload_status,
-        live_broadcast_content=details.live_broadcast_content,
-        view_count=details.view_count,
-        like_count=details.like_count,
-        comment_count=details.comment_count,
-        thumbnail_url=details.thumbnail_url,
-        source_search_api_call_id=source_search_api_call_id,
+        thumbnail_url=listing.thumbnail_url,
+        source_listing_api_call_id=listing.source_api_call_id,
         source_details_api_call_id=details.source_api_call_id,
         source_job_id=source_job_id,
     )
@@ -328,14 +351,8 @@ def _video_response(record: VideoRecord) -> VideoResponse:
         description=record.description,
         publishedAt=record.published_at,
         duration=record.duration,
-        privacyStatus=record.privacy_status,
-        uploadStatus=record.upload_status,
-        liveBroadcastContent=record.live_broadcast_content,
-        viewCount=record.view_count,
-        likeCount=record.like_count,
-        commentCount=record.comment_count,
         thumbnailUrl=record.thumbnail_url,
-        sourceSearchApiCallId=record.source_search_api_call_id,
+        sourceListingApiCallId=record.source_listing_api_call_id,
         sourceDetailsApiCallId=record.source_details_api_call_id,
         sourceJobId=record.source_job_id,
         createdAt=record.created_at,

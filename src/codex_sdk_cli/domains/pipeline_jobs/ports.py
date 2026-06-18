@@ -98,6 +98,7 @@ class PipelineChannelOutputRecord:
     handle: str
     name: str
     youtube_channel_id: str | None
+    uploads_playlist_id: str | None
     source_api_call_id: int | None
     source_job_id: int | None
 
@@ -109,7 +110,7 @@ class PipelineVideoOutputRecord:
     youtube_video_id: str
     title: str
     published_at: datetime
-    source_search_api_call_id: int | None
+    source_listing_api_call_id: int | None
     source_details_api_call_id: int | None
     source_job_id: int | None
 

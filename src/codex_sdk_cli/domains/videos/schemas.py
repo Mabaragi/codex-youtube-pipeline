@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 VideoCollectStoppedReason = Literal[
     "existing_video",
     "no_next_page",
-    "search_limit_reached",
+    "listing_limit_reached",
 ]
 
 
@@ -20,14 +20,8 @@ class VideoResponse(BaseModel):
     description: str
     published_at: datetime = Field(alias="publishedAt")
     duration: str | None
-    privacy_status: str | None = Field(alias="privacyStatus")
-    upload_status: str | None = Field(alias="uploadStatus")
-    live_broadcast_content: str | None = Field(alias="liveBroadcastContent")
-    view_count: int | None = Field(alias="viewCount")
-    like_count: int | None = Field(alias="likeCount")
-    comment_count: int | None = Field(alias="commentCount")
     thumbnail_url: str | None = Field(alias="thumbnailUrl")
-    source_search_api_call_id: int | None = Field(alias="sourceSearchApiCallId")
+    source_listing_api_call_id: int | None = Field(alias="sourceListingApiCallId")
     source_details_api_call_id: int | None = Field(alias="sourceDetailsApiCallId")
     source_job_id: int | None = Field(alias="sourceJobId")
     created_at: datetime = Field(alias="createdAt")
@@ -46,7 +40,7 @@ class CollectChannelVideosResponse(BaseModel):
     first_existing_youtube_video_id: str | None = Field(alias="firstExistingYoutubeVideoId")
     stopped_reason: VideoCollectStoppedReason = Field(alias="stoppedReason")
     pages_fetched: int = Field(alias="pagesFetched")
-    search_api_call_ids: list[int] = Field(alias="searchApiCallIds")
+    listing_api_call_ids: list[int] = Field(alias="listingApiCallIds")
     video_details_api_call_ids: list[int] = Field(alias="videoDetailsApiCallIds")
     skipped_missing_details_youtube_video_ids: list[str] = Field(
         alias="skippedMissingDetailsYoutubeVideoIds"

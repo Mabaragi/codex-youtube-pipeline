@@ -386,6 +386,7 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 name=channel.name,
                 youtube_channel_id=channel.youtube_channel_id,
                 source_api_call_id=channel.source_api_call_id,
+                uploads_playlist_id=channel.uploads_playlist_id,
                 source_job_id=channel.source_job_id,
             )
             for channel in channels
@@ -421,7 +422,7 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 youtube_video_id=video.youtube_video_id,
                 title=video.title,
                 published_at=video.published_at,
-                source_search_api_call_id=video.source_search_api_call_id,
+                source_listing_api_call_id=video.source_listing_api_call_id,
                 source_details_api_call_id=video.source_details_api_call_id,
                 source_job_id=video.source_job_id,
             )

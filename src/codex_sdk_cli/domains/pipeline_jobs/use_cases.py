@@ -290,6 +290,7 @@ def _channel_output_response(
         handle=channel.handle,
         name=channel.name,
         youtubeChannelId=channel.youtube_channel_id,
+        uploadsPlaylistId=channel.uploads_playlist_id,
         sourceApiCallId=channel.source_api_call_id,
         sourceJobId=channel.source_job_id,
     )
@@ -304,7 +305,7 @@ def _video_output_response(
         youtubeVideoId=video.youtube_video_id,
         title=video.title,
         publishedAt=video.published_at,
-        sourceSearchApiCallId=video.source_search_api_call_id,
+        sourceListingApiCallId=video.source_listing_api_call_id,
         sourceDetailsApiCallId=video.source_details_api_call_id,
         sourceJobId=video.source_job_id,
     )

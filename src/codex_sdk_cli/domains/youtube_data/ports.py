@@ -10,12 +10,30 @@ class YouTubeChannelResolution:
     handle: str
     youtube_channel_id: str
     title: str
+    uploads_playlist_id: str
     source_api_call_id: int
 
 
 @dataclass(frozen=True, slots=True)
-class YouTubeVideoSearchPage:
-    youtube_video_ids: tuple[str, ...]
+class YouTubeChannelUploadsPlaylist:
+    youtube_channel_id: str
+    uploads_playlist_id: str
+    source_api_call_id: int
+
+
+@dataclass(frozen=True, slots=True)
+class YouTubeVideoListing:
+    youtube_video_id: str
+    title: str
+    description: str
+    published_at: datetime
+    thumbnail_url: str | None
+    source_api_call_id: int
+
+
+@dataclass(frozen=True, slots=True)
+class YouTubeVideoListingPage:
+    videos: tuple[YouTubeVideoListing, ...]
     next_page_token: str | None
     source_api_call_id: int
 
@@ -23,17 +41,7 @@ class YouTubeVideoSearchPage:
 @dataclass(frozen=True, slots=True)
 class YouTubeVideoDetails:
     youtube_video_id: str
-    title: str
-    description: str
-    published_at: datetime
     duration: str | None
-    privacy_status: str | None
-    upload_status: str | None
-    live_broadcast_content: str | None
-    view_count: int | None
-    like_count: int | None
-    comment_count: int | None
-    thumbnail_url: str | None
     source_api_call_id: int
 
 
@@ -52,14 +60,22 @@ class YouTubeDataClientPort(Protocol):
     ) -> YouTubeChannelResolution:
         """Resolve YouTube channel metadata from a public handle."""
 
-    async def search_channel_videos(
+    async def get_channel_uploads_playlist(
         self,
         youtube_channel_id: str,
         *,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeChannelUploadsPlaylist:
+        """Fetch the stable uploads playlist ID for one YouTube channel."""
+
+    async def list_upload_playlist_videos(
+        self,
+        uploads_playlist_id: str,
+        *,
         page_token: str | None = None,
         pipeline_job_attempt_id: int | None = None,
-    ) -> YouTubeVideoSearchPage:
-        """Search one page of channel videos in newest-first order."""
+    ) -> YouTubeVideoListingPage:
+        """List one page of uploaded videos from a channel uploads playlist."""
 
     async def get_video_details(
         self,

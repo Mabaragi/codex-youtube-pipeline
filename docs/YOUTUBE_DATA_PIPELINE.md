@@ -64,8 +64,8 @@ Last updated: 2026-06-16
 
 각 단계는 현재 use case에 필요한 projection만 반환하고, raw response 전체는 object storage와 `external_api_calls`로 추적한다.
 
-- Channel resolve output: normalized channel row, YouTube channel id, source API call metadata.
-- Videos collect output: normalized video rows, source search/details API call metadata.
+- Channel resolve output: normalized channel row, YouTube channel id, uploads playlist id, source API call metadata.
+- Videos collect output: normalized video rows, source listing/details API call metadata.
 - Transcript collect output: transcript metadata row, raw transcript storage metadata.
 - Summary generate output: future summary row, LLM request/response metadata.
 
@@ -92,9 +92,11 @@ API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한
 raw response를 `external_api_calls`와 object storage에 기록한다. 성공하면
 `channels` row를 만들거나 같은 streamer의 기존 `youtube_channel_id` row를
 재사용한다. 새 row는 `channels.source_job_id`와
-`channels.source_api_call_id`로 job/raw metadata를 연결한다. 응답에는
-`channelId`, `youtubeChannelId`, `sourceApiCallId`, `jobId`, `jobAttemptId`가
-포함된다.
+`channels.source_api_call_id`로 job/raw metadata를 연결한다.
+`channels.uploads_playlist_id`에는 `channels.list(part=id,snippet,contentDetails)`가
+반환한 `contentDetails.relatedPlaylists.uploads` 값을 저장한다. 응답에는
+`channelId`, `youtubeChannelId`, `uploadsPlaylistId`, `sourceApiCallId`,
+`jobId`, `jobAttemptId`가 포함된다.
 
 요청 DTO validation 실패나 missing streamer처럼 작업 대상으로 볼 수 없는 입력은 job을
 만들지 않는다. YouTube upstream/not-found/schema validation 실패처럼 attempt 실행 중
@@ -106,16 +108,17 @@ failed job을 지원한다. retry는 기존 job을 덮어쓰지 않고 같은 jo
 입력이 달라져야 하는 재실행은 retry가 아니라 새 job으로 처리한다.
 
 두 번째 pipeline step은 `POST /channels/{channel_id}/videos/collect`다. 요청은
-local `channelId`만 path로 받고, DB의 `channels.youtube_channel_id`를 사용해
-YouTube Data API `search.list`를 `channelId + type=video + order=date`로
-최신순 호출한다. 각 search page raw response는 `external_api_calls`와 object
-storage에 `operation=search.list`로 남긴다. 수집은 10 page/500 candidate v1
+local `channelId`만 path로 받고, DB의 `channels.uploads_playlist_id`를 사용해
+YouTube Data API `playlistItems.list`를 uploads playlist 기준으로 최신순 호출한다.
+값이 없으면 collect attempt 안에서 `channels.list(part=id,snippet,contentDetails)`를
+한 번 호출해 채운다. 각 listing page raw response는 `external_api_calls`와 object
+storage에 `operation=playlistItems.list`로 남긴다. 수집은 10 page/500 candidate v1
 상한 안에서 진행하며, 같은 channel에 이미 저장된 `youtube_video_id`가 처음 나오면
-그 지점에서 중단한다. 새 candidate들은 50개씩 `videos.list`로 상세 metadata를
-조회하고, 각 batch raw response는 `operation=videos.list`로 남긴다. 모든 upstream
-호출과 DTO validation이 성공한 뒤에만 `videos` row를 bulk create한다. 성공 응답과
-attempt output에는 `createdVideoIds`, `firstExistingYoutubeVideoId`,
-`stoppedReason`, search/detail raw API call id 목록을 포함한다.
+그 지점에서 중단한다. 새 candidate들은 50개씩 `videos.list(part=contentDetails)`로
+duration만 보강하고, 각 batch raw response는 `operation=videos.list`로 남긴다.
+모든 upstream 호출과 DTO validation이 성공한 뒤에만 `videos` row를 bulk create한다.
+성공 응답과 attempt output에는 `createdVideoIds`, `firstExistingYoutubeVideoId`,
+`stoppedReason`, listing/detail raw API call id 목록을 포함한다.
 
 `POST /pipeline/jobs/{jobId}/retry`는 failed `video_collect` job도 지원한다.
 retry는 저장된 `input_json.channelId`와 `input_json.youtubeChannelId`를 복원해 같은

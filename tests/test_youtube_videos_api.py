@@ -37,21 +37,25 @@ from codex_sdk_cli.domains.videos.ports import VideoCreate, VideoRecord, VideoRe
 from codex_sdk_cli.domains.youtube_data.exceptions import YouTubeDataUpstreamError
 from codex_sdk_cli.domains.youtube_data.ports import (
     YouTubeChannelResolution,
+    YouTubeChannelUploadsPlaylist,
     YouTubeDataClientPort,
     YouTubeVideoDetails,
     YouTubeVideoDetailsBatch,
-    YouTubeVideoSearchPage,
+    YouTubeVideoListing,
+    YouTubeVideoListingPage,
 )
 from codex_sdk_cli.settings import CliSettings
 
 
 class FakeYouTubeDataClient(YouTubeDataClientPort):
     def __init__(self) -> None:
-        self.search_pages: list[YouTubeVideoSearchPage] = []
+        self.listing_pages: list[YouTubeVideoListingPage] = []
         self.details_by_id: dict[str, YouTubeVideoDetails] = {}
-        self.search_requests: list[tuple[str, str | None, int | None]] = []
+        self.uploads_requests: list[tuple[str, int | None]] = []
+        self.listing_requests: list[tuple[str, str | None, int | None]] = []
         self.detail_requests: list[tuple[tuple[str, ...], int | None]] = []
-        self.search_error: YouTubeDataUpstreamError | None = None
+        self.listing_error: YouTubeDataUpstreamError | None = None
+        self.next_uploads_call_id = 50
         self.next_details_call_id = 100
 
     async def resolve_youtube_channel_by_handle(
@@ -64,26 +68,44 @@ class FakeYouTubeDataClient(YouTubeDataClientPort):
             handle=handle,
             youtube_channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw",
             title="Google for Developers",
+            uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
             source_api_call_id=1,
         )
 
-    async def search_channel_videos(
+    async def get_channel_uploads_playlist(
         self,
         youtube_channel_id: str,
         *,
+        pipeline_job_attempt_id: int | None = None,
+    ) -> YouTubeChannelUploadsPlaylist:
+        self.uploads_requests.append((youtube_channel_id, pipeline_job_attempt_id))
+        call_id = self.next_uploads_call_id
+        self.next_uploads_call_id += 1
+        return YouTubeChannelUploadsPlaylist(
+            youtube_channel_id=youtube_channel_id,
+            uploads_playlist_id="UU_x5XG1OV2P6uZZ5FSM9Ttw",
+            source_api_call_id=call_id,
+        )
+
+    async def list_upload_playlist_videos(
+        self,
+        uploads_playlist_id: str,
+        *,
         page_token: str | None = None,
         pipeline_job_attempt_id: int | None = None,
-    ) -> YouTubeVideoSearchPage:
-        self.search_requests.append((youtube_channel_id, page_token, pipeline_job_attempt_id))
-        if self.search_error is not None:
-            raise self.search_error
-        if not self.search_pages:
-            return YouTubeVideoSearchPage(
-                youtube_video_ids=(),
+    ) -> YouTubeVideoListingPage:
+        self.listing_requests.append(
+            (uploads_playlist_id, page_token, pipeline_job_attempt_id)
+        )
+        if self.listing_error is not None:
+            raise self.listing_error
+        if not self.listing_pages:
+            return YouTubeVideoListingPage(
+                videos=(),
                 next_page_token=None,
                 source_api_call_id=99,
             )
-        return self.search_pages.pop(0)
+        return self.listing_pages.pop(0)
 
     async def get_video_details(
         self,
@@ -115,6 +137,7 @@ class FakeChannelRepository(ChannelRepositoryPort):
             handle=channel.handle,
             name=channel.name,
             youtube_channel_id=channel.youtube_channel_id,
+            uploads_playlist_id=channel.uploads_playlist_id,
             source_api_call_id=channel.source_api_call_id,
             source_job_id=channel.source_job_id,
         )
@@ -164,6 +187,18 @@ class FakeChannelRepository(ChannelRepositoryPort):
         self.channels[channel_id] = updated
         return updated
 
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        record = self.channels.get(channel_id)
+        if record is None:
+            return None
+        updated = replace(record, uploads_playlist_id=uploads_playlist_id)
+        self.channels[channel_id] = updated
+        return updated
+
     async def delete_channel(self, channel_id: int) -> bool:
         return self.channels.pop(channel_id, None) is not None
 
@@ -209,14 +244,8 @@ class FakeVideoRepository(VideoRepositoryPort):
                 description=video.description,
                 published_at=video.published_at,
                 duration=video.duration,
-                privacy_status=video.privacy_status,
-                upload_status=video.upload_status,
-                live_broadcast_content=video.live_broadcast_content,
-                view_count=video.view_count,
-                like_count=video.like_count,
-                comment_count=video.comment_count,
                 thumbnail_url=video.thumbnail_url,
-                source_search_api_call_id=video.source_search_api_call_id,
+                source_listing_api_call_id=video.source_listing_api_call_id,
                 source_details_api_call_id=video.source_details_api_call_id,
                 source_job_id=video.source_job_id,
                 created_at=now,
@@ -375,9 +404,9 @@ def test_collect_channel_videos_stops_at_first_existing_video() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
     _seed_channel(channels)
     _seed_existing_video(videos)
-    client.search_pages.append(
-        YouTubeVideoSearchPage(
-            youtube_video_ids=("new-1", "new-2", "existing-1", "ignored"),
+    client.listing_pages.append(
+        _listing_page(
+            ("new-1", "new-2", "existing-1", "ignored"),
             next_page_token="older",
             source_api_call_id=10,
         )
@@ -391,7 +420,7 @@ def test_collect_channel_videos_stops_at_first_existing_video() -> None:
     assert response["firstExistingYoutubeVideoId"] == "existing-1"
     assert response["stoppedReason"] == "existing_video"
     assert response["pagesFetched"] == 1
-    assert response["searchApiCallIds"] == [10]
+    assert response["listingApiCallIds"] == [10]
     assert response["videoDetailsApiCallIds"] == [100]
     assert client.detail_requests == [(("new-1", "new-2"), 1)]
     assert pipeline_jobs.jobs[1].step == "video_collect"
@@ -403,9 +432,9 @@ def test_collect_channel_videos_first_item_existing_skips_details_call() -> None
     client, channels, videos, pipeline_jobs = _fakes()
     _seed_channel(channels)
     _seed_existing_video(videos)
-    client.search_pages.append(
-        YouTubeVideoSearchPage(
-            youtube_video_ids=("existing-1", "older"),
+    client.listing_pages.append(
+        _listing_page(
+            ("existing-1", "older"),
             next_page_token="older",
             source_api_call_id=10,
         )
@@ -421,15 +450,15 @@ def test_collect_channel_videos_first_item_existing_skips_details_call() -> None
     assert client.detail_requests == []
 
 
-def test_collect_channel_videos_search_limit_reached() -> None:
+def test_collect_channel_videos_listing_limit_reached() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
     _seed_channel(channels)
     video_ids = [f"video-{index:03}" for index in range(500)]
     for page_index in range(10):
         page_ids = tuple(video_ids[page_index * 50 : (page_index + 1) * 50])
-        client.search_pages.append(
-            YouTubeVideoSearchPage(
-                youtube_video_ids=page_ids,
+        client.listing_pages.append(
+            _listing_page(
+                page_ids,
                 next_page_token=f"page-{page_index + 1}",
                 source_api_call_id=10 + page_index,
             )
@@ -439,10 +468,29 @@ def test_collect_channel_videos_search_limit_reached() -> None:
     response = asyncio.run(_collect(client, channels, videos, pipeline_jobs))
 
     assert response["createdCount"] == 500
-    assert response["stoppedReason"] == "search_limit_reached"
+    assert response["stoppedReason"] == "listing_limit_reached"
     assert response["pagesFetched"] == 10
-    assert len(response["searchApiCallIds"]) == 10
+    assert len(response["listingApiCallIds"]) == 10
     assert len(response["videoDetailsApiCallIds"]) == 10
+
+
+def test_collect_channel_videos_refreshes_missing_uploads_playlist_id() -> None:
+    client, channels, videos, pipeline_jobs = _fakes()
+    _seed_channel(channels, uploads_playlist_id=None)
+    client.listing_pages.append(
+        _listing_page(
+            ("new-1",),
+            next_page_token=None,
+            source_api_call_id=10,
+        )
+    )
+    _seed_details(client, "new-1")
+
+    response = asyncio.run(_collect(client, channels, videos, pipeline_jobs))
+
+    assert response["createdCount"] == 1
+    assert client.uploads_requests == [("UC_x5XG1OV2P6uZZ5FSM9Ttw", 1)]
+    assert channels.channels[1].uploads_playlist_id == "UU_x5XG1OV2P6uZZ5FSM9Ttw"
 
 
 def test_collect_channel_videos_maps_missing_channel_and_youtube_id() -> None:
@@ -474,10 +522,12 @@ def test_collect_channel_videos_requires_youtube_data_api_key() -> None:
     assert pipeline_jobs.jobs == {}
 
 
-def test_collect_channel_videos_records_failed_attempt_on_search_error() -> None:
+def test_collect_channel_videos_records_failed_attempt_on_listing_error() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
     _seed_channel(channels)
-    client.search_error = YouTubeDataUpstreamError("YouTube Data API request failed upstream.")
+    client.listing_error = YouTubeDataUpstreamError(
+        "YouTube Data API request failed upstream."
+    )
 
     response = asyncio.run(
         _collect(client, channels, videos, pipeline_jobs, expected_status=502)
@@ -494,9 +544,9 @@ def test_video_collect_retry_reexecutes_failed_job() -> None:
     client, channels, videos, pipeline_jobs = _fakes()
     _seed_channel(channels)
     _seed_failed_video_collect_job(pipeline_jobs)
-    client.search_pages.append(
-        YouTubeVideoSearchPage(
-            youtube_video_ids=("new-1",),
+    client.listing_pages.append(
+        _listing_page(
+            ("new-1",),
             next_page_token=None,
             source_api_call_id=10,
         )
@@ -512,7 +562,7 @@ def test_video_collect_retry_reexecutes_failed_job() -> None:
     assert response["result"]["createdCount"] == 1
     assert response["result"]["stoppedReason"] == "no_next_page"
     assert pipeline_jobs.attempts[2].status == "succeeded"
-    assert client.search_requests == [("UC_x5XG1OV2P6uZZ5FSM9Ttw", None, 2)]
+    assert client.listing_requests == [("UU_x5XG1OV2P6uZZ5FSM9Ttw", None, 2)]
 
 
 def test_video_routes_are_in_openapi() -> None:
@@ -622,6 +672,7 @@ def _seed_channel(
     channels: FakeChannelRepository,
     *,
     youtube_channel_id: str | None = "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    uploads_playlist_id: str | None = "UU_x5XG1OV2P6uZZ5FSM9Ttw",
 ) -> None:
     channels.channels[1] = ChannelRecord(
         id=1,
@@ -629,6 +680,7 @@ def _seed_channel(
         handle="@GoogleDevelopers",
         name="Google for Developers",
         youtube_channel_id=youtube_channel_id,
+        uploads_playlist_id=uploads_playlist_id,
         source_api_call_id=42,
         source_job_id=99,
     )
@@ -644,14 +696,8 @@ def _seed_existing_video(videos: FakeVideoRepository) -> None:
         description="already stored",
         published_at=now,
         duration="PT1M",
-        privacy_status="public",
-        upload_status="processed",
-        live_broadcast_content="none",
-        view_count=1,
-        like_count=2,
-        comment_count=3,
         thumbnail_url=None,
-        source_search_api_call_id=1,
+        source_listing_api_call_id=1,
         source_details_api_call_id=2,
         source_job_id=3,
         created_at=now,
@@ -661,22 +707,35 @@ def _seed_existing_video(videos: FakeVideoRepository) -> None:
 
 
 def _seed_details(client: FakeYouTubeDataClient, *youtube_video_ids: str) -> None:
-    for index, youtube_video_id in enumerate(youtube_video_ids):
+    for youtube_video_id in youtube_video_ids:
         client.details_by_id[youtube_video_id] = YouTubeVideoDetails(
             youtube_video_id=youtube_video_id,
-            title=f"Title {youtube_video_id}",
-            description=f"Description {youtube_video_id}",
-            published_at=datetime(2026, 6, 16, 1, index, tzinfo=UTC),
             duration="PT1M",
-            privacy_status="public",
-            upload_status="processed",
-            live_broadcast_content="none",
-            view_count=1,
-            like_count=2,
-            comment_count=3,
-            thumbnail_url=None,
             source_api_call_id=0,
         )
+
+
+def _listing_page(
+    youtube_video_ids: tuple[str, ...],
+    *,
+    next_page_token: str | None,
+    source_api_call_id: int,
+) -> YouTubeVideoListingPage:
+    return YouTubeVideoListingPage(
+        videos=tuple(
+            YouTubeVideoListing(
+                youtube_video_id=youtube_video_id,
+                title=f"Title {youtube_video_id}",
+                description=f"Description {youtube_video_id}",
+                published_at=datetime(2026, 6, 16, 1, index, tzinfo=UTC),
+                thumbnail_url=None,
+                source_api_call_id=source_api_call_id,
+            )
+            for index, youtube_video_id in enumerate(youtube_video_ids)
+        ),
+        next_page_token=next_page_token,
+        source_api_call_id=source_api_call_id,
+    )
 
 
 def _seed_failed_video_collect_job(pipeline_jobs: FakePipelineJobRepository) -> None:

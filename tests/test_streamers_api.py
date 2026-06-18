@@ -88,6 +88,7 @@ class FakeChannelRepository(ChannelRepositoryPort):
             handle=channel.handle,
             name=channel.name,
             youtube_channel_id=channel.youtube_channel_id,
+            uploads_playlist_id=channel.uploads_playlist_id,
             source_api_call_id=channel.source_api_call_id,
             source_job_id=channel.source_job_id,
         )
@@ -140,6 +141,19 @@ class FakeChannelRepository(ChannelRepositoryPort):
                 else record.youtube_channel_id
             ),
         )
+        self.channels[channel_id] = updated
+        return updated
+
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        self._raise_if_failed()
+        record = self.channels.get(channel_id)
+        if record is None:
+            return None
+        updated = replace(record, uploads_playlist_id=uploads_playlist_id)
         self.channels[channel_id] = updated
         return updated
 
@@ -204,6 +218,7 @@ def test_streamer_and_channel_crud_api() -> None:
         "handle": "@beta",
         "name": "Main",
         "youtubeChannelId": None,
+        "uploadsPlaylistId": None,
         "sourceApiCallId": None,
         "sourceJobId": None,
     }

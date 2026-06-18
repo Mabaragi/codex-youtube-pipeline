@@ -99,11 +99,11 @@ The project uses async SQLAlchemy with Alembic migrations. Non-Docker runs use
 `db-data` named volume so redeploy checkout cleanup does not remove metadata.
 Local database files and SQLite journal/WAL files are ignored by git. Current
 application tables are `youtube_transcripts`, `streamers`, `channels`,
-`external_api_calls`, `pipeline_jobs`, and `pipeline_job_attempts`. Transcript
-and external API raw response JSON stays in MinIO while SQLite stores metadata
-plus the MinIO bucket, object name, URI, response hash, validation status, and
-pipeline state. Operators can update only the nullable `notes` field through the
-transcript metadata API.
+`external_api_calls`, `pipeline_jobs`, `pipeline_job_attempts`, `videos`, and
+`video_tasks`. Transcript and external API raw response JSON stays in MinIO
+while SQLite stores metadata plus the MinIO bucket, object name, URI, response
+hash, validation status, and pipeline state. Operators can update only the
+nullable `notes` field through the transcript metadata API.
 
 Schema changes must go through Alembic migrations. Do not call
 `metadata.create_all()` or `metadata.drop_all()` from app code, tests, or startup
@@ -306,13 +306,15 @@ Invoke-RestMethod `
 ```
 
 This endpoint requires `CODEX_CLI_YOUTUBE_DATA_API_KEY`. It uses the official
-YouTube Data API `channels.list` method with `forHandle` and `part=id,snippet`,
-validates the response shape, and creates a channel row whose local identifier
-is returned as `channelId`. The YouTube external identifier is returned as
-`youtubeChannelId`. The raw YouTube Data API response body is saved to MinIO,
-`external_api_calls` stores its metadata, and the created channel returns the
-metadata row as `sourceApiCallId`. The endpoint also creates a `channel_resolve`
-pipeline job/attempt and returns `jobId` and `jobAttemptId`.
+YouTube Data API `channels.list` method with `forHandle` and
+`part=id,snippet,contentDetails`, validates the response shape, and creates a
+channel row whose local identifier is returned as `channelId`. The YouTube
+external identifier is returned as `youtubeChannelId`; the cached uploads
+playlist identifier is returned as `uploadsPlaylistId`. The raw YouTube Data API
+response body is saved to MinIO, `external_api_calls` stores its metadata, and
+the created channel returns the metadata row as `sourceApiCallId`. The endpoint
+also creates a `channel_resolve` pipeline job/attempt and returns `jobId` and
+`jobAttemptId`.
 
 Failed `channel_resolve` jobs can be retried synchronously by the API server.
 Retry creates a new attempt under the same job:
