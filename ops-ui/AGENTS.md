@@ -13,10 +13,12 @@ generated OpenAPI contract.
 3. `ops-ui/docs/INDEX.md`.
 4. `ops-ui/docs/FRONTEND_ARCHITECTURE.md` for UI runtime, state, routing, or
    screen structure work.
-5. `ops-ui/docs/BFF_PROXY.md` when browser/backend calls, proxy routes, or
+5. `ops-ui/docs/UI_STYLE.md` when adding or changing screens, components,
+   tables, forms, buttons, status feedback, or layout styling.
+6. `ops-ui/docs/BFF_PROXY.md` when browser/backend calls, proxy routes, or
    deployment wiring change.
-6. `ops-ui/docs/API_CONTRACT.md` when API calls or generated types change.
-7. Relevant UI code and tests.
+7. `ops-ui/docs/API_CONTRACT.md` when API calls or generated types change.
+8. Relevant UI code and tests.
 
 ## Boundaries
 
@@ -36,6 +38,7 @@ generated OpenAPI contract.
 - Use TanStack Table for operational tables.
 - Keep React Flow ERD code isolated from ordinary pages and load it dynamically.
 - Do not duplicate backend DTO types by hand when generated OpenAPI types exist.
+- Follow `ops-ui/docs/UI_STYLE.md` for visual styling and interaction patterns.
 
 ## Verification
 
