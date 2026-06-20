@@ -6,6 +6,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
 import {
   useCollectAllTranscriptsMutation,
   useCollectTranscriptsMutation,
@@ -18,6 +19,10 @@ import {
   useStreamers,
 } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
+import {
+  buildTranscriptCollectionLock,
+  transcriptCollectionActionTitle,
+} from "@/lib/transcript-collection-lock";
 import type { OpsChannel, ResolveYouTubeChannelResult, Streamer } from "@/lib/types";
 
 const STREAMER_OPTIONS_ID = "streamer-name-options";
@@ -49,47 +54,33 @@ export function ChannelsPage() {
     isStreamerListUnavailable ||
     createStreamer.isPending ||
     resolveChannel.isPending;
-  const isCheckingTranscriptWork =
-    runningTranscriptTasks.isLoading || runningTranscriptBatches.isLoading;
-  const cannotVerifyTranscriptWork =
-    runningTranscriptTasks.isError || runningTranscriptBatches.isError;
-  const hasRunningTranscriptWork =
-    (runningTranscriptTasks.data?.total ?? 0) > 0 ||
-    (runningTranscriptBatches.data?.items.length ?? 0) > 0;
   const totalStoredVideoCount = (data?.items ?? []).reduce(
     (total, item) => total + item.videoCount,
     0,
   );
   const isAnyTranscriptMutationPending =
     collectTranscripts.isPending || collectAllTranscripts.isPending;
-  const isTranscriptCollectionDisabled =
-    isAnyTranscriptMutationPending ||
-    isCheckingTranscriptWork ||
-    cannotVerifyTranscriptWork ||
-    hasRunningTranscriptWork;
+  const transcriptLock = buildTranscriptCollectionLock({
+    runningTasks: runningTranscriptTasks.data,
+    runningBatches: runningTranscriptBatches.data,
+    tasksLoading: runningTranscriptTasks.isLoading,
+    batchesLoading: runningTranscriptBatches.isLoading,
+    tasksError: runningTranscriptTasks.isError,
+    batchesError: runningTranscriptBatches.isError,
+    mutationPending: isAnyTranscriptMutationPending,
+  });
+  const isTranscriptCollectionDisabled = transcriptLock.isLocked;
   const isAllTranscriptCollectionDisabled =
     isTranscriptCollectionDisabled || totalStoredVideoCount < 1;
-  const transcriptFeedback = transcriptTaskFeedback({
-    isChecking: isCheckingTranscriptWork,
-    cannotVerify: cannotVerifyTranscriptWork,
-    hasRunningTask: hasRunningTranscriptWork,
-  });
   const transcriptButtonTitle = transcriptTaskButtonTitle({
-    isPending: isAnyTranscriptMutationPending,
-    isChecking: isCheckingTranscriptWork,
-    cannotVerify: cannotVerifyTranscriptWork,
-    hasRunningTask: hasRunningTranscriptWork,
+    lock: transcriptLock,
   });
   const allTranscriptButtonTitle = allTranscriptTaskButtonTitle({
-    isPending: isAnyTranscriptMutationPending,
-    isChecking: isCheckingTranscriptWork,
-    cannotVerify: cannotVerifyTranscriptWork,
-    hasRunningTask: hasRunningTranscriptWork,
+    lock: transcriptLock,
     totalStoredVideoCount,
   });
   const transcriptButtonLabel = transcriptTaskButtonLabel({
-    isChecking: isCheckingTranscriptWork,
-    hasRunningTask: hasRunningTranscriptWork,
+    lock: transcriptLock,
   });
 
   async function handleCreateStreamer(event: FormEvent<HTMLFormElement>) {
@@ -313,20 +304,14 @@ export function ChannelsPage() {
           <InlineFeedback feedback={resolveFeedback} />
         </form>
       </div>
-      {transcriptFeedback ? (
-        <div className="mb-3 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          {transcriptFeedback}
-        </div>
-      ) : null}
+      <TranscriptCollectionStatus
+        className="mb-3"
+        showIdle
+        state={transcriptLock}
+      />
       <div className="mb-3 flex gap-2 text-sm">
+        <span className="text-xs text-slate-500">Video collect</span>
         <StatusBadge status={collectVideos.isPending ? "running" : "ready"} />
-        <StatusBadge
-          status={
-            isAnyTranscriptMutationPending || hasRunningTranscriptWork
-              ? "running"
-              : "ready"
-          }
-        />
       </div>
       <DataTable columns={columns} data={data?.items ?? []} />
     </>
@@ -410,95 +395,45 @@ function formatMutationError(error: unknown) {
   return String(error);
 }
 
-function transcriptTaskFeedback({
-  isChecking,
-  cannotVerify,
-  hasRunningTask,
-}: {
-  isChecking: boolean;
-  cannotVerify: boolean;
-  hasRunningTask: boolean;
-}) {
-  if (isChecking) {
-    return "Checking transcript collection state...";
-  }
-  if (cannotVerify) {
-    return "Cannot verify transcript collection state. Collection is disabled to avoid duplicate runs.";
-  }
-  if (hasRunningTask) {
-    return "Transcript collection is running; new collection is disabled until it finishes.";
-  }
-  return null;
-}
-
 function transcriptTaskButtonTitle({
-  isPending,
-  isChecking,
-  cannotVerify,
-  hasRunningTask,
+  lock,
 }: {
-  isPending: boolean;
-  isChecking: boolean;
-  cannotVerify: boolean;
-  hasRunningTask: boolean;
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
 }) {
-  if (isPending) {
-    return "Starting transcript collection";
-  }
-  if (isChecking) {
-    return "Checking transcript collection state";
-  }
-  if (cannotVerify) {
-    return "Cannot verify transcript collection state";
-  }
-  if (hasRunningTask) {
-    return "Transcript collection is already running";
+  if (lock.isLocked) {
+    return transcriptCollectionActionTitle(lock);
   }
   return "Collect transcripts for this channel's stored videos";
 }
 
 function allTranscriptTaskButtonTitle({
-  isPending,
-  isChecking,
-  cannotVerify,
-  hasRunningTask,
+  lock,
   totalStoredVideoCount,
 }: {
-  isPending: boolean;
-  isChecking: boolean;
-  cannotVerify: boolean;
-  hasRunningTask: boolean;
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
   totalStoredVideoCount: number;
 }) {
   if (totalStoredVideoCount < 1) {
     return "No stored videos to collect transcripts for";
   }
-  if (isPending) {
-    return "Starting transcript collection";
-  }
-  if (isChecking) {
-    return "Checking transcript collection state";
-  }
-  if (cannotVerify) {
-    return "Cannot verify transcript collection state";
-  }
-  if (hasRunningTask) {
-    return "Transcript collection is already running";
+  if (lock.isLocked) {
+    return transcriptCollectionActionTitle(lock);
   }
   return "Collect transcripts for all stored videos";
 }
 
 function transcriptTaskButtonLabel({
-  isChecking,
-  hasRunningTask,
+  lock,
 }: {
-  isChecking: boolean;
-  hasRunningTask: boolean;
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
 }) {
-  if (isChecking) {
+  if (lock.status === "checking") {
     return "Checking";
   }
-  if (hasRunningTask) {
+  if (lock.status === "unavailable") {
+    return "Blocked";
+  }
+  if (lock.isLocked) {
     return "Running";
   }
   return "Transcripts";

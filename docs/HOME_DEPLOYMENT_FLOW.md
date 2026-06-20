@@ -104,6 +104,60 @@ The deployment speedup is paired with cache-friendly builds:
 The first run after this change can still be slower while cache is populated.
 Later runs should benefit from BuildKit and dependency cache reuse.
 
+## Performance Metrics
+
+Use the Home PC deploy job as the primary speed metric because the optimization
+intentionally moved Docker build work away from the self-hosted runner and into
+the CI image publish job.
+
+| Metric | Previous local-build deploy | GHCR pull deploy | Change |
+| --- | --- | --- | --- |
+| Workflow run | `27781197166` | `27795139217` | - |
+| Commit | `8485b6c` | `d4a8243` | - |
+| Job | `Deploy API to home PC` | `Deploy API to home PC` | - |
+| Job id | `82206422746` | `82253576133` | - |
+| Job time | `179s` | `62s` | `117s` faster |
+| Relative change | - | - | about `65%` less time, about `2.9x` faster |
+
+The old deploy job log showed:
+
+```powershell
+docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate --remove-orphans api ops-ui nginx ngrok minio
+```
+
+The GHCR pull deploy job log showed:
+
+```powershell
+docker compose --project-name codex-sdk-home -f compose.home.yaml pull api codex ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+```
+
+The first verified GHCR run was not faster by total workflow wall time:
+
+| Metric | Previous run | GHCR pull run |
+| --- | --- | --- |
+| Run created/updated window | about `284s` | about `306s` |
+
+That total is expected to be a different metric, not a direct deploy-speed
+regression: the build work moved from the Home PC deploy job into
+`Publish deploy images`, and the first run also populated BuildKit/GitHub
+Actions caches.
+
+Future runs can be faster when:
+
+- Docker Buildx cache is warm for API and ops-ui image builds.
+- uv, pnpm, and Next.js caches are warm.
+- The Home PC already has unchanged base/dependency layers and only pulls
+  changed app layers.
+- The commit does not touch Dockerfiles, lockfiles, or dependency-heavy layers.
+
+It is not guaranteed to get faster on every run. Dependency changes, Dockerfile
+changes, cache eviction, large image layer changes, or a cold Home PC Docker
+cache can make a specific run slower. The durable win is that the Home PC deploy
+job no longer rebuilds images and is now mostly pull, migration, container
+update, and health checks.
+
 ## Verification
 
 For a successful deploy, confirm:
@@ -122,4 +176,6 @@ The first verified run after the change was:
 
 - Commit: `d4a8243`
 - CI run: `https://github.com/Mabaragi/codex-sdk/actions/runs/27795139217`
-- Home deploy job time: `62s`, down from the previous observed `137s`.
+- Home deploy job time: `62s`, down from the canonical previous local-build
+  comparison of `179s`. An earlier rough observation was `137s`, but the
+  Actions API job comparison above is the reference metric.

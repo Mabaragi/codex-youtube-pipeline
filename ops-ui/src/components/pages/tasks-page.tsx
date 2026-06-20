@@ -13,9 +13,20 @@ import {
 } from "@/components/filter-controls";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { useOpsChannels, useOpsVideoTasks, useRetryJobMutation } from "@/lib/queries";
+import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
+import {
+  useOpsChannels,
+  useOpsVideoTasks,
+  useRetryJobMutation,
+  useRunningTranscriptBatches,
+  useRunningTranscriptTasks,
+} from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
 import { logsHref } from "@/lib/logs";
+import {
+  buildTranscriptCollectionLock,
+  transcriptCollectionActionTitle,
+} from "@/lib/transcript-collection-lock";
 import type { OpsVideoTask, OpsVideoTaskFilters } from "@/lib/types";
 import {
   hrefWithQuery,
@@ -47,7 +58,17 @@ export function TasksPage({ initialFilters }: TasksPageProps) {
   const router = useRouter();
   const { data: channelsData } = useOpsChannels();
   const { data, isLoading, error } = useOpsVideoTasks(initialFilters);
+  const runningTranscriptTasks = useRunningTranscriptTasks();
+  const runningTranscriptBatches = useRunningTranscriptBatches();
   const retryJob = useRetryJobMutation();
+  const transcriptLock = buildTranscriptCollectionLock({
+    runningTasks: runningTranscriptTasks.data,
+    runningBatches: runningTranscriptBatches.data,
+    tasksLoading: runningTranscriptTasks.isLoading,
+    batchesLoading: runningTranscriptBatches.isLoading,
+    tasksError: runningTranscriptTasks.isError,
+    batchesError: runningTranscriptBatches.isError,
+  });
 
   const columns: ColumnDef<OpsVideoTask>[] = [
     {
@@ -82,33 +103,43 @@ export function TasksPage({ initialFilters }: TasksPageProps) {
     },
     {
       header: "Action",
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          {row.original.jobId && ["failed", "timed_out"].includes(row.original.status) ? (
-            <button
+      cell: ({ row }) => {
+        const retryLocked =
+          row.original.taskName === "transcript_collect" && transcriptLock.isLocked;
+        return (
+          <div className="flex flex-wrap gap-2">
+            {row.original.jobId && ["failed", "timed_out"].includes(row.original.status) ? (
+              <button
+                className="ops-button"
+                disabled={retryJob.isPending || retryLocked}
+                onClick={() => retryJob.mutate(row.original.jobId as number)}
+                title={
+                  retryLocked
+                    ? transcriptCollectionActionTitle(transcriptLock)
+                    : "Retry job"
+                }
+              >
+                <RotateCw size={15} />
+                Retry job
+              </button>
+            ) : null}
+            <Link
               className="ops-button"
-              disabled={retryJob.isPending}
-              onClick={() => retryJob.mutate(row.original.jobId as number)}
+              href={logsHref({ videoTaskId: row.original.videoTaskId })}
             >
-              <RotateCw size={15} />
-              Retry job
-            </button>
-          ) : null}
-          <Link
-            className="ops-button"
-            href={logsHref({ videoTaskId: row.original.videoTaskId })}
-          >
-            <ScrollText size={15} />
-            Logs
-          </Link>
-        </div>
-      ),
+              <ScrollText size={15} />
+              Logs
+            </Link>
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <>
       <PageHeader title="Video Tasks" />
+      <TranscriptCollectionStatus className="mb-4" state={transcriptLock} />
       <form
         key={JSON.stringify(initialFilters)}
         className="ops-panel mb-4 p-4"

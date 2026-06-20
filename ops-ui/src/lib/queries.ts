@@ -50,6 +50,7 @@ export function useOpsChannels() {
   return useQuery({
     queryKey: queryKeys.channels,
     queryFn: () => requestJson<OpsChannelList>("/ops/channels"),
+    refetchInterval: 10_000,
   });
 }
 
@@ -103,19 +104,37 @@ export function useOperationEvents(filters: OperationEventFilters) {
 }
 
 export function useRunningTranscriptTasks() {
-  return useOpsVideoTasks({
+  const filters = {
     taskName: "transcript_collect",
     status: "running",
     limit: 1,
     offset: 0,
+  } satisfies OpsVideoTaskFilters;
+  return useQuery({
+    queryKey: queryKeys.tasks(filters),
+    queryFn: () =>
+      requestJson<OpsVideoTaskList>("/ops/video-tasks", { query: filters }),
+    refetchInterval: 2_000,
   });
 }
 
 export function useRunningTranscriptBatches() {
-  return usePipelineJobs({
+  const filters = {
     step: "transcript_collect_batch",
     status: "running",
     limit: 1,
+  } satisfies PipelineJobFilters;
+  return useQuery({
+    queryKey: queryKeys.jobs(filters),
+    queryFn: () =>
+      requestJson<PipelineJobList>("/pipeline/jobs", {
+        query: {
+          status: filters.status,
+          step: filters.step,
+          limit: filters.limit,
+        },
+      }),
+    refetchInterval: 2_000,
   });
 }
 

@@ -178,7 +178,7 @@ describe("ChannelsPage transcript collection state", () => {
 
     expect(
       screen.getByText(
-        "Transcript collection is running; new collection is disabled until it finishes.",
+        "Transcript collection is running. Transcript actions are disabled.",
       ),
     ).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
@@ -195,7 +195,7 @@ describe("ChannelsPage transcript collection state", () => {
 
     expect(
       screen.getByText(
-        "Transcript collection is running; new collection is disabled until it finishes.",
+        "Transcript collection is running. Transcript actions are disabled.",
       ),
     ).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
@@ -210,7 +210,7 @@ describe("ChannelsPage transcript collection state", () => {
 
     expect(
       screen.getByText(
-        "Cannot verify transcript collection state. Collection is disabled to avoid duplicate runs.",
+        "Cannot verify transcript collection state. Transcript actions are disabled.",
       ),
     ).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
@@ -383,7 +383,7 @@ describe("ChannelsPage transcript collection state", () => {
 
 function transcriptButton() {
   return screen.getByRole("button", {
-    name: /^(Transcripts|Checking|Running)$/i,
+    name: /^(Transcripts|Checking|Running|Blocked)$/i,
   }) as HTMLButtonElement;
 }
 

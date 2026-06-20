@@ -13,9 +13,20 @@ import {
 } from "@/components/filter-controls";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { useOpsChannels, usePipelineJobs, useRetryJobMutation } from "@/lib/queries";
+import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
+import {
+  useOpsChannels,
+  usePipelineJobs,
+  useRetryJobMutation,
+  useRunningTranscriptBatches,
+  useRunningTranscriptTasks,
+} from "@/lib/queries";
 import { formatDateTime } from "@/lib/format";
 import { logsHref } from "@/lib/logs";
+import {
+  buildTranscriptCollectionLock,
+  transcriptCollectionActionTitle,
+} from "@/lib/transcript-collection-lock";
 import type { PipelineJobFilters, PipelineJobSummary } from "@/lib/types";
 import {
   hrefWithQuery,
@@ -49,7 +60,17 @@ export function JobsPage({ initialFilters }: JobsPageProps) {
   const router = useRouter();
   const { data: channelsData } = useOpsChannels();
   const { data, isLoading, error } = usePipelineJobs(initialFilters);
+  const runningTranscriptTasks = useRunningTranscriptTasks();
+  const runningTranscriptBatches = useRunningTranscriptBatches();
   const retryJob = useRetryJobMutation();
+  const transcriptLock = buildTranscriptCollectionLock({
+    runningTasks: runningTranscriptTasks.data,
+    runningBatches: runningTranscriptBatches.data,
+    tasksLoading: runningTranscriptTasks.isLoading,
+    batchesLoading: runningTranscriptBatches.isLoading,
+    tasksError: runningTranscriptTasks.isError,
+    batchesError: runningTranscriptBatches.isError,
+  });
 
   const columns: ColumnDef<PipelineJobSummary>[] = [
     { header: "Job", cell: ({ row }) => `#${row.original.jobId}` },
@@ -60,30 +81,40 @@ export function JobsPage({ initialFilters }: JobsPageProps) {
     { header: "Updated", cell: ({ row }) => formatDateTime(row.original.updatedAt) },
     {
       header: "Action",
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          {row.original.status === "failed" ? (
-            <button
-              className="ops-button"
-              disabled={retryJob.isPending}
-              onClick={() => retryJob.mutate(row.original.jobId)}
-            >
-              <RotateCw size={15} />
-              Retry
-            </button>
-          ) : null}
-          <Link className="ops-button" href={logsHref({ jobId: row.original.jobId })}>
-            <ScrollText size={15} />
-            Logs
-          </Link>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const retryLocked =
+          row.original.step === "transcript_collect" && transcriptLock.isLocked;
+        return (
+          <div className="flex flex-wrap gap-2">
+            {row.original.status === "failed" ? (
+              <button
+                className="ops-button"
+                disabled={retryJob.isPending || retryLocked}
+                onClick={() => retryJob.mutate(row.original.jobId)}
+                title={
+                  retryLocked
+                    ? transcriptCollectionActionTitle(transcriptLock)
+                    : "Retry job"
+                }
+              >
+                <RotateCw size={15} />
+                Retry
+              </button>
+            ) : null}
+            <Link className="ops-button" href={logsHref({ jobId: row.original.jobId })}>
+              <ScrollText size={15} />
+              Logs
+            </Link>
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <>
       <PageHeader title="Pipeline Jobs" />
+      <TranscriptCollectionStatus className="mb-4" state={transcriptLock} />
       <form
         key={JSON.stringify(initialFilters)}
         className="ops-panel mb-4 p-4"

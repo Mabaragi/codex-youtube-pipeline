@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JobsPage } from "../jobs-page";
 import type {
   OpsChannel,
+  OpsVideoTaskList,
   PipelineJobFilters,
   PipelineJobList,
 } from "@/lib/types";
@@ -24,6 +25,16 @@ const queryMocks = vi.hoisted(() => ({
     isPending: false,
     mutate: vi.fn(),
   },
+  runningTranscriptTasks: {
+    data: undefined as OpsVideoTaskList | undefined,
+    isLoading: false,
+    isError: false,
+  },
+  runningTranscriptBatches: {
+    data: undefined as PipelineJobList | undefined,
+    isLoading: false,
+    isError: false,
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -37,6 +48,8 @@ vi.mock("@/lib/queries", () => ({
     return queryMocks.jobs;
   },
   useRetryJobMutation: () => queryMocks.retryJob,
+  useRunningTranscriptBatches: () => queryMocks.runningTranscriptBatches,
+  useRunningTranscriptTasks: () => queryMocks.runningTranscriptTasks,
 }));
 
 const channel: OpsChannel = {
@@ -53,6 +66,33 @@ const channel: OpsChannel = {
   taskRunningCount: 0,
   latestVideoPublishedAt: "2026-06-18T00:00:00Z",
   latestTaskUpdatedAt: null,
+};
+
+const emptyRunningTasks: OpsVideoTaskList = {
+  items: [],
+  total: 0,
+  limit: 1,
+  offset: 0,
+};
+
+const emptyRunningBatches: PipelineJobList = {
+  items: [],
+  nextCursor: null,
+};
+
+const runningBatch: PipelineJobList["items"][number] = {
+  jobId: 44,
+  step: "transcript_collect_batch",
+  status: "running",
+  subjectType: "all_videos",
+  subjectId: null,
+  externalKey: null,
+  createdAt: "2026-06-18T00:00:00Z",
+  updatedAt: "2026-06-18T00:00:00Z",
+  completedAt: null,
+  latestAttemptId: 45,
+  latestAttemptStatus: "running",
+  attemptCount: 1,
 };
 
 describe("JobsPage filters", () => {
@@ -83,6 +123,12 @@ describe("JobsPage filters", () => {
     queryMocks.jobFilters = undefined;
     queryMocks.retryJob.isPending = false;
     queryMocks.retryJob.mutate.mockReset();
+    queryMocks.runningTranscriptTasks.data = emptyRunningTasks;
+    queryMocks.runningTranscriptTasks.isLoading = false;
+    queryMocks.runningTranscriptTasks.isError = false;
+    queryMocks.runningTranscriptBatches.data = emptyRunningBatches;
+    queryMocks.runningTranscriptBatches.isLoading = false;
+    queryMocks.runningTranscriptBatches.isError = false;
   });
 
   it("passes initial URL filters to the jobs query", () => {
@@ -143,5 +189,37 @@ describe("JobsPage filters", () => {
     render(<JobsPage initialFilters={{ channelId: 99, limit: 50 }} />);
 
     expect(screen.getByRole("option", { name: "#99" })).toBeTruthy();
+  });
+
+  it("disables transcript job retry while transcript collection is running", () => {
+    queryMocks.jobs.data = {
+      items: [
+        {
+          jobId: 9,
+          step: "transcript_collect",
+          status: "failed",
+          subjectType: "video",
+          subjectId: 7,
+          externalKey: "abc123",
+          createdAt: "2026-06-18T00:00:00Z",
+          updatedAt: "2026-06-18T01:00:00Z",
+          completedAt: "2026-06-18T01:00:00Z",
+          latestAttemptId: 1,
+          latestAttemptStatus: "failed",
+          attemptCount: 1,
+        },
+      ],
+      nextCursor: null,
+    };
+    queryMocks.runningTranscriptBatches.data = {
+      items: [runningBatch],
+      nextCursor: null,
+    };
+
+    render(<JobsPage initialFilters={{ limit: 50 }} />);
+
+    const retryButton = screen.getByRole("button", { name: /Retry/i });
+    expect((retryButton as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Transcript collection running")).toBeTruthy();
   });
 });
