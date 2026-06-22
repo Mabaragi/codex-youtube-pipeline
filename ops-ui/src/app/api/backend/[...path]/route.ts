@@ -43,6 +43,7 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   if (responseContentType) {
     responseHeaders.set("content-type", responseContentType);
   }
+  responseHeaders.set("cache-control", "no-store");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
