@@ -48,6 +48,7 @@ The deploy job then runs:
 docker compose --project-name codex-sdk-home -f compose.home.yaml pull api codex ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
 docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml restart nginx
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 ```
 
@@ -58,6 +59,9 @@ Important details:
 - Alembic runs from the pulled API image before the stack is updated.
 - Nginx, ngrok, MinIO, the SQLite `db-data` volume, MinIO data, and Codex login
   volume remain part of the same Home stack.
+- The deploy restarts only `nginx` after `up -d`. This keeps the GHCR pull path
+  fast while forcing Nginx to refresh Docker DNS after `api` or `ops-ui`
+  containers are recreated with new IPs.
 - The job still validates local `/health`, `/ops`, and
   `/ops/api/backend/ops/summary` through Nginx Basic Auth.
 
@@ -168,6 +172,7 @@ For a successful deploy, confirm:
 - Home deploy logs show `docker compose pull api codex ops-ui`.
 - Home deploy logs do not show `docker compose build api ops-ui`.
 - Home deploy logs show `up -d --no-build --remove-orphans`.
+- Home deploy logs show `restart nginx` before the local Nginx health check.
 - `Verify public ngrok health` succeeds.
 - `https://mutation-runny-smelting.ngrok-free.dev` reaches Nginx and requires
   Basic Auth for protected endpoints.

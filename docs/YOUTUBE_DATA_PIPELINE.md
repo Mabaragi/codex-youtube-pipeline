@@ -138,6 +138,16 @@ metadata가 이미 있으면 외부 transcript fetch를 다시 하지 않고 tas
 마감한다. 실제 fetch/store는 `asyncio.wait_for`로 감싸며 timeout 또는 upstream/storage
 오류는 해당 task와 job/attempt를 failed 계열 상태로 남긴 뒤 다음 video 처리를 계속한다.
 
+Transcript fetch can also end as `no_transcript`. This is reserved for
+`YouTubeTranscriptNotFound`, where YouTube has no retrievable transcript for the
+video. It is a terminal task outcome, but not an infrastructure or persistence
+failure. Manual retry controls therefore split generic `failed` retries from
+`no_transcript` rechecks: `retryFailed=true` re-runs failed/timed-out work, while
+`recheckNoTranscript=true` explicitly asks the system to try videos previously
+marked `no_transcript` again. The child `transcript_collect` pipeline job is
+completed with a `no_transcript` output so job history records that the work was
+handled, not crashed.
+
 ## Implementation Rules
 
 - FastAPI route handler는 얇게 유지하고 pipeline orchestration은 use case에 둔다.

@@ -46,6 +46,7 @@ Last updated: 2026-06-16
 - [x] `transcript_collect` task 기본 정책을 `timeoutSeconds=600`, `concurrencyLimit=1`로 둔다.
 - [x] `transcript_collect` 실제 fetch 사이 기본 대기 시간을 300초로 둔다.
 - [x] `transcript_collect` failed job retry를 executor registry에 연결한다.
+- [x] `YouTubeTranscriptNotFound`를 generic `failed`가 아닌 `no_transcript` task outcome으로 분리하고, `recheckNoTranscript=true`로 재확인을 지원한다.
 - [x] pipeline job detail에서 linked transcript output을 반환한다.
 
 ## Future Domain Work
