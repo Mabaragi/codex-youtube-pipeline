@@ -108,7 +108,10 @@ const transcriptContent: TranscriptContent = {
   languageCode: "ko",
   isGenerated: true,
   text: "first line\nsecond line",
-  segments: [{ text: "first line", start: 0, duration: 1 }],
+  segments: [
+    { text: "first line", start: 0, duration: 1 },
+    { text: "second line", start: 61.25, duration: 2.5 },
+  ],
   storage: {
     bucket: "raw",
     objectName: "youtube/transcripts/abc123DEF45-hash.json",
@@ -142,7 +145,12 @@ describe("VideoDetailPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Show transcript/i }));
 
+    expect(screen.getByText("Time")).toBeTruthy();
+    expect(screen.getByText("Text")).toBeTruthy();
+    expect(screen.getByText("00:00-00:01")).toBeTruthy();
+    expect(screen.getByText("01:01.25-01:03.75")).toBeTruthy();
     expect(screen.getByText(/first line/)).toBeTruthy();
+    expect(screen.getByText(/second line/)).toBeTruthy();
     expect(queryMocks.transcriptContent).toHaveBeenLastCalledWith(11, true);
 
     fireEvent.click(screen.getByRole("button", { name: /Hide transcript/i }));

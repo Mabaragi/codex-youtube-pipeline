@@ -9,9 +9,10 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { useOpsVideoDetail, useTranscriptContent } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
-import type { OpsVideoDetail, OpsVideoTask } from "@/lib/types";
+import type { OpsVideoDetail, OpsVideoTask, TranscriptContent } from "@/lib/types";
 
 type TranscriptMetadata = OpsVideoDetail["transcripts"][number];
+type TranscriptSegment = TranscriptContent["segments"][number];
 
 export function VideoDetailPage({ videoId }: { videoId: number }) {
   const { data, isLoading, error } = useOpsVideoDetail(videoId);
@@ -204,15 +205,73 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
             <div className="text-sm text-slate-600">Loading...</div>
           ) : null}
           {error ? <div className="text-sm text-red-700">{String(error)}</div> : null}
-          {data ? (
-            <pre className="max-h-[440px] overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800">
-              {data.text}
-            </pre>
-          ) : null}
+          {data ? <TranscriptTimeline segments={data.segments} fallbackText={data.text} /> : null}
         </div>
       ) : null}
     </div>
   );
+}
+
+function TranscriptTimeline({
+  segments,
+  fallbackText,
+}: {
+  segments: TranscriptSegment[];
+  fallbackText: string;
+}) {
+  if (segments.length === 0) {
+    return (
+      <pre className="max-h-[440px] overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800">
+        {fallbackText}
+      </pre>
+    );
+  }
+
+  return (
+    <div className="max-h-[520px] overflow-auto rounded border border-slate-200 bg-white">
+      <div className="grid grid-cols-[104px_minmax(0,1fr)] border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+        <div>Time</div>
+        <div>Text</div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {segments.map((segment, index) => (
+          <div
+            className="grid grid-cols-[104px_minmax(0,1fr)] gap-3 px-3 py-2 text-xs leading-relaxed"
+            key={`${segment.start}-${index}`}
+          >
+            <time className="font-mono text-slate-500">
+              {formatSegmentRange(segment.start, segment.duration)}
+            </time>
+            <div className="whitespace-pre-wrap break-words text-slate-800">{segment.text}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatSegmentRange(startSeconds: number, durationSeconds: number): string {
+  const endSeconds = Math.max(startSeconds, startSeconds + durationSeconds);
+  return `${formatTranscriptTime(startSeconds)}-${formatTranscriptTime(endSeconds)}`;
+}
+
+function formatTranscriptTime(totalSeconds: number): string {
+  const totalCentiseconds = Math.max(0, Math.round(totalSeconds * 100));
+  const wholeSeconds = Math.floor(totalCentiseconds / 100);
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const seconds = wholeSeconds % 60;
+  const centiseconds = totalCentiseconds % 100;
+  const suffix = centiseconds > 0 ? `.${String(centiseconds).padStart(2, "0")}` : "";
+
+  if (hours > 0) {
+    return `${hours}:${padTime(minutes)}:${padTime(seconds)}${suffix}`;
+  }
+  return `${padTime(minutes)}:${padTime(seconds)}${suffix}`;
+}
+
+function padTime(value: number): string {
+  return String(value).padStart(2, "0");
 }
 
 function idValue(value: number | null | undefined): string {
