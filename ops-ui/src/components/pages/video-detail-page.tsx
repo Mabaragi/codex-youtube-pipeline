@@ -2,17 +2,28 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { ArrowLeft, Captions, ExternalLink } from "lucide-react";
+import { ArrowLeft, Captions, Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { useOpsVideoDetail, useTranscriptContent } from "@/lib/queries";
+import {
+  fetchTranscriptContent,
+  useOpsVideoDetail,
+  useTranscriptContent,
+} from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
 import type { OpsVideoDetail, OpsVideoTask, TranscriptContent } from "@/lib/types";
 
 type TranscriptMetadata = OpsVideoDetail["transcripts"][number];
 type TranscriptSegment = TranscriptContent["segments"][number];
+type TranscriptDownloadFormat = "srt" | "txt" | "json";
+
+const TRANSCRIPT_DOWNLOAD_FORMATS: readonly TranscriptDownloadFormat[] = [
+  "srt",
+  "txt",
+  "json",
+];
 
 export function VideoDetailPage({ videoId }: { videoId: number }) {
   const { data, isLoading, error } = useOpsVideoDetail(videoId);
@@ -175,7 +186,33 @@ function DetailRow({
 
 function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
   const [expanded, setExpanded] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] =
+    useState<TranscriptDownloadFormat | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const { data, isLoading, error } = useTranscriptContent(transcript.id, expanded);
+  const hasTimeline = data ? data.segments.length > 0 : transcript.segmentCount > 0;
+
+  async function handleDownload(format: TranscriptDownloadFormat) {
+    if (downloadingFormat !== null) {
+      return;
+    }
+
+    setDownloadingFormat(format);
+    setDownloadError(null);
+    try {
+      const content = data ?? (await fetchTranscriptContent(transcript.id));
+      if (format === "srt" && content.segments.length === 0) {
+        setDownloadError("No timeline segments.");
+        return;
+      }
+      const file = buildTranscriptDownload(content, transcript.id, format);
+      downloadTextFile(file.fileName, file.content, file.contentType);
+    } catch (downloadFailure) {
+      setDownloadError(formatDownloadError(downloadFailure));
+    } finally {
+      setDownloadingFormat(null);
+    }
+  }
 
   return (
     <div className="rounded border border-slate-200 p-3">
@@ -191,14 +228,42 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
             <span>{formatDateTime(transcript.createdAt)}</span>
           </div>
         </div>
-        <button
-          className="ops-button"
-          onClick={() => setExpanded((current) => !current)}
-          type="button"
-        >
-          {expanded ? "Hide transcript" : "Show transcript"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="ops-button"
+            onClick={() => setExpanded((current) => !current)}
+            type="button"
+          >
+            {expanded ? "Hide transcript" : "Show transcript"}
+          </button>
+          <div className="flex flex-wrap gap-1">
+            {TRANSCRIPT_DOWNLOAD_FORMATS.map((format) => {
+              const isUnavailable = format === "srt" && !hasTimeline;
+              const isDownloading = downloadingFormat === format;
+              return (
+                <button
+                  className="ops-button"
+                  disabled={downloadingFormat !== null || isUnavailable}
+                  key={format}
+                  onClick={() => void handleDownload(format)}
+                  title={
+                    isUnavailable
+                      ? "No timeline segments."
+                      : `Download ${format.toUpperCase()}`
+                  }
+                  type="button"
+                >
+                  <Download size={14} />
+                  {isDownloading ? "..." : format.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
+      {downloadError ? (
+        <div className="mt-3 text-xs text-red-700">{downloadError}</div>
+      ) : null}
       {expanded ? (
         <div className="mt-3 border-t border-slate-200 pt-3">
           {isLoading ? (
@@ -272,6 +337,88 @@ function formatTranscriptTime(totalSeconds: number): string {
 
 function padTime(value: number): string {
   return String(value).padStart(2, "0");
+}
+
+function buildTranscriptDownload(
+  content: TranscriptContent,
+  transcriptId: number,
+  format: TranscriptDownloadFormat,
+): {
+  content: string;
+  contentType: string;
+  fileName: string;
+} {
+  const baseName = sanitizeFileName(
+    `${content.videoId}-${content.languageCode}-${transcriptId}`,
+  );
+  if (format === "srt") {
+    return {
+      content: formatSrt(content.segments),
+      contentType: "application/x-subrip;charset=utf-8",
+      fileName: `${baseName}.srt`,
+    };
+  }
+  if (format === "txt") {
+    return {
+      content: content.text,
+      contentType: "text/plain;charset=utf-8",
+      fileName: `${baseName}.txt`,
+    };
+  }
+  return {
+    content: JSON.stringify(content, null, 2),
+    contentType: "application/json;charset=utf-8",
+    fileName: `${baseName}.json`,
+  };
+}
+
+function formatSrt(segments: TranscriptSegment[]): string {
+  return segments
+    .map((segment, index) =>
+      [
+        String(index + 1),
+        `${formatSrtTimestamp(segment.start)} --> ${formatSrtTimestamp(
+          Math.max(segment.start, segment.start + segment.duration),
+        )}`,
+        segment.text.replace(/\r?\n/g, "\r\n"),
+      ].join("\r\n"),
+    )
+    .join("\r\n\r\n");
+}
+
+function formatSrtTimestamp(totalSeconds: number): string {
+  const totalMilliseconds = Math.max(0, Math.round(totalSeconds * 1000));
+  const wholeSeconds = Math.floor(totalMilliseconds / 1000);
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const seconds = wholeSeconds % 60;
+  const milliseconds = totalMilliseconds % 1000;
+  return `${padTime(hours)}:${padTime(minutes)}:${padTime(seconds)},${String(
+    milliseconds,
+  ).padStart(3, "0")}`;
+}
+
+function sanitizeFileName(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, "-");
+}
+
+function downloadTextFile(fileName: string, content: string, contentType: string) {
+  const blob = new Blob([content], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatDownloadError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Download failed.";
 }
 
 function idValue(value: number | null | undefined): string {

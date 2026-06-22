@@ -79,11 +79,14 @@ export function useOpsVideoDetail(videoId: number) {
 export function useTranscriptContent(transcriptId: number, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.transcriptContent(transcriptId),
-    queryFn: () =>
-      requestJson<TranscriptContent>(`/youtube-transcripts/${transcriptId}/content`),
+    queryFn: () => fetchTranscriptContent(transcriptId),
     enabled: enabled && Number.isFinite(transcriptId) && transcriptId > 0,
     staleTime: Infinity,
   });
+}
+
+export function fetchTranscriptContent(transcriptId: number) {
+  return requestJson<TranscriptContent>(`/youtube-transcripts/${transcriptId}/content`);
 }
 
 export function useOpsVideoTasks(filters: OpsVideoTaskFilters) {

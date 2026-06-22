@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { VideoDetailPage } from "../video-detail-page";
 import type { OpsVideoDetail, TranscriptContent } from "@/lib/types";
 
@@ -14,6 +14,10 @@ const queryMocks = vi.hoisted(() => {
       isLoading: false,
       error: null as Error | null,
     },
+    fetchTranscriptContent: vi.fn(async (transcriptId: number) => {
+      void transcriptId;
+      return state.content;
+    }),
     transcriptContent: vi.fn(
       (_transcriptId: number, enabled: boolean) =>
         ({
@@ -30,6 +34,8 @@ const queryMocks = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/queries", () => ({
+  fetchTranscriptContent: (transcriptId: number) =>
+    queryMocks.fetchTranscriptContent(transcriptId),
   useOpsVideoDetail: () => queryMocks.detail,
   useTranscriptContent: (transcriptId: number, enabled: boolean) =>
     queryMocks.transcriptContent(transcriptId, enabled),
@@ -119,13 +125,45 @@ const transcriptContent: TranscriptContent = {
   },
 };
 
+let downloadedBlob: Blob | null = null;
+let downloadedFileName = "";
+let anchorClick: ReturnType<typeof vi.fn>;
+
 describe("VideoDetailPage", () => {
+  beforeAll(() => {
+    anchorClick = vi.fn();
+    URL.createObjectURL = vi.fn((blob: Blob | MediaSource) => {
+      downloadedBlob = blob as Blob;
+      return "blob:transcript";
+    });
+    URL.revokeObjectURL = vi.fn();
+
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tagName) => {
+      const element = originalCreateElement(tagName);
+      if (tagName.toLowerCase() === "a") {
+        Object.defineProperty(element, "click", { value: anchorClick });
+        Object.defineProperty(element, "download", {
+          get: () => downloadedFileName,
+          set: (value: string) => {
+            downloadedFileName = value;
+          },
+        });
+      }
+      return element;
+    });
+  });
+
   beforeEach(() => {
     queryMocks.detail.data = videoDetail;
     queryMocks.detail.isLoading = false;
     queryMocks.detail.error = null;
     queryMocks.contentState.content = transcriptContent;
+    queryMocks.fetchTranscriptContent.mockClear();
     queryMocks.transcriptContent.mockClear();
+    downloadedBlob = null;
+    downloadedFileName = "";
+    anchorClick.mockClear();
   });
 
   it("renders video summary, task history, and transcript metadata", () => {
@@ -156,6 +194,40 @@ describe("VideoDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Hide transcript/i }));
 
     expect(screen.queryByText(/first line/)).toBeNull();
+  });
+
+  it("downloads transcript content as SRT before the transcript is shown", async () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /SRT/i }));
+
+    await waitFor(() => expect(queryMocks.fetchTranscriptContent).toHaveBeenCalledWith(11));
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1));
+    expect(downloadedFileName).toBe("abc123DEF45-ko-11.srt");
+    expect(downloadedBlob?.type).toBe("application/x-subrip;charset=utf-8");
+    await expect(downloadedBlob?.text()).resolves.toContain(
+      "1\r\n00:00:00,000 --> 00:00:01,000\r\nfirst line",
+    );
+  });
+
+  it("downloads loaded transcript content as TXT and JSON without refetching", async () => {
+    render(<VideoDetailPage videoId={42} />);
+    fireEvent.click(screen.getByRole("button", { name: /Show transcript/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /TXT/i }));
+
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1));
+    expect(queryMocks.fetchTranscriptContent).not.toHaveBeenCalled();
+    expect(downloadedFileName).toBe("abc123DEF45-ko-11.txt");
+    expect(downloadedBlob?.type).toBe("text/plain;charset=utf-8");
+    await expect(downloadedBlob?.text()).resolves.toBe("first line\nsecond line");
+
+    fireEvent.click(screen.getByRole("button", { name: /JSON/i }));
+
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(2));
+    expect(downloadedFileName).toBe("abc123DEF45-ko-11.json");
+    expect(downloadedBlob?.type).toBe("application/json;charset=utf-8");
+    await expect(downloadedBlob?.text()).resolves.toContain('"videoId": "abc123DEF45"');
   });
 
   it("shows a compact empty state when no transcripts are stored", () => {
