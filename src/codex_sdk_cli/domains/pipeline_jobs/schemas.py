@@ -97,6 +97,16 @@ class PipelineTranscriptOutputResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PipelineTranscriptCueOutputResponse(BaseModel):
+    transcript_id: int = Field(alias="transcriptId")
+    cue_count: int = Field(alias="cueCount")
+    first_cue_id: str | None = Field(alias="firstCueId")
+    last_cue_id: str | None = Field(alias="lastCueId")
+    source_job_id: int | None = Field(alias="sourceJobId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PipelineJobDetailResponse(BaseModel):
     job_id: int = Field(alias="jobId")
     step: str
@@ -115,6 +125,7 @@ class PipelineJobDetailResponse(BaseModel):
     channels: list[PipelineChannelOutputResponse]
     videos: list[PipelineVideoOutputResponse]
     transcripts: list[PipelineTranscriptOutputResponse]
+    transcript_cues: list[PipelineTranscriptCueOutputResponse] = Field(alias="transcriptCues")
 
     model_config = ConfigDict(populate_by_name=True)
 

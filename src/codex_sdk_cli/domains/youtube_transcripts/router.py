@@ -4,6 +4,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 
+from codex_sdk_cli.domains.transcript_cues.dependencies import (
+    GenerateTranscriptCuesUseCaseDep,
+    GetTranscriptPromptCuesUseCaseDep,
+    ListTranscriptCuesUseCaseDep,
+)
+from codex_sdk_cli.domains.transcript_cues.schemas import (
+    TranscriptCueGenerateResponse,
+    TranscriptCueListResponse,
+    TranscriptPromptCuesResponse,
+)
+
 from .dependencies import (
     DeleteYouTubeTranscriptMetadataUseCaseDep,
     FetchYouTubeTranscriptUseCaseDep,
@@ -60,6 +71,34 @@ async def read_youtube_transcript_content(
     transcript_id: Annotated[int, Path(ge=1)],
     use_case: ReadYouTubeTranscriptContentUseCaseDep,
 ) -> TranscriptResponse:
+    return await use_case.execute(transcript_id)
+
+
+@router.get("/{transcript_id}/cues", response_model=TranscriptCueListResponse)
+async def list_youtube_transcript_cues(
+    transcript_id: Annotated[int, Path(ge=1)],
+    use_case: ListTranscriptCuesUseCaseDep,
+) -> TranscriptCueListResponse:
+    return await use_case.execute(transcript_id)
+
+
+@router.get("/{transcript_id}/prompt-cues", response_model=TranscriptPromptCuesResponse)
+async def get_youtube_transcript_prompt_cues(
+    transcript_id: Annotated[int, Path(ge=1)],
+    use_case: GetTranscriptPromptCuesUseCaseDep,
+) -> TranscriptPromptCuesResponse:
+    return await use_case.execute(transcript_id)
+
+
+@router.post(
+    "/{transcript_id}/cues/generate",
+    response_model=TranscriptCueGenerateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def generate_youtube_transcript_cues(
+    transcript_id: Annotated[int, Path(ge=1)],
+    use_case: GenerateTranscriptCuesUseCaseDep,
+) -> TranscriptCueGenerateResponse:
     return await use_case.execute(transcript_id)
 
 

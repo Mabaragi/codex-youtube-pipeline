@@ -23,6 +23,7 @@ def test_database_base_registers_app_tables() -> None:
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
+        "transcript_cues",
         "video_tasks",
         "videos",
         "youtube_transcripts",
@@ -148,6 +149,17 @@ def test_alembic_upgrade_creates_app_tables(
             index["name"]: index["column_names"]
             for index in inspector.get_indexes("operation_events")
         }
+        transcript_cue_columns = {
+            column["name"] for column in inspector.get_columns("transcript_cues")
+        }
+        transcript_cue_foreign_keys = inspector.get_foreign_keys("transcript_cues")
+        transcript_cue_unique_constraints = inspector.get_unique_constraints(
+            "transcript_cues"
+        )
+        transcript_cue_indexes = {
+            index["name"]: index["column_names"]
+            for index in inspector.get_indexes("transcript_cues")
+        }
     finally:
         engine.dispose()
 
@@ -158,6 +170,7 @@ def test_alembic_upgrade_creates_app_tables(
         "pipeline_job_attempts",
         "pipeline_jobs",
         "streamers",
+        "transcript_cues",
         "video_tasks",
         "videos",
         "youtube_transcripts",
@@ -399,6 +412,49 @@ def test_alembic_upgrade_creates_app_tables(
     ]
     assert operation_event_indexes["ix_operation_events_correlation_id"] == [
         "correlation_id"
+    ]
+    assert {
+        "id",
+        "transcript_id",
+        "cue_id",
+        "cue_index",
+        "text",
+        "start_ms",
+        "end_ms",
+        "duration_ms",
+        "source_segment_index",
+        "source_job_id",
+        "source_job_attempt_id",
+    }.issubset(transcript_cue_columns)
+    assert any(
+        foreign_key["referred_table"] == "youtube_transcripts"
+        and foreign_key["constrained_columns"] == ["transcript_id"]
+        for foreign_key in transcript_cue_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["source_job_id"]
+        for foreign_key in transcript_cue_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_job_attempts"
+        and foreign_key["constrained_columns"] == ["source_job_attempt_id"]
+        for foreign_key in transcript_cue_foreign_keys
+    )
+    assert any(
+        unique_constraint["column_names"] == ["cue_id"]
+        for unique_constraint in transcript_cue_unique_constraints
+    )
+    assert any(
+        unique_constraint["column_names"] == ["transcript_id", "cue_index"]
+        for unique_constraint in transcript_cue_unique_constraints
+    )
+    assert transcript_cue_indexes["ix_transcript_cues_transcript_index"] == [
+        "transcript_id",
+        "cue_index",
+    ]
+    assert transcript_cue_indexes["ix_transcript_cues_source_job_id"] == [
+        "source_job_id"
     ]
 
 

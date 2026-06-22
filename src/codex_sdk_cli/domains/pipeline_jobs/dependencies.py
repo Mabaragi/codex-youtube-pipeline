@@ -12,6 +12,7 @@ from codex_sdk_cli.api.dependencies import (
     PipelineJobRepositoryDep,
     SettingsDep,
     StreamerRepositoryDep,
+    TranscriptCueRepositoryDep,
     VideoRepositoryDep,
     VideoTaskRepositoryDep,
     YouTubeDataClientDep,
@@ -22,6 +23,10 @@ from codex_sdk_cli.api.dependencies import (
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 from codex_sdk_cli.domains.operation_events.ports import OperationEventRecorderPort
+from codex_sdk_cli.domains.transcript_cues.use_cases import (
+    TRANSCRIPT_CUE_GENERATE_STEP,
+    GenerateTranscriptCuesUseCase,
+)
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.domains.video_tasks.use_cases import (
     TRANSCRIPT_COLLECT_STEP,
@@ -58,10 +63,12 @@ from .use_cases import (
     ListPipelineJobsUseCase,
     PipelineRetryExecutor,
     RetryPipelineJobUseCase,
+    TranscriptCueGenerateRetryExecutor,
     VideoCollectRetryExecutor,
 )
 
 FetchTranscriptUseCaseFactory = Callable[[], Awaitable[FetchYouTubeTranscriptUseCase]]
+GenerateTranscriptCuesUseCaseFactory = Callable[[], Awaitable[GenerateTranscriptCuesUseCase]]
 
 
 def get_list_pipeline_jobs_use_case(
@@ -92,6 +99,26 @@ def get_fetch_youtube_transcript_use_case_factory(
     return factory
 
 
+def get_generate_transcript_cues_use_case_factory(
+    request: Request,
+    transcripts: YouTubeTranscriptRepositoryDep,
+    cues: TranscriptCueRepositoryDep,
+    pipeline_jobs: PipelineJobRepositoryDep,
+    settings: SettingsDep,
+    events: OperationEventRecorderDep,
+) -> GenerateTranscriptCuesUseCaseFactory:
+    async def factory() -> GenerateTranscriptCuesUseCase:
+        return GenerateTranscriptCuesUseCase(
+            transcripts=transcripts,
+            storage=await _transcript_storage(request, settings),
+            cues=cues,
+            pipeline_jobs=pipeline_jobs,
+            events=events,
+        )
+
+    return factory
+
+
 def get_retry_pipeline_job_use_case(
     pipeline_jobs: PipelineJobRepositoryDep,
     client: YouTubeDataClientDep,
@@ -103,6 +130,10 @@ def get_retry_pipeline_job_use_case(
     fetch_transcript_factory: Annotated[
         FetchTranscriptUseCaseFactory,
         Depends(get_fetch_youtube_transcript_use_case_factory),
+    ],
+    generate_cues_factory: Annotated[
+        GenerateTranscriptCuesUseCaseFactory,
+        Depends(get_generate_transcript_cues_use_case_factory),
     ],
     settings: SettingsDep,
     events: OperationEventRecorderDep,
@@ -123,8 +154,12 @@ def get_retry_pipeline_job_use_case(
                 pipeline_jobs=pipeline_jobs,
                 transcripts=transcripts,
                 fetch_transcript_factory=fetch_transcript_factory,
+                generate_cues_factory=generate_cues_factory,
                 settings=settings,
                 events=events,
+            ),
+            TRANSCRIPT_CUE_GENERATE_STEP: _LazyTranscriptCueGenerateRetryExecutor(
+                generate_cues_factory=generate_cues_factory
             ),
         },
         events,
@@ -141,6 +176,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
         pipeline_jobs: PipelineJobRepositoryPort,
         transcripts: YouTubeTranscriptRepositoryPort,
         fetch_transcript_factory: FetchTranscriptUseCaseFactory,
+        generate_cues_factory: GenerateTranscriptCuesUseCaseFactory,
         settings: CliSettings,
         events: OperationEventRecorderPort,
     ) -> None:
@@ -150,6 +186,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
         self._pipeline_jobs = pipeline_jobs
         self._transcripts = transcripts
         self._fetch_transcript_factory = fetch_transcript_factory
+        self._generate_cues_factory = generate_cues_factory
         self._settings = settings
         self._events = events
 
@@ -165,12 +202,30 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
             pipeline_jobs=self._pipeline_jobs,
             transcripts=self._transcripts,
             fetch_transcript=await self._fetch_transcript_factory(),
+            generate_cues=await self._generate_cues_factory(),
             timeout_seconds=self._settings.transcript_collect_timeout_seconds,
             concurrency_limit=self._settings.transcript_collect_concurrency_limit,
             delay_seconds=self._settings.transcript_collect_delay_seconds,
             events=self._events,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
+
+
+class _LazyTranscriptCueGenerateRetryExecutor(PipelineRetryExecutor):
+    def __init__(
+        self,
+        *,
+        generate_cues_factory: GenerateTranscriptCuesUseCaseFactory,
+    ) -> None:
+        self._generate_cues_factory = generate_cues_factory
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        use_case = await self._generate_cues_factory()
+        return await TranscriptCueGenerateRetryExecutor(use_case).execute(job, attempt)
 
 
 async def _transcript_client(

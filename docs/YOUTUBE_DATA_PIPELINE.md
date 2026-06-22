@@ -10,7 +10,8 @@ Last updated: 2026-06-16
 2. streamer에 연결할 YouTube channel을 resolve한다.
 3. channel 기반으로 videos를 수집한다.
 4. video 기반으로 transcripts를 수집한다.
-5. transcript 기반으로 LLM summary를 생성한다.
+5. transcript 기반으로 prompt-friendly cue row를 생성한다.
+6. transcript/cue 기반으로 LLM summary를 생성한다.
 
 각 단계는 동기 REST API, 수동 실행, 또는 future worker/queue로 실행될 수 있다. 실행 방식이 달라도 job/attempt/raw/domain row 연결 규칙은 동일해야 한다.
 
@@ -22,7 +23,7 @@ Last updated: 2026-06-16
 - `pipeline_job_attempts`: job을 실제로 실행한 1회 시도다. retry가 생기면 같은 job 아래에 attempt가 추가된다.
 - `external_api_calls`: 외부 API 요청/응답 metadata다. raw response body는 object storage에 저장하고, DB에는 저장 위치, hash, 검증 상태, sanitized request metadata만 둔다.
 - `video_tasks`: video 단위 durable work item이다. 수동 channel API가 대상을 고르더라도 중복 방지와 완료 상태는 이 row가 소유한다.
-- Domain tables: `channels`, `videos`, `youtube_transcripts`, future summaries처럼 애플리케이션이 사용하는 정규화 결과다.
+- Domain tables: `channels`, `videos`, `youtube_transcripts`, `transcript_cues`, future summaries처럼 애플리케이션이 사용하는 정규화 결과다.
 
 연결 방향은 다음을 기본으로 한다.
 
@@ -67,6 +68,7 @@ Last updated: 2026-06-16
 - Channel resolve output: normalized channel row, YouTube channel id, uploads playlist id, source API call metadata.
 - Videos collect output: normalized video rows, source listing/details API call metadata.
 - Transcript collect output: transcript metadata row, raw transcript storage metadata.
+- Transcript cue generate output: transcript row에서 파생된 cue count와 cue id 범위다. 원본 transcript JSON은 storage에 유지하고, DB cue row는 prompt/후처리용 식별 단위다.
 - Summary generate output: future summary row, LLM request/response metadata.
 
 API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한 local identifiers를 포함할 수 있다. pipeline step을 실행하는 endpoint는 가능하면 `jobId`, `jobAttemptId`, 그리고 raw metadata id를 응답에 포함한다.
@@ -80,7 +82,7 @@ API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한
   `subjectType`, `subjectId`, `externalKey`, `cursor`, `limit` 필터를 지원하고,
   latest attempt 상태와 attempt count를 함께 반환한다.
 - `GET /pipeline/jobs/{jobId}`: 단일 job의 입력, attempts, 연결된
-  `external_api_calls`, 현재 구현된 domain output인 `channels`, `videos`, `transcripts`를 함께 반환한다.
+`external_api_calls`, 현재 구현된 domain output인 `channels`, `videos`, `transcripts`, `transcriptCues`를 함께 반환한다.
 - `POST /pipeline/jobs/{jobId}/retry`: failed job 재시도 command다. 현재는
   `channel_resolve`, `video_collect`, `transcript_collect`를 지원한다.
 
@@ -147,6 +149,13 @@ failure. Manual retry controls therefore split generic `failed` retries from
 marked `no_transcript` again. The child `transcript_collect` pipeline job is
 completed with a `no_transcript` output so job history records that the work was
 handled, not crashed.
+
+Transcript가 성공적으로 저장되면 후속 child job `transcript_cue_generate`가 실행된다.
+이 단계는 `youtube_transcripts` metadata와 storage의 transcript JSON을 읽어
+`transcript_cues` row를 만든다. v1 cue는 원본 transcript segment 1개를 그대로
+1개 cue로 매핑하고, cue id는 `tr{transcriptId}-c000001` 형식으로 안정적으로
+생성한다. cue 생성 실패는 저장된 transcript 성공 상태를 되돌리지 않고 cue job만
+`failed`로 남긴다.
 
 ## Implementation Rules
 

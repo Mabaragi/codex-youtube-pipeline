@@ -9,6 +9,7 @@ from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventSeverity,
 )
 from codex_sdk_cli.domains.operation_events.recording import record_operation_event
+from codex_sdk_cli.domains.transcript_cues.use_cases import GenerateTranscriptCuesUseCase
 from codex_sdk_cli.domains.video_tasks.use_cases import (
     CollectChannelTranscriptTasksUseCase,
 )
@@ -26,6 +27,7 @@ from .ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineTranscriptCueOutputRecord,
     PipelineTranscriptOutputRecord,
     PipelineVideoOutputRecord,
 )
@@ -36,6 +38,7 @@ from .schemas import (
     PipelineJobAttemptResponse,
     PipelineJobDetailResponse,
     PipelineJobSummaryResponse,
+    PipelineTranscriptCueOutputResponse,
     PipelineTranscriptOutputResponse,
     PipelineVideoOutputResponse,
     RetryPipelineJobResponse,
@@ -282,6 +285,18 @@ class TranscriptCollectRetryExecutor(PipelineRetryExecutor):
         return await self._use_case.execute_retry_job_attempt(job, attempt)
 
 
+class TranscriptCueGenerateRetryExecutor(PipelineRetryExecutor):
+    def __init__(self, use_case: GenerateTranscriptCuesUseCase) -> None:
+        self._use_case = use_case
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        return await self._use_case.execute_retry_job_attempt(job, attempt)
+
+
 def _channel_resolve_request(job: PipelineJobRecord) -> tuple[int, ResolveYouTubeChannelRequest]:
     input_json = job.input_json
     return (
@@ -353,6 +368,9 @@ def _job_detail_response(detail: PipelineJobDetailRecord) -> PipelineJobDetailRe
         videos=[_video_output_response(video) for video in detail.videos],
         transcripts=[
             _transcript_output_response(transcript) for transcript in detail.transcripts
+        ],
+        transcriptCues=[
+            _transcript_cue_output_response(cue) for cue in detail.transcript_cues
         ],
     )
 
@@ -428,4 +446,16 @@ def _transcript_output_response(
         youtubeVideoId=transcript.youtube_video_id,
         languageCode=transcript.language_code,
         storageUri=transcript.storage_uri,
+    )
+
+
+def _transcript_cue_output_response(
+    cue: PipelineTranscriptCueOutputRecord,
+) -> PipelineTranscriptCueOutputResponse:
+    return PipelineTranscriptCueOutputResponse(
+        transcriptId=cue.transcript_id,
+        cueCount=cue.cue_count,
+        firstCueId=cue.first_cue_id,
+        lastCueId=cue.last_cue_id,
+        sourceJobId=cue.source_job_id,
     )

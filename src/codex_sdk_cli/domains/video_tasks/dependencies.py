@@ -13,6 +13,9 @@ from codex_sdk_cli.api.dependencies import (
     VideoTaskRepositoryDep,
     YouTubeTranscriptRepositoryDep,
 )
+from codex_sdk_cli.domains.transcript_cues.dependencies import (
+    GenerateTranscriptCuesUseCaseDep,
+)
 from codex_sdk_cli.domains.youtube_transcripts.dependencies import (
     FetchYouTubeTranscriptUseCaseDep,
 )
@@ -27,6 +30,7 @@ def get_collect_channel_transcript_tasks_use_case(
     pipeline_jobs: PipelineJobRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
     fetch_transcript: FetchYouTubeTranscriptUseCaseDep,
+    generate_cues: GenerateTranscriptCuesUseCaseDep,
     settings: SettingsDep,
     events: OperationEventRecorderDep,
 ) -> CollectChannelTranscriptTasksUseCase:
@@ -37,6 +41,7 @@ def get_collect_channel_transcript_tasks_use_case(
         pipeline_jobs=pipeline_jobs,
         transcripts=transcripts,
         fetch_transcript=fetch_transcript,
+        generate_cues=generate_cues,
         timeout_seconds=settings.transcript_collect_timeout_seconds,
         concurrency_limit=settings.transcript_collect_concurrency_limit,
         delay_seconds=settings.transcript_collect_delay_seconds,

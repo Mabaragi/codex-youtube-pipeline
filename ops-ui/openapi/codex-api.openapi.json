@@ -2326,6 +2326,13 @@
             ],
             "title": "Subjecttype"
           },
+          "transcriptCues": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineTranscriptCueOutputResponse"
+            },
+            "title": "Transcriptcues",
+            "type": "array"
+          },
           "transcripts": {
             "items": {
               "$ref": "#/components/schemas/PipelineTranscriptOutputResponse"
@@ -2363,7 +2370,8 @@
           "externalApiCalls",
           "channels",
           "videos",
-          "transcripts"
+          "transcripts",
+          "transcriptCues"
         ],
         "title": "PipelineJobDetailResponse",
         "type": "object"
@@ -2495,6 +2503,60 @@
         "title": "PipelineJobSummaryResponse",
         "type": "object"
       },
+      "PipelineTranscriptCueOutputResponse": {
+        "properties": {
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "firstCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstcueid"
+          },
+          "lastCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcueid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "transcriptId",
+          "cueCount",
+          "firstCueId",
+          "lastCueId",
+          "sourceJobId"
+        ],
+        "title": "PipelineTranscriptCueOutputResponse",
+        "type": "object"
+      },
       "PipelineTranscriptOutputResponse": {
         "properties": {
           "languageCode": {
@@ -2601,6 +2663,29 @@
           "sourceJobId"
         ],
         "title": "PipelineVideoOutputResponse",
+        "type": "object"
+      },
+      "PromptCueResponse": {
+        "properties": {
+          "cueId": {
+            "title": "Cueid",
+            "type": "string"
+          },
+          "cueIndex": {
+            "title": "Cueindex",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cueId",
+          "cueIndex",
+          "text"
+        ],
+        "title": "PromptCueResponse",
         "type": "object"
       },
       "ResolveYouTubeChannelRequest": {
@@ -2890,6 +2975,72 @@
       },
       "TranscriptCollectItemResponse": {
         "properties": {
+          "cueCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuecount"
+          },
+          "cueErrorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cueerrormessage"
+          },
+          "cueErrorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cueerrortype"
+          },
+          "cueJobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuejobattemptid"
+          },
+          "cueJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuejobid"
+          },
+          "cueStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuestatus"
+          },
           "errorMessage": {
             "anyOf": [
               {
@@ -2993,6 +3144,178 @@
           "errorMessage"
         ],
         "title": "TranscriptCollectItemResponse",
+        "type": "object"
+      },
+      "TranscriptCueGenerateResponse": {
+        "properties": {
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "firstCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstcueid"
+          },
+          "jobAttemptId": {
+            "title": "Jobattemptid",
+            "type": "integer"
+          },
+          "jobId": {
+            "title": "Jobid",
+            "type": "integer"
+          },
+          "lastCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcueid"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcriptId",
+          "youtubeVideoId",
+          "jobId",
+          "jobAttemptId",
+          "cueCount",
+          "firstCueId",
+          "lastCueId"
+        ],
+        "title": "TranscriptCueGenerateResponse",
+        "type": "object"
+      },
+      "TranscriptCueListResponse": {
+        "properties": {
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptCueResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "transcriptId",
+          "cueCount",
+          "items"
+        ],
+        "title": "TranscriptCueListResponse",
+        "type": "object"
+      },
+      "TranscriptCueResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "cueId": {
+            "title": "Cueid",
+            "type": "string"
+          },
+          "cueIndex": {
+            "title": "Cueindex",
+            "type": "integer"
+          },
+          "durationMs": {
+            "title": "Durationms",
+            "type": "integer"
+          },
+          "endMs": {
+            "title": "Endms",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "sourceJobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobattemptid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "sourceSegmentIndex": {
+            "title": "Sourcesegmentindex",
+            "type": "integer"
+          },
+          "startMs": {
+            "title": "Startms",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transcriptId",
+          "cueId",
+          "cueIndex",
+          "text",
+          "startMs",
+          "endMs",
+          "durationMs",
+          "sourceSegmentIndex",
+          "sourceJobId",
+          "sourceJobAttemptId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "TranscriptCueResponse",
         "type": "object"
       },
       "TranscriptMetadataResponse": {
@@ -3109,6 +3432,37 @@
           }
         },
         "title": "TranscriptMetadataUpdateRequest",
+        "type": "object"
+      },
+      "TranscriptPromptCuesResponse": {
+        "properties": {
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "cues": {
+            "items": {
+              "$ref": "#/components/schemas/PromptCueResponse"
+            },
+            "title": "Cues",
+            "type": "array"
+          },
+          "promptText": {
+            "title": "Prompttext",
+            "type": "string"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "transcriptId",
+          "cueCount",
+          "promptText",
+          "cues"
+        ],
+        "title": "TranscriptPromptCuesResponse",
         "type": "object"
       },
       "TranscriptRequest": {
@@ -5719,6 +6073,135 @@
           }
         },
         "summary": "Read Youtube Transcript Content",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      }
+    },
+    "/youtube-transcripts/{transcript_id}/cues": {
+      "get": {
+        "operationId": "list_youtube_transcript_cues_youtube_transcripts__transcript_id__cues_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transcript_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transcript Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptCueListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Youtube Transcript Cues",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      }
+    },
+    "/youtube-transcripts/{transcript_id}/cues/generate": {
+      "post": {
+        "operationId": "generate_youtube_transcript_cues_youtube_transcripts__transcript_id__cues_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transcript_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transcript Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptCueGenerateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Youtube Transcript Cues",
+        "tags": [
+          "youtube-transcripts"
+        ]
+      }
+    },
+    "/youtube-transcripts/{transcript_id}/prompt-cues": {
+      "get": {
+        "operationId": "get_youtube_transcript_prompt_cues_youtube_transcripts__transcript_id__prompt_cues_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transcript_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transcript Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptPromptCuesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Youtube Transcript Prompt Cues",
         "tags": [
           "youtube-transcripts"
         ]

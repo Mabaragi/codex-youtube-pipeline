@@ -16,14 +16,20 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
     PipelineJobStatus,
 )
+from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueCreate
 from codex_sdk_cli.domains.videos.ports import VideoCreate
+from codex_sdk_cli.domains.youtube_transcripts.ports import YouTubeTranscriptRecord
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
+from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
 from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
+from codex_sdk_cli.infra.youtube_transcripts.repository import (
+    SqlAlchemyYouTubeTranscriptRepository,
+)
 
 
 def test_pipeline_job_repository_tracks_attempt_lifecycle(
@@ -108,6 +114,8 @@ async def _exercise_repository(database_url: str) -> None:
             streamers = SqlAlchemyStreamerRepository(session)
             channels = SqlAlchemyChannelRepository(session)
             videos = SqlAlchemyVideoRepository(session)
+            transcripts = SqlAlchemyYouTubeTranscriptRepository(session)
+            cues = SqlAlchemyTranscriptCueRepository(session)
             streamer = await streamers.create_streamer(name="Google")
             await channels.create_channel(
                 ChannelCreate(
@@ -135,6 +143,39 @@ async def _exercise_repository(database_url: str) -> None:
                         source_job_id=job.id,
                     )
                 ]
+            )
+            transcript = await transcripts.save_transcript_record(
+                YouTubeTranscriptRecord(
+                    video_id="video-1",
+                    language="Korean",
+                    language_code="ko",
+                    is_generated=True,
+                    requested_languages=("ko", "en"),
+                    preserve_formatting=False,
+                    storage_bucket="raw",
+                    storage_object_name="youtube/transcripts/video-1-hash.json",
+                    storage_uri="s3://raw/youtube/transcripts/video-1-hash.json",
+                    response_sha256="a" * 64,
+                    segment_count=1,
+                    text_length=5,
+                )
+            )
+            await cues.replace_cues(
+                transcript.id,
+                [
+                    TranscriptCueCreate(
+                        transcript_id=transcript.id,
+                        cue_id=f"tr{transcript.id}-c000001",
+                        cue_index=1,
+                        text="hello",
+                        start_ms=0,
+                        end_ms=1000,
+                        duration_ms=1000,
+                        source_segment_index=0,
+                        source_job_id=job.id,
+                        source_job_attempt_id=second_attempt.id,
+                    )
+                ],
             )
             summaries = await repository.list_job_summaries(
                 PipelineJobListQuery(step="channel_resolve", status="succeeded")
@@ -171,6 +212,9 @@ async def _exercise_repository(database_url: str) -> None:
             assert detail.channels[0].source_job_id == job.id
             assert detail.videos[0].youtube_video_id == "video-1"
             assert detail.videos[0].source_job_id == job.id
+            assert detail.transcript_cues[0].transcript_id == transcript.id
+            assert detail.transcript_cues[0].cue_count == 1
+            assert detail.transcript_cues[0].first_cue_id == f"tr{transcript.id}-c000001"
             assert await repository.get_job_detail(404) is None
     finally:
         await engine.dispose()

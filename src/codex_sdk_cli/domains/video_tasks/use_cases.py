@@ -24,6 +24,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
+from codex_sdk_cli.domains.transcript_cues.use_cases import GenerateTranscriptCuesUseCase
 from codex_sdk_cli.domains.videos.ports import VideoRecord, VideoRepositoryPort
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptNotFound
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
@@ -96,6 +97,7 @@ class CollectChannelTranscriptTasksUseCase:
         timeout_seconds: int,
         concurrency_limit: int,
         events: OperationEventRecorderPort,
+        generate_cues: GenerateTranscriptCuesUseCase | None = None,
         delay_seconds: int = 0,
         sleep: SleepFunction | None = None,
     ) -> None:
@@ -108,6 +110,7 @@ class CollectChannelTranscriptTasksUseCase:
         self._timeout_seconds = timeout_seconds
         self._concurrency_limit = concurrency_limit
         self._events = events
+        self._generate_cues = generate_cues
         self._delay_seconds = delay_seconds
         self._sleep = sleep or asyncio.sleep
 
@@ -338,7 +341,7 @@ class CollectChannelTranscriptTasksUseCase:
                 reason="existing_transcript",
                 transcript_id=existing_metadata.id,
             )
-            return _processed_response(
+            response = await self._with_generated_cues(
                 _item_response(
                     video,
                     succeeded,
@@ -346,6 +349,11 @@ class CollectChannelTranscriptTasksUseCase:
                     reason="existing_transcript",
                     transcript_id=existing_metadata.id,
                 ),
+                transcript_id=existing_metadata.id,
+                parent_job_id=parent_job_id,
+            )
+            return _processed_response(
+                response,
                 attempted_fetch=False,
             )
 
@@ -381,7 +389,7 @@ class CollectChannelTranscriptTasksUseCase:
                 youtube_video_id=video.youtube_video_id,
                 reason="already_succeeded",
             )
-            return _processed_response(
+            response = await self._with_generated_cues(
                 _item_response(
                     video,
                     task,
@@ -389,6 +397,11 @@ class CollectChannelTranscriptTasksUseCase:
                     reason="already_succeeded",
                     transcript_id=task.output_transcript_id,
                 ),
+                transcript_id=task.output_transcript_id,
+                parent_job_id=parent_job_id,
+            )
+            return _processed_response(
+                response,
                 attempted_fetch=False,
             )
         if task.status == "running":
@@ -711,13 +724,18 @@ class CollectChannelTranscriptTasksUseCase:
             transcript_id=stored.metadata.id,
             metadata_json={"languageCode": stored.metadata.language_code},
         )
-        return _retry_item_response(
-            video_id=video_id,
-            youtube_video_id=youtube_video_id,
-            task=updated,
-            status="succeeded",
-            reason="collected",
+        return await self._with_generated_cues(
+            _retry_item_response(
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                task=updated,
+                status="succeeded",
+                reason="collected",
+                transcript_id=stored.metadata.id,
+            ),
             transcript_id=stored.metadata.id,
+            parent_job_id=job.id,
+            actor_type=actor_type,
         )
 
     async def execute_retry_job_attempt(
@@ -943,6 +961,39 @@ class CollectChannelTranscriptTasksUseCase:
                 error_message=error_message,
                 metadata_json=metadata,
             )
+        )
+
+    async def _with_generated_cues(
+        self,
+        response: TranscriptCollectItemResponse,
+        *,
+        transcript_id: int | None,
+        parent_job_id: int,
+        actor_type: OperationEventActorType = "manual_api",
+    ) -> TranscriptCollectItemResponse:
+        if self._generate_cues is None or transcript_id is None:
+            return response
+        try:
+            generated = await self._generate_cues.execute(
+                transcript_id,
+                parent_job_id=parent_job_id,
+                actor_type=actor_type,
+            )
+        except Exception as exc:
+            return response.model_copy(
+                update={
+                    "cue_status": "failed",
+                    "cue_error_type": exc.__class__.__name__,
+                    "cue_error_message": str(exc) or exc.__class__.__name__,
+                }
+            )
+        return response.model_copy(
+            update={
+                "cue_job_id": generated.job_id,
+                "cue_job_attempt_id": generated.job_attempt_id,
+                "cue_status": "succeeded",
+                "cue_count": generated.cue_count,
+            }
         )
 
 

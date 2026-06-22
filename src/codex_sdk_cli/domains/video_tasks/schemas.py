@@ -81,6 +81,12 @@ class TranscriptCollectItemResponse(BaseModel):
     job_id: int | None = Field(alias="jobId")
     job_attempt_id: int | None = Field(alias="jobAttemptId")
     transcript_id: int | None = Field(alias="transcriptId")
+    cue_job_id: int | None = Field(default=None, alias="cueJobId")
+    cue_job_attempt_id: int | None = Field(default=None, alias="cueJobAttemptId")
+    cue_status: str | None = Field(default=None, alias="cueStatus")
+    cue_count: int | None = Field(default=None, alias="cueCount")
+    cue_error_type: str | None = Field(default=None, alias="cueErrorType")
+    cue_error_message: str | None = Field(default=None, alias="cueErrorMessage")
     error_type: str | None = Field(alias="errorType")
     error_message: str | None = Field(alias="errorMessage")
 

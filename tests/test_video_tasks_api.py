@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
@@ -12,6 +13,7 @@ from codex_sdk_cli.api.dependencies import (
     get_operation_event_recorder,
     get_pipeline_job_repository,
     get_settings,
+    get_transcript_cue_repository,
     get_video_repository,
     get_video_task_repository,
     get_youtube_data_client,
@@ -41,6 +43,12 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+)
+from codex_sdk_cli.domains.transcript_cues.ports import (
+    TranscriptCueCreate,
+    TranscriptCueRecord,
+    TranscriptCueRepositoryPort,
+    TranscriptCueSummaryRecord,
 )
 from codex_sdk_cli.domains.video_tasks.ports import (
     VideoTaskCreate,
@@ -529,6 +537,7 @@ class FakeYouTubeTranscriptClient(YouTubeTranscriptPort):
 class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
     def __init__(self) -> None:
         self.saves: list[YouTubeTranscriptStorageSaveRequest] = []
+        self.objects: dict[str, bytes] = {}
 
     def location_for(self, object_name: str) -> TranscriptStorageLocation:
         return TranscriptStorageLocation(
@@ -542,13 +551,32 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
         request: YouTubeTranscriptStorageSaveRequest,
     ) -> TranscriptStorageLocation:
         self.saves.append(request)
+        self.objects[request.object_name] = request.payload
         return self.location_for(request.object_name)
 
     async def read_transcript(
         self,
         request: YouTubeTranscriptStorageReadRequest,
     ) -> bytes:
-        raise NotImplementedError
+        if request.object_name in self.objects:
+            return self.objects[request.object_name]
+        video_id = request.object_name.rsplit("/", maxsplit=1)[-1].split("-", maxsplit=1)[0]
+        return json.dumps(
+            {
+                "videoId": video_id,
+                "language": "Korean",
+                "languageCode": "ko",
+                "isGenerated": True,
+                "text": "hello",
+                "segments": [{"text": "hello", "start": 0.0, "duration": 1.0}],
+                "storage": {
+                    "bucket": "raw",
+                    "objectName": request.object_name,
+                    "uri": f"s3://raw/{request.object_name}",
+                },
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 
 class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
@@ -615,6 +643,53 @@ class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         return False
 
 
+class FakeTranscriptCueRepository(TranscriptCueRepositoryPort):
+    def __init__(self) -> None:
+        self.cues_by_transcript: dict[int, list[TranscriptCueRecord]] = {}
+        self.next_id = 1
+
+    async def replace_cues(
+        self,
+        transcript_id: int,
+        cues: list[TranscriptCueCreate],
+    ) -> list[TranscriptCueRecord]:
+        records: list[TranscriptCueRecord] = []
+        for cue in cues:
+            records.append(
+                TranscriptCueRecord(
+                    id=self.next_id,
+                    transcript_id=cue.transcript_id,
+                    cue_id=cue.cue_id,
+                    cue_index=cue.cue_index,
+                    text=cue.text,
+                    start_ms=cue.start_ms,
+                    end_ms=cue.end_ms,
+                    duration_ms=cue.duration_ms,
+                    source_segment_index=cue.source_segment_index,
+                    source_job_id=cue.source_job_id,
+                    source_job_attempt_id=cue.source_job_attempt_id,
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+            self.next_id += 1
+        self.cues_by_transcript[transcript_id] = records
+        return records
+
+    async def list_cues(self, transcript_id: int) -> list[TranscriptCueRecord]:
+        return self.cues_by_transcript.get(transcript_id, [])
+
+    async def summarize_cues(self, transcript_id: int) -> TranscriptCueSummaryRecord:
+        records = await self.list_cues(transcript_id)
+        return TranscriptCueSummaryRecord(
+            transcript_id=transcript_id,
+            cue_count=len(records),
+            first_cue_id=records[0].cue_id if records else None,
+            last_cue_id=records[-1].cue_id if records else None,
+            source_job_id=records[0].source_job_id if records else None,
+        )
+
+
 class FakeOperationEventRecorder(OperationEventRecorderPort):
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
@@ -639,14 +714,20 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
     assert response["items"][0]["status"] == "succeeded"
     assert response["items"][0]["reason"] == "collected"
     assert response["items"][0]["transcriptId"] == 1
+    assert response["items"][0]["cueStatus"] == "succeeded"
+    assert response["items"][0]["cueCount"] == 1
     assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
     assert fakes.pipeline_jobs.jobs[1].subject_type == "channel"
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert fakes.pipeline_jobs.jobs[2].step == "transcript_collect"
     assert fakes.pipeline_jobs.jobs[2].subject_type == "video"
     assert fakes.pipeline_jobs.jobs[2].parent_job_id == 1
+    assert fakes.pipeline_jobs.jobs[3].step == "transcript_cue_generate"
+    assert fakes.pipeline_jobs.jobs[3].subject_type == "transcript"
+    assert fakes.pipeline_jobs.jobs[3].parent_job_id == 2
     assert fakes.pipeline_jobs.attempts[1].status == "succeeded"
     assert fakes.pipeline_jobs.attempts[2].status == "succeeded"
+    assert fakes.pipeline_jobs.attempts[3].status == "succeeded"
     assert fakes.video_tasks.tasks[1].status == "succeeded"
     assert fakes.transcript_client.requests[0].video_id == YOUTUBE_VIDEO_ID
     assert [event.event_type for event in fakes.events.events] == [
@@ -654,6 +735,8 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
         "transcript_collect.task_selected",
         "transcript_collect.task_running",
         "transcript_collect.task_succeeded",
+        "transcript_cue_generate.started",
+        "transcript_cue_generate.succeeded",
         "transcript_collect.batch_succeeded",
     ]
 
@@ -678,8 +761,9 @@ def test_all_transcript_collect_creates_tasks_for_all_stored_videos() -> None:
     assert fakes.pipeline_jobs.jobs[1].subject_type == "all_videos"
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     parent_job_ids = {
-        fakes.pipeline_jobs.jobs[2].parent_job_id,
-        fakes.pipeline_jobs.jobs[3].parent_job_id,
+        job.parent_job_id
+        for job in fakes.pipeline_jobs.jobs.values()
+        if job.step == "transcript_collect"
     }
     assert parent_job_ids == {1}
     event = fakes.events.events[0]
@@ -744,9 +828,13 @@ def test_channel_transcript_collect_uses_existing_metadata_without_fetch() -> No
     assert fakes.transcript_client.requests == []
     assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    assert fakes.pipeline_jobs.jobs[2].step == "transcript_cue_generate"
+    assert fakes.pipeline_jobs.jobs[2].parent_job_id == 1
     assert fakes.video_tasks.tasks[1].status == "succeeded"
-    assert fakes.events.events[-2].event_type == "transcript_collect.task_succeeded"
-    assert fakes.events.events[-2].metadata_json["reason"] == "existing_transcript"
+    assert fakes.events.events[-4].event_type == "transcript_collect.task_succeeded"
+    assert fakes.events.events[-4].metadata_json["reason"] == "existing_transcript"
+    assert fakes.events.events[-3].event_type == "transcript_cue_generate.started"
+    assert fakes.events.events[-2].event_type == "transcript_cue_generate.succeeded"
     assert fakes.events.events[-1].event_type == "transcript_collect.batch_succeeded"
 
 
@@ -1070,6 +1158,7 @@ class _Fakes:
         self.transcript_client = FakeYouTubeTranscriptClient()
         self.storage = FakeYouTubeTranscriptStorage()
         self.transcripts = FakeYouTubeTranscriptRepository()
+        self.cues = FakeTranscriptCueRepository()
         self.events = FakeOperationEventRecorder()
         self.settings = CliSettings(
             transcript_collect_timeout_seconds=timeout_seconds,
@@ -1092,6 +1181,7 @@ def _app(fakes: _Fakes) -> Any:
     app.dependency_overrides[get_youtube_transcript_client] = lambda: fakes.transcript_client
     app.dependency_overrides[get_youtube_transcript_storage] = lambda: fakes.storage
     app.dependency_overrides[get_youtube_transcript_repository] = lambda: fakes.transcripts
+    app.dependency_overrides[get_transcript_cue_repository] = lambda: fakes.cues
     app.dependency_overrides[get_operation_event_recorder] = lambda: fakes.events
     app.dependency_overrides[get_settings] = lambda: fakes.settings
     return app

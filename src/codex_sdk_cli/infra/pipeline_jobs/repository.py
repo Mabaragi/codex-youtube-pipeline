@@ -38,6 +38,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineTranscriptCueOutputRecord,
     PipelineTranscriptOutputRecord,
     PipelineVideoOutputRecord,
 )
@@ -205,6 +206,7 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 channels=await self._channel_outputs(job_id, attempts),
                 videos=await self._video_outputs(job_id, attempts),
                 transcripts=await self._transcript_outputs(job_id),
+                transcript_cues=await self._transcript_cue_outputs(job_id),
             )
         except SQLAlchemyError as exc:
             raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
@@ -473,6 +475,48 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
             for task, video, transcript in rows
         ]
 
+    async def _transcript_cue_outputs(
+        self,
+        job_id: int,
+    ) -> list[PipelineTranscriptCueOutputRecord]:
+        from codex_sdk_cli.infra.transcript_cues.repository import TranscriptCueModel
+
+        rows = (
+            await self._session.execute(
+                select(
+                    TranscriptCueModel.transcript_id,
+                    func.count(TranscriptCueModel.id),
+                    func.min(TranscriptCueModel.cue_index),
+                    func.max(TranscriptCueModel.cue_index),
+                )
+                .where(TranscriptCueModel.source_job_id == job_id)
+                .group_by(TranscriptCueModel.transcript_id)
+                .order_by(TranscriptCueModel.transcript_id.asc())
+            )
+        ).all()
+        outputs: list[PipelineTranscriptCueOutputRecord] = []
+        for transcript_id, cue_count, first_index, last_index in rows:
+            first_cue_id = (
+                _transcript_cue_id(transcript_id, first_index)
+                if first_index is not None
+                else None
+            )
+            last_cue_id = (
+                _transcript_cue_id(transcript_id, last_index)
+                if last_index is not None
+                else None
+            )
+            outputs.append(
+                PipelineTranscriptCueOutputRecord(
+                    transcript_id=transcript_id,
+                    cue_count=cue_count,
+                    first_cue_id=first_cue_id,
+                    last_cue_id=last_cue_id,
+                    source_job_id=job_id,
+                )
+            )
+        return outputs
+
     async def _mark_attempt_finished(
         self,
         attempt_id: int,
@@ -598,6 +642,10 @@ def _output_video_ids(output_json: JsonObject) -> list[int]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, int)]
+
+
+def _transcript_cue_id(transcript_id: int, cue_index: int) -> str:
+    return f"tr{transcript_id}-c{cue_index:06d}"
 
 
 def _job_record(model: PipelineJobModel) -> PipelineJobRecord:

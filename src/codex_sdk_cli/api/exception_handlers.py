@@ -26,6 +26,10 @@ from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerNotFound,
     StreamerPersistenceError,
 )
+from codex_sdk_cli.domains.transcript_cues.exceptions import (
+    TranscriptCueDomainError,
+    TranscriptCuePersistenceError,
+)
 from codex_sdk_cli.domains.video_tasks.exceptions import (
     TranscriptCollectAlreadyRunning,
     VideoTaskDomainError,
@@ -159,6 +163,16 @@ def add_exception_handlers(app: FastAPI) -> None:
         elif isinstance(exc, (VideoTaskRetryNotAllowed, TranscriptCollectAlreadyRunning)):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, VideoTaskPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(TranscriptCueDomainError)
+    async def transcript_cue_domain_error_handler(
+        _request: Request,
+        exc: TranscriptCueDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, TranscriptCuePersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 

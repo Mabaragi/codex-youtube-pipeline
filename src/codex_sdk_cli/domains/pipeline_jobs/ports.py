@@ -127,6 +127,15 @@ class PipelineTranscriptOutputRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class PipelineTranscriptCueOutputRecord:
+    transcript_id: int
+    cue_count: int
+    first_cue_id: str | None
+    last_cue_id: str | None
+    source_job_id: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineJobDetailRecord:
     job: PipelineJobRecord
     attempts: list[PipelineJobAttemptRecord]
@@ -134,6 +143,7 @@ class PipelineJobDetailRecord:
     channels: list[PipelineChannelOutputRecord]
     videos: list[PipelineVideoOutputRecord]
     transcripts: list[PipelineTranscriptOutputRecord] = field(default_factory=list)
+    transcript_cues: list[PipelineTranscriptCueOutputRecord] = field(default_factory=list)
 
 
 class PipelineJobRepositoryPort(Protocol):

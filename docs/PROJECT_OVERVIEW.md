@@ -40,6 +40,9 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /youtube-transcripts`: YouTube URL 또는 video ID로 captions/subtitles를 조회하고 응답 JSON을 MinIO에 저장한 뒤 DB에 메타데이터와 object 경로를 저장한다.
 - `GET /youtube-transcripts`: 저장된 transcript metadata를 조회한다.
 - `GET /youtube-transcripts/{id}`: 저장된 transcript metadata 단건을 조회한다.
+- `GET /youtube-transcripts/{id}/cues`: 저장된 transcript에서 생성된 cue 목록과 timing metadata를 조회한다.
+- `GET /youtube-transcripts/{id}/prompt-cues`: LLM prompt에 넣기 좋은 `cueId + text` payload를 조회한다. timing 값은 포함하지 않는다.
+- `POST /youtube-transcripts/{id}/cues/generate`: 저장된 transcript JSON을 읽어 cue row를 생성하거나 재생성한다.
 - `PATCH /youtube-transcripts/{id}`: 저장된 transcript metadata의 `notes`만 수정한다.
 - `DELETE /youtube-transcripts/{id}`: 저장된 transcript metadata row만 삭제한다.
 - `GET /health`: API health check.

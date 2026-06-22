@@ -540,6 +540,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/youtube-transcripts/{transcript_id}/cues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Youtube Transcript Cues */
+        get: operations["list_youtube_transcript_cues_youtube_transcripts__transcript_id__cues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/youtube-transcripts/{transcript_id}/cues/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Youtube Transcript Cues */
+        post: operations["generate_youtube_transcript_cues_youtube_transcripts__transcript_id__cues_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/youtube-transcripts/{transcript_id}/prompt-cues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Youtube Transcript Prompt Cues */
+        get: operations["get_youtube_transcript_prompt_cues_youtube_transcripts__transcript_id__prompt_cues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1342,6 +1393,8 @@ export interface components {
             subjectId: number | null;
             /** Subjecttype */
             subjectType: string | null;
+            /** Transcriptcues */
+            transcriptCues: components["schemas"]["PipelineTranscriptCueOutputResponse"][];
             /** Transcripts */
             transcripts: components["schemas"]["PipelineTranscriptOutputResponse"][];
             /**
@@ -1388,6 +1441,19 @@ export interface components {
              */
             updatedAt: string;
         };
+        /** PipelineTranscriptCueOutputResponse */
+        PipelineTranscriptCueOutputResponse: {
+            /** Cuecount */
+            cueCount: number;
+            /** Firstcueid */
+            firstCueId: string | null;
+            /** Lastcueid */
+            lastCueId: string | null;
+            /** Sourcejobid */
+            sourceJobId: number | null;
+            /** Transcriptid */
+            transcriptId: number;
+        };
         /** PipelineTranscriptOutputResponse */
         PipelineTranscriptOutputResponse: {
             /** Languagecode */
@@ -1424,6 +1490,15 @@ export interface components {
             videoId: number;
             /** Youtubevideoid */
             youtubeVideoId: string;
+        };
+        /** PromptCueResponse */
+        PromptCueResponse: {
+            /** Cueid */
+            cueId: string;
+            /** Cueindex */
+            cueIndex: number;
+            /** Text */
+            text: string;
         };
         /**
          * ResolveYouTubeChannelRequest
@@ -1556,6 +1631,18 @@ export interface components {
         };
         /** TranscriptCollectItemResponse */
         TranscriptCollectItemResponse: {
+            /** Cuecount */
+            cueCount?: number | null;
+            /** Cueerrormessage */
+            cueErrorMessage?: string | null;
+            /** Cueerrortype */
+            cueErrorType?: string | null;
+            /** Cuejobattemptid */
+            cueJobAttemptId?: number | null;
+            /** Cuejobid */
+            cueJobId?: number | null;
+            /** Cuestatus */
+            cueStatus?: string | null;
             /** Errormessage */
             errorMessage: string | null;
             /** Errortype */
@@ -1579,6 +1666,67 @@ export interface components {
             videoTaskId: number | null;
             /** Youtubevideoid */
             youtubeVideoId: string;
+        };
+        /** TranscriptCueGenerateResponse */
+        TranscriptCueGenerateResponse: {
+            /** Cuecount */
+            cueCount: number;
+            /** Firstcueid */
+            firstCueId: string | null;
+            /** Jobattemptid */
+            jobAttemptId: number;
+            /** Jobid */
+            jobId: number;
+            /** Lastcueid */
+            lastCueId: string | null;
+            /** Transcriptid */
+            transcriptId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
+        /** TranscriptCueListResponse */
+        TranscriptCueListResponse: {
+            /** Cuecount */
+            cueCount: number;
+            /** Items */
+            items: components["schemas"]["TranscriptCueResponse"][];
+            /** Transcriptid */
+            transcriptId: number;
+        };
+        /** TranscriptCueResponse */
+        TranscriptCueResponse: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Cueid */
+            cueId: string;
+            /** Cueindex */
+            cueIndex: number;
+            /** Durationms */
+            durationMs: number;
+            /** Endms */
+            endMs: number;
+            /** Id */
+            id: number;
+            /** Sourcejobattemptid */
+            sourceJobAttemptId: number | null;
+            /** Sourcejobid */
+            sourceJobId: number | null;
+            /** Sourcesegmentindex */
+            sourceSegmentIndex: number;
+            /** Startms */
+            startMs: number;
+            /** Text */
+            text: string;
+            /** Transcriptid */
+            transcriptId: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
         };
         /** TranscriptMetadataResponse */
         TranscriptMetadataResponse: {
@@ -1629,6 +1777,17 @@ export interface components {
              * @example Reviewed transcript quality; keep for downstream summarization.
              */
             notes?: string | null;
+        };
+        /** TranscriptPromptCuesResponse */
+        TranscriptPromptCuesResponse: {
+            /** Cuecount */
+            cueCount: number;
+            /** Cues */
+            cues: components["schemas"]["PromptCueResponse"][];
+            /** Prompttext */
+            promptText: string;
+            /** Transcriptid */
+            transcriptId: number;
         };
         /**
          * TranscriptRequest
@@ -3009,6 +3168,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TranscriptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_youtube_transcript_cues_youtube_transcripts__transcript_id__cues_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transcript_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptCueListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_youtube_transcript_cues_youtube_transcripts__transcript_id__cues_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transcript_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptCueGenerateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_youtube_transcript_prompt_cues_youtube_transcripts__transcript_id__prompt_cues_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transcript_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptPromptCuesResponse"];
                 };
             };
             /** @description Validation Error */

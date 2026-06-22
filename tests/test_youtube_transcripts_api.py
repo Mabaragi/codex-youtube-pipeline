@@ -8,11 +8,18 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import (
+    get_transcript_cue_repository,
     get_youtube_transcript_client,
     get_youtube_transcript_repository,
     get_youtube_transcript_storage,
 )
 from codex_sdk_cli.api.main import create_app
+from codex_sdk_cli.domains.transcript_cues.ports import (
+    TranscriptCueCreate,
+    TranscriptCueRecord,
+    TranscriptCueRepositoryPort,
+    TranscriptCueSummaryRecord,
+)
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
     YouTubeTranscriptDomainError,
     YouTubeTranscriptForbidden,
@@ -84,6 +91,7 @@ class FakeYouTubeTranscriptStorage(YouTubeTranscriptStoragePort):
         request: YouTubeTranscriptStorageSaveRequest,
     ) -> TranscriptStorageLocation:
         self.saves.append(request)
+        self.objects[request.object_name] = request.payload
         if self.error is not None:
             raise self.error
         return self.location_for(request.object_name)
@@ -201,6 +209,48 @@ class FakeYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         return deleted
 
 
+class FakeTranscriptCueRepository(TranscriptCueRepositoryPort):
+    def __init__(self) -> None:
+        self.records: dict[int, list[TranscriptCueRecord]] = {
+            1: [
+                _cue_record(transcript_id=1, cue_index=1, text="first line"),
+                _cue_record(transcript_id=1, cue_index=2, text="second line"),
+            ]
+        }
+        self.replaced: list[TranscriptCueCreate] = []
+
+    async def replace_cues(
+        self,
+        transcript_id: int,
+        cues: list[TranscriptCueCreate],
+    ) -> list[TranscriptCueRecord]:
+        self.replaced = cues
+        self.records[transcript_id] = [
+            _cue_record(
+                transcript_id=cue.transcript_id,
+                cue_index=cue.cue_index,
+                text=cue.text,
+                source_job_id=cue.source_job_id,
+                source_job_attempt_id=cue.source_job_attempt_id,
+            )
+            for cue in cues
+        ]
+        return self.records[transcript_id]
+
+    async def list_cues(self, transcript_id: int) -> list[TranscriptCueRecord]:
+        return self.records.get(transcript_id, [])
+
+    async def summarize_cues(self, transcript_id: int) -> TranscriptCueSummaryRecord:
+        records = await self.list_cues(transcript_id)
+        return TranscriptCueSummaryRecord(
+            transcript_id=transcript_id,
+            cue_count=len(records),
+            first_cue_id=records[0].cue_id if records else None,
+            last_cue_id=records[-1].cue_id if records else None,
+            source_job_id=records[0].source_job_id if records else None,
+        )
+
+
 def test_transcript_endpoint_normalizes_url_and_raw_video_id() -> None:
     fake = FakeYouTubeTranscriptClient()
 
@@ -303,6 +353,15 @@ def test_openapi_uses_youtube_transcripts_tag() -> None:
     assert path_items["post"]["tags"] == ["youtube-transcripts"]
     assert path_items["get"]["tags"] == ["youtube-transcripts"]
     assert schema["paths"]["/youtube-transcripts/{transcript_id}/content"]["get"][
+        "tags"
+    ] == ["youtube-transcripts"]
+    assert schema["paths"]["/youtube-transcripts/{transcript_id}/cues"]["get"][
+        "tags"
+    ] == ["youtube-transcripts"]
+    assert schema["paths"]["/youtube-transcripts/{transcript_id}/prompt-cues"]["get"][
+        "tags"
+    ] == ["youtube-transcripts"]
+    assert schema["paths"]["/youtube-transcripts/{transcript_id}/cues/generate"]["post"][
         "tags"
     ] == ["youtube-transcripts"]
 
@@ -496,6 +555,44 @@ def test_get_transcript_content_reads_stored_payload_without_refetch() -> None:
     assert fake.requests == []
 
 
+def test_list_transcript_cues_returns_timing_payload() -> None:
+    fake = FakeYouTubeTranscriptClient()
+    cue_repository = FakeTranscriptCueRepository()
+
+    response = asyncio.run(
+        _request(
+            fake,
+            transcript_cue_repository=cue_repository,
+            method="GET",
+            path="/youtube-transcripts/1/cues",
+        )
+    )
+
+    assert response["transcriptId"] == 1
+    assert response["cueCount"] == 2
+    assert response["items"][0]["cueId"] == "tr1-c000001"
+    assert response["items"][0]["startMs"] == 0
+    assert response["items"][1]["endMs"] == 3750
+
+
+def test_get_transcript_prompt_cues_omits_timing() -> None:
+    fake = FakeYouTubeTranscriptClient()
+
+    response = asyncio.run(
+        _request(fake, method="GET", path="/youtube-transcripts/1/prompt-cues")
+    )
+
+    assert response == {
+        "transcriptId": 1,
+        "cueCount": 2,
+        "promptText": "[tr1-c000001] first line\n[tr1-c000002] second line",
+        "cues": [
+            {"cueId": "tr1-c000001", "cueIndex": 1, "text": "first line"},
+            {"cueId": "tr1-c000002", "cueIndex": 2, "text": "second line"},
+        ],
+    }
+
+
 def test_get_transcript_content_maps_missing_metadata_to_not_found() -> None:
     fake = FakeYouTubeTranscriptClient()
 
@@ -644,6 +741,7 @@ async def _request(
     *,
     youtube_storage: FakeYouTubeTranscriptStorage | None = None,
     youtube_repository: FakeYouTubeTranscriptRepository | None = None,
+    transcript_cue_repository: FakeTranscriptCueRepository | None = None,
     method: str = "POST",
     path: str = "/youtube-transcripts",
     json: dict[str, Any] | None = None,
@@ -652,9 +750,11 @@ async def _request(
     app = create_app()
     storage = youtube_storage or FakeYouTubeTranscriptStorage()
     repository = youtube_repository or FakeYouTubeTranscriptRepository()
+    cue_repository = transcript_cue_repository or FakeTranscriptCueRepository()
     app.dependency_overrides[get_youtube_transcript_client] = lambda: youtube_client
     app.dependency_overrides[get_youtube_transcript_storage] = lambda: storage
     app.dependency_overrides[get_youtube_transcript_repository] = lambda: repository
+    app.dependency_overrides[get_transcript_cue_repository] = lambda: cue_repository
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -719,3 +819,30 @@ def _expected_metadata_response(
         "createdAt": "2026-06-15T07:00:00Z",
         "updatedAt": "2026-06-15T07:01:00Z",
     }
+
+
+def _cue_record(
+    *,
+    transcript_id: int,
+    cue_index: int,
+    text: str,
+    source_job_id: int | None = None,
+    source_job_attempt_id: int | None = None,
+) -> TranscriptCueRecord:
+    start_ms = 0 if cue_index == 1 else 1250
+    duration_ms = 1250 if cue_index == 1 else 2500
+    return TranscriptCueRecord(
+        id=cue_index,
+        transcript_id=transcript_id,
+        cue_id=f"tr{transcript_id}-c{cue_index:06d}",
+        cue_index=cue_index,
+        text=text,
+        start_ms=start_ms,
+        end_ms=start_ms + duration_ms,
+        duration_ms=duration_ms,
+        source_segment_index=cue_index - 1,
+        source_job_id=source_job_id,
+        source_job_attempt_id=source_job_attempt_id,
+        created_at=CREATED_AT,
+        updated_at=UPDATED_AT,
+    )
