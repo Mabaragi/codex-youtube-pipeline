@@ -33,6 +33,7 @@ const VIDEO_TASK_STATUS_OPTIONS = [
   { value: "running", label: "Running" },
   { value: "failed", label: "Failed" },
   { value: "timed_out", label: "Timed out" },
+  { value: "no_transcript", label: "No transcript" },
   { value: "skipped", label: "Skipped" },
   { value: "canceled", label: "Canceled" },
 ];

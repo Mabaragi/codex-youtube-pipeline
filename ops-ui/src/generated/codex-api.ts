@@ -639,15 +639,22 @@ export interface components {
         /**
          * CollectAllTranscriptTasksRequest
          * @example {
+         *       "collectNew": true,
          *       "languages": [
          *         "ko",
          *         "en"
          *       ],
          *       "preserveFormatting": false,
+         *       "recheckNoTranscript": false,
          *       "retryFailed": false
          *     }
          */
         CollectAllTranscriptTasksRequest: {
+            /**
+             * Collectnew
+             * @default true
+             */
+            collectNew: boolean;
             /**
              * Languages
              * @description Preferred transcript language codes, tried in order.
@@ -658,6 +665,11 @@ export interface components {
              * @default false
              */
             preserveFormatting: boolean;
+            /**
+             * Rechecknotranscript
+             * @default false
+             */
+            recheckNoTranscript: boolean;
             /**
              * Retryfailed
              * @default false
@@ -670,6 +682,8 @@ export interface components {
             failedCount: number;
             /** Items */
             items: components["schemas"]["TranscriptCollectItemResponse"][];
+            /** Notranscriptcount */
+            noTranscriptCount: number;
             /** Requestedcount */
             requestedCount: number;
             /** Skippedcount */
@@ -682,16 +696,23 @@ export interface components {
         /**
          * CollectChannelTranscriptTasksRequest
          * @example {
+         *       "collectNew": true,
          *       "languages": [
          *         "ko",
          *         "en"
          *       ],
          *       "limit": 5,
          *       "preserveFormatting": false,
+         *       "recheckNoTranscript": false,
          *       "retryFailed": false
          *     }
          */
         CollectChannelTranscriptTasksRequest: {
+            /**
+             * Collectnew
+             * @default true
+             */
+            collectNew: boolean;
             /**
              * Languages
              * @description Preferred transcript language codes, tried in order.
@@ -708,6 +729,11 @@ export interface components {
              */
             preserveFormatting: boolean;
             /**
+             * Rechecknotranscript
+             * @default false
+             */
+            recheckNoTranscript: boolean;
+            /**
              * Retryfailed
              * @default false
              */
@@ -721,6 +747,8 @@ export interface components {
             failedCount: number;
             /** Items */
             items: components["schemas"]["TranscriptCollectItemResponse"][];
+            /** Notranscriptcount */
+            noTranscriptCount: number;
             /** Requestedcount */
             requestedCount: number;
             /** Skippedcount */
@@ -899,6 +927,8 @@ export interface components {
             streamerName: string;
             /** Taskfailedcount */
             taskFailedCount: number;
+            /** Tasknotranscriptcount */
+            taskNoTranscriptCount: number;
             /** Taskrunningcount */
             taskRunningCount: number;
             /** Transcriptsucceededcount */
@@ -1540,13 +1570,13 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "succeeded" | "failed" | "timed_out" | "skipped";
+            status: "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped";
             /** Transcriptid */
             transcriptId: number | null;
             /** Videoid */
             videoId: number;
             /** Videotaskid */
-            videoTaskId: number;
+            videoTaskId: number | null;
             /** Youtubevideoid */
             youtubeVideoId: string;
         };
@@ -1751,7 +1781,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "skipped" | "canceled";
+            status: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled";
             /** Taskname */
             taskName: string;
             /** Taskversion */
@@ -1902,7 +1932,7 @@ export interface operations {
         parameters: {
             query?: {
                 taskName?: string | null;
-                status?: ("pending" | "running" | "succeeded" | "failed" | "timed_out" | "skipped" | "canceled") | null;
+                status?: ("pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled") | null;
                 limit?: number;
                 offset?: number;
             };

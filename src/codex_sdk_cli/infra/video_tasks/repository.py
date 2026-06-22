@@ -48,7 +48,7 @@ class VideoTaskModel(Base):
         ),
         CheckConstraint(
             "status IN ('pending', 'running', 'succeeded', 'failed', "
-            "'timed_out', 'skipped', 'canceled')",
+            "'timed_out', 'no_transcript', 'skipped', 'canceled')",
             name="video_tasks_status_allowed",
         ),
         CheckConstraint("timeout_seconds >= 1", name="video_tasks_timeout_seconds_min"),
@@ -297,6 +297,23 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             error_message=error_message,
         )
 
+    @override
+    async def mark_task_no_transcript(
+        self,
+        task_id: int,
+        *,
+        error_message: str,
+        output_json: JsonObject | None = None,
+    ) -> VideoTaskRecord:
+        return await self._mark_task_finished(
+            task_id,
+            status="no_transcript",
+            output_transcript_id=None,
+            output_json=output_json,
+            error_type="YouTubeTranscriptNotFound",
+            error_message=error_message,
+        )
+
     async def _get_task_model_for_input(
         self,
         *,
@@ -381,6 +398,8 @@ def _task_status(value: str) -> VideoTaskStatus:
         return "failed"
     if value == "timed_out":
         return "timed_out"
+    if value == "no_transcript":
+        return "no_transcript"
     if value == "skipped":
         return "skipped"
     if value == "canceled":

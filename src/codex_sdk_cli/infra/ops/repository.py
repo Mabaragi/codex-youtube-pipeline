@@ -141,6 +141,12 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                         ).label("transcript_succeeded_count"),
                         func.coalesce(
                             func.sum(
+                                case((VideoTaskModel.status == "no_transcript", 1), else_=0)
+                            ),
+                            0,
+                        ).label("task_no_transcript_count"),
+                        func.coalesce(
+                            func.sum(
                                 case(
                                     (
                                         VideoTaskModel.status.in_(("failed", "timed_out")),
@@ -178,6 +184,7 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                 uploads_playlist_id=channel.uploads_playlist_id,
                 video_count=video_count,
                 transcript_succeeded_count=transcript_succeeded_count,
+                task_no_transcript_count=task_no_transcript_count,
                 task_failed_count=task_failed_count,
                 task_running_count=task_running_count,
                 latest_video_published_at=latest_video_published_at,
@@ -188,6 +195,7 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                 streamer_name,
                 video_count,
                 transcript_succeeded_count,
+                task_no_transcript_count,
                 task_failed_count,
                 task_running_count,
                 latest_video_published_at,

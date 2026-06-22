@@ -62,6 +62,7 @@ const channel: OpsChannel = {
   uploadsPlaylistId: "UU123456789",
   videoCount: 1,
   transcriptSucceededCount: 1,
+  taskNoTranscriptCount: 0,
   taskFailedCount: 0,
   taskRunningCount: 0,
   latestVideoPublishedAt: "2026-06-18T00:00:00Z",

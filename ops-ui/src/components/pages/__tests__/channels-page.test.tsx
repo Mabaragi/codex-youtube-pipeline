@@ -74,6 +74,7 @@ const channel: OpsChannel = {
   uploadsPlaylistId: "UU123456789",
   videoCount: 5,
   transcriptSucceededCount: 2,
+  taskNoTranscriptCount: 1,
   taskFailedCount: 0,
   taskRunningCount: 0,
   latestVideoPublishedAt: "2026-06-18T00:00:00Z",
@@ -240,6 +241,40 @@ describe("ChannelsPage transcript collection state", () => {
     expect(queryMocks.collectAllTranscripts.mutate).toHaveBeenCalledWith({});
   });
 
+  it("retries failed transcript tasks for all channels", () => {
+    queryMocks.channels.data = {
+      items: [
+        { ...channel, channelId: 1, taskFailedCount: 2 },
+        { ...channel, channelId: 2, handle: "@other", name: "Other", taskFailedCount: 1 },
+      ],
+    };
+    render(<ChannelsPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Retry failed for all channels/i }),
+    );
+
+    expect(queryMocks.collectAllTranscripts.mutate).toHaveBeenCalledWith({
+      collectNew: false,
+      retryFailed: true,
+    });
+  });
+
+  it("rechecks no-transcript tasks for all channels", () => {
+    render(<ChannelsPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Recheck no transcript for all channels/i,
+      }),
+    );
+
+    expect(queryMocks.collectAllTranscripts.mutate).toHaveBeenCalledWith({
+      collectNew: false,
+      recheckNoTranscript: true,
+    });
+  });
+
   it("collects transcripts for all stored channel videos", () => {
     queryMocks.channels.data = { items: [{ ...channel, videoCount: 42 }] };
     render(<ChannelsPage />);
@@ -249,6 +284,44 @@ describe("ChannelsPage transcript collection state", () => {
     expect(queryMocks.collectTranscripts.mutate).toHaveBeenCalledWith({
       channelId: 1,
       limit: 42,
+    });
+  });
+
+  it("retries failed transcript tasks for one channel", () => {
+    queryMocks.channels.data = {
+      items: [{ ...channel, taskFailedCount: 2, videoCount: 42 }],
+    };
+    render(<ChannelsPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Retry failed for Streamer Channel/i }),
+    );
+
+    expect(queryMocks.collectTranscripts.mutate).toHaveBeenCalledWith({
+      channelId: 1,
+      collectNew: false,
+      limit: 42,
+      retryFailed: true,
+    });
+  });
+
+  it("rechecks no-transcript tasks for one channel", () => {
+    queryMocks.channels.data = {
+      items: [{ ...channel, taskNoTranscriptCount: 2, videoCount: 42 }],
+    };
+    render(<ChannelsPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Recheck no transcript for Streamer Channel/i,
+      }),
+    );
+
+    expect(queryMocks.collectTranscripts.mutate).toHaveBeenCalledWith({
+      channelId: 1,
+      collectNew: false,
+      limit: 42,
+      recheckNoTranscript: true,
     });
   });
 

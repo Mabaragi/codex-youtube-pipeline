@@ -110,6 +110,7 @@ class FakeOpsRepository(OpsRepositoryPort):
                 uploads_playlist_id="UU123",
                 video_count=3,
                 transcript_succeeded_count=2,
+                task_no_transcript_count=1,
                 task_failed_count=1,
                 task_running_count=0,
                 latest_video_published_at=datetime.now(UTC),
@@ -264,6 +265,7 @@ async def _test_ops_summary_and_lists_are_available() -> None:
     assert summary.status_code == 200, summary.text
     assert summary.json()["counts"]["channels"] == 2
     assert channels.json()["items"][0]["uploadsPlaylistId"] == "UU123"
+    assert channels.json()["items"][0]["taskNoTranscriptCount"] == 1
     assert videos.json()["items"][0]["latestTaskStatus"] == "succeeded"
     assert video_detail.status_code == 200, video_detail.text
     assert video_detail.json()["description"] == "Stored video description"

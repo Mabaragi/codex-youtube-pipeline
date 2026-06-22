@@ -7,7 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .ports import JsonObject, VideoTaskStatus
 
-TranscriptCollectItemStatus = Literal["succeeded", "failed", "timed_out", "skipped"]
+TranscriptCollectItemStatus = Literal[
+    "succeeded",
+    "failed",
+    "timed_out",
+    "no_transcript",
+    "skipped",
+]
 
 
 class CollectChannelTranscriptTasksRequest(BaseModel):
@@ -17,7 +23,9 @@ class CollectChannelTranscriptTasksRequest(BaseModel):
         description="Preferred transcript language codes, tried in order.",
     )
     preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
+    collect_new: bool = Field(default=True, alias="collectNew")
     retry_failed: bool = Field(default=False, alias="retryFailed")
+    recheck_no_transcript: bool = Field(default=False, alias="recheckNoTranscript")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -28,7 +36,9 @@ class CollectChannelTranscriptTasksRequest(BaseModel):
                     "limit": 5,
                     "languages": ["ko", "en"],
                     "preserveFormatting": False,
+                    "collectNew": True,
                     "retryFailed": False,
+                    "recheckNoTranscript": False,
                 }
             ]
         },
@@ -41,7 +51,9 @@ class CollectAllTranscriptTasksRequest(BaseModel):
         description="Preferred transcript language codes, tried in order.",
     )
     preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
+    collect_new: bool = Field(default=True, alias="collectNew")
     retry_failed: bool = Field(default=False, alias="retryFailed")
+    recheck_no_transcript: bool = Field(default=False, alias="recheckNoTranscript")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -51,7 +63,9 @@ class CollectAllTranscriptTasksRequest(BaseModel):
                 {
                     "languages": ["ko", "en"],
                     "preserveFormatting": False,
+                    "collectNew": True,
                     "retryFailed": False,
+                    "recheckNoTranscript": False,
                 }
             ]
         },
@@ -61,7 +75,7 @@ class CollectAllTranscriptTasksRequest(BaseModel):
 class TranscriptCollectItemResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str = Field(alias="youtubeVideoId")
-    video_task_id: int = Field(alias="videoTaskId")
+    video_task_id: int | None = Field(alias="videoTaskId")
     status: TranscriptCollectItemStatus
     reason: str
     job_id: int | None = Field(alias="jobId")
@@ -80,6 +94,7 @@ class CollectChannelTranscriptTasksResponse(BaseModel):
     skipped_count: int = Field(alias="skippedCount")
     failed_count: int = Field(alias="failedCount")
     timeout_count: int = Field(alias="timeoutCount")
+    no_transcript_count: int = Field(alias="noTranscriptCount")
     items: list[TranscriptCollectItemResponse]
 
     model_config = ConfigDict(populate_by_name=True)
@@ -91,6 +106,7 @@ class CollectAllTranscriptTasksResponse(BaseModel):
     skipped_count: int = Field(alias="skippedCount")
     failed_count: int = Field(alias="failedCount")
     timeout_count: int = Field(alias="timeoutCount")
+    no_transcript_count: int = Field(alias="noTranscriptCount")
     items: list[TranscriptCollectItemResponse]
 
     model_config = ConfigDict(populate_by_name=True)

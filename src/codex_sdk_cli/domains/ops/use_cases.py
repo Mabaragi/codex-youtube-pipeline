@@ -112,6 +112,7 @@ class ListOpsChannelsUseCase:
                     uploadsPlaylistId=record.uploads_playlist_id,
                     videoCount=record.video_count,
                     transcriptSucceededCount=record.transcript_succeeded_count,
+                    taskNoTranscriptCount=record.task_no_transcript_count,
                     taskFailedCount=record.task_failed_count,
                     taskRunningCount=record.task_running_count,
                     latestVideoPublishedAt=record.latest_video_published_at,

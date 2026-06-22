@@ -42,6 +42,7 @@ def test_video_task_repository_lifecycle(
     assert result["succeeded_transcript_id"] == 1
     assert result["failed_status"] == "failed"
     assert result["timed_out_status"] == "timed_out"
+    assert result["no_transcript_status"] == "no_transcript"
 
 
 async def _exercise_repository(database_url: str) -> dict[str, object]:
@@ -171,6 +172,10 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 task.id,
                 error_message="timeout",
             )
+            no_transcript = await video_tasks.mark_task_no_transcript(
+                task.id,
+                error_message="No transcript.",
+            )
 
             return {
                 "same_task_id": task.id == same_task.id,
@@ -179,6 +184,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "succeeded_transcript_id": succeeded.output_transcript_id,
                 "failed_status": failed.status,
                 "timed_out_status": timed_out.status,
+                "no_transcript_status": no_transcript.status,
             }
     finally:
         await engine.dispose()

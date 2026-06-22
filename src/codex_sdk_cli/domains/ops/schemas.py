@@ -56,6 +56,7 @@ class OpsChannelResponse(BaseModel):
     uploads_playlist_id: str | None = Field(alias="uploadsPlaylistId")
     video_count: int = Field(alias="videoCount")
     transcript_succeeded_count: int = Field(alias="transcriptSucceededCount")
+    task_no_transcript_count: int = Field(alias="taskNoTranscriptCount")
     task_failed_count: int = Field(alias="taskFailedCount")
     task_running_count: int = Field(alias="taskRunningCount")
     latest_video_published_at: datetime | None = Field(alias="latestVideoPublishedAt")

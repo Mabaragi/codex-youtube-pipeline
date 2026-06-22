@@ -25,6 +25,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRepositoryPort,
 )
 from codex_sdk_cli.domains.videos.ports import VideoRecord, VideoRepositoryPort
+from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptNotFound
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
     YouTubeTranscriptRepositoryPort,
@@ -123,7 +124,9 @@ class CollectChannelTranscriptTasksUseCase:
             "selectedVideoCount": len(videos),
             "languages": list(languages),
             "preserveFormatting": request.preserve_formatting,
+            "collectNew": request.collect_new,
             "retryFailed": request.retry_failed,
+            "recheckNoTranscript": request.recheck_no_transcript,
             "timeoutSeconds": self._timeout_seconds,
             "concurrencyLimit": self._concurrency_limit,
             "delaySeconds": self._delay_seconds,
@@ -158,7 +161,9 @@ class CollectChannelTranscriptTasksUseCase:
                 videos,
                 languages=languages,
                 preserve_formatting=request.preserve_formatting,
+                collect_new=request.collect_new,
                 retry_failed=request.retry_failed,
+                recheck_no_transcript=request.recheck_no_transcript,
                 parent_job_id=batch.job.id,
             )
             response = _collect_response(channel_id, items)
@@ -178,7 +183,9 @@ class CollectChannelTranscriptTasksUseCase:
             "selectedVideoCount": len(videos),
             "languages": list(languages),
             "preserveFormatting": request.preserve_formatting,
+            "collectNew": request.collect_new,
             "retryFailed": request.retry_failed,
+            "recheckNoTranscript": request.recheck_no_transcript,
             "timeoutSeconds": self._timeout_seconds,
             "concurrencyLimit": self._concurrency_limit,
             "delaySeconds": self._delay_seconds,
@@ -210,7 +217,9 @@ class CollectChannelTranscriptTasksUseCase:
                 videos,
                 languages=languages,
                 preserve_formatting=request.preserve_formatting,
+                collect_new=request.collect_new,
                 retry_failed=request.retry_failed,
+                recheck_no_transcript=request.recheck_no_transcript,
                 parent_job_id=batch.job.id,
             )
             response = _collect_all_response(items)
@@ -226,7 +235,9 @@ class CollectChannelTranscriptTasksUseCase:
         *,
         languages: tuple[str, ...],
         preserve_formatting: bool,
+        collect_new: bool,
         retry_failed: bool,
+        recheck_no_transcript: bool,
         parent_job_id: int,
     ) -> list[TranscriptCollectItemResponse]:
         items: list[TranscriptCollectItemResponse] = []
@@ -235,7 +246,9 @@ class CollectChannelTranscriptTasksUseCase:
                 video,
                 languages=languages,
                 preserve_formatting=preserve_formatting,
+                collect_new=collect_new,
                 retry_failed=retry_failed,
+                recheck_no_transcript=recheck_no_transcript,
                 parent_job_id=parent_job_id,
             )
             items.append(processed.response)
@@ -253,7 +266,9 @@ class CollectChannelTranscriptTasksUseCase:
         *,
         languages: tuple[str, ...],
         preserve_formatting: bool,
+        collect_new: bool,
         retry_failed: bool,
+        recheck_no_transcript: bool,
         parent_job_id: int,
     ) -> _ProcessedTranscriptCollectItem:
         input_hash = _task_input_hash(
@@ -261,15 +276,31 @@ class CollectChannelTranscriptTasksUseCase:
             languages=languages,
             preserve_formatting=preserve_formatting,
         )
-        task = await self._video_tasks.get_or_create_task(
-            VideoTaskCreate(
-                video_id=video.id,
-                task_name=TRANSCRIPT_COLLECT_TASK_NAME,
-                task_version=TRANSCRIPT_COLLECT_TASK_VERSION,
-                input_hash=input_hash,
-                timeout_seconds=self._timeout_seconds,
-            )
+        task = await self._video_tasks.get_task_for_input(
+            video_id=video.id,
+            task_name=TRANSCRIPT_COLLECT_TASK_NAME,
+            task_version=TRANSCRIPT_COLLECT_TASK_VERSION,
+            input_hash=input_hash,
         )
+        if task is None:
+            if not collect_new:
+                return _processed_response(
+                    _missing_task_item_response(
+                        video,
+                        status="skipped",
+                        reason="no_existing_task",
+                    ),
+                    attempted_fetch=False,
+                )
+            task = await self._video_tasks.get_or_create_task(
+                VideoTaskCreate(
+                    video_id=video.id,
+                    task_name=TRANSCRIPT_COLLECT_TASK_NAME,
+                    task_version=TRANSCRIPT_COLLECT_TASK_VERSION,
+                    input_hash=input_hash,
+                    timeout_seconds=self._timeout_seconds,
+                )
+            )
         await self._record_task_event(
             "transcript_collect.task_selected",
             "info",
@@ -279,7 +310,9 @@ class CollectChannelTranscriptTasksUseCase:
             youtube_video_id=video.youtube_video_id,
             metadata_json={
                 "taskStatus": task.status,
+                "collectNew": collect_new,
                 "retryFailed": retry_failed,
+                "recheckNoTranscript": recheck_no_transcript,
                 "languages": list(languages),
                 "preserveFormatting": preserve_formatting,
             },
@@ -316,6 +349,28 @@ class CollectChannelTranscriptTasksUseCase:
                 attempted_fetch=False,
             )
 
+        if not collect_new and not (
+            task.status in {"failed", "timed_out"} and retry_failed
+        ) and not (task.status == "no_transcript" and recheck_no_transcript):
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "info",
+                "Transcript collection task was skipped because it was not selected.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="not_selected",
+                metadata_json={
+                    "collectNew": collect_new,
+                    "retryFailed": retry_failed,
+                    "recheckNoTranscript": recheck_no_transcript,
+                },
+            )
+            return _processed_response(
+                _item_response(video, task, status="skipped", reason="not_selected"),
+                attempted_fetch=False,
+            )
+
         if task.status == "succeeded":
             await self._record_task_event(
                 "transcript_collect.task_skipped",
@@ -348,6 +403,26 @@ class CollectChannelTranscriptTasksUseCase:
             )
             return _processed_response(
                 _item_response(video, task, status="skipped", reason="already_running"),
+                attempted_fetch=False,
+            )
+        if task.status == "no_transcript" and not recheck_no_transcript:
+            await self._record_task_event(
+                "transcript_collect.task_skipped",
+                "info",
+                "Transcript collection task was skipped because recheckNoTranscript is false.",
+                task=task,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                reason="previously_no_transcript",
+            )
+            return _processed_response(
+                _item_response(
+                    video,
+                    task,
+                    status="skipped",
+                    reason="previously_no_transcript",
+                    transcript_id=task.output_transcript_id,
+                ),
                 attempted_fetch=False,
             )
         if task.status in {"failed", "timed_out"} and not retry_failed:
@@ -532,6 +607,45 @@ class CollectChannelTranscriptTasksUseCase:
                 task=updated,
                 status="timed_out",
                 reason="timeout",
+            )
+        except YouTubeTranscriptNotFound as exc:
+            error_message = str(exc) or "No retrievable transcript was found."
+            output_json = _no_transcript_output_json(
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                video_task_id=task.id,
+                job_id=job.id,
+                job_attempt_id=attempt.id,
+                error_message=error_message,
+            )
+            await self._pipeline_jobs.mark_attempt_succeeded(
+                attempt.id,
+                output_json=output_json,
+            )
+            await self._pipeline_jobs.mark_job_succeeded(job.id)
+            updated = await self._video_tasks.mark_task_no_transcript(
+                task.id,
+                error_message=error_message,
+                output_json=output_json,
+            )
+            await self._record_task_event(
+                "transcript_collect.task_no_transcript",
+                "info",
+                "Transcript collection task found no retrievable transcript.",
+                actor_type=actor_type,
+                task=updated,
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                reason="no_transcript",
+                error_type="YouTubeTranscriptNotFound",
+                error_message=error_message,
+            )
+            return _retry_item_response(
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                task=updated,
+                status="no_transcript",
+                reason="no_transcript",
             )
         except Exception as exc:
             error_type = exc.__class__.__name__
@@ -885,6 +999,7 @@ def _collect_response(
         skippedCount=sum(item.status == "skipped" for item in items),
         failedCount=sum(item.status == "failed" for item in items),
         timeoutCount=sum(item.status == "timed_out" for item in items),
+        noTranscriptCount=sum(item.status == "no_transcript" for item in items),
         items=items,
     )
 
@@ -898,6 +1013,7 @@ def _collect_all_response(
         skippedCount=sum(item.status == "skipped" for item in items),
         failedCount=sum(item.status == "failed" for item in items),
         timeoutCount=sum(item.status == "timed_out" for item in items),
+        noTranscriptCount=sum(item.status == "no_transcript" for item in items),
         items=items,
     )
 
@@ -911,6 +1027,7 @@ def _collect_response_output(
         "skippedCount": response.skipped_count,
         "failedCount": response.failed_count,
         "timeoutCount": response.timeout_count,
+        "noTranscriptCount": response.no_transcript_count,
     }
 
 
@@ -940,6 +1057,26 @@ def _processed_response(
     return _ProcessedTranscriptCollectItem(
         response=response,
         attempted_fetch=attempted_fetch,
+    )
+
+
+def _missing_task_item_response(
+    video: VideoRecord,
+    *,
+    status: TranscriptCollectItemStatus,
+    reason: str,
+) -> TranscriptCollectItemResponse:
+    return TranscriptCollectItemResponse(
+        videoId=video.id,
+        youtubeVideoId=video.youtube_video_id,
+        videoTaskId=None,
+        status=status,
+        reason=reason,
+        jobId=None,
+        jobAttemptId=None,
+        transcriptId=None,
+        errorType=None,
+        errorMessage=None,
     )
 
 
@@ -1047,10 +1184,41 @@ def _stored_transcript_output_json(
     }
 
 
+def _no_transcript_output_json(
+    *,
+    video_id: int,
+    youtube_video_id: str,
+    video_task_id: int,
+    job_id: int,
+    job_attempt_id: int,
+    error_message: str,
+) -> JsonObject:
+    return {
+        "status": "no_transcript",
+        "reason": "no_transcript",
+        "videoTaskId": video_task_id,
+        "videoId": video_id,
+        "youtubeVideoId": youtube_video_id,
+        "jobId": job_id,
+        "jobAttemptId": job_attempt_id,
+        "errorType": "YouTubeTranscriptNotFound",
+        "errorMessage": error_message,
+    }
+
+
 def _task_status(value: str | None) -> VideoTaskStatus | None:
     if value is None:
         return None
-    allowed = {"pending", "running", "succeeded", "failed", "timed_out", "skipped", "canceled"}
+    allowed = {
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "timed_out",
+        "no_transcript",
+        "skipped",
+        "canceled",
+    }
     if value not in allowed:
         raise VideoTaskRetryNotAllowed(f"Unsupported video task status '{value}'.")
     return cast(VideoTaskStatus, value)

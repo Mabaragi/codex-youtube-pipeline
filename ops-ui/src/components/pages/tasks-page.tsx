@@ -45,6 +45,7 @@ const TASK_STATUS_OPTIONS = [
   { value: "succeeded", label: "Succeeded" },
   { value: "failed", label: "Failed" },
   { value: "timed_out", label: "Timed out" },
+  { value: "no_transcript", label: "No transcript" },
   { value: "skipped", label: "Skipped" },
   { value: "canceled", label: "Canceled" },
 ];

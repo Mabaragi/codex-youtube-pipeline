@@ -35,6 +35,7 @@ def test_ops_repository_lists_operational_views(
     assert result["counts"].videos == 1
     assert result["channels"][0].video_count == 1
     assert result["channels"][0].transcript_succeeded_count == 1
+    assert result["channels"][0].task_no_transcript_count == 1
     assert result["videos"].total == 1
     assert result["videos"].items[0].latest_task_status == "succeeded"
     assert result["tasks"].items[0].youtube_video_id == "video1234567"
@@ -104,6 +105,18 @@ async def _exercise_repository(database_file: Path):
                     error_message="failed",
                 )
             )
+            await session.flush()
+            no_transcript_task = VideoTaskModel(
+                video_id=video.id,
+                task_name="transcript_collect",
+                task_version="v1",
+                input_hash="2" * 64,
+                status="no_transcript",
+                timeout_seconds=600,
+                error_type="YouTubeTranscriptNotFound",
+                error_message="No transcript.",
+            )
+            session.add(no_transcript_task)
             await session.flush()
             task = VideoTaskModel(
                 video_id=video.id,

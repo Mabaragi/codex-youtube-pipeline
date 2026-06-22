@@ -50,6 +50,7 @@ class OpsChannelRecord:
     uploads_playlist_id: str | None
     video_count: int
     transcript_succeeded_count: int
+    task_no_transcript_count: int
     task_failed_count: int
     task_running_count: int
     latest_video_published_at: datetime | None

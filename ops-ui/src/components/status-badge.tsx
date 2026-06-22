@@ -3,7 +3,7 @@ export function StatusBadge({ status }: { status: string | null | undefined }) {
   let tone = "ops-status-muted";
   if (["ok", "succeeded", "valid", "info"].includes(value)) {
     tone = "ops-status-ok";
-  } else if (["running", "pending", "warning"].includes(value)) {
+  } else if (["running", "pending", "warning", "no_transcript"].includes(value)) {
     tone = "ops-status-warn";
   } else if (["failed", "timed_out", "invalid", "error"].includes(value)) {
     tone = "ops-status-bad";

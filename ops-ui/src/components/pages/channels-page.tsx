@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Captions, Download, Plus, Search } from "lucide-react";
+import { Captions, Download, Plus, RotateCw, Search } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
@@ -58,6 +58,14 @@ export function ChannelsPage() {
     (total, item) => total + item.videoCount,
     0,
   );
+  const totalFailedTaskCount = (data?.items ?? []).reduce(
+    (total, item) => total + item.taskFailedCount,
+    0,
+  );
+  const totalNoTranscriptTaskCount = (data?.items ?? []).reduce(
+    (total, item) => total + item.taskNoTranscriptCount,
+    0,
+  );
   const isAnyTranscriptMutationPending =
     collectTranscripts.isPending || collectAllTranscripts.isPending;
   const transcriptLock = buildTranscriptCollectionLock({
@@ -72,12 +80,24 @@ export function ChannelsPage() {
   const isTranscriptCollectionDisabled = transcriptLock.isLocked;
   const isAllTranscriptCollectionDisabled =
     isTranscriptCollectionDisabled || totalStoredVideoCount < 1;
+  const isAllFailedRetryDisabled =
+    isTranscriptCollectionDisabled || totalFailedTaskCount < 1;
+  const isAllNoTranscriptRecheckDisabled =
+    isTranscriptCollectionDisabled || totalNoTranscriptTaskCount < 1;
   const transcriptButtonTitle = transcriptTaskButtonTitle({
     lock: transcriptLock,
   });
   const allTranscriptButtonTitle = allTranscriptTaskButtonTitle({
     lock: transcriptLock,
     totalStoredVideoCount,
+  });
+  const allRetryFailedButtonTitle = allRetryFailedTaskButtonTitle({
+    lock: transcriptLock,
+    totalFailedTaskCount,
+  });
+  const allRecheckNoTranscriptButtonTitle = allRecheckNoTranscriptTaskButtonTitle({
+    lock: transcriptLock,
+    totalNoTranscriptTaskCount,
   });
   const transcriptButtonLabel = transcriptTaskButtonLabel({
     lock: transcriptLock,
@@ -166,6 +186,7 @@ export function ChannelsPage() {
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-2">
           <span>ok {row.original.transcriptSucceededCount}</span>
+          <span>none {row.original.taskNoTranscriptCount}</span>
           <span>failed {row.original.taskFailedCount}</span>
           <span>running {row.original.taskRunningCount}</span>
         </div>
@@ -206,6 +227,48 @@ export function ChannelsPage() {
             <Captions size={15} />
             {transcriptButtonLabel}
           </button>
+          <button
+            aria-label={`Retry failed for ${row.original.name}`}
+            className="ops-button"
+            disabled={isTranscriptCollectionDisabled || row.original.taskFailedCount < 1}
+            onClick={() =>
+              collectTranscripts.mutate({
+                channelId: row.original.channelId,
+                collectNew: false,
+                limit: row.original.videoCount,
+                retryFailed: true,
+              })
+            }
+            title={retryFailedTaskButtonTitle({
+              lock: transcriptLock,
+              taskFailedCount: row.original.taskFailedCount,
+            })}
+          >
+            <RotateCw size={15} />
+            Retry failed
+          </button>
+          <button
+            aria-label={`Recheck no transcript for ${row.original.name}`}
+            className="ops-button"
+            disabled={
+              isTranscriptCollectionDisabled || row.original.taskNoTranscriptCount < 1
+            }
+            onClick={() =>
+              collectTranscripts.mutate({
+                channelId: row.original.channelId,
+                collectNew: false,
+                limit: row.original.videoCount,
+                recheckNoTranscript: true,
+              })
+            }
+            title={recheckNoTranscriptTaskButtonTitle({
+              lock: transcriptLock,
+              taskNoTranscriptCount: row.original.taskNoTranscriptCount,
+            })}
+          >
+            <RotateCw size={15} />
+            Recheck no transcript
+          </button>
         </div>
       ),
     },
@@ -215,15 +278,47 @@ export function ChannelsPage() {
     <>
       <PageHeader
         actions={
-          <button
-            className="ops-button ops-button-primary"
-            disabled={isAllTranscriptCollectionDisabled}
-            onClick={() => collectAllTranscripts.mutate({})}
-            title={allTranscriptButtonTitle}
-          >
-            <Captions size={15} />
-            All transcripts
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="ops-button ops-button-primary"
+              disabled={isAllTranscriptCollectionDisabled}
+              onClick={() => collectAllTranscripts.mutate({})}
+              title={allTranscriptButtonTitle}
+            >
+              <Captions size={15} />
+              All transcripts
+            </button>
+            <button
+              aria-label="Retry failed for all channels"
+              className="ops-button"
+              disabled={isAllFailedRetryDisabled}
+              onClick={() =>
+                collectAllTranscripts.mutate({
+                  collectNew: false,
+                  retryFailed: true,
+                })
+              }
+              title={allRetryFailedButtonTitle}
+            >
+              <RotateCw size={15} />
+              Retry failed
+            </button>
+            <button
+              aria-label="Recheck no transcript for all channels"
+              className="ops-button"
+              disabled={isAllNoTranscriptRecheckDisabled}
+              onClick={() =>
+                collectAllTranscripts.mutate({
+                  collectNew: false,
+                  recheckNoTranscript: true,
+                })
+              }
+              title={allRecheckNoTranscriptButtonTitle}
+            >
+              <RotateCw size={15} />
+              Recheck no transcript
+            </button>
+          </div>
         }
         title="Channels"
       />
@@ -406,6 +501,38 @@ function transcriptTaskButtonTitle({
   return "Collect transcripts for this channel's stored videos";
 }
 
+function retryFailedTaskButtonTitle({
+  lock,
+  taskFailedCount,
+}: {
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  taskFailedCount: number;
+}) {
+  if (taskFailedCount < 1) {
+    return "No failed transcript tasks to retry";
+  }
+  if (lock.isLocked) {
+    return transcriptCollectionActionTitle(lock);
+  }
+  return "Retry failed transcript tasks for this channel";
+}
+
+function recheckNoTranscriptTaskButtonTitle({
+  lock,
+  taskNoTranscriptCount,
+}: {
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  taskNoTranscriptCount: number;
+}) {
+  if (taskNoTranscriptCount < 1) {
+    return "No no-transcript tasks to recheck";
+  }
+  if (lock.isLocked) {
+    return transcriptCollectionActionTitle(lock);
+  }
+  return "Recheck videos that previously had no retrievable transcript";
+}
+
 function allTranscriptTaskButtonTitle({
   lock,
   totalStoredVideoCount,
@@ -420,6 +547,38 @@ function allTranscriptTaskButtonTitle({
     return transcriptCollectionActionTitle(lock);
   }
   return "Collect transcripts for all stored videos";
+}
+
+function allRetryFailedTaskButtonTitle({
+  lock,
+  totalFailedTaskCount,
+}: {
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  totalFailedTaskCount: number;
+}) {
+  if (totalFailedTaskCount < 1) {
+    return "No failed transcript tasks to retry";
+  }
+  if (lock.isLocked) {
+    return transcriptCollectionActionTitle(lock);
+  }
+  return "Retry failed transcript tasks for all channels";
+}
+
+function allRecheckNoTranscriptTaskButtonTitle({
+  lock,
+  totalNoTranscriptTaskCount,
+}: {
+  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  totalNoTranscriptTaskCount: number;
+}) {
+  if (totalNoTranscriptTaskCount < 1) {
+    return "No no-transcript tasks to recheck";
+  }
+  if (lock.isLocked) {
+    return transcriptCollectionActionTitle(lock);
+  }
+  return "Recheck all videos that previously had no retrievable transcript";
 }
 
 function transcriptTaskButtonLabel({

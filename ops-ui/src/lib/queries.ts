@@ -185,12 +185,22 @@ export function useCollectVideosMutation() {
 export function useCollectAllTranscriptsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ retryFailed = false }: { retryFailed?: boolean } = {}) =>
+    mutationFn: ({
+      collectNew = true,
+      retryFailed = false,
+      recheckNoTranscript = false,
+    }: {
+      collectNew?: boolean;
+      retryFailed?: boolean;
+      recheckNoTranscript?: boolean;
+    } = {}) =>
       requestJson<CollectAllTranscriptsResult>("/video-tasks/transcript-collect", {
         method: "POST",
         body: {
+          collectNew,
           preserveFormatting: false,
           retryFailed,
+          recheckNoTranscript,
         },
       }),
     onSuccess: async () => {
@@ -207,11 +217,15 @@ export function useCollectTranscriptsMutation() {
   return useMutation({
     mutationFn: ({
       channelId,
+      collectNew = true,
       retryFailed = false,
+      recheckNoTranscript = false,
       limit,
     }: {
       channelId: number;
+      collectNew?: boolean;
       retryFailed?: boolean;
+      recheckNoTranscript?: boolean;
       limit: number;
     }) =>
       requestJson<CollectChannelTranscriptsResult>(
@@ -219,9 +233,11 @@ export function useCollectTranscriptsMutation() {
         {
           method: "POST",
           body: {
+            collectNew,
             limit,
             preserveFormatting: false,
             retryFailed,
+            recheckNoTranscript,
           },
         },
       ),

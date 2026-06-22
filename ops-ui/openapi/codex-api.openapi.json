@@ -230,15 +230,22 @@
         "additionalProperties": false,
         "examples": [
           {
+            "collectNew": true,
             "languages": [
               "ko",
               "en"
             ],
             "preserveFormatting": false,
+            "recheckNoTranscript": false,
             "retryFailed": false
           }
         ],
         "properties": {
+          "collectNew": {
+            "default": true,
+            "title": "Collectnew",
+            "type": "boolean"
+          },
           "languages": {
             "anyOf": [
               {
@@ -257,6 +264,11 @@
           "preserveFormatting": {
             "default": false,
             "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "recheckNoTranscript": {
+            "default": false,
+            "title": "Rechecknotranscript",
             "type": "boolean"
           },
           "retryFailed": {
@@ -281,6 +293,10 @@
             "title": "Items",
             "type": "array"
           },
+          "noTranscriptCount": {
+            "title": "Notranscriptcount",
+            "type": "integer"
+          },
           "requestedCount": {
             "title": "Requestedcount",
             "type": "integer"
@@ -304,6 +320,7 @@
           "skippedCount",
           "failedCount",
           "timeoutCount",
+          "noTranscriptCount",
           "items"
         ],
         "title": "CollectAllTranscriptTasksResponse",
@@ -313,16 +330,23 @@
         "additionalProperties": false,
         "examples": [
           {
+            "collectNew": true,
             "languages": [
               "ko",
               "en"
             ],
             "limit": 5,
             "preserveFormatting": false,
+            "recheckNoTranscript": false,
             "retryFailed": false
           }
         ],
         "properties": {
+          "collectNew": {
+            "default": true,
+            "title": "Collectnew",
+            "type": "boolean"
+          },
           "languages": {
             "anyOf": [
               {
@@ -347,6 +371,11 @@
           "preserveFormatting": {
             "default": false,
             "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "recheckNoTranscript": {
+            "default": false,
+            "title": "Rechecknotranscript",
             "type": "boolean"
           },
           "retryFailed": {
@@ -375,6 +404,10 @@
             "title": "Items",
             "type": "array"
           },
+          "noTranscriptCount": {
+            "title": "Notranscriptcount",
+            "type": "integer"
+          },
           "requestedCount": {
             "title": "Requestedcount",
             "type": "integer"
@@ -399,6 +432,7 @@
           "skippedCount",
           "failedCount",
           "timeoutCount",
+          "noTranscriptCount",
           "items"
         ],
         "title": "CollectChannelTranscriptTasksResponse",
@@ -959,6 +993,10 @@
             "title": "Taskfailedcount",
             "type": "integer"
           },
+          "taskNoTranscriptCount": {
+            "title": "Tasknotranscriptcount",
+            "type": "integer"
+          },
           "taskRunningCount": {
             "title": "Taskrunningcount",
             "type": "integer"
@@ -1004,6 +1042,7 @@
           "uploadsPlaylistId",
           "videoCount",
           "transcriptSucceededCount",
+          "taskNoTranscriptCount",
           "taskFailedCount",
           "taskRunningCount",
           "latestVideoPublishedAt",
@@ -2904,6 +2943,7 @@
               "succeeded",
               "failed",
               "timed_out",
+              "no_transcript",
               "skipped"
             ],
             "title": "Status",
@@ -2925,8 +2965,15 @@
             "type": "integer"
           },
           "videoTaskId": {
-            "title": "Videotaskid",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
           },
           "youtubeVideoId": {
             "title": "Youtubevideoid",
@@ -3474,6 +3521,7 @@
               "succeeded",
               "failed",
               "timed_out",
+              "no_transcript",
               "skipped",
               "canceled"
             ],
@@ -3758,6 +3806,7 @@
                     "succeeded",
                     "failed",
                     "timed_out",
+                    "no_transcript",
                     "skipped",
                     "canceled"
                   ],

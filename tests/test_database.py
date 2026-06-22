@@ -402,6 +402,56 @@ def test_alembic_upgrade_creates_app_tables(
     ]
 
 
+def test_alembic_migrates_transcript_not_found_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "legacy-transcript-not-found.db"
+    database_url = f"sqlite:///{database_path.as_posix()}"
+    monkeypatch.setenv(
+        "CODEX_CLI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{database_path.as_posix()}",
+    )
+    config = _alembic_config()
+    command.upgrade(config, "20260619_0011")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO streamers (id, name) VALUES (1, 'Creator')"))
+            connection.execute(
+                text(
+                    "INSERT INTO channels "
+                    "(id, streamer_id, handle, name, youtube_channel_id, uploads_playlist_id) "
+                    "VALUES (1, 1, '@creator', 'Creator', 'UC-test', 'UU-test')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO videos "
+                    "(id, channel_id, youtube_video_id, title, description, published_at) "
+                    "VALUES (1, 1, 'abc123DEF45', 'Video', '', "
+                    "'2026-06-16 00:00:00')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO video_tasks "
+                    "(id, video_id, task_name, task_version, input_hash, status, "
+                    "timeout_seconds, error_type, error_message) "
+                    "VALUES (1, 1, 'transcript_collect', 'v1', :input_hash, 'failed', "
+                    "600, 'YouTubeTranscriptNotFound', 'No transcript.')"
+                ),
+                {"input_hash": "a" * 64},
+            )
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            status = connection.scalar(text("SELECT status FROM video_tasks WHERE id = 1"))
+    finally:
+        engine.dispose()
+
+    assert status == "no_transcript"
+
+
 async def _query_database(database_url: str) -> tuple[int | None, list[str]]:
     engine = create_database_engine(database_url)
     try:

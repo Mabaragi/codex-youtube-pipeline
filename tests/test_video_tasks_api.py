@@ -284,6 +284,22 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             completed_at=NOW,
         )
 
+    async def mark_task_no_transcript(
+        self,
+        task_id: int,
+        *,
+        error_message: str,
+        output_json: JsonObject | None = None,
+    ) -> VideoTaskRecord:
+        return self._update(
+            task_id,
+            status="no_transcript",
+            output_json=output_json,
+            error_type="YouTubeTranscriptNotFound",
+            error_message=error_message,
+            completed_at=NOW,
+        )
+
     def _find(
         self,
         video_id: int,
@@ -618,6 +634,7 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
     response = asyncio.run(_collect(fakes))
 
     assert response["requestedCount"] == 1
+    assert response["noTranscriptCount"] == 0
     assert response["succeededCount"] == 1
     assert response["items"][0]["status"] == "succeeded"
     assert response["items"][0]["reason"] == "collected"
@@ -746,8 +763,8 @@ def test_channel_transcript_collect_skips_running_and_failed_until_retry_request
     fakes.video_tasks.tasks[running.id] = replace(
         running,
         status="failed",
-        error_type="YouTubeTranscriptNotFound",
-        error_message="No transcript.",
+        error_type="UpstreamError",
+        error_message="failed",
     )
     skipped_failed = asyncio.run(_collect(fakes))
     retried = asyncio.run(_collect(fakes, json={"retryFailed": True}))
@@ -756,6 +773,38 @@ def test_channel_transcript_collect_skips_running_and_failed_until_retry_request
     assert skipped_failed["items"][0]["reason"] == "previously_failed"
     assert retried["items"][0]["status"] == "succeeded"
     assert fakes.transcript_client.requests
+
+
+def test_channel_transcript_collect_skips_no_transcript_until_recheck_requested() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    _seed_task(fakes.video_tasks, video_id=1, status="no_transcript")
+
+    skipped = asyncio.run(_collect(fakes))
+    rechecked = asyncio.run(_collect(fakes, json={"recheckNoTranscript": True}))
+
+    assert skipped["items"][0]["status"] == "skipped"
+    assert skipped["items"][0]["reason"] == "previously_no_transcript"
+    assert rechecked["items"][0]["status"] == "succeeded"
+    assert fakes.transcript_client.requests[0].video_id == YOUTUBE_VIDEO_ID
+
+
+def test_transcript_collect_without_collect_new_does_not_create_missing_task() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+
+    response = asyncio.run(
+        _collect(fakes, json={"collectNew": False, "retryFailed": True})
+    )
+
+    assert response["requestedCount"] == 1
+    assert response["skippedCount"] == 1
+    assert response["items"][0]["videoTaskId"] is None
+    assert response["items"][0]["reason"] == "no_existing_task"
+    assert fakes.video_tasks.tasks == {}
+    assert fakes.transcript_client.requests == []
 
 
 def test_channel_transcript_collect_rejects_when_batch_is_running() -> None:
@@ -770,7 +819,7 @@ def test_channel_transcript_collect_rejects_when_batch_is_running() -> None:
     assert fakes.transcript_client.requests == []
 
 
-def test_channel_transcript_collect_marks_item_failed_and_continues() -> None:
+def test_channel_transcript_collect_marks_no_transcript_and_continues() -> None:
     fakes = _fakes()
     _seed_channel(fakes.channels)
     _seed_video(fakes.videos, video_id=1, youtube_video_id=YOUTUBE_VIDEO_ID)
@@ -780,15 +829,19 @@ def test_channel_transcript_collect_marks_item_failed_and_continues() -> None:
     response = asyncio.run(_collect(fakes, json={"limit": 2}))
 
     assert response["requestedCount"] == 2
-    assert response["failedCount"] == 2
-    assert {item["status"] for item in response["items"]} == {"failed"}
-    assert all(task.status == "failed" for task in fakes.video_tasks.tasks.values())
+    assert response["failedCount"] == 0
+    assert response["noTranscriptCount"] == 2
+    assert {item["status"] for item in response["items"]} == {"no_transcript"}
+    assert all(
+        task.status == "no_transcript" for task in fakes.video_tasks.tasks.values()
+    )
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert all(
-        job.status == "failed"
+        job.status == "succeeded"
         for job in fakes.pipeline_jobs.jobs.values()
         if job.parent_job_id == 1
     )
+    assert fakes.events.events[-2].event_type == "transcript_collect.task_no_transcript"
 
 
 def test_channel_transcript_collect_marks_timeout() -> None:
@@ -937,11 +990,11 @@ def test_transcript_collect_retry_reports_failed_job_status() -> None:
 
     response = asyncio.run(_retry(fakes, job_id=1))
 
-    assert response["status"] == "failed"
-    assert response["result"]["status"] == "failed"
-    assert fakes.pipeline_jobs.attempts[2].status == "failed"
-    assert fakes.video_tasks.tasks[task.id].status == "failed"
-    assert fakes.events.events[-1].event_type == "pipeline_retry.failed"
+    assert response["status"] == "succeeded"
+    assert response["result"]["status"] == "no_transcript"
+    assert fakes.pipeline_jobs.attempts[2].status == "succeeded"
+    assert fakes.video_tasks.tasks[task.id].status == "no_transcript"
+    assert fakes.events.events[-1].event_type == "pipeline_retry.succeeded"
 
 
 async def _collect(

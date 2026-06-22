@@ -11,6 +11,7 @@ VideoTaskStatus = Literal[
     "succeeded",
     "failed",
     "timed_out",
+    "no_transcript",
     "skipped",
     "canceled",
 ]
@@ -124,3 +125,12 @@ class VideoTaskRepositoryPort(Protocol):
         output_json: JsonObject | None = None,
     ) -> VideoTaskRecord:
         """Mark a task as timed out."""
+
+    async def mark_task_no_transcript(
+        self,
+        task_id: int,
+        *,
+        error_message: str,
+        output_json: JsonObject | None = None,
+    ) -> VideoTaskRecord:
+        """Mark a task as completed with no retrievable transcript."""
