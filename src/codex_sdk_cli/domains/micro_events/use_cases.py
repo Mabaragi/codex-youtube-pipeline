@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
 
@@ -302,6 +303,9 @@ event는 한 문장으로 구체적으로 작성한다.
 """
 
 
+MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT = 1
+
+
 @dataclass(frozen=True, slots=True)
 class _CueWindow:
     window_index: int
@@ -318,6 +322,17 @@ class _ExtractionExecutionInput:
     window_minutes: int
     overlap_minutes: int
     actor_type: OperationEventActorType
+
+
+class _MicroEventWindowValidationFailure(Exception):
+    def __init__(
+        self,
+        error: MicroEventExtractionOutputInvalid,
+        failed_window: MicroEventExtractionWindowCreate,
+    ) -> None:
+        super().__init__(str(error))
+        self.error = error
+        self.failed_window = failed_window
 
 
 class ExtractVideoMicroEventsUseCase:
@@ -439,7 +454,7 @@ class ExtractVideoMicroEventsUseCase:
             )
         if await self._video_tasks.count_running(
             task_name=MICRO_EVENT_EXTRACT_TASK_NAME
-        ) >= self._concurrency_limit:
+        ) >= MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT:
             raise VideoTaskRetryNotAllowed("Micro-event extraction is already running.")
 
         video, metadata, cues = await self._load_inputs(_required_int(job.input_json, "videoId"))
@@ -549,7 +564,7 @@ class ExtractVideoMicroEventsUseCase:
         running_count = await self._video_tasks.count_running(
             task_name=MICRO_EVENT_EXTRACT_TASK_NAME
         )
-        if running_count >= self._concurrency_limit:
+        if running_count >= MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT:
             return _extract_response(
                 execution_input.video,
                 task,
@@ -741,36 +756,91 @@ class ExtractVideoMicroEventsUseCase:
         attempt: PipelineJobAttemptRecord,
         execution_input: _ExtractionExecutionInput,
     ) -> list[MicroEventExtractionWindowCreate]:
-        created_windows: list[MicroEventExtractionWindowCreate] = []
         cue_windows = _cue_windows(
             execution_input.cues,
             window_minutes=execution_input.window_minutes,
             overlap_minutes=execution_input.overlap_minutes,
         )
+        if not cue_windows:
+            return []
+        queue: asyncio.Queue[_CueWindow] = asyncio.Queue()
         for cue_window in cue_windows:
-            prompt = _window_prompt(execution_input, cue_window)
-            result = await self._extractor.extract_window(
-                MicroEventExtractionRequest(
-                    prompt=prompt,
-                    video_id=execution_input.video.id,
-                    video_task_id=task.id,
-                    job_id=job.id,
-                    job_attempt_id=attempt.id,
-                    transcript_id=execution_input.metadata.id,
-                    window_index=cue_window.window_index,
-                )
+            queue.put_nowait(cue_window)
+        results: dict[int, MicroEventExtractionWindowCreate] = {}
+        worker_count = min(self._concurrency_limit, len(cue_windows))
+
+        async def worker() -> None:
+            while True:
+                try:
+                    cue_window = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+                try:
+                    results[cue_window.window_index] = await self._extract_window(
+                        task=task,
+                        job=job,
+                        attempt=attempt,
+                        execution_input=execution_input,
+                        cue_window=cue_window,
+                    )
+                finally:
+                    queue.task_done()
+
+        worker_tasks = [asyncio.create_task(worker()) for _ in range(worker_count)]
+        try:
+            await asyncio.gather(*worker_tasks)
+        except _MicroEventWindowValidationFailure as exc:
+            for worker_task in worker_tasks:
+                if not worker_task.done():
+                    worker_task.cancel()
+            await asyncio.gather(*worker_tasks, return_exceptions=True)
+            await self._micro_events.replace_extraction(
+                task.id,
+                _sorted_windows([*results.values(), exc.failed_window]),
             )
-            try:
-                window = _validated_window(
-                    task=task,
-                    job=job,
-                    attempt=attempt,
-                    execution_input=execution_input,
-                    cue_window=cue_window,
-                    result=result,
-                )
-            except MicroEventExtractionOutputInvalid as exc:
-                failed_window = _failed_window(
+            raise exc.error from exc
+        except Exception:
+            for worker_task in worker_tasks:
+                if not worker_task.done():
+                    worker_task.cancel()
+            await asyncio.gather(*worker_tasks, return_exceptions=True)
+            raise
+        return _sorted_windows(results.values())
+
+    async def _extract_window(
+        self,
+        *,
+        task: VideoTaskRecord,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+        execution_input: _ExtractionExecutionInput,
+        cue_window: _CueWindow,
+    ) -> MicroEventExtractionWindowCreate:
+        prompt = _window_prompt(execution_input, cue_window)
+        result = await self._extractor.extract_window(
+            MicroEventExtractionRequest(
+                prompt=prompt,
+                video_id=execution_input.video.id,
+                video_task_id=task.id,
+                job_id=job.id,
+                job_attempt_id=attempt.id,
+                transcript_id=execution_input.metadata.id,
+                window_index=cue_window.window_index,
+            )
+        )
+        try:
+            return _validated_window(
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                result=result,
+            )
+        except MicroEventExtractionOutputInvalid as exc:
+            raise _MicroEventWindowValidationFailure(
+                exc,
+                _failed_window(
                     task=task,
                     job=job,
                     attempt=attempt,
@@ -778,14 +848,8 @@ class ExtractVideoMicroEventsUseCase:
                     cue_window=cue_window,
                     result=result,
                     validation_error=str(exc),
-                )
-                await self._micro_events.replace_extraction(
-                    task.id,
-                    [*created_windows, failed_window],
-                )
-                raise
-            created_windows.append(window)
-        return created_windows
+                ),
+            ) from exc
 
     async def _record_task_event(
         self,
@@ -1098,6 +1162,12 @@ def _failed_window(
         source_job_id=job.id,
         source_job_attempt_id=attempt.id,
     )
+
+
+def _sorted_windows(
+    windows: Iterable[MicroEventExtractionWindowCreate],
+) -> list[MicroEventExtractionWindowCreate]:
+    return sorted(windows, key=lambda window: window.window_index)
 
 
 def _parse_extractor_output(raw_response: str) -> JsonObject:

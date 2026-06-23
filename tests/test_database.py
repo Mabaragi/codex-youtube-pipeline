@@ -68,6 +68,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
 
     assert blank_settings.youtube_data_api_key is None
     assert blank_settings.youtube_data_api_key_value() is None
+    assert blank_settings.micro_event_extract_concurrency_limit == 3
 
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", "AIza-test")
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS", "3.5")

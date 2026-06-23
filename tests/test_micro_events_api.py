@@ -689,8 +689,15 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
 class FakeMicroEventExtractor(MicroEventExtractorPort):
     def __init__(self) -> None:
         self.responses: list[str] = []
+        self.responses_by_window: dict[int, str] = {}
+        self.delays_by_window: dict[int, float] = {}
+        self.failures_by_window: dict[int, Exception] = {}
         self.prompts: list[str] = []
         self.requests: list[MicroEventExtractionRequest] = []
+        self.active_count = 0
+        self.max_active_count = 0
+        self.started_window_indices: list[int | None] = []
+        self.completed_window_indices: list[int | None] = []
 
     async def extract_window(
         self,
@@ -698,13 +705,30 @@ class FakeMicroEventExtractor(MicroEventExtractorPort):
     ) -> MicroEventExtractionResult:
         self.requests.append(request)
         self.prompts.append(request.prompt)
-        response = self.responses.pop(0) if self.responses else _extractor_json()
-        return MicroEventExtractionResult(
-            thread_id=f"thread-{len(self.prompts)}",
-            turn_id=f"turn-{len(self.prompts)}",
-            status="completed",
-            final_response=response,
-        )
+        self.started_window_indices.append(request.window_index)
+        self.active_count += 1
+        self.max_active_count = max(self.max_active_count, self.active_count)
+        try:
+            if request.window_index in self.delays_by_window:
+                await asyncio.sleep(self.delays_by_window[request.window_index])
+            if request.window_index in self.failures_by_window:
+                raise self.failures_by_window[request.window_index]
+            response = (
+                self.responses_by_window[request.window_index]
+                if request.window_index in self.responses_by_window
+                else self.responses.pop(0)
+                if self.responses
+                else _extractor_json()
+            )
+            self.completed_window_indices.append(request.window_index)
+            return MicroEventExtractionResult(
+                thread_id=f"thread-{request.window_index}",
+                turn_id=f"turn-{request.window_index}",
+                status="completed",
+                final_response=response,
+            )
+        finally:
+            self.active_count -= 1
 
 
 class FakeOperationEventRecorder(OperationEventRecorderPort):
@@ -1036,6 +1060,89 @@ def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap
 
     assert response["windowCount"] == 2
     assert len(fakes.extractor.prompts) == 2
+
+
+def test_micro_event_extract_runs_windows_with_bounded_worker_pool() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(
+        fakes,
+        cue_starts_ms=[0, 31 * 60_000, 62 * 60_000, 93 * 60_000],
+    )
+    fakes.extractor.delays_by_window = {
+        1: 0.05,
+        2: 0.01,
+        3: 0.03,
+        4: 0.01,
+    }
+    fakes.extractor.responses_by_window = {
+        index: _extractor_json(f"tr1-c{index:06d}", f"tr1-c{index:06d}")
+        for index in range(1, 5)
+    }
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert response["windowCount"] == 4
+    assert fakes.extractor.max_active_count == 3
+    assert fakes.extractor.completed_window_indices != [1, 2, 3, 4]
+    assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3, 4]
+
+
+def test_micro_event_extract_validation_failure_fails_entire_parallel_task() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(
+        fakes,
+        cue_starts_ms=[0, 31 * 60_000, 62 * 60_000, 93 * 60_000],
+    )
+    fakes.extractor.delays_by_window = {1: 0.05, 3: 0.05, 4: 0.05}
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000001"),
+        2: "not json",
+        3: _extractor_json("tr1-c000003", "tr1-c000003"),
+        4: _extractor_json("tr1-c000004", "tr1-c000004"),
+    }
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "failed"
+    assert response["errorType"] == "MicroEventExtractionOutputInvalid"
+    assert fakes.pipeline_jobs.jobs[1].status == "failed"
+    assert fakes.video_tasks.tasks[2].status == "failed"
+    assert [window["windowIndex"] for window in detail["windows"]] == [2]
+    assert detail["windows"][0]["status"] == "failed"
+    assert detail["windows"][0]["validationError"] == "Extractor returned invalid JSON."
+
+
+def test_micro_event_extract_runtime_failure_fails_entire_parallel_task() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    fakes.extractor.delays_by_window = {1: 0.05, 3: 0.05}
+    fakes.extractor.failures_by_window = {2: RuntimeError("codex failed")}
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000001"),
+        3: _extractor_json("tr1-c000003", "tr1-c000003"),
+    }
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "failed"
+    assert response["errorType"] == "RuntimeError"
+    assert response["errorMessage"] == "codex failed"
+    assert fakes.pipeline_jobs.jobs[1].status == "failed"
+    assert fakes.video_tasks.tasks[2].status == "failed"
+    assert detail["windows"] == []
 
 
 def test_micro_event_extract_openapi_paths_are_registered() -> None:

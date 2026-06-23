@@ -30,7 +30,7 @@ class CliSettings(BaseSettings):
     transcript_cue_generate_timeout_seconds: int = 600
     transcript_cue_generate_concurrency_limit: int = 1
     micro_event_extract_timeout_seconds: int = 3600
-    micro_event_extract_concurrency_limit: int = 1
+    micro_event_extract_concurrency_limit: int = 3
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
