@@ -247,6 +247,8 @@ event는 한 문장으로 구체적으로 작성한다.
 각 event의 핵심 내용을 직접 뒷받침하는 cue_id를 2~6개 선택한다.
 
 - 반드시 해당 event의 start_cue_id와 end_cue_id 사이에 있어야 한다.
+- 다음 event나 이전 event에 속한 cue를 evidence로 쓰지 않는다.
+- 필요하면 event 범위를 조정하거나 evidence에서 제외한다.
 - 단순히 시작 cue와 끝 cue만 넣지 않는다.
 - 사건의 핵심 행동, 설명 또는 결과를 입증하는 cue를 선택한다.
 
@@ -969,7 +971,10 @@ def _validated_window(
     event_creates: list[MicroEventCandidateCreate] = []
     ranges: list[tuple[str, int, int]] = []
     for index, event in enumerate(output.events, start=1):
-        start_position, end_position = _validate_event_cue_refs(event, cue_id_to_position)
+        start_position, end_position, evidence_cue_ids = _validate_event_cue_refs(
+            event,
+            cue_id_to_position,
+        )
         ranges.append(("event", start_position, end_position))
         event_creates.append(
             MicroEventCandidateCreate(
@@ -978,7 +983,7 @@ def _validated_window(
                 event=event.event,
                 start_cue_id=event.start_cue_id,
                 end_cue_id=event.end_cue_id,
-                evidence_cue_ids=event.evidence_cue_ids,
+                evidence_cue_ids=evidence_cue_ids,
                 boundary_before=event.relation_to_previous in {"NEW_TOPIC", "RETURN"},
                 boundary_after=not event.continues_to_next,
                 confidence=_support_level_confidence(event.support_level),
@@ -1102,19 +1107,22 @@ def _validate_extractor_output(parsed: JsonObject) -> _ExtractorOutput:
 def _validate_event_cue_refs(
     event: _MicroEventOutput,
     cue_id_to_position: dict[str, int],
-) -> tuple[int, int]:
+) -> tuple[int, int, list[str]]:
     start_position, end_position = _validate_range_cue_refs(
         event.start_cue_id,
         event.end_cue_id,
         cue_id_to_position,
     )
+    valid_evidence_cue_ids: list[str] = []
     for cue_id in event.evidence_cue_ids:
         _validate_cue_id(cue_id, cue_id_to_position)
-        if not start_position <= cue_id_to_position[cue_id] <= end_position:
-            raise MicroEventExtractionOutputInvalid(
-                "evidence_cue_ids must be inside the event cue range."
-            )
-    return start_position, end_position
+        if start_position <= cue_id_to_position[cue_id] <= end_position:
+            valid_evidence_cue_ids.append(cue_id)
+    if not valid_evidence_cue_ids:
+        raise MicroEventExtractionOutputInvalid(
+            "event must have at least one evidence_cue_id inside its cue range."
+        )
+    return start_position, end_position, valid_evidence_cue_ids
 
 
 def _validate_range_cue_refs(

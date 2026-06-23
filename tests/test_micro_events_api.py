@@ -879,6 +879,47 @@ def test_micro_event_extract_accepts_excluded_ranges_for_owned_coverage() -> Non
     assert latest["windows"][0]["excludedRanges"][0]["reason"] == "LOW_INFORMATION"
 
 
+def test_micro_event_extract_filters_event_evidence_outside_event_range() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "스트리머가 방송 주제를 설명한다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001", "tr1-c000002"],
+                        "support_level": "DIRECT",
+                    }
+                ],
+                "excluded_ranges": [
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "reason": "LOW_INFORMATION",
+                    }
+                ],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert detail["windows"][0]["microEvents"][0]["evidenceCueIds"] == [
+        "tr1-c000001"
+    ]
+
+
 def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap() -> None:
     fakes = _seed_ready_fakes()
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000])
