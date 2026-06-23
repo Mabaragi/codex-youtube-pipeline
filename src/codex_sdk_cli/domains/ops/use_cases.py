@@ -426,6 +426,7 @@ def _video_task_response(record: OpsVideoTaskRecord) -> OpsVideoTaskResponse:
         jobId=record.job_id,
         jobAttemptId=record.job_attempt_id,
         outputTranscriptId=record.output_transcript_id,
+        outputJson=record.output_json,
         errorType=record.error_type,
         errorMessage=record.error_message,
         startedAt=record.started_at,

@@ -114,6 +114,8 @@ async def _exercise_repository(database_url: str) -> None:
             )
             listed = await videos.list_videos(channel_id=channel.id)
             all_listed = await videos.list_all_videos()
+            found_by_youtube_id = await videos.get_video_by_youtube_video_id("video-new")
+            missing_by_youtube_id = await videos.get_video_by_youtube_video_id("missing")
             existing = await videos.find_existing_youtube_video_id(
                 channel_id=channel.id,
                 youtube_video_ids=("missing", "video-new", "video-old"),
@@ -130,6 +132,9 @@ async def _exercise_repository(database_url: str) -> None:
                 "video-new",
                 "video-old",
             ]
+            assert found_by_youtube_id is not None
+            assert found_by_youtube_id.youtube_video_id == "video-new"
+            assert missing_by_youtube_id is None
             assert existing == "video-new"
 
             with pytest.raises(VideoAlreadyExists):

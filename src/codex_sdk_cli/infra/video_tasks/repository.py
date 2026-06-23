@@ -32,7 +32,9 @@ from codex_sdk_cli.domains.video_tasks.ports import (
     VideoTaskRecord,
     VideoTaskRepositoryPort,
     VideoTaskStatus,
+    VideoTaskWithVideoRecord,
 )
+from codex_sdk_cli.domains.videos.ports import VideoRecord
 from codex_sdk_cli.infra.database.base import Base
 
 
@@ -195,6 +197,50 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
                     youtube_video_id=youtube_video_id,
                 )
                 for task, youtube_video_id in rows
+            ]
+        except SQLAlchemyError as exc:
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
+    async def list_latest_succeeded_tasks(
+        self,
+        *,
+        task_name: str,
+        channel_id: int | None,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        from codex_sdk_cli.infra.videos.repository import VideoModel
+
+        latest_task = (
+            select(
+                VideoTaskModel.video_id.label("video_id"),
+                func.max(VideoTaskModel.id).label("task_id"),
+            )
+            .where(
+                VideoTaskModel.task_name == task_name,
+                VideoTaskModel.status == "succeeded",
+                VideoTaskModel.output_transcript_id.is_not(None),
+            )
+            .group_by(VideoTaskModel.video_id)
+            .subquery()
+        )
+        statement = (
+            select(VideoTaskModel, VideoModel)
+            .join(latest_task, latest_task.c.task_id == VideoTaskModel.id)
+            .join(VideoModel, VideoTaskModel.video_id == VideoModel.id)
+            .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
+            .limit(limit)
+        )
+        if channel_id is not None:
+            statement = statement.where(VideoModel.channel_id == channel_id)
+        try:
+            rows = (await self._session.execute(statement)).all()
+            return [
+                VideoTaskWithVideoRecord(
+                    task=_task_record(task),
+                    video=_video_record(video),
+                )
+                for task, video in rows
             ]
         except SQLAlchemyError as exc:
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
@@ -405,3 +451,26 @@ def _task_status(value: str) -> VideoTaskStatus:
     if value == "canceled":
         return "canceled"
     return "running"
+
+
+def _video_record(model: object) -> VideoRecord:
+    from codex_sdk_cli.infra.videos.repository import VideoModel
+
+    video = model
+    if not isinstance(video, VideoModel):
+        raise TypeError("Expected VideoModel.")
+    return VideoRecord(
+        id=video.id,
+        channel_id=video.channel_id,
+        youtube_video_id=video.youtube_video_id,
+        title=video.title,
+        description=video.description,
+        published_at=video.published_at,
+        duration=video.duration,
+        thumbnail_url=video.thumbnail_url,
+        source_listing_api_call_id=video.source_listing_api_call_id,
+        source_details_api_call_id=video.source_details_api_call_id,
+        source_job_id=video.source_job_id,
+        created_at=video.created_at,
+        updated_at=video.updated_at,
+    )

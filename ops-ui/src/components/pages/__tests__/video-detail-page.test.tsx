@@ -1,14 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { VideoDetailPage } from "../video-detail-page";
-import type { OpsVideoDetail, TranscriptContent } from "@/lib/types";
+import type { OpsVideoDetail, TranscriptContent, TranscriptCueList } from "@/lib/types";
 
 const queryMocks = vi.hoisted(() => {
   const state = {
     content: undefined as TranscriptContent | undefined,
+    cues: undefined as TranscriptCueList | undefined,
   };
   return {
     contentState: state,
+    cueState: state,
     detail: {
       data: undefined as OpsVideoDetail | undefined,
       isLoading: false,
@@ -30,6 +32,18 @@ const queryMocks = vi.hoisted(() => {
           error: Error | null;
         },
     ),
+    transcriptCues: vi.fn(
+      (_transcriptId: number, enabled: boolean) =>
+        ({
+          data: enabled ? state.cues : undefined,
+          isLoading: false,
+          error: null,
+        }) as {
+          data: TranscriptCueList | undefined;
+          isLoading: boolean;
+          error: Error | null;
+        },
+    ),
   };
 });
 
@@ -39,6 +53,8 @@ vi.mock("@/lib/queries", () => ({
   useOpsVideoDetail: () => queryMocks.detail,
   useTranscriptContent: (transcriptId: number, enabled: boolean) =>
     queryMocks.transcriptContent(transcriptId, enabled),
+  useTranscriptCues: (transcriptId: number, enabled: boolean) =>
+    queryMocks.transcriptCues(transcriptId, enabled),
 }));
 
 const videoDetail: OpsVideoDetail = {
@@ -63,6 +79,28 @@ const videoDetail: OpsVideoDetail = {
   transcriptId: 11,
   tasks: [
     {
+      videoTaskId: 10,
+      videoId: 42,
+      channelId: 7,
+      channelName: "Channel",
+      youtubeVideoId: "abc123DEF45",
+      taskName: "transcript_cue_generate",
+      taskVersion: "v1",
+      status: "succeeded",
+      workerId: "manual-api",
+      timeoutSeconds: 600,
+      jobId: 14,
+      jobAttemptId: 15,
+      outputTranscriptId: 11,
+      outputJson: { cueCount: 2 },
+      errorType: null,
+      errorMessage: null,
+      startedAt: "2026-06-18T00:56:00Z",
+      completedAt: "2026-06-18T00:57:00Z",
+      createdAt: "2026-06-18T00:56:00Z",
+      updatedAt: "2026-06-18T00:57:00Z",
+    },
+    {
       videoTaskId: 9,
       videoId: 42,
       channelId: 7,
@@ -76,6 +114,7 @@ const videoDetail: OpsVideoDetail = {
       jobId: 12,
       jobAttemptId: 13,
       outputTranscriptId: 11,
+      outputJson: null,
       errorType: null,
       errorMessage: null,
       startedAt: "2026-06-18T00:50:00Z",
@@ -125,6 +164,43 @@ const transcriptContent: TranscriptContent = {
   },
 };
 
+const transcriptCues: TranscriptCueList = {
+  transcriptId: 11,
+  cueCount: 2,
+  items: [
+    {
+      id: 101,
+      transcriptId: 11,
+      cueId: "tr11-c000001",
+      cueIndex: 1,
+      sourceSegmentIndex: 0,
+      startMs: 0,
+      endMs: 1000,
+      durationMs: 1000,
+      text: "first line",
+      sourceJobId: 14,
+      sourceJobAttemptId: 15,
+      createdAt: "2026-06-18T00:57:00Z",
+      updatedAt: "2026-06-18T00:57:00Z",
+    },
+    {
+      id: 102,
+      transcriptId: 11,
+      cueId: "tr11-c000002",
+      cueIndex: 2,
+      sourceSegmentIndex: 1,
+      startMs: 61_250,
+      endMs: 63_750,
+      durationMs: 2500,
+      text: "second line",
+      sourceJobId: 14,
+      sourceJobAttemptId: 15,
+      createdAt: "2026-06-18T00:57:00Z",
+      updatedAt: "2026-06-18T00:57:00Z",
+    },
+  ],
+};
+
 let downloadedBlob: Blob | null = null;
 let downloadedFileName = "";
 let anchorClick: ReturnType<typeof vi.fn>;
@@ -159,8 +235,10 @@ describe("VideoDetailPage", () => {
     queryMocks.detail.isLoading = false;
     queryMocks.detail.error = null;
     queryMocks.contentState.content = transcriptContent;
+    queryMocks.cueState.cues = transcriptCues;
     queryMocks.fetchTranscriptContent.mockClear();
     queryMocks.transcriptContent.mockClear();
+    queryMocks.transcriptCues.mockClear();
     downloadedBlob = null;
     downloadedFileName = "";
     anchorClick.mockClear();
@@ -172,6 +250,9 @@ describe("VideoDetailPage", () => {
     expect(screen.getByText("Stored video")).toBeTruthy();
     expect(screen.getByText("Stored video description")).toBeTruthy();
     expect(screen.getAllByText("transcript_collect").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("transcript_cue_generate").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("#10").length).toBeGreaterThan(0);
+    expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("Korean · ko")).toBeTruthy();
   });
 
@@ -194,6 +275,26 @@ describe("VideoDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Hide transcript/i }));
 
     expect(screen.queryByText(/first line/)).toBeNull();
+  });
+
+  it("loads transcript cues only after cues are shown", () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    expect(screen.queryByText("tr11-c000001")).toBeNull();
+    expect(queryMocks.transcriptCues).toHaveBeenLastCalledWith(11, false);
+
+    fireEvent.click(screen.getByRole("button", { name: /Show cues/i }));
+
+    expect(screen.getByText("Cue")).toBeTruthy();
+    expect(screen.getByText("tr11-c000001")).toBeTruthy();
+    expect(screen.getByText("00:00-00:01")).toBeTruthy();
+    expect(screen.getByText("seg #0")).toBeTruthy();
+    expect(screen.getByText("2 cues")).toBeTruthy();
+    expect(queryMocks.transcriptCues).toHaveBeenLastCalledWith(11, true);
+
+    fireEvent.click(screen.getByRole("button", { name: /Hide cues/i }));
+
+    expect(screen.queryByText("tr11-c000001")).toBeNull();
   });
 
   it("downloads transcript content as SRT before the transcript is shown", async () => {

@@ -1,0 +1,11 @@
+from __future__ import annotations
+
+TRANSCRIPT_COLLECT_STEP = "transcript_collect"
+TRANSCRIPT_COLLECT_BATCH_STEP = "transcript_collect_batch"
+TRANSCRIPT_COLLECT_TASK_NAME = "transcript_collect"
+TRANSCRIPT_COLLECT_TASK_VERSION = "v1"
+TRANSCRIPT_COLLECT_WORKER_ID = "manual-api"
+
+TRANSCRIPT_CUE_GENERATE_TASK_NAME = "transcript_cue_generate"
+TRANSCRIPT_CUE_GENERATE_TASK_VERSION = "v1"
+TRANSCRIPT_CUE_GENERATE_WORKER_ID = "manual-api"

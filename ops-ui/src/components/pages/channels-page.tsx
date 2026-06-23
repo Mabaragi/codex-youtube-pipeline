@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Captions, Download, Plus, RotateCw, Search } from "lucide-react";
+import { Captions, Download, ListChecks, Plus, RotateCw, Search } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
@@ -12,6 +12,8 @@ import {
   useCollectTranscriptsMutation,
   useCollectVideosMutation,
   useCreateStreamerMutation,
+  useGenerateAllTranscriptCuesMutation,
+  useGenerateTranscriptCuesMutation,
   useOpsChannels,
   useResolveStreamerChannelMutation,
   useRunningTranscriptBatches,
@@ -35,6 +37,8 @@ export function ChannelsPage() {
   const collectVideos = useCollectVideosMutation();
   const collectAllTranscripts = useCollectAllTranscriptsMutation();
   const collectTranscripts = useCollectTranscriptsMutation();
+  const generateAllTranscriptCues = useGenerateAllTranscriptCuesMutation();
+  const generateTranscriptCues = useGenerateTranscriptCuesMutation();
   const createStreamer = useCreateStreamerMutation();
   const resolveChannel = useResolveStreamerChannelMutation();
   const [newStreamerName, setNewStreamerName] = useState("");
@@ -66,8 +70,14 @@ export function ChannelsPage() {
     (total, item) => total + item.taskNoTranscriptCount,
     0,
   );
+  const totalTranscriptSucceededCount = (data?.items ?? []).reduce(
+    (total, item) => total + item.transcriptSucceededCount,
+    0,
+  );
   const isAnyTranscriptMutationPending =
     collectTranscripts.isPending || collectAllTranscripts.isPending;
+  const isAnyCueMutationPending =
+    generateTranscriptCues.isPending || generateAllTranscriptCues.isPending;
   const transcriptLock = buildTranscriptCollectionLock({
     runningTasks: runningTranscriptTasks.data,
     runningBatches: runningTranscriptBatches.data,
@@ -84,6 +94,8 @@ export function ChannelsPage() {
     isTranscriptCollectionDisabled || totalFailedTaskCount < 1;
   const isAllNoTranscriptRecheckDisabled =
     isTranscriptCollectionDisabled || totalNoTranscriptTaskCount < 1;
+  const isAllCueGenerateDisabled =
+    isAnyCueMutationPending || totalTranscriptSucceededCount < 1;
   const transcriptButtonTitle = transcriptTaskButtonTitle({
     lock: transcriptLock,
   });
@@ -98,6 +110,10 @@ export function ChannelsPage() {
   const allRecheckNoTranscriptButtonTitle = allRecheckNoTranscriptTaskButtonTitle({
     lock: transcriptLock,
     totalNoTranscriptTaskCount,
+  });
+  const allCueButtonTitle = allCueTaskButtonTitle({
+    totalTranscriptSucceededCount,
+    isPending: isAnyCueMutationPending,
   });
   const transcriptButtonLabel = transcriptTaskButtonLabel({
     lock: transcriptLock,
@@ -269,6 +285,26 @@ export function ChannelsPage() {
             <RotateCw size={15} />
             Recheck no transcript
           </button>
+          <button
+            className="ops-button"
+            disabled={
+              generateTranscriptCues.isPending ||
+              row.original.transcriptSucceededCount < 1
+            }
+            onClick={() =>
+              generateTranscriptCues.mutate({
+                channelId: row.original.channelId,
+                limit: Math.min(Math.max(row.original.transcriptSucceededCount, 1), 100),
+              })
+            }
+            title={cueTaskButtonTitle({
+              transcriptSucceededCount: row.original.transcriptSucceededCount,
+              isPending: generateTranscriptCues.isPending,
+            })}
+          >
+            <ListChecks size={15} />
+            Cues
+          </button>
         </div>
       ),
     },
@@ -287,6 +323,19 @@ export function ChannelsPage() {
             >
               <Captions size={15} />
               All transcripts
+            </button>
+            <button
+              className="ops-button"
+              disabled={isAllCueGenerateDisabled}
+              onClick={() =>
+                generateAllTranscriptCues.mutate({
+                  limit: Math.min(totalTranscriptSucceededCount, 100),
+                })
+              }
+              title={allCueButtonTitle}
+            >
+              <ListChecks size={15} />
+              All cues
             </button>
             <button
               aria-label="Retry failed for all channels"
@@ -579,6 +628,38 @@ function allRecheckNoTranscriptTaskButtonTitle({
     return transcriptCollectionActionTitle(lock);
   }
   return "Recheck all videos that previously had no retrievable transcript";
+}
+
+function cueTaskButtonTitle({
+  transcriptSucceededCount,
+  isPending,
+}: {
+  transcriptSucceededCount: number;
+  isPending: boolean;
+}) {
+  if (isPending) {
+    return "Generating transcript cues";
+  }
+  if (transcriptSucceededCount < 1) {
+    return "No succeeded transcript tasks to generate cues from";
+  }
+  return "Generate transcript cues for this channel";
+}
+
+function allCueTaskButtonTitle({
+  totalTranscriptSucceededCount,
+  isPending,
+}: {
+  totalTranscriptSucceededCount: number;
+  isPending: boolean;
+}) {
+  if (isPending) {
+    return "Generating transcript cues";
+  }
+  if (totalTranscriptSucceededCount < 1) {
+    return "No succeeded transcript tasks to generate cues from";
+  }
+  return "Generate transcript cues for all channels";
 }
 
 function transcriptTaskButtonLabel({

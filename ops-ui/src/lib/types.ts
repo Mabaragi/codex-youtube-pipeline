@@ -9,6 +9,8 @@ export type OpsVideoDetail = components["schemas"]["OpsVideoDetailResponse"];
 export type OpsVideoTaskList = components["schemas"]["OpsVideoTaskListResponse"];
 export type OpsVideoTask = components["schemas"]["OpsVideoTaskResponse"];
 export type TranscriptContent = components["schemas"]["TranscriptResponse"];
+export type TranscriptCueList = components["schemas"]["TranscriptCueListResponse"];
+export type TranscriptCue = components["schemas"]["TranscriptCueResponse"];
 export type OperationEventList = components["schemas"]["OperationEventListResponse"];
 export type OperationEvent = components["schemas"]["OperationEventResponse"];
 export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
@@ -22,6 +24,10 @@ export type CollectAllTranscriptsResult =
   components["schemas"]["CollectAllTranscriptTasksResponse"];
 export type CollectChannelTranscriptsResult =
   components["schemas"]["CollectChannelTranscriptTasksResponse"];
+export type GenerateAllTranscriptCuesResult =
+  components["schemas"]["GenerateAllTranscriptCueTasksResponse"];
+export type GenerateChannelTranscriptCuesResult =
+  components["schemas"]["GenerateChannelTranscriptCueTasksResponse"];
 export type ResolveYouTubeChannelResult =
   components["schemas"]["ResolveYouTubeChannelResponse"];
 export type RetryPipelineJobResult = components["schemas"]["RetryPipelineJobResponse"];

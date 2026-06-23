@@ -42,6 +42,14 @@ const queryMocks = vi.hoisted(() => ({
     isPending: false,
     mutate: vi.fn(),
   },
+  generateAllTranscriptCues: {
+    isPending: false,
+    mutate: vi.fn(),
+  },
+  generateTranscriptCues: {
+    isPending: false,
+    mutate: vi.fn(),
+  },
   createStreamer: {
     isPending: false,
     mutateAsync: vi.fn(),
@@ -57,6 +65,8 @@ vi.mock("@/lib/queries", () => ({
   useCollectTranscriptsMutation: () => queryMocks.collectTranscripts,
   useCollectVideosMutation: () => queryMocks.collectVideos,
   useCreateStreamerMutation: () => queryMocks.createStreamer,
+  useGenerateAllTranscriptCuesMutation: () => queryMocks.generateAllTranscriptCues,
+  useGenerateTranscriptCuesMutation: () => queryMocks.generateTranscriptCues,
   useOpsChannels: () => queryMocks.channels,
   useResolveStreamerChannelMutation: () => queryMocks.resolveChannel,
   useRunningTranscriptBatches: () => queryMocks.runningTranscriptBatches,
@@ -150,6 +160,10 @@ describe("ChannelsPage transcript collection state", () => {
     queryMocks.collectAllTranscripts.mutate.mockReset();
     queryMocks.collectTranscripts.isPending = false;
     queryMocks.collectTranscripts.mutate.mockReset();
+    queryMocks.generateAllTranscriptCues.isPending = false;
+    queryMocks.generateAllTranscriptCues.mutate.mockReset();
+    queryMocks.generateTranscriptCues.isPending = false;
+    queryMocks.generateTranscriptCues.mutate.mockReset();
     queryMocks.createStreamer.isPending = false;
     queryMocks.createStreamer.mutateAsync.mockReset();
     queryMocks.createStreamer.mutateAsync.mockResolvedValue(createdStreamer);
@@ -241,6 +255,28 @@ describe("ChannelsPage transcript collection state", () => {
     expect(queryMocks.collectAllTranscripts.mutate).toHaveBeenCalledWith({});
   });
 
+  it("generates transcript cues for all succeeded transcript tasks", () => {
+    queryMocks.channels.data = {
+      items: [
+        { ...channel, channelId: 1, transcriptSucceededCount: 2 },
+        {
+          ...channel,
+          channelId: 2,
+          handle: "@other",
+          name: "Other",
+          transcriptSucceededCount: 3,
+        },
+      ],
+    };
+    render(<ChannelsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /All cues/i }));
+
+    expect(queryMocks.generateAllTranscriptCues.mutate).toHaveBeenCalledWith({
+      limit: 5,
+    });
+  });
+
   it("retries failed transcript tasks for all channels", () => {
     queryMocks.channels.data = {
       items: [
@@ -284,6 +320,20 @@ describe("ChannelsPage transcript collection state", () => {
     expect(queryMocks.collectTranscripts.mutate).toHaveBeenCalledWith({
       channelId: 1,
       limit: 42,
+    });
+  });
+
+  it("generates transcript cues for one channel", () => {
+    queryMocks.channels.data = {
+      items: [{ ...channel, transcriptSucceededCount: 4, videoCount: 42 }],
+    };
+    render(<ChannelsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Cues$/i }));
+
+    expect(queryMocks.generateTranscriptCues.mutate).toHaveBeenCalledWith({
+      channelId: 1,
+      limit: 4,
     });
   });
 

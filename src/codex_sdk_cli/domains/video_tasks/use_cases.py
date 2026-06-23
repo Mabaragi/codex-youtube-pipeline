@@ -24,7 +24,6 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
-from codex_sdk_cli.domains.transcript_cues.use_cases import GenerateTranscriptCuesUseCase
 from codex_sdk_cli.domains.videos.ports import VideoRecord, VideoRepositoryPort
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptNotFound
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
@@ -40,6 +39,13 @@ from codex_sdk_cli.domains.youtube_transcripts.use_cases import (
     normalize_languages,
 )
 
+from .constants import (
+    TRANSCRIPT_COLLECT_BATCH_STEP,
+    TRANSCRIPT_COLLECT_STEP,
+    TRANSCRIPT_COLLECT_TASK_NAME,
+    TRANSCRIPT_COLLECT_TASK_VERSION,
+    TRANSCRIPT_COLLECT_WORKER_ID,
+)
 from .exceptions import (
     TranscriptCollectAlreadyRunning,
     VideoTaskNotFound,
@@ -63,12 +69,8 @@ from .schemas import (
     TranscriptCollectItemStatus,
     VideoTaskResponse,
 )
+from .transcript_cue_tasks import GenerateTranscriptCueTasksUseCase
 
-TRANSCRIPT_COLLECT_STEP = "transcript_collect"
-TRANSCRIPT_COLLECT_BATCH_STEP = "transcript_collect_batch"
-TRANSCRIPT_COLLECT_TASK_NAME = "transcript_collect"
-TRANSCRIPT_COLLECT_TASK_VERSION = "v1"
-TRANSCRIPT_COLLECT_WORKER_ID = "manual-api"
 SleepFunction = Callable[[float], Awaitable[None]]
 
 
@@ -97,7 +99,7 @@ class CollectChannelTranscriptTasksUseCase:
         timeout_seconds: int,
         concurrency_limit: int,
         events: OperationEventRecorderPort,
-        generate_cues: GenerateTranscriptCuesUseCase | None = None,
+        generate_cues: GenerateTranscriptCueTasksUseCase | None = None,
         delay_seconds: int = 0,
         sleep: SleepFunction | None = None,
     ) -> None:
@@ -349,8 +351,11 @@ class CollectChannelTranscriptTasksUseCase:
                     reason="existing_transcript",
                     transcript_id=existing_metadata.id,
                 ),
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
                 transcript_id=existing_metadata.id,
                 parent_job_id=parent_job_id,
+                retry_failed=retry_failed,
             )
             return _processed_response(
                 response,
@@ -397,8 +402,11 @@ class CollectChannelTranscriptTasksUseCase:
                     reason="already_succeeded",
                     transcript_id=task.output_transcript_id,
                 ),
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
                 transcript_id=task.output_transcript_id,
                 parent_job_id=parent_job_id,
+                retry_failed=retry_failed,
             )
             return _processed_response(
                 response,
@@ -500,6 +508,7 @@ class CollectChannelTranscriptTasksUseCase:
                 preserve_formatting=preserve_formatting,
                 input_hash=input_hash,
                 parent_job_id=parent_job_id,
+                retry_failed=retry_failed,
             ),
             attempted_fetch=True,
         )
@@ -513,6 +522,7 @@ class CollectChannelTranscriptTasksUseCase:
         preserve_formatting: bool,
         input_hash: str,
         parent_job_id: int,
+        retry_failed: bool,
     ) -> TranscriptCollectItemResponse:
         input_json: JsonObject = {
             "videoTaskId": task.id,
@@ -562,6 +572,7 @@ class CollectChannelTranscriptTasksUseCase:
             languages=languages,
             preserve_formatting=preserve_formatting,
             timeout_seconds=self._timeout_seconds,
+            retry_failed=retry_failed,
         )
 
     async def execute_job_attempt(
@@ -575,6 +586,7 @@ class CollectChannelTranscriptTasksUseCase:
         languages: tuple[str, ...],
         preserve_formatting: bool,
         timeout_seconds: int,
+        retry_failed: bool = False,
         actor_type: OperationEventActorType = "manual_api",
     ) -> TranscriptCollectItemResponse:
         try:
@@ -733,8 +745,11 @@ class CollectChannelTranscriptTasksUseCase:
                 reason="collected",
                 transcript_id=stored.metadata.id,
             ),
+            video_id=video_id,
+            youtube_video_id=youtube_video_id,
             transcript_id=stored.metadata.id,
             parent_job_id=job.id,
+            retry_failed=retry_failed,
             actor_type=actor_type,
         )
 
@@ -782,6 +797,7 @@ class CollectChannelTranscriptTasksUseCase:
             languages=languages,
             preserve_formatting=preserve_formatting,
             timeout_seconds=timeout_seconds,
+            retry_failed=True,
             actor_type="retry_executor",
         )
         return result.model_dump(by_alias=True)
@@ -967,16 +983,33 @@ class CollectChannelTranscriptTasksUseCase:
         self,
         response: TranscriptCollectItemResponse,
         *,
+        video_id: int,
+        youtube_video_id: str,
         transcript_id: int | None,
         parent_job_id: int,
+        retry_failed: bool,
         actor_type: OperationEventActorType = "manual_api",
     ) -> TranscriptCollectItemResponse:
         if self._generate_cues is None or transcript_id is None:
             return response
         try:
-            generated = await self._generate_cues.execute(
-                transcript_id,
+            metadata = await self._transcripts.get_transcript_metadata(transcript_id)
+            if metadata is None:
+                return response.model_copy(
+                    update={
+                        "cue_status": "failed",
+                        "cue_reason": "missing_transcript",
+                        "cue_error_type": "YouTubeTranscriptMetadataNotFound",
+                        "cue_error_message": "Transcript metadata not found.",
+                    }
+                )
+            generated = await self._generate_cues.execute_for_video(
+                video_id=video_id,
+                youtube_video_id=youtube_video_id,
+                metadata=metadata,
                 parent_job_id=parent_job_id,
+                retry_failed=retry_failed,
+                regenerate_succeeded=False,
                 actor_type=actor_type,
             )
         except Exception as exc:
@@ -989,10 +1022,14 @@ class CollectChannelTranscriptTasksUseCase:
             )
         return response.model_copy(
             update={
+                "cue_video_task_id": generated.video_task_id,
                 "cue_job_id": generated.job_id,
                 "cue_job_attempt_id": generated.job_attempt_id,
-                "cue_status": "succeeded",
+                "cue_status": generated.status,
+                "cue_reason": generated.reason,
                 "cue_count": generated.cue_count,
+                "cue_error_type": generated.error_type,
+                "cue_error_message": generated.error_message,
             }
         )
 

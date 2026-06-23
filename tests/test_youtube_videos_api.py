@@ -224,6 +224,19 @@ class FakeVideoRepository(VideoRepositoryPort):
         records = [record for record in self.videos.values() if record.channel_id == channel_id]
         return sorted(records, key=lambda record: (record.published_at, record.id), reverse=True)
 
+    async def get_video_by_youtube_video_id(
+        self,
+        youtube_video_id: str,
+    ) -> VideoRecord | None:
+        return next(
+            (
+                record
+                for record in self.videos.values()
+                if record.youtube_video_id == youtube_video_id
+            ),
+            None,
+        )
+
     async def find_existing_youtube_video_id(
         self,
         *,

@@ -74,6 +74,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/video-tasks/transcript-cue-generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Channel Transcript Cue Tasks */
+        post: operations["generate_channel_transcript_cue_tasks_channels__channel_id__video_tasks_transcript_cue_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/videos": {
         parameters: {
             query?: never;
@@ -486,6 +503,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/transcript-cue-generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate All Transcript Cue Tasks */
+        post: operations["generate_all_transcript_cue_tasks_video_tasks_transcript_cue_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/youtube-transcripts": {
         parameters: {
             query?: never;
@@ -869,6 +903,63 @@ export interface components {
             responseStorageUri: string | null;
             /** Validationstatus */
             validationStatus: string;
+        };
+        /** GenerateAllTranscriptCueTasksResponse */
+        GenerateAllTranscriptCueTasksResponse: {
+            /** Failedcount */
+            failedCount: number;
+            /** Items */
+            items: components["schemas"]["TranscriptCueTaskItemResponse"][];
+            /** Requestedcount */
+            requestedCount: number;
+            /** Skippedcount */
+            skippedCount: number;
+            /** Succeededcount */
+            succeededCount: number;
+            /** Timeoutcount */
+            timeoutCount: number;
+        };
+        /** GenerateChannelTranscriptCueTasksResponse */
+        GenerateChannelTranscriptCueTasksResponse: {
+            /** Channelid */
+            channelId: number;
+            /** Failedcount */
+            failedCount: number;
+            /** Items */
+            items: components["schemas"]["TranscriptCueTaskItemResponse"][];
+            /** Requestedcount */
+            requestedCount: number;
+            /** Skippedcount */
+            skippedCount: number;
+            /** Succeededcount */
+            succeededCount: number;
+            /** Timeoutcount */
+            timeoutCount: number;
+        };
+        /**
+         * GenerateTranscriptCueTasksRequest
+         * @example {
+         *       "limit": 20,
+         *       "regenerateSucceeded": false,
+         *       "retryFailed": false
+         *     }
+         */
+        GenerateTranscriptCueTasksRequest: {
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /**
+             * Regeneratesucceeded
+             * @default false
+             */
+            regenerateSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1281,6 +1372,10 @@ export interface components {
             jobAttemptId: number | null;
             /** Jobid */
             jobId: number | null;
+            /** Outputjson */
+            outputJson: {
+                [key: string]: unknown;
+            } | null;
             /** Outputtranscriptid */
             outputTranscriptId: number | null;
             /** Startedat */
@@ -1641,8 +1736,12 @@ export interface components {
             cueJobAttemptId?: number | null;
             /** Cuejobid */
             cueJobId?: number | null;
+            /** Cuereason */
+            cueReason?: string | null;
             /** Cuestatus */
             cueStatus?: string | null;
+            /** Cuevideotaskid */
+            cueVideoTaskId?: number | null;
             /** Errormessage */
             errorMessage: string | null;
             /** Errortype */
@@ -1727,6 +1826,34 @@ export interface components {
              * Format: date-time
              */
             updatedAt: string;
+        };
+        /** TranscriptCueTaskItemResponse */
+        TranscriptCueTaskItemResponse: {
+            /** Cuecount */
+            cueCount: number | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Jobattemptid */
+            jobAttemptId: number | null;
+            /** Jobid */
+            jobId: number | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "failed" | "timed_out" | "skipped";
+            /** Transcriptid */
+            transcriptId: number | null;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
         };
         /** TranscriptMetadataResponse */
         TranscriptMetadataResponse: {
@@ -2145,6 +2272,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CollectChannelTranscriptTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_channel_transcript_cue_tasks_channels__channel_id__video_tasks_transcript_cue_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GenerateTranscriptCueTasksRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateChannelTranscriptCueTasksResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2973,6 +3135,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CollectAllTranscriptTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_all_transcript_cue_tasks_video_tasks_transcript_cue_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GenerateTranscriptCueTasksRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateAllTranscriptCueTasksResponse"];
                 };
             };
             /** @description Validation Error */

@@ -54,6 +54,7 @@ const JOB_STEP_OPTIONS = [
   { value: "video_collect", label: "video_collect" },
   { value: "transcript_collect_batch", label: "transcript_collect_batch" },
   { value: "transcript_collect", label: "transcript_collect" },
+  { value: "transcript_cue_generate", label: "transcript_cue_generate" },
 ];
 
 export function JobsPage({ initialFilters }: JobsPageProps) {

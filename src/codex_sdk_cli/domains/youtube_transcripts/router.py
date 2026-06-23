@@ -5,7 +5,6 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, status
 
 from codex_sdk_cli.domains.transcript_cues.dependencies import (
-    GenerateTranscriptCuesUseCaseDep,
     GetTranscriptPromptCuesUseCaseDep,
     ListTranscriptCuesUseCaseDep,
 )
@@ -13,6 +12,9 @@ from codex_sdk_cli.domains.transcript_cues.schemas import (
     TranscriptCueGenerateResponse,
     TranscriptCueListResponse,
     TranscriptPromptCuesResponse,
+)
+from codex_sdk_cli.domains.video_tasks.dependencies import (
+    GenerateTranscriptCueTasksUseCaseDep,
 )
 
 from .dependencies import (
@@ -97,9 +99,9 @@ async def get_youtube_transcript_prompt_cues(
 )
 async def generate_youtube_transcript_cues(
     transcript_id: Annotated[int, Path(ge=1)],
-    use_case: GenerateTranscriptCuesUseCaseDep,
+    use_case: GenerateTranscriptCueTasksUseCaseDep,
 ) -> TranscriptCueGenerateResponse:
-    return await use_case.execute(transcript_id)
+    return await use_case.execute_for_transcript(transcript_id)
 
 
 @router.patch("/{transcript_id}", response_model=TranscriptMetadataResponse)

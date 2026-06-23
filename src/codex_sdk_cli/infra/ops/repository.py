@@ -20,6 +20,7 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsVideoTaskListResult,
     OpsVideoTaskRecord,
 )
+from codex_sdk_cli.domains.video_tasks.constants import TRANSCRIPT_COLLECT_TASK_NAME
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
 )
@@ -135,13 +136,33 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                         func.count(distinct(VideoModel.id)).label("video_count"),
                         func.coalesce(
                             func.sum(
-                                case((VideoTaskModel.status == "succeeded", 1), else_=0)
+                                case(
+                                    (
+                                        (
+                                            VideoTaskModel.task_name
+                                            == TRANSCRIPT_COLLECT_TASK_NAME
+                                        )
+                                        & (VideoTaskModel.status == "succeeded"),
+                                        1,
+                                    ),
+                                    else_=0,
+                                )
                             ),
                             0,
                         ).label("transcript_succeeded_count"),
                         func.coalesce(
                             func.sum(
-                                case((VideoTaskModel.status == "no_transcript", 1), else_=0)
+                                case(
+                                    (
+                                        (
+                                            VideoTaskModel.task_name
+                                            == TRANSCRIPT_COLLECT_TASK_NAME
+                                        )
+                                        & (VideoTaskModel.status == "no_transcript"),
+                                        1,
+                                    ),
+                                    else_=0,
+                                )
                             ),
                             0,
                         ).label("task_no_transcript_count"),
@@ -446,6 +467,7 @@ def _ops_video_task_record(
         job_id=task.job_id,
         job_attempt_id=task.job_attempt_id,
         output_transcript_id=task.output_transcript_id,
+        output_json=task.output_json,
         error_type=task.error_type,
         error_message=task.error_message,
         started_at=task.started_at,

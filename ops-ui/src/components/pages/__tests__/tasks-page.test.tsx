@@ -176,6 +176,7 @@ describe("TasksPage filters", () => {
           jobId: 9,
           jobAttemptId: 10,
           outputTranscriptId: null,
+          outputJson: null,
           errorType: "TimeoutError",
           errorMessage: "timeout",
           startedAt: "2026-06-18T00:00:00Z",

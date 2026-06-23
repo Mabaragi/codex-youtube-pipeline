@@ -37,6 +37,12 @@ class VideoRecord:
 
 
 class VideoRepositoryPort(Protocol):
+    async def get_video_by_youtube_video_id(
+        self,
+        youtube_video_id: str,
+    ) -> VideoRecord | None:
+        """Return one stored video by external YouTube video ID."""
+
     async def list_all_videos(self) -> list[VideoRecord]:
         """List all stored videos."""
 

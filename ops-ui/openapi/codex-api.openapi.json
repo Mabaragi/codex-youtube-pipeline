@@ -630,6 +630,124 @@
         "title": "ExternalApiCallSummaryResponse",
         "type": "object"
       },
+      "GenerateAllTranscriptCueTasksResponse": {
+        "properties": {
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptCueTaskItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          },
+          "succeededCount": {
+            "title": "Succeededcount",
+            "type": "integer"
+          },
+          "timeoutCount": {
+            "title": "Timeoutcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "succeededCount",
+          "skippedCount",
+          "failedCount",
+          "timeoutCount",
+          "items"
+        ],
+        "title": "GenerateAllTranscriptCueTasksResponse",
+        "type": "object"
+      },
+      "GenerateChannelTranscriptCueTasksResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptCueTaskItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          },
+          "succeededCount": {
+            "title": "Succeededcount",
+            "type": "integer"
+          },
+          "timeoutCount": {
+            "title": "Timeoutcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channelId",
+          "requestedCount",
+          "succeededCount",
+          "skippedCount",
+          "failedCount",
+          "timeoutCount",
+          "items"
+        ],
+        "title": "GenerateChannelTranscriptCueTasksResponse",
+        "type": "object"
+      },
+      "GenerateTranscriptCueTasksRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "limit": 20,
+            "regenerateSucceeded": false,
+            "retryFailed": false
+          }
+        ],
+        "properties": {
+          "limit": {
+            "default": 20,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "regenerateSucceeded": {
+            "default": false,
+            "title": "Regeneratesucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          }
+        },
+        "title": "GenerateTranscriptCueTasksRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1948,6 +2066,18 @@
             ],
             "title": "Jobid"
           },
+          "outputJson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputjson"
+          },
           "outputTranscriptId": {
             "anyOf": [
               {
@@ -2030,6 +2160,7 @@
           "jobId",
           "jobAttemptId",
           "outputTranscriptId",
+          "outputJson",
           "errorType",
           "errorMessage",
           "startedAt",
@@ -3030,6 +3161,17 @@
             ],
             "title": "Cuejobid"
           },
+          "cueReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuereason"
+          },
           "cueStatus": {
             "anyOf": [
               {
@@ -3040,6 +3182,17 @@
               }
             ],
             "title": "Cuestatus"
+          },
+          "cueVideoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuevideotaskid"
           },
           "errorMessage": {
             "anyOf": [
@@ -3316,6 +3469,124 @@
           "updatedAt"
         ],
         "title": "TranscriptCueResponse",
+        "type": "object"
+      },
+      "TranscriptCueTaskItemResponse": {
+        "properties": {
+          "cueCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuecount"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "timed_out",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "status",
+          "reason",
+          "jobId",
+          "jobAttemptId",
+          "transcriptId",
+          "cueCount",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "TranscriptCueTaskItemResponse",
         "type": "object"
       },
       "TranscriptMetadataResponse": {
@@ -4284,6 +4555,66 @@
           }
         },
         "summary": "Collect Channel Transcript Tasks",
+        "tags": [
+          "video-tasks"
+        ]
+      }
+    },
+    "/channels/{channel_id}/video-tasks/transcript-cue-generate": {
+      "post": {
+        "operationId": "generate_channel_transcript_cue_tasks_channels__channel_id__video_tasks_transcript_cue_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Channel Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateTranscriptCueTasksRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateChannelTranscriptCueTasksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Channel Transcript Cue Tasks",
         "tags": [
           "video-tasks"
         ]
@@ -5762,6 +6093,54 @@
           }
         },
         "summary": "Collect All Transcript Tasks",
+        "tags": [
+          "video-tasks"
+        ]
+      }
+    },
+    "/video-tasks/transcript-cue-generate": {
+      "post": {
+        "operationId": "generate_all_transcript_cue_tasks_video_tasks_transcript_cue_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateTranscriptCueTasksRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateAllTranscriptCueTasksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate All Transcript Cue Tasks",
         "tags": [
           "video-tasks"
         ]

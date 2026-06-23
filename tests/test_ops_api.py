@@ -160,6 +160,7 @@ class FakeOpsRepository(OpsRepositoryPort):
             job_id=1,
             job_attempt_id=1,
             output_transcript_id=3,
+            output_json={"cueCount": 1},
             error_type=None,
             error_message=None,
             started_at=now,
@@ -232,6 +233,7 @@ class FakeOpsRepository(OpsRepositoryPort):
                     job_id=1,
                     job_attempt_id=1,
                     output_transcript_id=1,
+                    output_json={"cueCount": 1},
                     error_type=None,
                     error_message=None,
                     started_at=now,
@@ -270,6 +272,7 @@ async def _test_ops_summary_and_lists_are_available() -> None:
     assert video_detail.status_code == 200, video_detail.text
     assert video_detail.json()["description"] == "Stored video description"
     assert video_detail.json()["tasks"][0]["jobId"] == 1
+    assert video_detail.json()["tasks"][0]["outputJson"] == {"cueCount": 1}
     assert video_detail.json()["transcripts"][0]["languageCode"] == "ko"
     assert missing_video_detail.status_code == 404
     assert missing_video_detail.json() == {"detail": "Video not found."}

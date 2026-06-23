@@ -11,9 +11,15 @@ import {
   fetchTranscriptContent,
   useOpsVideoDetail,
   useTranscriptContent,
+  useTranscriptCues,
 } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
-import type { OpsVideoDetail, OpsVideoTask, TranscriptContent } from "@/lib/types";
+import type {
+  OpsVideoDetail,
+  OpsVideoTask,
+  TranscriptContent,
+  TranscriptCue,
+} from "@/lib/types";
 
 type TranscriptMetadata = OpsVideoDetail["transcripts"][number];
 type TranscriptSegment = TranscriptContent["segments"][number];
@@ -27,6 +33,9 @@ const TRANSCRIPT_DOWNLOAD_FORMATS: readonly TranscriptDownloadFormat[] = [
 
 export function VideoDetailPage({ videoId }: { videoId: number }) {
   const { data, isLoading, error } = useOpsVideoDetail(videoId);
+  const latestCueTask = data?.tasks.find(
+    (task) => task.taskName === "transcript_cue_generate",
+  );
 
   const taskColumns: ColumnDef<OpsVideoTask>[] = [
     {
@@ -121,6 +130,12 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
                     status={data.latestTaskStatus}
                   />
                   <DetailRow label="Transcript" value={data.transcriptId ? `#${data.transcriptId}` : "-"} />
+                  <DetailRow
+                    label="Cue task"
+                    value={latestCueTask ? `#${latestCueTask.videoTaskId}` : "-"}
+                    status={latestCueTask?.status}
+                  />
+                  <DetailRow label="Cue count" value={cueCountValue(latestCueTask)} />
                   <DetailRow label="Listing API" value={idValue(data.sourceListingApiCallId)} />
                   <DetailRow label="Details API" value={idValue(data.sourceDetailsApiCallId)} />
                   <DetailRow label="Source job" value={idValue(data.sourceJobId)} />
@@ -186,10 +201,16 @@ function DetailRow({
 
 function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
   const [expanded, setExpanded] = useState(false);
+  const [cuesExpanded, setCuesExpanded] = useState(false);
   const [downloadingFormat, setDownloadingFormat] =
     useState<TranscriptDownloadFormat | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { data, isLoading, error } = useTranscriptContent(transcript.id, expanded);
+  const {
+    data: cues,
+    isLoading: cuesLoading,
+    error: cuesError,
+  } = useTranscriptCues(transcript.id, cuesExpanded);
   const hasTimeline = data ? data.segments.length > 0 : transcript.segmentCount > 0;
 
   async function handleDownload(format: TranscriptDownloadFormat) {
@@ -236,6 +257,13 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
           >
             {expanded ? "Hide transcript" : "Show transcript"}
           </button>
+          <button
+            className="ops-button"
+            onClick={() => setCuesExpanded((current) => !current)}
+            type="button"
+          >
+            {cuesExpanded ? "Hide cues" : "Show cues"}
+          </button>
           <div className="flex flex-wrap gap-1">
             {TRANSCRIPT_DOWNLOAD_FORMATS.map((format) => {
               const isUnavailable = format === "srt" && !hasTimeline;
@@ -271,6 +299,15 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
           ) : null}
           {error ? <div className="text-sm text-red-700">{String(error)}</div> : null}
           {data ? <TranscriptTimeline segments={data.segments} fallbackText={data.text} /> : null}
+        </div>
+      ) : null}
+      {cuesExpanded ? (
+        <div className="mt-3 border-t border-slate-200 pt-3">
+          {cuesLoading ? (
+            <div className="text-sm text-slate-600">Loading...</div>
+          ) : null}
+          {cuesError ? <div className="text-sm text-red-700">{String(cuesError)}</div> : null}
+          {cues ? <TranscriptCueTable cues={cues.items} cueCount={cues.cueCount} /> : null}
         </div>
       ) : null}
     </div>
@@ -315,9 +352,59 @@ function TranscriptTimeline({
   );
 }
 
+function TranscriptCueTable({
+  cues,
+  cueCount,
+}: {
+  cues: TranscriptCue[];
+  cueCount: number;
+}) {
+  if (cues.length === 0) {
+    return <div className="text-sm text-slate-500">No cues.</div>;
+  }
+
+  return (
+    <div className="max-h-[520px] overflow-auto rounded border border-slate-200 bg-white">
+      <div className="grid grid-cols-[132px_120px_88px_minmax(0,1fr)] border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+        <div>Cue</div>
+        <div>Time</div>
+        <div>Source</div>
+        <div>Text</div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {cues.map((cue) => (
+          <div
+            className="grid grid-cols-[132px_120px_88px_minmax(0,1fr)] gap-3 px-3 py-2 text-xs leading-relaxed"
+            key={cue.id}
+          >
+            <div className="min-w-0">
+              <div className="truncate font-mono text-slate-700" title={cue.cueId}>
+                {cue.cueId}
+              </div>
+              <div className="text-slate-400">#{cue.cueIndex}</div>
+            </div>
+            <time className="font-mono text-slate-500">
+              {formatCueRange(cue.startMs, cue.endMs)}
+            </time>
+            <div className="font-mono text-slate-500">seg #{cue.sourceSegmentIndex}</div>
+            <div className="whitespace-pre-wrap break-words text-slate-800">{cue.text}</div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
+        {cueCount} cues
+      </div>
+    </div>
+  );
+}
+
 function formatSegmentRange(startSeconds: number, durationSeconds: number): string {
   const endSeconds = Math.max(startSeconds, startSeconds + durationSeconds);
   return `${formatTranscriptTime(startSeconds)}-${formatTranscriptTime(endSeconds)}`;
+}
+
+function formatCueRange(startMs: number, endMs: number): string {
+  return `${formatTranscriptTime(startMs / 1000)}-${formatTranscriptTime(endMs / 1000)}`;
 }
 
 function formatTranscriptTime(totalSeconds: number): string {
@@ -419,6 +506,11 @@ function formatDownloadError(error: unknown): string {
     return error.message;
   }
   return "Download failed.";
+}
+
+function cueCountValue(task: OpsVideoTask | undefined): string {
+  const cueCount = task?.outputJson?.cueCount;
+  return typeof cueCount === "number" ? String(cueCount) : "-";
 }
 
 function idValue(value: number | null | undefined): string {

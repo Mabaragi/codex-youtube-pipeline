@@ -53,6 +53,7 @@ const TASK_STATUS_OPTIONS = [
 const TASK_NAME_OPTIONS = [
   { value: "", label: "All task names" },
   { value: "transcript_collect", label: "transcript_collect" },
+  { value: "transcript_cue_generate", label: "transcript_cue_generate" },
 ];
 
 export function TasksPage({ initialFilters }: TasksPageProps) {

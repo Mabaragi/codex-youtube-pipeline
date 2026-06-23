@@ -14,6 +14,12 @@ TranscriptCollectItemStatus = Literal[
     "no_transcript",
     "skipped",
 ]
+TranscriptCueTaskItemStatus = Literal[
+    "succeeded",
+    "failed",
+    "timed_out",
+    "skipped",
+]
 
 
 class CollectChannelTranscriptTasksRequest(BaseModel):
@@ -72,6 +78,26 @@ class CollectAllTranscriptTasksRequest(BaseModel):
     )
 
 
+class GenerateTranscriptCueTasksRequest(BaseModel):
+    limit: int = Field(default=20, ge=1, le=100)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    regenerate_succeeded: bool = Field(default=False, alias="regenerateSucceeded")
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "limit": 20,
+                    "retryFailed": False,
+                    "regenerateSucceeded": False,
+                }
+            ]
+        },
+    )
+
+
 class TranscriptCollectItemResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str = Field(alias="youtubeVideoId")
@@ -81,12 +107,30 @@ class TranscriptCollectItemResponse(BaseModel):
     job_id: int | None = Field(alias="jobId")
     job_attempt_id: int | None = Field(alias="jobAttemptId")
     transcript_id: int | None = Field(alias="transcriptId")
+    cue_video_task_id: int | None = Field(default=None, alias="cueVideoTaskId")
     cue_job_id: int | None = Field(default=None, alias="cueJobId")
     cue_job_attempt_id: int | None = Field(default=None, alias="cueJobAttemptId")
     cue_status: str | None = Field(default=None, alias="cueStatus")
+    cue_reason: str | None = Field(default=None, alias="cueReason")
     cue_count: int | None = Field(default=None, alias="cueCount")
     cue_error_type: str | None = Field(default=None, alias="cueErrorType")
     cue_error_message: str | None = Field(default=None, alias="cueErrorMessage")
+    error_type: str | None = Field(alias="errorType")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TranscriptCueTaskItemResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    video_task_id: int | None = Field(alias="videoTaskId")
+    status: TranscriptCueTaskItemStatus
+    reason: str
+    job_id: int | None = Field(alias="jobId")
+    job_attempt_id: int | None = Field(alias="jobAttemptId")
+    transcript_id: int | None = Field(alias="transcriptId")
+    cue_count: int | None = Field(alias="cueCount")
     error_type: str | None = Field(alias="errorType")
     error_message: str | None = Field(alias="errorMessage")
 
@@ -106,6 +150,18 @@ class CollectChannelTranscriptTasksResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class GenerateChannelTranscriptCueTasksResponse(BaseModel):
+    channel_id: int = Field(alias="channelId")
+    requested_count: int = Field(alias="requestedCount")
+    succeeded_count: int = Field(alias="succeededCount")
+    skipped_count: int = Field(alias="skippedCount")
+    failed_count: int = Field(alias="failedCount")
+    timeout_count: int = Field(alias="timeoutCount")
+    items: list[TranscriptCueTaskItemResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class CollectAllTranscriptTasksResponse(BaseModel):
     requested_count: int = Field(alias="requestedCount")
     succeeded_count: int = Field(alias="succeededCount")
@@ -114,6 +170,17 @@ class CollectAllTranscriptTasksResponse(BaseModel):
     timeout_count: int = Field(alias="timeoutCount")
     no_transcript_count: int = Field(alias="noTranscriptCount")
     items: list[TranscriptCollectItemResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GenerateAllTranscriptCueTasksResponse(BaseModel):
+    requested_count: int = Field(alias="requestedCount")
+    succeeded_count: int = Field(alias="succeededCount")
+    skipped_count: int = Field(alias="skippedCount")
+    failed_count: int = Field(alias="failedCount")
+    timeout_count: int = Field(alias="timeoutCount")
+    items: list[TranscriptCueTaskItemResponse]
 
     model_config = ConfigDict(populate_by_name=True)
 

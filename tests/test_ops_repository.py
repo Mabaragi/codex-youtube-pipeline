@@ -39,6 +39,7 @@ def test_ops_repository_lists_operational_views(
     assert result["videos"].total == 1
     assert result["videos"].items[0].latest_task_status == "succeeded"
     assert result["tasks"].items[0].youtube_video_id == "video1234567"
+    assert result["tasks"].items[0].output_json == {"cueCount": 1}
     assert result["failures"][0].kind == "pipeline_job"
 
 
@@ -128,6 +129,17 @@ async def _exercise_repository(database_file: Path):
                 output_transcript_id=transcript.id,
             )
             session.add(task)
+            cue_task = VideoTaskModel(
+                video_id=video.id,
+                task_name="transcript_cue_generate",
+                task_version="v1",
+                input_hash="3" * 64,
+                status="succeeded",
+                timeout_seconds=600,
+                output_transcript_id=transcript.id,
+                output_json={"cueCount": 1},
+            )
+            session.add(cue_task)
             await session.commit()
 
         async with session_factory() as session:

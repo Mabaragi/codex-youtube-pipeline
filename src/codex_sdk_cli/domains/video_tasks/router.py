@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Path, Query, status
 
 from .dependencies import (
     CollectChannelTranscriptTasksUseCaseDep,
+    GenerateTranscriptCueTasksUseCaseDep,
     ListChannelVideoTasksUseCaseDep,
 )
 from .ports import VideoTaskStatus
@@ -14,6 +15,9 @@ from .schemas import (
     CollectAllTranscriptTasksResponse,
     CollectChannelTranscriptTasksRequest,
     CollectChannelTranscriptTasksResponse,
+    GenerateAllTranscriptCueTasksResponse,
+    GenerateChannelTranscriptCueTasksResponse,
+    GenerateTranscriptCueTasksRequest,
     VideoTaskResponse,
 )
 
@@ -36,6 +40,21 @@ async def collect_all_transcript_tasks(
 
 
 @router.post(
+    "/video-tasks/transcript-cue-generate",
+    response_model=GenerateAllTranscriptCueTasksResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def generate_all_transcript_cue_tasks(
+    use_case: GenerateTranscriptCueTasksUseCaseDep,
+    request: Annotated[
+        GenerateTranscriptCueTasksRequest | None,
+        Body(),
+    ] = None,
+) -> GenerateAllTranscriptCueTasksResponse:
+    return await use_case.execute_all(request or GenerateTranscriptCueTasksRequest())
+
+
+@router.post(
     "/channels/{channel_id}/video-tasks/transcript-collect",
     response_model=CollectChannelTranscriptTasksResponse,
     status_code=status.HTTP_201_CREATED,
@@ -51,6 +70,25 @@ async def collect_channel_transcript_tasks(
     return await use_case.execute(
         channel_id,
         request or CollectChannelTranscriptTasksRequest(),
+    )
+
+
+@router.post(
+    "/channels/{channel_id}/video-tasks/transcript-cue-generate",
+    response_model=GenerateChannelTranscriptCueTasksResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def generate_channel_transcript_cue_tasks(
+    channel_id: Annotated[int, Path(ge=1)],
+    use_case: GenerateTranscriptCueTasksUseCaseDep,
+    request: Annotated[
+        GenerateTranscriptCueTasksRequest | None,
+        Body(),
+    ] = None,
+) -> GenerateChannelTranscriptCueTasksResponse:
+    return await use_case.execute(
+        channel_id,
+        request or GenerateTranscriptCueTasksRequest(),
     )
 
 

@@ -57,6 +57,7 @@ from codex_sdk_cli.domains.video_tasks.ports import (
     VideoTaskRecord,
     VideoTaskRepositoryPort,
     VideoTaskStatus,
+    VideoTaskWithVideoRecord,
 )
 from codex_sdk_cli.domains.video_tasks.schemas import CollectChannelTranscriptTasksRequest
 from codex_sdk_cli.domains.video_tasks.use_cases import CollectChannelTranscriptTasksUseCase
@@ -129,6 +130,19 @@ class FakeVideoRepository(VideoRepositoryPort):
             self.videos.values(),
             key=lambda record: (record.published_at, record.id),
             reverse=True,
+        )
+
+    async def get_video_by_youtube_video_id(
+        self,
+        youtube_video_id: str,
+    ) -> VideoRecord | None:
+        return next(
+            (
+                record
+                for record in self.videos.values()
+                if record.youtube_video_id == youtube_video_id
+            ),
+            None,
         )
 
     async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
@@ -213,6 +227,34 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
         return sorted(records, key=lambda record: record.task.id, reverse=True)[
             query.offset : query.offset + query.limit
         ]
+
+    async def list_latest_succeeded_tasks(
+        self,
+        *,
+        task_name: str,
+        channel_id: int | None,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        records: list[VideoTaskWithVideoRecord] = []
+        seen_video_ids: set[int] = set()
+        tasks = sorted(self.tasks.values(), key=lambda task: task.id, reverse=True)
+        for task in tasks:
+            if task.video_id in seen_video_ids:
+                continue
+            if task.task_name != task_name:
+                continue
+            if task.status != "succeeded" or task.output_transcript_id is None:
+                continue
+            video = self.videos.videos[task.video_id]
+            if channel_id is not None and video.channel_id != channel_id:
+                continue
+            seen_video_ids.add(task.video_id)
+            records.append(VideoTaskWithVideoRecord(task=task, video=video))
+        return sorted(
+            records,
+            key=lambda record: (record.video.published_at, record.video.id),
+            reverse=True,
+        )[:limit]
 
     async def count_running(self, *, task_name: str) -> int:
         return sum(
@@ -714,7 +756,9 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
     assert response["items"][0]["status"] == "succeeded"
     assert response["items"][0]["reason"] == "collected"
     assert response["items"][0]["transcriptId"] == 1
+    assert response["items"][0]["cueVideoTaskId"] == 2
     assert response["items"][0]["cueStatus"] == "succeeded"
+    assert response["items"][0]["cueReason"] == "generated"
     assert response["items"][0]["cueCount"] == 1
     assert fakes.pipeline_jobs.jobs[1].step == "transcript_collect_batch"
     assert fakes.pipeline_jobs.jobs[1].subject_type == "channel"
@@ -723,20 +767,25 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
     assert fakes.pipeline_jobs.jobs[2].subject_type == "video"
     assert fakes.pipeline_jobs.jobs[2].parent_job_id == 1
     assert fakes.pipeline_jobs.jobs[3].step == "transcript_cue_generate"
-    assert fakes.pipeline_jobs.jobs[3].subject_type == "transcript"
+    assert fakes.pipeline_jobs.jobs[3].subject_type == "video"
     assert fakes.pipeline_jobs.jobs[3].parent_job_id == 2
     assert fakes.pipeline_jobs.attempts[1].status == "succeeded"
     assert fakes.pipeline_jobs.attempts[2].status == "succeeded"
     assert fakes.pipeline_jobs.attempts[3].status == "succeeded"
     assert fakes.video_tasks.tasks[1].status == "succeeded"
+    assert fakes.video_tasks.tasks[2].task_name == "transcript_cue_generate"
+    assert fakes.video_tasks.tasks[2].status == "succeeded"
     assert fakes.transcript_client.requests[0].video_id == YOUTUBE_VIDEO_ID
     assert [event.event_type for event in fakes.events.events] == [
         "transcript_collect.batch_requested",
         "transcript_collect.task_selected",
         "transcript_collect.task_running",
         "transcript_collect.task_succeeded",
+        "transcript_cue_generate.task_selected",
+        "transcript_cue_generate.task_running",
         "transcript_cue_generate.started",
         "transcript_cue_generate.succeeded",
+        "transcript_cue_generate.task_succeeded",
         "transcript_collect.batch_succeeded",
     ]
 
@@ -831,11 +880,177 @@ def test_channel_transcript_collect_uses_existing_metadata_without_fetch() -> No
     assert fakes.pipeline_jobs.jobs[2].step == "transcript_cue_generate"
     assert fakes.pipeline_jobs.jobs[2].parent_job_id == 1
     assert fakes.video_tasks.tasks[1].status == "succeeded"
-    assert fakes.events.events[-4].event_type == "transcript_collect.task_succeeded"
-    assert fakes.events.events[-4].metadata_json["reason"] == "existing_transcript"
+    assert fakes.video_tasks.tasks[2].task_name == "transcript_cue_generate"
+    assert fakes.video_tasks.tasks[2].status == "succeeded"
+    assert fakes.events.events[-7].event_type == "transcript_collect.task_succeeded"
+    assert fakes.events.events[-7].metadata_json["reason"] == "existing_transcript"
+    assert fakes.events.events[-6].event_type == "transcript_cue_generate.task_selected"
+    assert fakes.events.events[-5].event_type == "transcript_cue_generate.task_running"
+    assert fakes.events.events[-4].event_type == "transcript_cue_generate.started"
+    assert fakes.events.events[-3].event_type == "transcript_cue_generate.succeeded"
+    assert fakes.events.events[-2].event_type == "transcript_cue_generate.task_succeeded"
+    assert fakes.events.events[-1].event_type == "transcript_collect.batch_succeeded"
+
+
+def test_channel_transcript_cue_generate_creates_task_from_succeeded_transcript_task() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    metadata = _seed_transcript_metadata(fakes, transcript_id=7)
+    transcript_task = _seed_task(
+        fakes.video_tasks,
+        video_id=1,
+        status="succeeded",
+        output_transcript_id=metadata.id,
+    )
+
+    response = asyncio.run(_generate_channel_cues(fakes))
+
+    assert response["channelId"] == 1
+    assert response["requestedCount"] == 1
+    assert response["succeededCount"] == 1
+    assert response["skippedCount"] == 0
+    assert response["items"] == [
+        {
+            "videoId": 1,
+            "youtubeVideoId": YOUTUBE_VIDEO_ID,
+            "videoTaskId": 2,
+            "status": "succeeded",
+            "reason": "generated",
+            "jobId": 1,
+            "jobAttemptId": 1,
+            "transcriptId": 7,
+            "cueCount": 1,
+            "errorType": None,
+            "errorMessage": None,
+        }
+    ]
+    cue_task = fakes.video_tasks.tasks[2]
+    assert cue_task.task_name == "transcript_cue_generate"
+    assert cue_task.status == "succeeded"
+    assert cue_task.output_transcript_id == metadata.id
+    assert cue_task.output_json is not None
+    assert cue_task.output_json["cueCount"] == 1
+    assert cue_task.input_hash != transcript_task.input_hash
+    assert fakes.pipeline_jobs.jobs[1].step == "transcript_cue_generate"
+    assert fakes.pipeline_jobs.jobs[1].subject_type == "video"
+    assert fakes.pipeline_jobs.jobs[1].subject_id == 1
+    assert fakes.pipeline_jobs.jobs[1].input_json["videoTaskId"] == 2
+    assert fakes.events.events[-5].event_type == "transcript_cue_generate.task_selected"
+    assert fakes.events.events[-4].event_type == "transcript_cue_generate.task_running"
     assert fakes.events.events[-3].event_type == "transcript_cue_generate.started"
     assert fakes.events.events[-2].event_type == "transcript_cue_generate.succeeded"
-    assert fakes.events.events[-1].event_type == "transcript_collect.batch_succeeded"
+    assert fakes.events.events[-1].event_type == "transcript_cue_generate.task_succeeded"
+
+
+def test_all_transcript_cue_generate_skips_existing_succeeded_task() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    metadata = _seed_transcript_metadata(fakes, transcript_id=7)
+    _seed_task(
+        fakes.video_tasks,
+        video_id=1,
+        status="succeeded",
+        output_transcript_id=metadata.id,
+    )
+    first = asyncio.run(_generate_channel_cues(fakes))
+    assert first["items"][0]["status"] == "succeeded"
+
+    second = asyncio.run(_generate_all_cues(fakes))
+
+    assert second["requestedCount"] == 1
+    assert second["succeededCount"] == 1
+    assert second["skippedCount"] == 0
+    assert second["items"][0]["videoTaskId"] == 2
+    assert second["items"][0]["status"] == "succeeded"
+    assert second["items"][0]["reason"] == "already_succeeded"
+    assert second["items"][0]["cueCount"] == 1
+    assert len(fakes.pipeline_jobs.jobs) == 1
+
+
+def test_transcript_cue_generate_skips_failed_task_until_retry_failed() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    metadata = _seed_transcript_metadata(fakes, transcript_id=7)
+    _seed_task(
+        fakes.video_tasks,
+        video_id=1,
+        status="succeeded",
+        output_transcript_id=metadata.id,
+    )
+    first = asyncio.run(_generate_channel_cues(fakes))
+    cue_task_id = first["items"][0]["videoTaskId"]
+    fakes.video_tasks.tasks[cue_task_id] = replace(
+        fakes.video_tasks.tasks[cue_task_id],
+        status="failed",
+        error_type="YouTubeTranscriptStorageError",
+        error_message="Stored transcript payload is invalid.",
+    )
+
+    skipped = asyncio.run(_generate_channel_cues(fakes))
+
+    assert skipped["succeededCount"] == 0
+    assert skipped["skippedCount"] == 1
+    assert skipped["items"][0]["videoTaskId"] == cue_task_id
+    assert skipped["items"][0]["status"] == "skipped"
+    assert skipped["items"][0]["reason"] == "previously_failed"
+    assert len(fakes.pipeline_jobs.jobs) == 1
+
+    retried = asyncio.run(_generate_channel_cues(fakes, json={"retryFailed": True}))
+
+    assert retried["succeededCount"] == 1
+    assert retried["items"][0]["videoTaskId"] == cue_task_id
+    assert retried["items"][0]["status"] == "succeeded"
+    assert retried["items"][0]["reason"] == "generated"
+    assert fakes.video_tasks.tasks[cue_task_id].status == "succeeded"
+    assert len(fakes.pipeline_jobs.jobs) == 2
+
+
+def test_transcript_cue_generate_retry_reuses_failed_video_task() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    metadata = _seed_transcript_metadata(fakes, transcript_id=7)
+    _seed_task(
+        fakes.video_tasks,
+        video_id=1,
+        status="succeeded",
+        output_transcript_id=metadata.id,
+    )
+    first = asyncio.run(_generate_channel_cues(fakes))
+    cue_task_id = first["items"][0]["videoTaskId"]
+    job_id = first["items"][0]["jobId"]
+    fakes.video_tasks.tasks[cue_task_id] = replace(
+        fakes.video_tasks.tasks[cue_task_id],
+        status="failed",
+        error_type="YouTubeTranscriptStorageError",
+        error_message="Stored transcript payload is invalid.",
+    )
+    fakes.pipeline_jobs.jobs[job_id] = replace(
+        fakes.pipeline_jobs.jobs[job_id],
+        status="failed",
+        completed_at=NOW,
+    )
+    fakes.pipeline_jobs.attempts[1] = replace(
+        fakes.pipeline_jobs.attempts[1],
+        status="failed",
+        error_type="YouTubeTranscriptStorageError",
+        error_message="Stored transcript payload is invalid.",
+    )
+
+    response = asyncio.run(_retry(fakes, job_id=job_id))
+
+    assert response["jobId"] == job_id
+    assert response["step"] == "transcript_cue_generate"
+    assert response["status"] == "succeeded"
+    assert response["result"]["jobAttemptId"] == 2
+    assert fakes.video_tasks.tasks[cue_task_id].status == "succeeded"
+    assert fakes.video_tasks.tasks[cue_task_id].job_attempt_id == 2
+    output_json = fakes.video_tasks.tasks[cue_task_id].output_json
+    assert output_json is not None
+    assert output_json["cueCount"] == 1
 
 
 def test_channel_transcript_collect_skips_running_and_failed_until_retry_requested() -> None:
@@ -1125,6 +1340,46 @@ async def _collect_all(
     return response.json()
 
 
+async def _generate_channel_cues(
+    fakes: _Fakes,
+    *,
+    json: dict[str, Any] | None = None,
+    expected_status: int = 201,
+) -> Any:
+    app = _app(fakes)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/channels/1/video-tasks/transcript-cue-generate",
+            json=json,
+        )
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+async def _generate_all_cues(
+    fakes: _Fakes,
+    *,
+    json: dict[str, Any] | None = None,
+    expected_status: int = 201,
+) -> Any:
+    app = _app(fakes)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/video-tasks/transcript-cue-generate",
+            json=json,
+        )
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
 async def _retry(fakes: _Fakes, *, job_id: int, expected_status: int = 201) -> Any:
     app = _app(fakes)
     async with AsyncClient(
@@ -1235,12 +1490,15 @@ def _seed_task(
     *,
     video_id: int,
     status: VideoTaskStatus,
+    task_name: str = "transcript_collect",
+    output_transcript_id: int | None = None,
+    output_json: JsonObject | None = None,
 ) -> VideoTaskRecord:
     video = video_tasks.videos.videos.get(video_id)
     record = VideoTaskRecord(
         id=video_tasks.next_id,
         video_id=video_id,
-        task_name="transcript_collect",
+        task_name=task_name,
         task_version="v1",
         input_hash=_input_hash(
             video.youtube_video_id if video is not None else YOUTUBE_VIDEO_ID
@@ -1250,8 +1508,8 @@ def _seed_task(
         timeout_seconds=600,
         job_id=None,
         job_attempt_id=None,
-        output_transcript_id=None,
-        output_json=None,
+        output_transcript_id=output_transcript_id,
+        output_json=output_json,
         error_type=None,
         error_message=None,
         started_at=None,
@@ -1340,6 +1598,42 @@ def _seed_running_transcript_batch(pipeline_jobs: FakePipelineJobRepository) -> 
     )
     pipeline_jobs.next_job_id = 2
     pipeline_jobs.next_attempt_id = 2
+
+
+def _seed_transcript_metadata(
+    fakes: _Fakes,
+    *,
+    transcript_id: int,
+    video_id: str = YOUTUBE_VIDEO_ID,
+    requested_languages: tuple[str, ...] = ("ko", "en"),
+    preserve_formatting: bool = False,
+    language_code: str = "ko",
+) -> YouTubeTranscriptMetadataRecord:
+    metadata = _metadata_record(
+        id=transcript_id,
+        video_id=video_id,
+        requested_languages=requested_languages,
+        preserve_formatting=preserve_formatting,
+        language_code=language_code,
+    )
+    fakes.transcripts.metadata_records.append(metadata)
+    fakes.storage.objects[metadata.storage_object_name] = json.dumps(
+        {
+            "videoId": video_id,
+            "language": "Korean",
+            "languageCode": language_code,
+            "isGenerated": True,
+            "text": "hello",
+            "segments": [{"text": "hello", "start": 0.0, "duration": 1.0}],
+            "storage": {
+                "bucket": metadata.storage_bucket,
+                "objectName": metadata.storage_object_name,
+                "uri": metadata.storage_uri,
+            },
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return metadata
 
 
 def _metadata_record(

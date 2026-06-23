@@ -1,6 +1,6 @@
 # YouTube Data Pipeline
 
-Last updated: 2026-06-16
+Last updated: 2026-06-22
 
 이 문서는 YouTube channel resolve부터 videos, transcripts, LLM summaries까지 이어지는 데이터 파이프라인의 공통 설계 원칙을 정리한다. 특정 endpoint 구현 절차보다, 앞으로 새 수집/가공 단계를 추가할 때 따라야 하는 상태 추적과 데이터 연결 규칙을 우선한다.
 
@@ -86,6 +86,12 @@ API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한
 - `POST /pipeline/jobs/{jobId}/retry`: failed job 재시도 command다. 현재는
   `channel_resolve`, `video_collect`, `transcript_collect`를 지원한다.
 
+- `POST /channels/{channel_id}/video-tasks/transcript-cue-generate` and
+  `POST /video-tasks/transcript-cue-generate`: manually execute cue generation
+  through durable `video_tasks` rows for videos with succeeded transcript tasks.
+- `POST /pipeline/jobs/{jobId}/retry`: also supports
+  `transcript_cue_generate`; task-aware cue jobs reuse the linked `videoTaskId`.
+
 ## Current Baseline
 
 현재 구현된 첫 pipeline step은 `POST /streamers/{streamer_id}/channels/resolve`다.
@@ -149,6 +155,28 @@ failure. Manual retry controls therefore split generic `failed` retries from
 marked `no_transcript` again. The child `transcript_collect` pipeline job is
 completed with a `no_transcript` output so job history records that the work was
 handled, not crashed.
+
+Cue generation is now also owned by `video_tasks`. A stored transcript or an
+existing transcript metadata hit creates or reuses a
+`video_tasks.task_name="transcript_cue_generate"` row and executes it
+immediately to preserve the current operator UX. The cue task `input_hash` is
+based on local `videoId`, `youtubeVideoId`, `transcriptId`, transcript
+`responseSha256`, and task version. Success stores the source transcript id in
+`output_transcript_id` and writes a compact `output_json` with `cueCount`,
+`firstCueId`, `lastCueId`, `jobId`, and `jobAttemptId`. Existing succeeded cue
+tasks are treated as effective success, while `failed` and `timed_out` cue tasks
+are skipped unless the selector request sets `retryFailed=true`.
+
+Manual cue selectors are exposed as
+`POST /channels/{channel_id}/video-tasks/transcript-cue-generate` and
+`POST /video-tasks/transcript-cue-generate`. Both select latest videos that have
+a succeeded `transcript_collect` task with `outputTranscriptId`, then apply the
+same cue task lifecycle. `POST /youtube-transcripts/{transcript_id}/cues/generate`
+uses this task-aware path when the transcript belongs to a local `videos` row and
+keeps the legacy direct pipeline job path for orphan transcripts. Retry for
+`pipeline_jobs.step="transcript_cue_generate"` reuses the linked cue video task
+when `input_json.videoTaskId` is present; legacy cue jobs without a task id still
+use the direct retry path.
 
 Transcript가 성공적으로 저장되면 후속 child job `transcript_cue_generate`가 실행된다.
 이 단계는 `youtube_transcripts` metadata와 storage의 transcript JSON을 읽어

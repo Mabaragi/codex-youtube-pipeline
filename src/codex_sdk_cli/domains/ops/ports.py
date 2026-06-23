@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
+from codex_sdk_cli.domains.pipeline_jobs.ports import JsonObject
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
 )
@@ -138,6 +139,7 @@ class OpsVideoTaskRecord:
     job_id: int | None
     job_attempt_id: int | None
     output_transcript_id: int | None
+    output_json: JsonObject | None
     error_type: str | None
     error_message: str | None
     started_at: datetime | None

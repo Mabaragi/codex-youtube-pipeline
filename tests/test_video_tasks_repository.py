@@ -39,6 +39,7 @@ def test_video_task_repository_lifecycle(
     assert result["same_task_id"] is True
     assert result["running_count"] == 1
     assert result["listed_youtube_ids"] == ["abc123DEF45"]
+    assert result["latest_succeeded_youtube_ids"] == ["abc123DEF45"]
     assert result["succeeded_transcript_id"] == 1
     assert result["failed_status"] == "failed"
     assert result["timed_out_status"] == "timed_out"
@@ -163,6 +164,11 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 output_transcript_id=transcript.id,
                 output_json={"transcriptId": transcript.id},
             )
+            latest_succeeded = await video_tasks.list_latest_succeeded_tasks(
+                task_name="transcript_collect",
+                channel_id=channel.id,
+                limit=10,
+            )
             failed = await video_tasks.mark_task_failed(
                 task.id,
                 error_type="Boom",
@@ -181,6 +187,9 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "same_task_id": task.id == same_task.id,
                 "running_count": running_count,
                 "listed_youtube_ids": [record.youtube_video_id for record in listed],
+                "latest_succeeded_youtube_ids": [
+                    record.video.youtube_video_id for record in latest_succeeded
+                ],
                 "succeeded_transcript_id": succeeded.output_transcript_id,
                 "failed_status": failed.status,
                 "timed_out_status": timed_out.status,

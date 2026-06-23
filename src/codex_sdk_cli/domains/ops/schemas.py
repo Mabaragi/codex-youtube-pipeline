@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from codex_sdk_cli.domains.pipeline_jobs.ports import JsonObject
 from codex_sdk_cli.domains.youtube_transcripts.schemas import TranscriptMetadataResponse
 
 
@@ -108,6 +109,7 @@ class OpsVideoTaskResponse(BaseModel):
     job_id: int | None = Field(alias="jobId")
     job_attempt_id: int | None = Field(alias="jobAttemptId")
     output_transcript_id: int | None = Field(alias="outputTranscriptId")
+    output_json: JsonObject | None = Field(alias="outputJson")
     error_type: str | None = Field(alias="errorType")
     error_message: str | None = Field(alias="errorMessage")
     started_at: datetime | None = Field(alias="startedAt")

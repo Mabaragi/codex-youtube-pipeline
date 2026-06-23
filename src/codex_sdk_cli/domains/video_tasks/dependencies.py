@@ -13,14 +13,36 @@ from codex_sdk_cli.api.dependencies import (
     VideoTaskRepositoryDep,
     YouTubeTranscriptRepositoryDep,
 )
-from codex_sdk_cli.domains.transcript_cues.dependencies import (
-    GenerateTranscriptCuesUseCaseDep,
-)
+from codex_sdk_cli.domains.transcript_cues.dependencies import GenerateTranscriptCuesUseCaseDep
 from codex_sdk_cli.domains.youtube_transcripts.dependencies import (
     FetchYouTubeTranscriptUseCaseDep,
 )
 
+from .transcript_cue_tasks import GenerateTranscriptCueTasksUseCase
 from .use_cases import CollectChannelTranscriptTasksUseCase, ListChannelVideoTasksUseCase
+
+
+def get_generate_transcript_cue_tasks_use_case(
+    channels: ChannelRepositoryDep,
+    videos: VideoRepositoryDep,
+    video_tasks: VideoTaskRepositoryDep,
+    pipeline_jobs: PipelineJobRepositoryDep,
+    transcripts: YouTubeTranscriptRepositoryDep,
+    generate_cues: GenerateTranscriptCuesUseCaseDep,
+    settings: SettingsDep,
+    events: OperationEventRecorderDep,
+) -> GenerateTranscriptCueTasksUseCase:
+    return GenerateTranscriptCueTasksUseCase(
+        channels=channels,
+        videos=videos,
+        video_tasks=video_tasks,
+        transcripts=transcripts,
+        pipeline_jobs=pipeline_jobs,
+        generate_cues=generate_cues,
+        timeout_seconds=settings.transcript_cue_generate_timeout_seconds,
+        concurrency_limit=settings.transcript_cue_generate_concurrency_limit,
+        events=events,
+    )
 
 
 def get_collect_channel_transcript_tasks_use_case(
@@ -30,7 +52,10 @@ def get_collect_channel_transcript_tasks_use_case(
     pipeline_jobs: PipelineJobRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
     fetch_transcript: FetchYouTubeTranscriptUseCaseDep,
-    generate_cues: GenerateTranscriptCuesUseCaseDep,
+    generate_cues: Annotated[
+        GenerateTranscriptCueTasksUseCase,
+        Depends(get_generate_transcript_cue_tasks_use_case),
+    ],
     settings: SettingsDep,
     events: OperationEventRecorderDep,
 ) -> CollectChannelTranscriptTasksUseCase:
@@ -59,6 +84,10 @@ def get_list_channel_video_tasks_use_case(
 CollectChannelTranscriptTasksUseCaseDep = Annotated[
     CollectChannelTranscriptTasksUseCase,
     Depends(get_collect_channel_transcript_tasks_use_case),
+]
+GenerateTranscriptCueTasksUseCaseDep = Annotated[
+    GenerateTranscriptCueTasksUseCase,
+    Depends(get_generate_transcript_cue_tasks_use_case),
 ]
 ListChannelVideoTasksUseCaseDep = Annotated[
     ListChannelVideoTasksUseCase,

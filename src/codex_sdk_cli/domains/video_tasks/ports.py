@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
+from codex_sdk_cli.domains.videos.ports import VideoRecord
+
 JsonObject = dict[str, object]
 VideoTaskStatus = Literal[
     "pending",
@@ -56,6 +58,12 @@ class VideoTaskListRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class VideoTaskWithVideoRecord:
+    task: VideoTaskRecord
+    video: VideoRecord
+
+
+@dataclass(frozen=True, slots=True)
 class VideoTaskListQuery:
     channel_id: int
     task_name: str | None = None
@@ -83,6 +91,15 @@ class VideoTaskRepositoryPort(Protocol):
 
     async def list_tasks(self, query: VideoTaskListQuery) -> list[VideoTaskListRecord]:
         """List video tasks for a channel."""
+
+    async def list_latest_succeeded_tasks(
+        self,
+        *,
+        task_name: str,
+        channel_id: int | None,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        """List the latest succeeded task per video for newest stored videos."""
 
     async def count_running(self, *, task_name: str) -> int:
         """Count currently running tasks by type."""

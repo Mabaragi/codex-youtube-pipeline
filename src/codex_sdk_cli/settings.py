@@ -27,6 +27,8 @@ class CliSettings(BaseSettings):
     transcript_collect_timeout_seconds: int = 600
     transcript_collect_concurrency_limit: int = 1
     transcript_collect_delay_seconds: int = 300
+    transcript_cue_generate_timeout_seconds: int = 600
+    transcript_cue_generate_concurrency_limit: int = 1
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
@@ -68,6 +70,8 @@ class CliSettings(BaseSettings):
     @field_validator(
         "transcript_collect_timeout_seconds",
         "transcript_collect_concurrency_limit",
+        "transcript_cue_generate_timeout_seconds",
+        "transcript_cue_generate_concurrency_limit",
     )
     @classmethod
     def _positive_int(cls, value: int) -> int:

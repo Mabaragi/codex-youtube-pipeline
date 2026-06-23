@@ -6,6 +6,8 @@ import type {
   CollectAllTranscriptsResult,
   CollectChannelTranscriptsResult,
   CollectChannelVideosResult,
+  GenerateAllTranscriptCuesResult,
+  GenerateChannelTranscriptCuesResult,
   OperationEventFilters,
   OperationEventList,
   OpsChannelList,
@@ -22,6 +24,7 @@ import type {
   RetryPipelineJobResult,
   Streamer,
   TranscriptContent,
+  TranscriptCueList,
 } from "@/lib/types";
 
 export const queryKeys = {
@@ -36,6 +39,8 @@ export const queryKeys = {
   schemaGraph: ["ops", "schema-graph"] as const,
   transcriptContent: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "content"] as const,
+  transcriptCues: (transcriptId: number) =>
+    ["youtube-transcripts", transcriptId, "cues"] as const,
 };
 
 export function useOpsSummary() {
@@ -82,6 +87,16 @@ export function useTranscriptContent(transcriptId: number, enabled: boolean) {
     queryFn: () => fetchTranscriptContent(transcriptId),
     enabled: enabled && Number.isFinite(transcriptId) && transcriptId > 0,
     staleTime: Infinity,
+  });
+}
+
+export function useTranscriptCues(transcriptId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.transcriptCues(transcriptId),
+    queryFn: () =>
+      requestJson<TranscriptCueList>(`/youtube-transcripts/${transcriptId}/cues`),
+    enabled: enabled && Number.isFinite(transcriptId) && transcriptId > 0,
+    staleTime: 30_000,
   });
 }
 
@@ -210,6 +225,7 @@ export function useCollectAllTranscriptsMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["ops"] }),
         queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["youtube-transcripts"] }),
       ]);
     },
   });
@@ -248,6 +264,75 @@ export function useCollectTranscriptsMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["ops"] }),
         queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["youtube-transcripts"] }),
+      ]);
+    },
+  });
+}
+
+export function useGenerateAllTranscriptCuesMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      limit,
+      retryFailed = false,
+      regenerateSucceeded = false,
+    }: {
+      limit?: number;
+      retryFailed?: boolean;
+      regenerateSucceeded?: boolean;
+    } = {}) =>
+      requestJson<GenerateAllTranscriptCuesResult>(
+        "/video-tasks/transcript-cue-generate",
+        {
+          method: "POST",
+          body: {
+            limit,
+            retryFailed,
+            regenerateSucceeded,
+          },
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["youtube-transcripts"] }),
+      ]);
+    },
+  });
+}
+
+export function useGenerateTranscriptCuesMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      channelId,
+      retryFailed = false,
+      regenerateSucceeded = false,
+      limit,
+    }: {
+      channelId: number;
+      retryFailed?: boolean;
+      regenerateSucceeded?: boolean;
+      limit: number;
+    }) =>
+      requestJson<GenerateChannelTranscriptCuesResult>(
+        `/channels/${channelId}/video-tasks/transcript-cue-generate`,
+        {
+          method: "POST",
+          body: {
+            limit,
+            retryFailed,
+            regenerateSucceeded,
+          },
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["youtube-transcripts"] }),
       ]);
     },
   });
@@ -302,6 +387,7 @@ export function useRetryJobMutation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["ops"] }),
         queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["youtube-transcripts"] }),
       ]);
     },
   });
