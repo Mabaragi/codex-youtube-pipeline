@@ -222,7 +222,7 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS`: manual `transcript_collect` task timeout. 기본값은 `600`.
 - `CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT`: manual `transcript_collect` 동시 실행 제한. 기본값은 `1`.
 - `CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS`: manual `transcript_collect` 실제 fetch 사이 대기 시간. 기본값은 `300`.
-- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`: `micro_event_extract` 한 영상 작업 안에서 동시에 처리할 window worker 수. 기본값은 `3`.
+- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`: `micro_event_extract` 한 영상 작업 안에서 동시에 처리할 window worker 수. 앱 기본값은 `3`, Home Compose 배포 기본값은 `6`.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.
 - `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 앱 기본값은
   `sqlite+aiosqlite:///./data/app.db`이고, Docker Compose 기본값은

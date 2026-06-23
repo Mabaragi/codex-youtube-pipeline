@@ -206,6 +206,8 @@ flowchart LR
 - `CODEX_CLI_TRANSCRIPT_MINIO_BUCKET`: 기본값 `raw`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX`: 기본값 `youtube/transcripts`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE`: 기본값 `false`.
+- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`: `micro_event_extract`
+  window worker count. Home Compose default is `6`.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 기본값 `external-api-calls`.
 
 선택 DB 설정:
