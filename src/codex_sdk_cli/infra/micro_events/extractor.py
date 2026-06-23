@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing_extensions import override
 
-from codex_sdk_cli.domains.codex.ports import CodexRunCommand, CodexRuntimePort
+from codex_sdk_cli.domains.codex.ports import (
+    CodexRunCommand,
+    CodexRuntimePort,
+    CodexRunUsageContext,
+)
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRequest,
     MicroEventExtractionResult,
@@ -36,6 +40,16 @@ class CodexMicroEventExtractor(MicroEventExtractorPort):
                 persist=False,
                 base_instructions=" ",
                 developer_instructions=" ",
+                usage_context=CodexRunUsageContext(
+                    source="micro_event_extract",
+                    operation="extract_window",
+                    video_id=request.video_id,
+                    video_task_id=request.video_task_id,
+                    job_id=request.job_id,
+                    job_attempt_id=request.job_attempt_id,
+                    transcript_id=request.transcript_id,
+                    window_index=request.window_index,
+                ),
             )
         )
         return MicroEventExtractionResult(

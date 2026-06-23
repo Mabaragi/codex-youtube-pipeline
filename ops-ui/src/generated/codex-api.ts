@@ -261,6 +261,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/codex-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Codex Usage */
+        get: operations["list_codex_usage_ops_codex_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/events": {
         parameters: {
             query?: never;
@@ -806,6 +823,86 @@ export interface components {
              * @example UC_x5XG1OV2P6uZZ5FSM9Ttw
              */
             youtubeChannelId?: string | null;
+        };
+        /** CodexUsageListResponse */
+        CodexUsageListResponse: {
+            /** Items */
+            items: components["schemas"]["CodexUsageResponse"][];
+            /** Nextcursor */
+            nextCursor: number | null;
+            summary: components["schemas"]["CodexUsageSummaryResponse"];
+        };
+        /** CodexUsageResponse */
+        CodexUsageResponse: {
+            /** Cachedinputtokens */
+            cachedInputTokens: number | null;
+            /** Codexusageid */
+            codexUsageId: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Durationms */
+            durationMs: number;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Inputtokens */
+            inputTokens: number | null;
+            /** Jobattemptid */
+            jobAttemptId: number | null;
+            /** Jobid */
+            jobId: number | null;
+            /** Model */
+            model: string | null;
+            /** Operation */
+            operation: string;
+            /** Outputtokens */
+            outputTokens: number | null;
+            /** Reasoningoutputtokens */
+            reasoningOutputTokens: number | null;
+            /** Source */
+            source: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "failed";
+            /** Threadid */
+            threadId: string | null;
+            /** Totaltokens */
+            totalTokens: number | null;
+            /** Transcriptid */
+            transcriptId: number | null;
+            /** Turnid */
+            turnId: string | null;
+            /** Usagejson */
+            usageJson: {
+                [key: string]: unknown;
+            } | null;
+            /** Videoid */
+            videoId: number | null;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Windowindex */
+            windowIndex: number | null;
+        };
+        /** CodexUsageSummaryResponse */
+        CodexUsageSummaryResponse: {
+            /** Cachedinputtokens */
+            cachedInputTokens: number;
+            /** Inputtokens */
+            inputTokens: number;
+            /** Outputtokens */
+            outputTokens: number;
+            /** Reasoningoutputtokens */
+            reasoningOutputTokens: number;
+            /** Runcount */
+            runCount: number;
+            /** Totaltokens */
+            totalTokens: number;
         };
         /**
          * CollectAllTranscriptTasksRequest
@@ -2889,6 +2986,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpsChannelListResponse"];
+                };
+            };
+        };
+    };
+    list_codex_usage_ops_codex_usage_get: {
+        parameters: {
+            query?: {
+                source?: string | null;
+                status?: string | null;
+                model?: string | null;
+                videoId?: number | null;
+                videoTaskId?: number | null;
+                jobId?: number | null;
+                limit?: number;
+                cursor?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodexUsageListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

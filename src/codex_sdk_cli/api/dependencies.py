@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
+from codex_sdk_cli.domains.codex_usage.ports import (
+    CodexUsageRecorderPort,
+    CodexUsageRepositoryPort,
+)
+from codex_sdk_cli.domains.codex_usage.recorder import BestEffortCodexUsageRecorder
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRepositoryPort,
@@ -36,6 +41,11 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
+from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
+from codex_sdk_cli.infra.codex_usage.repository import (
+    SessionFactoryCodexUsageRepository,
+    SqlAlchemyCodexUsageRepository,
+)
 from codex_sdk_cli.infra.database.session import (
     create_database_engine,
     create_session_factory,
@@ -70,8 +80,9 @@ def get_settings() -> CliSettings:
 
 async def get_codex_runtime(
     settings: Annotated[CliSettings, Depends(get_settings)],
+    usage_recorder: CodexUsageRecorderDep,
 ) -> CodexRuntimePort:
-    return CodexRuntimeClient(settings)
+    return RecordingCodexRuntime(CodexRuntimeClient(settings), usage_recorder)
 
 
 @lru_cache
@@ -145,6 +156,23 @@ async def get_micro_event_extraction_repository(
     session: DatabaseSessionDep,
 ) -> MicroEventExtractionRepositoryPort:
     return SqlAlchemyMicroEventExtractionRepository(session)
+
+
+async def get_codex_usage_repository(
+    session: DatabaseSessionDep,
+) -> CodexUsageRepositoryPort:
+    return SqlAlchemyCodexUsageRepository(session)
+
+
+async def get_codex_usage_recorder(
+    session_factory: Annotated[
+        async_sessionmaker[AsyncSession],
+        Depends(get_database_session_factory),
+    ],
+) -> CodexUsageRecorderPort:
+    return BestEffortCodexUsageRecorder(
+        SessionFactoryCodexUsageRepository(session_factory)
+    )
 
 
 async def get_micro_event_extractor(
@@ -223,6 +251,14 @@ async def get_youtube_transcript_storage(
 SettingsDep = Annotated[CliSettings, Depends(get_settings)]
 CodexRuntimeDep = Annotated[CodexRuntimePort, Depends(get_codex_runtime)]
 DatabaseSessionDep = Annotated[AsyncSession, Depends(get_database_session)]
+CodexUsageRepositoryDep = Annotated[
+    CodexUsageRepositoryPort,
+    Depends(get_codex_usage_repository),
+]
+CodexUsageRecorderDep = Annotated[
+    CodexUsageRecorderPort,
+    Depends(get_codex_usage_recorder),
+]
 YouTubeTranscriptClientDep = Annotated[
     YouTubeTranscriptPort,
     Depends(get_youtube_transcript_client),

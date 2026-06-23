@@ -11,6 +11,8 @@ import type {
   MicroEventExtractRequest,
   MicroEventExtractResult,
   MicroEventExtractionDetail,
+  CodexUsageFilters,
+  CodexUsageList,
   OperationEventFilters,
   OperationEventList,
   OpsChannelList,
@@ -39,6 +41,8 @@ export const queryKeys = {
   events: (filters: Record<string, unknown>) => ["ops", "events", filters] as const,
   streamers: ["streamers"] as const,
   jobs: (filters: Record<string, unknown>) => ["pipeline", "jobs", filters] as const,
+  codexUsage: (filters: Record<string, unknown>) =>
+    ["ops", "codex-usage", filters] as const,
   schemaGraph: ["ops", "schema-graph"] as const,
   transcriptContent: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "content"] as const,
@@ -147,6 +151,14 @@ export function useOperationEvents(filters: OperationEventFilters) {
     queryKey: queryKeys.events(filters),
     queryFn: () => requestJson<OperationEventList>("/ops/events", { query: filters }),
     refetchInterval: 5_000,
+  });
+}
+
+export function useCodexUsage(filters: CodexUsageFilters) {
+  return useQuery({
+    queryKey: queryKeys.codexUsage(filters),
+    queryFn: () => requestJson<CodexUsageList>("/ops/codex-usage", { query: filters }),
+    refetchInterval: 10_000,
   });
 }
 

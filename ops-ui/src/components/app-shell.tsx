@@ -7,6 +7,7 @@ import {
   Boxes,
   Cable,
   Database,
+  Gauge,
   ListChecks,
   PlaySquare,
   Rows3,
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/jobs", label: "Jobs", icon: PlaySquare },
   { href: "/logs", label: "Logs", icon: ScrollText },
+  { href: "/usage", label: "Usage", icon: Gauge },
   { href: "/erd", label: "ERD", icon: Database },
 ];
 

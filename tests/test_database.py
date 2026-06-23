@@ -19,6 +19,7 @@ def test_database_base_registers_app_tables() -> None:
     assert set(Base.metadata.tables) == {
         "asr_correction_candidates",
         "channels",
+        "codex_run_usages",
         "external_api_calls",
         "micro_event_candidates",
         "micro_event_extraction_windows",
@@ -130,6 +131,14 @@ def test_alembic_upgrade_creates_app_tables(
             column["name"] for column in inspector.get_columns("external_api_calls")
         }
         external_api_call_foreign_keys = inspector.get_foreign_keys("external_api_calls")
+        codex_usage_columns = {
+            column["name"] for column in inspector.get_columns("codex_run_usages")
+        }
+        codex_usage_foreign_keys = inspector.get_foreign_keys("codex_run_usages")
+        codex_usage_indexes = {
+            index["name"]: index["column_names"]
+            for index in inspector.get_indexes("codex_run_usages")
+        }
         pipeline_job_columns = {
             column["name"] for column in inspector.get_columns("pipeline_jobs")
         }
@@ -173,6 +182,7 @@ def test_alembic_upgrade_creates_app_tables(
     assert {
         "asr_correction_candidates",
         "channels",
+        "codex_run_usages",
         "external_api_calls",
         "micro_event_candidates",
         "micro_event_extraction_windows",
@@ -280,6 +290,60 @@ def test_alembic_upgrade_creates_app_tables(
         and foreign_key["constrained_columns"] == ["job_id"]
         for foreign_key in pipeline_job_attempt_foreign_keys
     )
+    assert {
+        "id",
+        "source",
+        "operation",
+        "model",
+        "status",
+        "thread_id",
+        "turn_id",
+        "usage_json",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cached_input_tokens",
+        "reasoning_output_tokens",
+        "duration_ms",
+        "error_type",
+        "error_message",
+        "video_id",
+        "video_task_id",
+        "job_id",
+        "job_attempt_id",
+        "transcript_id",
+        "window_index",
+        "created_at",
+    }.issubset(codex_usage_columns)
+    assert any(
+        foreign_key["referred_table"] == "videos"
+        and foreign_key["constrained_columns"] == ["video_id"]
+        for foreign_key in codex_usage_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "video_tasks"
+        and foreign_key["constrained_columns"] == ["video_task_id"]
+        for foreign_key in codex_usage_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_jobs"
+        and foreign_key["constrained_columns"] == ["job_id"]
+        for foreign_key in codex_usage_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "pipeline_job_attempts"
+        and foreign_key["constrained_columns"] == ["job_attempt_id"]
+        for foreign_key in codex_usage_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "youtube_transcripts"
+        and foreign_key["constrained_columns"] == ["transcript_id"]
+        for foreign_key in codex_usage_foreign_keys
+    )
+    assert codex_usage_indexes["ix_codex_run_usages_source"] == ["source"]
+    assert codex_usage_indexes["ix_codex_run_usages_video_task_id"] == [
+        "video_task_id"
+    ]
     assert {
         "id",
         "channel_id",

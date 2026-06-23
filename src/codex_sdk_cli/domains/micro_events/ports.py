@@ -44,6 +44,12 @@ ApplyScope = Literal[
 @dataclass(frozen=True, slots=True)
 class MicroEventExtractionRequest:
     prompt: str
+    video_id: int | None = None
+    video_task_id: int | None = None
+    job_id: int | None = None
+    job_attempt_id: int | None = None
+    transcript_id: int | None = None
+    window_index: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

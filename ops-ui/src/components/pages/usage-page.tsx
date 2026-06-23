@@ -1,0 +1,234 @@
+"use client";
+
+import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { FormEvent } from "react";
+import { DataTable } from "@/components/data-table";
+import { FilterActions, FilterInput, FilterSelect } from "@/components/filter-controls";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import { compactId, formatDateTime } from "@/lib/format";
+import { useCodexUsage } from "@/lib/queries";
+import type { CodexUsage, CodexUsageFilters } from "@/lib/types";
+import {
+  hrefWithQuery,
+  positiveNumberFormValue,
+  stringFormValue,
+} from "@/lib/url-filters";
+
+type UsagePageProps = {
+  initialFilters: CodexUsageFilters;
+};
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All states" },
+  { value: "succeeded", label: "Succeeded" },
+  { value: "failed", label: "Failed" },
+];
+
+const SOURCE_OPTIONS = [
+  { value: "", label: "All sources" },
+  { value: "micro_event_extract", label: "micro_event_extract" },
+  { value: "codex_runs", label: "codex_runs" },
+  { value: "codex_runtime", label: "codex_runtime" },
+];
+
+export function UsagePage({ initialFilters }: UsagePageProps) {
+  const router = useRouter();
+  const { data, isLoading, error } = useCodexUsage(initialFilters);
+
+  const columns: ColumnDef<CodexUsage>[] = [
+    { header: "Time", cell: ({ row }) => formatDateTime(row.original.createdAt) },
+    {
+      header: "Source",
+      cell: ({ row }) => (
+        <div>
+          <div className="font-semibold">{row.original.source}</div>
+          <div className="text-xs text-slate-500">{row.original.operation}</div>
+        </div>
+      ),
+    },
+    { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    { header: "Model", cell: ({ row }) => row.original.model ?? "-" },
+    {
+      header: "Tokens",
+      cell: ({ row }) => (
+        <div className="grid gap-1 text-xs">
+          <span className="font-semibold">{tokenValue(row.original.totalTokens)} total</span>
+          <span className="text-slate-500">
+            in {tokenValue(row.original.inputTokens)} / out{" "}
+            {tokenValue(row.original.outputTokens)}
+          </span>
+          <span className="text-slate-500">
+            cached {tokenValue(row.original.cachedInputTokens)} / reasoning{" "}
+            {tokenValue(row.original.reasoningOutputTokens)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: "Context",
+      cell: ({ row }) => (
+        <div className="grid gap-1 text-xs text-slate-600">
+          <span>video {idValue(row.original.videoId)}</span>
+          <span>task {idValue(row.original.videoTaskId)}</span>
+          <span>
+            job {idValue(row.original.jobId)} / attempt{" "}
+            {idValue(row.original.jobAttemptId)}
+          </span>
+          <span>window {idValue(row.original.windowIndex)}</span>
+        </div>
+      ),
+    },
+    {
+      header: "Thread",
+      cell: ({ row }) => (
+        <div className="grid gap-1 text-xs text-slate-600">
+          <span>{compactId(row.original.threadId)}</span>
+          <span>{compactId(row.original.turnId)}</span>
+          <span>{row.original.durationMs} ms</span>
+        </div>
+      ),
+    },
+    {
+      header: "Error",
+      cell: ({ row }) => (
+        <div className="max-w-[260px] break-words text-xs text-slate-600">
+          {row.original.errorType ?? "-"}
+          {row.original.errorMessage ? `: ${row.original.errorMessage}` : ""}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader title="Codex Usage" />
+      <div className="mb-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+        <Metric label="Runs" value={String(data?.summary.runCount ?? 0)} />
+        <Metric label="Total" value={tokenValue(data?.summary.totalTokens)} />
+        <Metric label="Input" value={tokenValue(data?.summary.inputTokens)} />
+        <Metric label="Output" value={tokenValue(data?.summary.outputTokens)} />
+        <Metric label="Cached" value={tokenValue(data?.summary.cachedInputTokens)} />
+        <Metric
+          label="Reasoning"
+          value={tokenValue(data?.summary.reasoningOutputTokens)}
+        />
+      </div>
+      <form
+        key={JSON.stringify(initialFilters)}
+        className="ops-panel mb-4 p-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          router.push(usageHref(formFilters(event)));
+        }}
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <FilterSelect
+            label="Source"
+            name="source"
+            defaultValue={initialFilters.source}
+            options={SOURCE_OPTIONS}
+          />
+          <FilterSelect
+            label="Status"
+            name="status"
+            defaultValue={initialFilters.status}
+            options={STATUS_OPTIONS}
+          />
+          <FilterInput
+            label="Model"
+            name="model"
+            defaultValue={initialFilters.model}
+            placeholder="gpt-..."
+          />
+          <FilterSelect
+            label="Limit"
+            name="limit"
+            defaultValue={String(initialFilters.limit ?? 50)}
+            options={[
+              { value: "50", label: "50 rows" },
+              { value: "100", label: "100 rows" },
+              { value: "200", label: "200 rows" },
+            ]}
+          />
+          <FilterInput
+            label="Video ID"
+            name="videoId"
+            defaultValue={initialFilters.videoId}
+          />
+          <FilterInput
+            label="Task ID"
+            name="videoTaskId"
+            defaultValue={initialFilters.videoTaskId}
+          />
+          <FilterInput label="Job ID" name="jobId" defaultValue={initialFilters.jobId} />
+        </div>
+        <FilterActions resetHref="/usage" />
+      </form>
+      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
+      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      <DataTable columns={columns} data={data?.items ?? []} />
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {data?.nextCursor ? (
+          <Link
+            className="ops-button"
+            href={usageHref({ ...initialFilters, cursor: data.nextCursor })}
+          >
+            Older
+          </Link>
+        ) : null}
+        {initialFilters.cursor ? (
+          <Link
+            className="ops-button"
+            href={usageHref({ ...initialFilters, cursor: undefined })}
+          >
+            Newest
+          </Link>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="ops-panel p-3">
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function formFilters(event: FormEvent<HTMLFormElement>): CodexUsageFilters {
+  const form = new FormData(event.currentTarget);
+  return {
+    source: stringFormValue(form.get("source")),
+    status: statusValue(form.get("status")),
+    model: stringFormValue(form.get("model")),
+    videoId: positiveNumberFormValue(form.get("videoId")),
+    videoTaskId: positiveNumberFormValue(form.get("videoTaskId")),
+    jobId: positiveNumberFormValue(form.get("jobId")),
+    limit: positiveNumberFormValue(form.get("limit")) ?? 50,
+  };
+}
+
+function statusValue(
+  value: FormDataEntryValue | null,
+): CodexUsageFilters["status"] | undefined {
+  const text = stringFormValue(value);
+  return text === "succeeded" || text === "failed" ? text : undefined;
+}
+
+function usageHref(filters: CodexUsageFilters): string {
+  return hrefWithQuery("/usage", filters);
+}
+
+function idValue(value: number | null | undefined): string {
+  return value === null || value === undefined ? "-" : `#${value}`;
+}
+
+function tokenValue(value: number | null | undefined): string {
+  return value === null || value === undefined ? "-" : value.toLocaleString("en");
+}

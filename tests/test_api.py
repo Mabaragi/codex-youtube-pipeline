@@ -14,6 +14,7 @@ from codex_sdk_cli.domains.codex.ports import (
     CodexRunCommand,
     CodexRunResult,
     CodexRuntimePort,
+    CodexRunUsageContext,
 )
 from codex_sdk_cli.settings import CliSettings
 
@@ -99,6 +100,7 @@ def test_run_endpoint_uses_defaults_and_returns_camel_case_response() -> None:
         persist=False,
         base_instructions=" ",
         developer_instructions=" ",
+        usage_context=CodexRunUsageContext(source="codex_runs", operation="run_prompt"),
     )
 
 

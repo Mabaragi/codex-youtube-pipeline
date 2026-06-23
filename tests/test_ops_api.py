@@ -6,8 +6,20 @@ from typing import Any
 
 from httpx import ASGITransport, AsyncClient
 
-from codex_sdk_cli.api.dependencies import get_operation_event_repository, get_ops_repository
+from codex_sdk_cli.api.dependencies import (
+    get_codex_usage_repository,
+    get_operation_event_repository,
+    get_ops_repository,
+)
 from codex_sdk_cli.api.main import create_app
+from codex_sdk_cli.domains.codex_usage.ports import (
+    CodexUsageCreate,
+    CodexUsageListQuery,
+    CodexUsageListResult,
+    CodexUsageRecord,
+    CodexUsageRepositoryPort,
+    CodexUsageSummaryRecord,
+)
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventCreate,
     OperationEventListQuery,
@@ -245,6 +257,56 @@ class FakeOpsRepository(OpsRepositoryPort):
         )
 
 
+class FakeCodexUsageRepository(CodexUsageRepositoryPort):
+    def __init__(self) -> None:
+        self.queries: list[CodexUsageListQuery] = []
+
+    async def create_usage(self, usage: CodexUsageCreate) -> CodexUsageRecord:
+        raise NotImplementedError
+
+    async def list_usages(self, query: CodexUsageListQuery) -> CodexUsageListResult:
+        self.queries.append(query)
+        now = datetime.now(UTC)
+        return CodexUsageListResult(
+            items=[
+                CodexUsageRecord(
+                    id=12,
+                    source="micro_event_extract",
+                    operation="extract_window",
+                    model="gpt-test",
+                    status="succeeded",
+                    thread_id="thread-1",
+                    turn_id="turn-1",
+                    usage_json={"totalTokens": 33},
+                    input_tokens=20,
+                    output_tokens=13,
+                    total_tokens=33,
+                    cached_input_tokens=2,
+                    reasoning_output_tokens=1,
+                    duration_ms=1234,
+                    error_type=None,
+                    error_message=None,
+                    video_id=1,
+                    video_task_id=2,
+                    job_id=3,
+                    job_attempt_id=4,
+                    transcript_id=5,
+                    window_index=6,
+                    created_at=now,
+                )
+            ],
+            next_cursor=9,
+            summary=CodexUsageSummaryRecord(
+                run_count=2,
+                input_tokens=40,
+                output_tokens=26,
+                total_tokens=66,
+                cached_input_tokens=4,
+                reasoning_output_tokens=2,
+            ),
+        )
+
+
 def test_ops_summary_and_lists_are_available() -> None:
     asyncio.run(_test_ops_summary_and_lists_are_available())
 
@@ -277,6 +339,52 @@ async def _test_ops_summary_and_lists_are_available() -> None:
     assert missing_video_detail.status_code == 404
     assert missing_video_detail.json() == {"detail": "Video not found."}
     assert tasks.json()["items"][0]["taskName"] == "transcript_collect"
+
+
+def test_ops_codex_usage_is_filterable() -> None:
+    asyncio.run(_test_ops_codex_usage_is_filterable())
+
+
+async def _test_ops_codex_usage_is_filterable() -> None:
+    repository = FakeCodexUsageRepository()
+    app = create_app()
+    app.dependency_overrides[get_codex_usage_repository] = lambda: repository
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get(
+            "/ops/codex-usage",
+            params={
+                "source": "micro_event_extract",
+                "status": "succeeded",
+                "model": "gpt-test",
+                "videoId": 1,
+                "videoTaskId": 2,
+                "jobId": 3,
+                "limit": 25,
+                "cursor": 99,
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["summary"]["totalTokens"] == 66
+    assert payload["items"][0]["codexUsageId"] == 12
+    assert payload["items"][0]["windowIndex"] == 6
+    assert payload["items"][0]["usageJson"] == {"totalTokens": 33}
+    assert payload["nextCursor"] == 9
+    assert repository.queries[0] == CodexUsageListQuery(
+        source="micro_event_extract",
+        status="succeeded",
+        model="gpt-test",
+        video_id=1,
+        video_task_id=2,
+        job_id=3,
+        limit=25,
+        cursor=99,
+    )
 
 
 def test_ops_video_and_task_filters_are_forwarded() -> None:
@@ -401,6 +509,8 @@ def test_ops_routes_are_in_openapi() -> None:
     assert schema["paths"]["/ops/summary"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/videos/{video_id}"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/events"]["get"]["tags"] == ["ops"]
+    assert schema["paths"]["/ops/codex-usage"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/schema-graph"]["get"]["tags"] == ["ops"]
+    assert "CodexUsageListResponse" in schema["components"]["schemas"]
     assert "OperationEventListResponse" in schema["components"]["schemas"]
     assert "OpsSchemaGraphResponse" in schema["components"]["schemas"]

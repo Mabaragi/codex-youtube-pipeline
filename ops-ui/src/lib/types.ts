@@ -25,6 +25,8 @@ export type AsrCorrectionCandidate =
   components["schemas"]["AsrCorrectionCandidateResponse"];
 export type OperationEventList = components["schemas"]["OperationEventListResponse"];
 export type OperationEvent = components["schemas"]["OperationEventResponse"];
+export type CodexUsageList = components["schemas"]["CodexUsageListResponse"];
+export type CodexUsage = components["schemas"]["CodexUsageResponse"];
 export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
 export type OpsSchemaTable = components["schemas"]["OpsSchemaTableResponse"];
 export type Streamer = components["schemas"]["StreamerResponse"];
@@ -57,4 +59,7 @@ export type OpsVideoTaskFilters = NonNullable<
 >;
 export type OperationEventFilters = NonNullable<
   NonNullable<paths["/ops/events"]["get"]["parameters"]["query"]>
+>;
+export type CodexUsageFilters = NonNullable<
+  NonNullable<paths["/ops/codex-usage"]["get"]["parameters"]["query"]>
 >;

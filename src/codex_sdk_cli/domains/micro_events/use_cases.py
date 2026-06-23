@@ -588,7 +588,15 @@ class ExtractVideoMicroEventsUseCase:
         for cue_window in cue_windows:
             prompt = _window_prompt(execution_input, cue_window)
             result = await self._extractor.extract_window(
-                MicroEventExtractionRequest(prompt=prompt)
+                MicroEventExtractionRequest(
+                    prompt=prompt,
+                    video_id=execution_input.video.id,
+                    video_task_id=task.id,
+                    job_id=job.id,
+                    job_attempt_id=attempt.id,
+                    transcript_id=execution_input.metadata.id,
+                    window_index=cue_window.window_index,
+                )
             )
             try:
                 window = _validated_window(

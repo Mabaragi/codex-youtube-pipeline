@@ -664,11 +664,13 @@ class FakeMicroEventExtractor(MicroEventExtractorPort):
     def __init__(self) -> None:
         self.responses: list[str] = []
         self.prompts: list[str] = []
+        self.requests: list[MicroEventExtractionRequest] = []
 
     async def extract_window(
         self,
         request: MicroEventExtractionRequest,
     ) -> MicroEventExtractionResult:
+        self.requests.append(request)
         self.prompts.append(request.prompt)
         response = self.responses.pop(0) if self.responses else _extractor_json()
         return MicroEventExtractionResult(
@@ -721,6 +723,20 @@ def test_micro_event_extract_succeeds_and_detail_can_be_read() -> None:
     assert latest["windows"][0]["rawResponseText"]
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert fakes.video_tasks.tasks[2].status == "succeeded"
+
+
+def test_micro_event_extract_passes_codex_usage_context_per_window() -> None:
+    fakes = _seed_ready_fakes()
+
+    response = asyncio.run(_extract(fakes))
+
+    request = fakes.extractor.requests[0]
+    assert request.video_id == 1
+    assert request.video_task_id == response["videoTaskId"]
+    assert request.job_id == response["jobId"]
+    assert request.job_attempt_id == response["jobAttemptId"]
+    assert request.transcript_id == response["transcriptId"]
+    assert request.window_index == 1
 
 
 def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:

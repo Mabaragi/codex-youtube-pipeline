@@ -8,6 +8,19 @@ from pydantic import BaseModel, ConfigDict
 from codex_sdk_cli.settings import ApprovalChoice, SandboxChoice
 
 
+class CodexRunUsageContext(BaseModel):
+    source: str
+    operation: str
+    video_id: int | None = None
+    video_task_id: int | None = None
+    job_id: int | None = None
+    job_attempt_id: int | None = None
+    transcript_id: int | None = None
+    window_index: int | None = None
+
+    model_config = ConfigDict(frozen=True)
+
+
 class CodexRunCommand(BaseModel):
     prompt: str
     thread_id: str | None
@@ -18,6 +31,7 @@ class CodexRunCommand(BaseModel):
     persist: bool
     base_instructions: str | None
     developer_instructions: str | None
+    usage_context: CodexRunUsageContext | None = None
 
     model_config = ConfigDict(frozen=True)
 

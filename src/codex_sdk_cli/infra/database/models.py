@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from codex_sdk_cli.infra.channels.repository import ChannelModel
+from codex_sdk_cli.infra.codex_usage.repository import CodexRunUsageModel
 from codex_sdk_cli.infra.external_api_calls.repository import ExternalApiCallModel
 from codex_sdk_cli.infra.micro_events.repository import (
     AsrCorrectionCandidateModel,
@@ -21,6 +22,7 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscript
 __all__ = [
     "ChannelModel",
     "AsrCorrectionCandidateModel",
+    "CodexRunUsageModel",
     "ExternalApiCallModel",
     "MicroEventCandidateModel",
     "MicroEventExtractionWindowModel",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from codex_sdk_cli.settings import CliSettings
 
 from .exceptions import InvalidCodexRequest
-from .ports import CodexRunCommand, CodexRuntimePort
+from .ports import CodexRunCommand, CodexRuntimePort, CodexRunUsageContext
 from .schemas import (
     AccountResponse,
     ApiKeyLoginRequest,
@@ -35,6 +35,10 @@ class RunCodexPromptUseCase:
                 persist=False,
                 base_instructions=_instruction_or_blank(request.base_instructions),
                 developer_instructions=_instruction_or_blank(request.developer_instructions),
+                usage_context=CodexRunUsageContext(
+                    source="codex_runs",
+                    operation="run_prompt",
+                ),
             )
         )
         return RunResponse.model_validate(result.model_dump())
