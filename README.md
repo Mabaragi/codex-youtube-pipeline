@@ -69,6 +69,65 @@ uv run codex-demo account
 uv run codex-demo logout
 ```
 
+## Domain Knowledge CLI
+
+Domain knowledge entries are stored in the app database and are shared by the
+Ops UI, API, CLI, and micro-event extraction prompts. Set
+`CODEX_CLI_DATABASE_URL` when you want the CLI to write to a specific database;
+otherwise it uses the local default database.
+
+List known entry types:
+
+```powershell
+uv run codex-demo domain type list
+```
+
+List entries. By default archived entries are hidden:
+
+```powershell
+uv run codex-demo domain entry list
+uv run codex-demo domain entry list --streamer-id 1
+uv run codex-demo domain entry list --type person --q "nickname"
+uv run codex-demo domain entry list --include-inactive
+```
+
+Add one entry. `--type` accepts an existing type key/label or a new label; when
+the type does not exist, the server-side use case creates it before saving the
+entry. Repeat `--streamer-id` and `--alias` to attach multiple values.
+
+```powershell
+uv run codex-demo domain entry add `
+  --type "사람 이름" `
+  --name "홍길동" `
+  --detail "스트리머가 자주 언급하는 예시 인물이다." `
+  --streamer-id 1 `
+  --alias "길동"
+```
+
+Useful add options:
+
+- `--prompt-policy AUTO_ON_MATCH`: inject only when the name or alias appears.
+- `--prompt-policy ALWAYS_FOR_SCOPED_STREAMER`: inject for linked streamers even
+  without a text match, subject to extraction caps.
+- `--prompt-policy DISABLED`: keep the entry stored but do not inject it.
+- `--priority <number>`: lower numbers are considered earlier when prompt
+  annotations are capped.
+- `--source-note "..."`: record where the knowledge came from.
+
+Import entries from JSONL. Each line is the same camelCase payload used by the
+API `POST /domain-entries` request. This format is intended for agents and bulk
+manual curation because it can set advanced alias metadata.
+
+```powershell
+uv run codex-demo domain entry import .\domain-entries.jsonl
+```
+
+Example JSONL line:
+
+```json
+{"typeLabel":"게임 용어","canonicalName":"텔레포터","detail":"게임 진행 중 이동 장치나 선택지로 언급된다.","streamerIds":[1],"aliases":[{"surfaceForm":"텔포","aliasKind":"ALIAS","certainty":"HIGH","applyScope":"SEARCH_AND_SUMMARY"}],"promptPolicy":"AUTO_ON_MATCH","priority":40}
+```
+
 ## Configuration
 
 Environment variables use the `CODEX_CLI_` prefix:
