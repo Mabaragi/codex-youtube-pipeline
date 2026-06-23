@@ -213,6 +213,9 @@ class FakeVideoRepository(VideoRepositoryPort):
         self.videos: dict[int, VideoRecord] = {}
         self.next_video_id = 1
 
+    async def get_video(self, video_id: int) -> VideoRecord | None:
+        return self.videos.get(video_id)
+
     async def list_all_videos(self) -> list[VideoRecord]:
         return sorted(
             self.videos.values(),

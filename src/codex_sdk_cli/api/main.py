@@ -12,6 +12,7 @@ from codex_sdk_cli.api.exception_handlers import add_exception_handlers
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.domains.channels.router import router as channels_router
 from codex_sdk_cli.domains.codex.router import router as codex_router
+from codex_sdk_cli.domains.micro_events.router import router as micro_events_router
 from codex_sdk_cli.domains.operation_events.router import router as operation_events_router
 from codex_sdk_cli.domains.ops.router import router as ops_router
 from codex_sdk_cli.domains.pipeline_jobs.router import router as pipeline_jobs_router
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(channels_router, tags=["channels"])
     app.include_router(videos_router, tags=["videos"])
     app.include_router(video_tasks_router, tags=["video-tasks"])
+    app.include_router(micro_events_router, tags=["micro-events"])
     app.include_router(
         youtube_transcripts_router,
         prefix="/youtube-transcripts",

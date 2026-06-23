@@ -27,6 +27,7 @@ from .ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineMicroEventExtractionOutputRecord,
     PipelineTranscriptCueOutputRecord,
     PipelineTranscriptOutputRecord,
     PipelineVideoOutputRecord,
@@ -38,6 +39,7 @@ from .schemas import (
     PipelineJobAttemptResponse,
     PipelineJobDetailResponse,
     PipelineJobSummaryResponse,
+    PipelineMicroEventExtractionOutputResponse,
     PipelineTranscriptCueOutputResponse,
     PipelineTranscriptOutputResponse,
     PipelineVideoOutputResponse,
@@ -372,6 +374,10 @@ def _job_detail_response(detail: PipelineJobDetailRecord) -> PipelineJobDetailRe
         transcriptCues=[
             _transcript_cue_output_response(cue) for cue in detail.transcript_cues
         ],
+        microEventExtractions=[
+            _micro_event_extraction_output_response(output)
+            for output in detail.micro_event_extractions
+        ],
     )
 
 
@@ -458,4 +464,20 @@ def _transcript_cue_output_response(
         firstCueId=cue.first_cue_id,
         lastCueId=cue.last_cue_id,
         sourceJobId=cue.source_job_id,
+    )
+
+
+def _micro_event_extraction_output_response(
+    output: PipelineMicroEventExtractionOutputRecord,
+) -> PipelineMicroEventExtractionOutputResponse:
+    return PipelineMicroEventExtractionOutputResponse(
+        videoTaskId=output.video_task_id,
+        videoId=output.video_id,
+        transcriptId=output.transcript_id,
+        windowCount=output.window_count,
+        microEventCount=output.micro_event_count,
+        asrCorrectionCandidateCount=output.asr_correction_candidate_count,
+        firstCueId=output.first_cue_id,
+        lastCueId=output.last_cue_id,
+        sourceJobId=output.source_job_id,
     )

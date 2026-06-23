@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.external_api_calls.repository import ExternalApiCallModel
+from codex_sdk_cli.infra.micro_events.repository import (
+    AsrCorrectionCandidateModel,
+    MicroEventCandidateModel,
+    MicroEventExtractionWindowModel,
+)
 from codex_sdk_cli.infra.operation_events.repository import OperationEventModel
 from codex_sdk_cli.infra.pipeline_jobs.repository import (
     PipelineJobAttemptModel,
@@ -15,7 +20,10 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscript
 
 __all__ = [
     "ChannelModel",
+    "AsrCorrectionCandidateModel",
     "ExternalApiCallModel",
+    "MicroEventCandidateModel",
+    "MicroEventExtractionWindowModel",
     "OperationEventModel",
     "PipelineJobAttemptModel",
     "PipelineJobModel",

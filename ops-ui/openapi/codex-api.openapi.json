@@ -30,6 +30,86 @@
         "title": "ApiKeyLoginRequest",
         "type": "object"
       },
+      "AsrCorrectionCandidateResponse": {
+        "properties": {
+          "applyScope": {
+            "enum": [
+              "NONE",
+              "SEARCH_ONLY",
+              "SEARCH_AND_SUMMARY",
+              "DISPLAY_ALLOWED"
+            ],
+            "title": "Applyscope",
+            "type": "string"
+          },
+          "asrCorrectionCandidateId": {
+            "title": "Asrcorrectioncandidateid",
+            "type": "integer"
+          },
+          "candidateIndex": {
+            "title": "Candidateindex",
+            "type": "integer"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "correctionType": {
+            "enum": [
+              "PROPER_NOUN",
+              "GAME_TITLE",
+              "CONTENT_TITLE",
+              "COMMON_WORD",
+              "FOOD",
+              "PLACE",
+              "STREAM_TERM",
+              "CONTEXTUAL_TERM",
+              "UNCERTAIN"
+            ],
+            "title": "Correctiontype",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "evidenceCueIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidencecueids",
+            "type": "array"
+          },
+          "original": {
+            "title": "Original",
+            "type": "string"
+          },
+          "suggested": {
+            "title": "Suggested",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asrCorrectionCandidateId",
+          "candidateIndex",
+          "original",
+          "suggested",
+          "correctionType",
+          "applyScope",
+          "evidenceCueIds",
+          "confidence",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "AsrCorrectionCandidateResponse",
+        "type": "object"
+      },
       "ChannelCreateRequest": {
         "additionalProperties": false,
         "examples": [
@@ -824,6 +904,638 @@
           "success"
         ],
         "title": "LogoutResponse",
+        "type": "object"
+      },
+      "MicroEventCandidateResponse": {
+        "properties": {
+          "activity": {
+            "enum": [
+              "PRE_ROLL",
+              "OPENING",
+              "JUST_CHATTING",
+              "ANNOUNCEMENT",
+              "COMMUNITY_REVIEW",
+              "MEDIA_REVIEW",
+              "GAME_SETUP",
+              "GAMEPLAY",
+              "BREAK",
+              "POST_GAME",
+              "CLOSING",
+              "UNKNOWN"
+            ],
+            "title": "Activity",
+            "type": "string"
+          },
+          "boundaryAfter": {
+            "title": "Boundaryafter",
+            "type": "boolean"
+          },
+          "boundaryBefore": {
+            "title": "Boundarybefore",
+            "type": "boolean"
+          },
+          "candidateIndex": {
+            "title": "Candidateindex",
+            "type": "integer"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "endCueId": {
+            "title": "Endcueid",
+            "type": "string"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "evidenceCueIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidencecueids",
+            "type": "array"
+          },
+          "microEventCandidateId": {
+            "title": "Microeventcandidateid",
+            "type": "integer"
+          },
+          "startCueId": {
+            "title": "Startcueid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "microEventCandidateId",
+          "candidateIndex",
+          "activity",
+          "event",
+          "startCueId",
+          "endCueId",
+          "evidenceCueIds",
+          "boundaryBefore",
+          "boundaryAfter",
+          "confidence",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "MicroEventCandidateResponse",
+        "type": "object"
+      },
+      "MicroEventExtractRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "overlapMinutes": 5,
+            "regenerateSucceeded": false,
+            "retryFailed": false,
+            "windowMinutes": 30
+          }
+        ],
+        "properties": {
+          "overlapMinutes": {
+            "default": 5,
+            "maximum": 239.0,
+            "minimum": 0.0,
+            "title": "Overlapminutes",
+            "type": "integer"
+          },
+          "regenerateSucceeded": {
+            "default": false,
+            "title": "Regeneratesucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "windowMinutes": {
+            "default": 30,
+            "maximum": 240.0,
+            "minimum": 1.0,
+            "title": "Windowminutes",
+            "type": "integer"
+          }
+        },
+        "title": "MicroEventExtractRequest",
+        "type": "object"
+      },
+      "MicroEventExtractResponse": {
+        "properties": {
+          "asrCorrectionCandidateCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asrcorrectioncandidatecount"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "firstCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstcueid"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "lastCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcueid"
+          },
+          "microEventCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Microeventcount"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          },
+          "windowCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Windowcount"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "status",
+          "reason",
+          "jobId",
+          "jobAttemptId",
+          "transcriptId",
+          "windowCount",
+          "microEventCount",
+          "asrCorrectionCandidateCount",
+          "firstCueId",
+          "lastCueId",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "MicroEventExtractResponse",
+        "type": "object"
+      },
+      "MicroEventExtractionDetailResponse": {
+        "properties": {
+          "asrCorrectionCandidateCount": {
+            "title": "Asrcorrectioncandidatecount",
+            "type": "integer"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "firstCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstcueid"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "lastCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcueid"
+          },
+          "microEventCount": {
+            "title": "Microeventcount",
+            "type": "integer"
+          },
+          "outputJson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputjson"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "windowCount": {
+            "title": "Windowcount",
+            "type": "integer"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/MicroEventExtractionWindowResponse"
+            },
+            "title": "Windows",
+            "type": "array"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "videoId",
+          "youtubeVideoId",
+          "transcriptId",
+          "status",
+          "jobId",
+          "jobAttemptId",
+          "windowCount",
+          "microEventCount",
+          "asrCorrectionCandidateCount",
+          "firstCueId",
+          "lastCueId",
+          "outputJson",
+          "errorType",
+          "errorMessage",
+          "startedAt",
+          "completedAt",
+          "createdAt",
+          "updatedAt",
+          "windows"
+        ],
+        "title": "MicroEventExtractionDetailResponse",
+        "type": "object"
+      },
+      "MicroEventExtractionWindowResponse": {
+        "properties": {
+          "asrCorrectionCandidates": {
+            "items": {
+              "$ref": "#/components/schemas/AsrCorrectionCandidateResponse"
+            },
+            "title": "Asrcorrectioncandidates",
+            "type": "array"
+          },
+          "carryOutUnfinished": {
+            "title": "Carryoutunfinished",
+            "type": "boolean"
+          },
+          "codexThreadId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codexthreadid"
+          },
+          "codexTurnId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codexturnid"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "endCueId": {
+            "title": "Endcueid",
+            "type": "string"
+          },
+          "microEvents": {
+            "items": {
+              "$ref": "#/components/schemas/MicroEventCandidateResponse"
+            },
+            "title": "Microevents",
+            "type": "array"
+          },
+          "parsedResponseJson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parsedresponsejson"
+          },
+          "rawResponseText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rawresponsetext"
+          },
+          "sourceJobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobattemptid"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "startCueId": {
+            "title": "Startcueid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "validationError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validationerror"
+          },
+          "windowId": {
+            "title": "Windowid",
+            "type": "integer"
+          },
+          "windowIndex": {
+            "title": "Windowindex",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "windowId",
+          "windowIndex",
+          "startCueId",
+          "endCueId",
+          "cueCount",
+          "status",
+          "carryOutUnfinished",
+          "codexThreadId",
+          "codexTurnId",
+          "rawResponseText",
+          "parsedResponseJson",
+          "validationError",
+          "sourceJobId",
+          "sourceJobAttemptId",
+          "createdAt",
+          "updatedAt",
+          "microEvents",
+          "asrCorrectionCandidates"
+        ],
+        "title": "MicroEventExtractionWindowResponse",
         "type": "object"
       },
       "OperationEventListResponse": {
@@ -2408,6 +3120,13 @@
             "title": "Jobid",
             "type": "integer"
           },
+          "microEventExtractions": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineMicroEventExtractionOutputResponse"
+            },
+            "title": "Microeventextractions",
+            "type": "array"
+          },
           "parentJobId": {
             "anyOf": [
               {
@@ -2502,7 +3221,8 @@
           "channels",
           "videos",
           "transcripts",
-          "transcriptCues"
+          "transcriptCues",
+          "microEventExtractions"
         ],
         "title": "PipelineJobDetailResponse",
         "type": "object"
@@ -2632,6 +3352,80 @@
           "attemptCount"
         ],
         "title": "PipelineJobSummaryResponse",
+        "type": "object"
+      },
+      "PipelineMicroEventExtractionOutputResponse": {
+        "properties": {
+          "asrCorrectionCandidateCount": {
+            "title": "Asrcorrectioncandidatecount",
+            "type": "integer"
+          },
+          "firstCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstcueid"
+          },
+          "lastCueId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcueid"
+          },
+          "microEventCount": {
+            "title": "Microeventcount",
+            "type": "integer"
+          },
+          "sourceJobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcejobid"
+          },
+          "transcriptId": {
+            "title": "Transcriptid",
+            "type": "integer"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "windowCount": {
+            "title": "Windowcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "videoId",
+          "transcriptId",
+          "windowCount",
+          "microEventCount",
+          "asrCorrectionCandidateCount",
+          "firstCueId",
+          "lastCueId",
+          "sourceJobId"
+        ],
+        "title": "PipelineMicroEventExtractionOutputResponse",
         "type": "object"
       },
       "PipelineTranscriptCueOutputResponse": {
@@ -6143,6 +6937,162 @@
         "summary": "Generate All Transcript Cue Tasks",
         "tags": [
           "video-tasks"
+        ]
+      }
+    },
+    "/videos/{video_id}/micro-event-extractions/latest": {
+      "get": {
+        "operationId": "get_latest_video_micro_event_extraction_videos__video_id__micro_event_extractions_latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicroEventExtractionDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Latest Video Micro Event Extraction",
+        "tags": [
+          "micro-events"
+        ]
+      }
+    },
+    "/videos/{video_id}/micro-event-extractions/{video_task_id}": {
+      "get": {
+        "operationId": "get_video_micro_event_extraction_videos__video_id__micro_event_extractions__video_task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "video_task_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Task Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicroEventExtractionDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Video Micro Event Extraction",
+        "tags": [
+          "micro-events"
+        ]
+      }
+    },
+    "/videos/{video_id}/video-tasks/micro-event-extract": {
+      "post": {
+        "operationId": "extract_video_micro_events_videos__video_id__video_tasks_micro_event_extract_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MicroEventExtractRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicroEventExtractResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Extract Video Micro Events",
+        "tags": [
+          "micro-events"
         ]
       }
     },

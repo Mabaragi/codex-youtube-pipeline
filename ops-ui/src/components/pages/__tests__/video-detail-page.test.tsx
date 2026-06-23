@@ -1,25 +1,54 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { VideoDetailPage } from "../video-detail-page";
-import type { OpsVideoDetail, TranscriptContent, TranscriptCueList } from "@/lib/types";
+import type {
+  MicroEventExtractResult,
+  MicroEventExtractionDetail,
+  OpsVideoDetail,
+  TranscriptContent,
+  TranscriptCueList,
+} from "@/lib/types";
 
 const queryMocks = vi.hoisted(() => {
   const state = {
     content: undefined as TranscriptContent | undefined,
     cues: undefined as TranscriptCueList | undefined,
+    microEvents: undefined as MicroEventExtractionDetail | null | undefined,
+    microEventError: null as Error | null,
+  };
+  const mutation = {
+    data: undefined as MicroEventExtractResult | undefined,
+    error: null as Error | null,
+    isPending: false,
+    mutate: vi.fn(),
   };
   return {
     contentState: state,
     cueState: state,
+    microEventState: state,
     detail: {
       data: undefined as OpsVideoDetail | undefined,
       isLoading: false,
       error: null as Error | null,
     },
+    extractMicroEventsMutation: vi.fn(() => mutation),
     fetchTranscriptContent: vi.fn(async (transcriptId: number) => {
       void transcriptId;
       return state.content;
     }),
+    microEventExtraction: vi.fn(
+      (_videoId: number, enabled: boolean) =>
+        ({
+          data: enabled ? state.microEvents : undefined,
+          isLoading: false,
+          error: state.microEventError,
+        }) as {
+          data: MicroEventExtractionDetail | null | undefined;
+          isLoading: boolean;
+          error: Error | null;
+        },
+    ),
+    mutation,
     transcriptContent: vi.fn(
       (_transcriptId: number, enabled: boolean) =>
         ({
@@ -48,6 +77,9 @@ const queryMocks = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/queries", () => ({
+  useExtractMicroEventsMutation: () => queryMocks.extractMicroEventsMutation(),
+  useMicroEventExtraction: (videoId: number, enabled: boolean) =>
+    queryMocks.microEventExtraction(videoId, enabled),
   fetchTranscriptContent: (transcriptId: number) =>
     queryMocks.fetchTranscriptContent(transcriptId),
   useOpsVideoDetail: () => queryMocks.detail,
@@ -99,6 +131,32 @@ const videoDetail: OpsVideoDetail = {
       completedAt: "2026-06-18T00:57:00Z",
       createdAt: "2026-06-18T00:56:00Z",
       updatedAt: "2026-06-18T00:57:00Z",
+    },
+    {
+      videoTaskId: 16,
+      videoId: 42,
+      channelId: 7,
+      channelName: "Channel",
+      youtubeVideoId: "abc123DEF45",
+      taskName: "micro_event_extract",
+      taskVersion: "v1",
+      status: "succeeded",
+      workerId: "manual-api",
+      timeoutSeconds: 3600,
+      jobId: 16,
+      jobAttemptId: 17,
+      outputTranscriptId: 11,
+      outputJson: {
+        windowCount: 1,
+        microEventCount: 1,
+        asrCorrectionCandidateCount: 1,
+      },
+      errorType: null,
+      errorMessage: null,
+      startedAt: "2026-06-18T00:58:00Z",
+      completedAt: "2026-06-18T00:59:00Z",
+      createdAt: "2026-06-18T00:58:00Z",
+      updatedAt: "2026-06-18T00:59:00Z",
     },
     {
       videoTaskId: 9,
@@ -201,6 +259,82 @@ const transcriptCues: TranscriptCueList = {
   ],
 };
 
+const microEventExtraction: MicroEventExtractionDetail = {
+  videoTaskId: 16,
+  videoId: 42,
+  youtubeVideoId: "abc123DEF45",
+  transcriptId: 11,
+  status: "succeeded",
+  jobId: 16,
+  jobAttemptId: 17,
+  windowCount: 1,
+  microEventCount: 1,
+  asrCorrectionCandidateCount: 1,
+  firstCueId: "tr11-c000001",
+  lastCueId: "tr11-c000002",
+  outputJson: {
+    windowCount: 1,
+    microEventCount: 1,
+    asrCorrectionCandidateCount: 1,
+  },
+  errorType: null,
+  errorMessage: null,
+  startedAt: "2026-06-18T00:58:00Z",
+  completedAt: "2026-06-18T00:59:00Z",
+  createdAt: "2026-06-18T00:58:00Z",
+  updatedAt: "2026-06-18T00:59:00Z",
+  windows: [
+    {
+      windowId: 201,
+      windowIndex: 1,
+      startCueId: "tr11-c000001",
+      endCueId: "tr11-c000002",
+      cueCount: 2,
+      status: "succeeded",
+      carryOutUnfinished: false,
+      codexThreadId: "thread-1",
+      codexTurnId: "turn-1",
+      rawResponseText: '{"micro_events":[]}',
+      parsedResponseJson: { micro_events: [] },
+      validationError: null,
+      sourceJobId: 16,
+      sourceJobAttemptId: 17,
+      createdAt: "2026-06-18T00:59:00Z",
+      updatedAt: "2026-06-18T00:59:00Z",
+      microEvents: [
+        {
+          microEventCandidateId: 301,
+          candidateIndex: 1,
+          activity: "JUST_CHATTING",
+          event: "Streamer reacts to the opening chat topic.",
+          startCueId: "tr11-c000001",
+          endCueId: "tr11-c000002",
+          evidenceCueIds: ["tr11-c000001"],
+          boundaryBefore: true,
+          boundaryAfter: false,
+          confidence: 0.87,
+          createdAt: "2026-06-18T00:59:00Z",
+          updatedAt: "2026-06-18T00:59:00Z",
+        },
+      ],
+      asrCorrectionCandidates: [
+        {
+          asrCorrectionCandidateId: 401,
+          candidateIndex: 1,
+          original: "recoding",
+          suggested: "recording",
+          correctionType: "COMMON_WORD",
+          applyScope: "SEARCH_ONLY",
+          evidenceCueIds: ["tr11-c000002"],
+          confidence: 0.8,
+          createdAt: "2026-06-18T00:59:00Z",
+          updatedAt: "2026-06-18T00:59:00Z",
+        },
+      ],
+    },
+  ],
+};
+
 let downloadedBlob: Blob | null = null;
 let downloadedFileName = "";
 let anchorClick: ReturnType<typeof vi.fn>;
@@ -236,7 +370,15 @@ describe("VideoDetailPage", () => {
     queryMocks.detail.error = null;
     queryMocks.contentState.content = transcriptContent;
     queryMocks.cueState.cues = transcriptCues;
+    queryMocks.microEventState.microEvents = microEventExtraction;
+    queryMocks.microEventState.microEventError = null;
+    queryMocks.mutation.data = undefined;
+    queryMocks.mutation.error = null;
+    queryMocks.mutation.isPending = false;
+    queryMocks.mutation.mutate.mockClear();
+    queryMocks.extractMicroEventsMutation.mockClear();
     queryMocks.fetchTranscriptContent.mockClear();
+    queryMocks.microEventExtraction.mockClear();
     queryMocks.transcriptContent.mockClear();
     queryMocks.transcriptCues.mockClear();
     downloadedBlob = null;
@@ -251,9 +393,51 @@ describe("VideoDetailPage", () => {
     expect(screen.getByText("Stored video description")).toBeTruthy();
     expect(screen.getAllByText("transcript_collect").length).toBeGreaterThan(0);
     expect(screen.getAllByText("transcript_cue_generate").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("micro_event_extract").length).toBeGreaterThan(0);
     expect(screen.getAllByText("#10").length).toBeGreaterThan(0);
     expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("Korean · ko")).toBeTruthy();
+  });
+
+  it("renders latest micro-event extraction candidates", () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    expect(screen.getByText("Micro Events")).toBeTruthy();
+    expect(screen.getByText("Window #1")).toBeTruthy();
+    expect(screen.getByText("Streamer reacts to the opening chat topic.")).toBeTruthy();
+    expect(screen.getByText("recoding -> recording")).toBeTruthy();
+    expect(screen.getByText("ASR Candidates")).toBeTruthy();
+    expect(queryMocks.microEventExtraction).toHaveBeenLastCalledWith(42, true);
+  });
+
+  it("runs micro-event extraction from the detail panel", () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Regenerate/i }));
+
+    expect(queryMocks.mutation.mutate).toHaveBeenCalledWith({
+      videoId: 42,
+      retryFailed: false,
+      regenerateSucceeded: true,
+    });
+  });
+
+  it("shows an empty micro-event state before extraction", () => {
+    queryMocks.microEventState.microEvents = null;
+    queryMocks.detail.data = {
+      ...videoDetail,
+      tasks: videoDetail.tasks.filter((task) => task.taskName !== "micro_event_extract"),
+    };
+
+    render(<VideoDetailPage videoId={42} />);
+
+    expect(screen.getByText("No extraction yet.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Extract events/i }));
+    expect(queryMocks.mutation.mutate).toHaveBeenCalledWith({
+      videoId: 42,
+      retryFailed: false,
+      regenerateSucceeded: false,
+    });
   });
 
   it("loads transcript content only after the transcript is shown", () => {
@@ -289,7 +473,7 @@ describe("VideoDetailPage", () => {
     expect(screen.getByText("tr11-c000001")).toBeTruthy();
     expect(screen.getByText("00:00-00:01")).toBeTruthy();
     expect(screen.getByText("seg #0")).toBeTruthy();
-    expect(screen.getByText("2 cues")).toBeTruthy();
+    expect(screen.getAllByText("2 cues").length).toBeGreaterThan(0);
     expect(queryMocks.transcriptCues).toHaveBeenLastCalledWith(11, true);
 
     fireEvent.click(screen.getByRole("button", { name: /Hide cues/i }));

@@ -12,6 +12,12 @@ from codex_sdk_cli.domains.channels.exceptions import (
 )
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
 from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
+from codex_sdk_cli.domains.micro_events.exceptions import (
+    MicroEventDomainError,
+    MicroEventExtractionNotFound,
+    MicroEventExtractionPersistenceError,
+    MicroEventExtractionPreconditionFailed,
+)
 from codex_sdk_cli.domains.operation_events.exceptions import OperationEventDomainError
 from codex_sdk_cli.domains.ops.exceptions import OpsDomainError, OpsVideoNotFound
 from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
@@ -41,6 +47,7 @@ from codex_sdk_cli.domains.videos.exceptions import (
     ChannelMissingYouTubeId,
     VideoAlreadyExists,
     VideoDomainError,
+    VideoNotFound,
     VideoPersistenceError,
 )
 from codex_sdk_cli.domains.youtube_data.exceptions import (
@@ -144,12 +151,28 @@ def add_exception_handlers(app: FastAPI) -> None:
         exc: VideoDomainError,
     ) -> JSONResponse:
         status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, VideoAlreadyExists):
+        if isinstance(exc, VideoNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, VideoAlreadyExists):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, VideoPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         elif isinstance(exc, ChannelMissingYouTubeId):
             status_code = status.HTTP_400_BAD_REQUEST
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(MicroEventDomainError)
+    async def micro_event_domain_error_handler(
+        _request: Request,
+        exc: MicroEventDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, MicroEventExtractionNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, MicroEventExtractionPreconditionFailed):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, MicroEventExtractionPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
     @app.exception_handler(VideoTaskDomainError)

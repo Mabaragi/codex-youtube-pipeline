@@ -11,6 +11,10 @@ class VideoAlreadyExists(VideoDomainError):
     """Raised when a YouTube video identity already belongs to another row."""
 
 
+class VideoNotFound(VideoDomainError):
+    """Raised when a local video row cannot be found."""
+
+
 class VideoPersistenceError(VideoDomainError):
     """Raised when video persistence fails."""
 

@@ -17,8 +17,11 @@ def test_database_base_registers_app_tables() -> None:
     import codex_sdk_cli.infra.database.models  # noqa: F401
 
     assert set(Base.metadata.tables) == {
+        "asr_correction_candidates",
         "channels",
         "external_api_calls",
+        "micro_event_candidates",
+        "micro_event_extraction_windows",
         "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",
@@ -69,6 +72,8 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS", "300")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT", "2")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS", "30")
+    monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_TIMEOUT_SECONDS", "1200")
+    monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT", "3")
 
     settings = CliSettings()
 
@@ -77,6 +82,8 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert settings.transcript_collect_timeout_seconds == 300
     assert settings.transcript_collect_concurrency_limit == 2
     assert settings.transcript_collect_delay_seconds == 30
+    assert settings.micro_event_extract_timeout_seconds == 1200
+    assert settings.micro_event_extract_concurrency_limit == 3
 
 
 def test_blank_database_url_uses_default() -> None:
@@ -164,8 +171,11 @@ def test_alembic_upgrade_creates_app_tables(
         engine.dispose()
 
     assert {
+        "asr_correction_candidates",
         "channels",
         "external_api_calls",
+        "micro_event_candidates",
+        "micro_event_extraction_windows",
         "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",

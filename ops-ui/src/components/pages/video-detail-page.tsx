@@ -2,19 +2,25 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { ArrowLeft, Captions, Download, ExternalLink } from "lucide-react";
+import { ArrowLeft, Captions, Download, ExternalLink, ListTree, Play } from "lucide-react";
 import { useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
   fetchTranscriptContent,
+  useExtractMicroEventsMutation,
+  useMicroEventExtraction,
   useOpsVideoDetail,
   useTranscriptContent,
   useTranscriptCues,
 } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
 import type {
+  AsrCorrectionCandidate,
+  MicroEventCandidate,
+  MicroEventExtractionDetail,
+  MicroEventExtractionWindow,
   OpsVideoDetail,
   OpsVideoTask,
   TranscriptContent,
@@ -36,6 +42,15 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
   const latestCueTask = data?.tasks.find(
     (task) => task.taskName === "transcript_cue_generate",
   );
+  const latestMicroEventTask = data?.tasks.find(
+    (task) => task.taskName === "micro_event_extract",
+  );
+  const {
+    data: microEventExtraction,
+    isLoading: microEventLoading,
+    error: microEventError,
+  } = useMicroEventExtraction(videoId, Boolean(data));
+  const extractMicroEvents = useExtractMicroEventsMutation();
 
   const taskColumns: ColumnDef<OpsVideoTask>[] = [
     {
@@ -136,6 +151,15 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
                     status={latestCueTask?.status}
                   />
                   <DetailRow label="Cue count" value={cueCountValue(latestCueTask)} />
+                  <DetailRow
+                    label="Micro events"
+                    value={
+                      latestMicroEventTask
+                        ? `#${latestMicroEventTask.videoTaskId}`
+                        : "-"
+                    }
+                    status={latestMicroEventTask?.status}
+                  />
                   <DetailRow label="Listing API" value={idValue(data.sourceListingApiCallId)} />
                   <DetailRow label="Details API" value={idValue(data.sourceDetailsApiCallId)} />
                   <DetailRow label="Source job" value={idValue(data.sourceJobId)} />
@@ -157,6 +181,16 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
             <h2 className="text-sm font-semibold">Task History</h2>
             <DataTable columns={taskColumns} data={data.tasks} emptyLabel="No tasks." />
           </section>
+
+          <MicroEventExtractionPanel
+            extraction={microEventExtraction}
+            extractionError={microEventError}
+            extractionLoading={microEventLoading}
+            extractMicroEvents={extractMicroEvents}
+            latestCueTask={latestCueTask}
+            latestMicroEventTask={latestMicroEventTask}
+            videoId={videoId}
+          />
 
           <section className="ops-panel p-4">
             <div className="mb-3 flex items-center gap-2">
@@ -195,6 +229,316 @@ function DetailRow({
         {status ? <StatusBadge status={status} /> : null}
         <span>{value}</span>
       </div>
+    </div>
+  );
+}
+
+type ExtractMicroEventsMutation = ReturnType<typeof useExtractMicroEventsMutation>;
+
+function MicroEventExtractionPanel({
+  videoId,
+  latestCueTask,
+  latestMicroEventTask,
+  extraction,
+  extractionLoading,
+  extractionError,
+  extractMicroEvents,
+}: {
+  videoId: number;
+  latestCueTask: OpsVideoTask | undefined;
+  latestMicroEventTask: OpsVideoTask | undefined;
+  extraction: MicroEventExtractionDetail | null | undefined;
+  extractionLoading: boolean;
+  extractionError: Error | null;
+  extractMicroEvents: ExtractMicroEventsMutation;
+}) {
+  const hasSucceededCueTask = latestCueTask?.status === "succeeded";
+  const taskIsRunning = latestMicroEventTask?.status === "running";
+  const taskFailed =
+    latestMicroEventTask?.status === "failed" ||
+    latestMicroEventTask?.status === "timed_out";
+  const taskSucceeded = latestMicroEventTask?.status === "succeeded";
+  const disabled =
+    !hasSucceededCueTask || taskIsRunning || extractMicroEvents.isPending;
+  const actionLabel = taskFailed
+    ? "Retry events"
+    : taskSucceeded
+      ? "Regenerate"
+      : "Extract events";
+  const actionTitle = !hasSucceededCueTask
+    ? "Succeeded cue task required."
+    : taskIsRunning
+      ? "Micro-event extraction is already running."
+      : actionLabel;
+
+  function handleExtract() {
+    extractMicroEvents.mutate({
+      videoId,
+      retryFailed: taskFailed,
+      regenerateSucceeded: taskSucceeded,
+    });
+  }
+
+  return (
+    <section className="ops-panel p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ListTree size={16} />
+          <h2 className="text-sm font-semibold">Micro Events</h2>
+        </div>
+        <button
+          className={`ops-button ${extraction ? "" : "ops-button-primary"}`}
+          disabled={disabled}
+          onClick={handleExtract}
+          title={actionTitle}
+          type="button"
+        >
+          <Play size={14} />
+          {extractMicroEvents.isPending ? "Running..." : actionLabel}
+        </button>
+      </div>
+
+      {!hasSucceededCueTask ? (
+        <div className="mb-3 text-xs text-slate-500">
+          Succeeded transcript cues are required before extraction.
+        </div>
+      ) : null}
+      {extractMicroEvents.error ? (
+        <div className="mb-3 text-sm text-red-700">
+          {formatUnknownError(extractMicroEvents.error)}
+        </div>
+      ) : null}
+      {extractMicroEvents.data ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <span>Last request</span>
+          <StatusBadge status={extractMicroEvents.data.status} />
+          <span>{extractMicroEvents.data.reason}</span>
+        </div>
+      ) : null}
+      {extractionLoading ? (
+        <div className="text-sm text-slate-600">Loading...</div>
+      ) : null}
+      {extractionError ? (
+        <div className="text-sm text-red-700">{String(extractionError)}</div>
+      ) : null}
+      {!extractionLoading && !extractionError && extraction === null ? (
+        <div className="text-sm text-slate-500">No extraction yet.</div>
+      ) : null}
+      {extraction ? <MicroEventExtractionView extraction={extraction} /> : null}
+    </section>
+  );
+}
+
+function MicroEventExtractionView({
+  extraction,
+}: {
+  extraction: MicroEventExtractionDetail;
+}) {
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCell label="Status" status={extraction.status} value={extraction.status} />
+        <SummaryCell label="Task" value={`#${extraction.videoTaskId}`} />
+        <SummaryCell label="Transcript" value={idValue(extraction.transcriptId)} />
+        <SummaryCell label="Job" value={idValue(extraction.jobId)} />
+        <SummaryCell label="Windows" value={String(extraction.windowCount)} />
+        <SummaryCell label="Events" value={String(extraction.microEventCount)} />
+        <SummaryCell
+          label="ASR candidates"
+          value={String(extraction.asrCorrectionCandidateCount)}
+        />
+        <SummaryCell
+          label="Cue range"
+          value={formatCueIdRange(extraction.firstCueId, extraction.lastCueId)}
+        />
+      </div>
+      {extraction.errorType ? (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+          {extraction.errorType}
+          {extraction.errorMessage ? `: ${extraction.errorMessage}` : ""}
+        </div>
+      ) : null}
+      {extraction.windows.length === 0 ? (
+        <div className="text-sm text-slate-500">No extraction windows.</div>
+      ) : (
+        <MicroEventWindowList windows={extraction.windows} />
+      )}
+    </div>
+  );
+}
+
+function SummaryCell({
+  label,
+  value,
+  status,
+}: {
+  label: string;
+  value: string;
+  status?: string | null;
+}) {
+  return (
+    <div className="min-w-0 rounded border border-slate-200 p-2">
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 flex min-w-0 items-center gap-2 break-words">
+        {status ? <StatusBadge status={status} /> : null}
+        <span>{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function MicroEventWindowList({
+  windows,
+}: {
+  windows: MicroEventExtractionWindow[];
+}) {
+  return (
+    <div className="max-h-[680px] overflow-auto rounded border border-slate-200 bg-white">
+      <div className="divide-y divide-slate-200">
+        {windows.map((window) => (
+          <MicroEventWindowItem key={window.windowId} window={window} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MicroEventWindowItem({
+  window,
+}: {
+  window: MicroEventExtractionWindow;
+}) {
+  return (
+    <div className="grid gap-3 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+            <span>Window #{window.windowIndex}</span>
+            <StatusBadge status={window.status} />
+            {window.carryOutUnfinished ? (
+              <span className="ops-status ops-status-warn">unfinished</span>
+            ) : null}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-500">
+            <span>{formatCueIdRange(window.startCueId, window.endCueId)}</span>
+            <span>{window.cueCount} cues</span>
+            <span>{window.microEvents.length} events</span>
+            <span>{window.asrCorrectionCandidates.length} ASR</span>
+          </div>
+        </div>
+        <div className="text-xs text-slate-500">
+          job {idValue(window.sourceJobId)} / attempt {idValue(window.sourceJobAttemptId)}
+        </div>
+      </div>
+
+      {window.validationError ? (
+        <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+          {window.validationError}
+        </div>
+      ) : null}
+
+      <div className="grid gap-2">
+        <div className="text-xs font-semibold uppercase text-slate-500">Events</div>
+        {window.microEvents.length === 0 ? (
+          <div className="text-sm text-slate-500">No micro-events.</div>
+        ) : (
+          <div className="rounded border border-slate-200">
+            <div className="divide-y divide-slate-100">
+              {window.microEvents.map((candidate) => (
+                <MicroEventCandidateRow
+                  candidate={candidate}
+                  key={candidate.microEventCandidateId}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {window.asrCorrectionCandidates.length > 0 ? (
+        <div className="grid gap-2">
+          <div className="text-xs font-semibold uppercase text-slate-500">
+            ASR Candidates
+          </div>
+          <div className="rounded border border-slate-200">
+            <div className="divide-y divide-slate-100">
+              {window.asrCorrectionCandidates.map((candidate) => (
+                <AsrCorrectionCandidateRow
+                  candidate={candidate}
+                  key={candidate.asrCorrectionCandidateId}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {window.rawResponseText ? (
+        <details className="rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+          <summary className="cursor-pointer font-semibold text-slate-600">
+            Raw response
+          </summary>
+          <pre className="mt-2 max-h-[260px] overflow-auto whitespace-pre-wrap break-words text-slate-700">
+            {window.rawResponseText}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function MicroEventCandidateRow({
+  candidate,
+}: {
+  candidate: MicroEventCandidate;
+}) {
+  return (
+    <div className="grid gap-3 p-2 text-xs md:grid-cols-[156px_minmax(0,1fr)_128px]">
+      <div className="min-w-0">
+        <StatusBadge status={candidate.activity} />
+        <div className="mt-1 truncate font-mono text-slate-500">
+          {formatCueIdRange(candidate.startCueId, candidate.endCueId)}
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="break-words text-sm text-slate-800">{candidate.event}</div>
+        <div className="mt-1 break-words font-mono text-slate-500">
+          evidence {candidate.evidenceCueIds.join(", ")}
+        </div>
+      </div>
+      <div className="grid content-start gap-1 text-slate-500">
+        <span>{formatConfidence(candidate.confidence)}</span>
+        <span>
+          {candidate.boundaryBefore ? "boundary before" : ""}
+          {candidate.boundaryBefore && candidate.boundaryAfter ? " / " : ""}
+          {candidate.boundaryAfter ? "boundary after" : ""}
+          {!candidate.boundaryBefore && !candidate.boundaryAfter ? "no boundary" : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AsrCorrectionCandidateRow({
+  candidate,
+}: {
+  candidate: AsrCorrectionCandidate;
+}) {
+  return (
+    <div className="grid gap-3 p-2 text-xs md:grid-cols-[minmax(0,1fr)_168px_104px]">
+      <div className="min-w-0">
+        <div className="break-words text-sm text-slate-800">
+          {candidate.original} -&gt; {candidate.suggested}
+        </div>
+        <div className="mt-1 break-words font-mono text-slate-500">
+          evidence {candidate.evidenceCueIds.join(", ")}
+        </div>
+      </div>
+      <div className="grid content-start gap-1 text-slate-500">
+        <span>{candidate.correctionType}</span>
+        <span>{candidate.applyScope}</span>
+      </div>
+      <div className="text-slate-500">{formatConfidence(candidate.confidence)}</div>
     </div>
   );
 }
@@ -515,4 +859,31 @@ function cueCountValue(task: OpsVideoTask | undefined): string {
 
 function idValue(value: number | null | undefined): string {
   return value === null || value === undefined ? "-" : `#${value}`;
+}
+
+function formatCueIdRange(
+  startCueId: string | null | undefined,
+  endCueId: string | null | undefined,
+): string {
+  if (!startCueId && !endCueId) {
+    return "-";
+  }
+  if (startCueId === endCueId || !endCueId) {
+    return startCueId ?? "-";
+  }
+  if (!startCueId) {
+    return endCueId;
+  }
+  return `${startCueId}-${endCueId}`;
+}
+
+function formatConfidence(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Request failed.";
 }

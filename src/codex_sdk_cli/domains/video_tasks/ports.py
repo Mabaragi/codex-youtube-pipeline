@@ -101,6 +101,14 @@ class VideoTaskRepositoryPort(Protocol):
     ) -> list[VideoTaskWithVideoRecord]:
         """List the latest succeeded task per video for newest stored videos."""
 
+    async def get_latest_succeeded_task_for_video(
+        self,
+        *,
+        video_id: int,
+        task_name: str,
+    ) -> VideoTaskRecord | None:
+        """Return the newest succeeded task for one video and task name."""
+
     async def count_running(self, *, task_name: str) -> int:
         """Count currently running tasks by type."""
 

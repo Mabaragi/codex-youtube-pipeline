@@ -79,6 +79,14 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
         self._session = session
 
     @override
+    async def get_video(self, video_id: int) -> VideoRecord | None:
+        try:
+            row = await self._session.get(VideoModel, video_id)
+            return _video_record(row) if row is not None else None
+        except SQLAlchemyError as exc:
+            raise VideoPersistenceError("Video persistence failed.") from exc
+
+    @override
     async def get_video_by_youtube_video_id(
         self,
         youtube_video_id: str,

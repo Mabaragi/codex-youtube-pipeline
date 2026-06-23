@@ -38,6 +38,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRepositoryPort,
     PipelineJobStatus,
     PipelineJobSummaryRecord,
+    PipelineMicroEventExtractionOutputRecord,
     PipelineTranscriptCueOutputRecord,
     PipelineTranscriptOutputRecord,
     PipelineVideoOutputRecord,
@@ -207,6 +208,9 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                 videos=await self._video_outputs(job_id, attempts),
                 transcripts=await self._transcript_outputs(job_id),
                 transcript_cues=await self._transcript_cue_outputs(job_id),
+                micro_event_extractions=await self._micro_event_extraction_outputs(
+                    job_id
+                ),
             )
         except SQLAlchemyError as exc:
             raise PipelineJobPersistenceError("Pipeline job persistence failed.") from exc
@@ -512,6 +516,82 @@ class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
                     cue_count=cue_count,
                     first_cue_id=first_cue_id,
                     last_cue_id=last_cue_id,
+                    source_job_id=job_id,
+                )
+            )
+        return outputs
+
+    async def _micro_event_extraction_outputs(
+        self,
+        job_id: int,
+    ) -> list[PipelineMicroEventExtractionOutputRecord]:
+        from codex_sdk_cli.infra.micro_events.repository import (
+            AsrCorrectionCandidateModel,
+            MicroEventCandidateModel,
+            MicroEventExtractionWindowModel,
+        )
+
+        windows = list(
+            (
+                await self._session.scalars(
+                    select(MicroEventExtractionWindowModel)
+                    .where(MicroEventExtractionWindowModel.source_job_id == job_id)
+                    .order_by(
+                        MicroEventExtractionWindowModel.video_task_id.asc(),
+                        MicroEventExtractionWindowModel.window_index.asc(),
+                    )
+                )
+            ).all()
+        )
+        if not windows:
+            return []
+
+        task_ids = sorted({window.video_task_id for window in windows})
+        micro_event_counts = dict(
+            (
+                await self._session.execute(
+                    select(
+                        MicroEventCandidateModel.video_task_id,
+                        func.count(MicroEventCandidateModel.id),
+                    )
+                    .where(MicroEventCandidateModel.video_task_id.in_(task_ids))
+                    .group_by(MicroEventCandidateModel.video_task_id)
+                )
+            ).all()
+        )
+        asr_counts = dict(
+            (
+                await self._session.execute(
+                    select(
+                        AsrCorrectionCandidateModel.video_task_id,
+                        func.count(AsrCorrectionCandidateModel.id),
+                    )
+                    .where(AsrCorrectionCandidateModel.video_task_id.in_(task_ids))
+                    .group_by(AsrCorrectionCandidateModel.video_task_id)
+                )
+            ).all()
+        )
+
+        windows_by_task: dict[int, list[MicroEventExtractionWindowModel]] = {
+            task_id: [] for task_id in task_ids
+        }
+        for window in windows:
+            windows_by_task[window.video_task_id].append(window)
+
+        outputs: list[PipelineMicroEventExtractionOutputRecord] = []
+        for task_id, task_windows in windows_by_task.items():
+            first_window = task_windows[0]
+            last_window = task_windows[-1]
+            outputs.append(
+                PipelineMicroEventExtractionOutputRecord(
+                    video_task_id=task_id,
+                    video_id=first_window.video_id,
+                    transcript_id=first_window.transcript_id,
+                    window_count=len(task_windows),
+                    micro_event_count=micro_event_counts.get(task_id, 0),
+                    asr_correction_candidate_count=asr_counts.get(task_id, 0),
+                    first_cue_id=first_window.start_cue_id,
+                    last_cue_id=last_window.end_cue_id,
                     source_job_id=job_id,
                 )
             )

@@ -11,6 +11,18 @@ export type OpsVideoTask = components["schemas"]["OpsVideoTaskResponse"];
 export type TranscriptContent = components["schemas"]["TranscriptResponse"];
 export type TranscriptCueList = components["schemas"]["TranscriptCueListResponse"];
 export type TranscriptCue = components["schemas"]["TranscriptCueResponse"];
+export type MicroEventExtractRequest =
+  components["schemas"]["MicroEventExtractRequest"];
+export type MicroEventExtractResult =
+  components["schemas"]["MicroEventExtractResponse"];
+export type MicroEventExtractionDetail =
+  components["schemas"]["MicroEventExtractionDetailResponse"];
+export type MicroEventExtractionWindow =
+  components["schemas"]["MicroEventExtractionWindowResponse"];
+export type MicroEventCandidate =
+  components["schemas"]["MicroEventCandidateResponse"];
+export type AsrCorrectionCandidate =
+  components["schemas"]["AsrCorrectionCandidateResponse"];
 export type OperationEventList = components["schemas"]["OperationEventListResponse"];
 export type OperationEvent = components["schemas"]["OperationEventResponse"];
 export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];

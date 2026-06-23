@@ -8,6 +8,8 @@ from fastapi import Depends, Request
 
 from codex_sdk_cli.api.dependencies import (
     ChannelRepositoryDep,
+    MicroEventExtractionRepositoryDep,
+    MicroEventExtractorDep,
     OperationEventRecorderDep,
     PipelineJobRepositoryDep,
     SettingsDep,
@@ -22,7 +24,14 @@ from codex_sdk_cli.api.dependencies import (
 )
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
+from codex_sdk_cli.domains.micro_events.ports import (
+    MicroEventExtractionRepositoryPort,
+    MicroEventExtractorPort,
+)
+from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 from codex_sdk_cli.domains.operation_events.ports import OperationEventRecorderPort
+from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.use_cases import (
     TRANSCRIPT_CUE_GENERATE_STEP,
     GenerateTranscriptCuesUseCase,
@@ -129,6 +138,9 @@ def get_retry_pipeline_job_use_case(
     streamers: StreamerRepositoryDep,
     videos: VideoRepositoryDep,
     video_tasks: VideoTaskRepositoryDep,
+    micro_events: MicroEventExtractionRepositoryDep,
+    micro_event_extractor: MicroEventExtractorDep,
+    transcript_cues: TranscriptCueRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
     fetch_transcript_factory: Annotated[
         FetchTranscriptUseCaseFactory,
@@ -168,6 +180,17 @@ def get_retry_pipeline_job_use_case(
                 pipeline_jobs=pipeline_jobs,
                 transcripts=transcripts,
                 generate_cues_factory=generate_cues_factory,
+                settings=settings,
+                events=events,
+            ),
+            MICRO_EVENT_EXTRACT_TASK_NAME: _LazyMicroEventExtractRetryExecutor(
+                videos=videos,
+                video_tasks=video_tasks,
+                pipeline_jobs=pipeline_jobs,
+                transcripts=transcripts,
+                transcript_cues=transcript_cues,
+                micro_events=micro_events,
+                extractor=micro_event_extractor,
                 settings=settings,
                 events=events,
             ),
@@ -275,6 +298,51 @@ class _LazyTranscriptCueGenerateRetryExecutor(PipelineRetryExecutor):
             events=self._events,
         )
         return await task_use_case.execute_retry_job_attempt(job, attempt)
+
+
+class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
+    def __init__(
+        self,
+        *,
+        videos: VideoRepositoryPort,
+        video_tasks: VideoTaskRepositoryPort,
+        pipeline_jobs: PipelineJobRepositoryPort,
+        transcripts: YouTubeTranscriptRepositoryPort,
+        transcript_cues: TranscriptCueRepositoryPort,
+        micro_events: MicroEventExtractionRepositoryPort,
+        extractor: MicroEventExtractorPort,
+        settings: CliSettings,
+        events: OperationEventRecorderPort,
+    ) -> None:
+        self._videos = videos
+        self._video_tasks = video_tasks
+        self._pipeline_jobs = pipeline_jobs
+        self._transcripts = transcripts
+        self._transcript_cues = transcript_cues
+        self._micro_events = micro_events
+        self._extractor = extractor
+        self._settings = settings
+        self._events = events
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        use_case = ExtractVideoMicroEventsUseCase(
+            videos=self._videos,
+            video_tasks=self._video_tasks,
+            transcripts=self._transcripts,
+            transcript_cues=self._transcript_cues,
+            pipeline_jobs=self._pipeline_jobs,
+            micro_events=self._micro_events,
+            extractor=self._extractor,
+            timeout_seconds=self._settings.micro_event_extract_timeout_seconds,
+            concurrency_limit=self._settings.micro_event_extract_concurrency_limit,
+            model=self._settings.model,
+            events=self._events,
+        )
+        return await use_case.execute_retry_job_attempt(job, attempt)
 
 
 async def _transcript_client(

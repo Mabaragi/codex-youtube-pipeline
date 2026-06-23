@@ -107,6 +107,20 @@ class PipelineTranscriptCueOutputResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PipelineMicroEventExtractionOutputResponse(BaseModel):
+    video_task_id: int = Field(alias="videoTaskId")
+    video_id: int = Field(alias="videoId")
+    transcript_id: int = Field(alias="transcriptId")
+    window_count: int = Field(alias="windowCount")
+    micro_event_count: int = Field(alias="microEventCount")
+    asr_correction_candidate_count: int = Field(alias="asrCorrectionCandidateCount")
+    first_cue_id: str | None = Field(alias="firstCueId")
+    last_cue_id: str | None = Field(alias="lastCueId")
+    source_job_id: int | None = Field(alias="sourceJobId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PipelineJobDetailResponse(BaseModel):
     job_id: int = Field(alias="jobId")
     step: str
@@ -126,6 +140,9 @@ class PipelineJobDetailResponse(BaseModel):
     videos: list[PipelineVideoOutputResponse]
     transcripts: list[PipelineTranscriptOutputResponse]
     transcript_cues: list[PipelineTranscriptCueOutputResponse] = Field(alias="transcriptCues")
+    micro_event_extractions: list[PipelineMicroEventExtractionOutputResponse] = Field(
+        alias="microEventExtractions"
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 

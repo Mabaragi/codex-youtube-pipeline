@@ -125,6 +125,9 @@ class FakeVideoRepository(VideoRepositoryPort):
     def __init__(self) -> None:
         self.videos: dict[int, VideoRecord] = {}
 
+    async def get_video(self, video_id: int) -> VideoRecord | None:
+        return self.videos.get(video_id)
+
     async def list_all_videos(self) -> list[VideoRecord]:
         return sorted(
             self.videos.values(),
@@ -255,6 +258,21 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             key=lambda record: (record.video.published_at, record.video.id),
             reverse=True,
         )[:limit]
+
+    async def get_latest_succeeded_task_for_video(
+        self,
+        *,
+        video_id: int,
+        task_name: str,
+    ) -> VideoTaskRecord | None:
+        candidates = [
+            task
+            for task in self.tasks.values()
+            if task.video_id == video_id
+            and task.task_name == task_name
+            and task.status == "succeeded"
+        ]
+        return max(candidates, key=lambda task: task.id, default=None)
 
     async def count_running(self, *, task_name: str) -> int:
         return sum(

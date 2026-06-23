@@ -246,6 +246,29 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
 
     @override
+    async def get_latest_succeeded_task_for_video(
+        self,
+        *,
+        video_id: int,
+        task_name: str,
+    ) -> VideoTaskRecord | None:
+        try:
+            model = await self._session.scalar(
+                select(VideoTaskModel)
+                .where(
+                    VideoTaskModel.video_id == video_id,
+                    VideoTaskModel.task_name == task_name,
+                    VideoTaskModel.status == "succeeded",
+                    VideoTaskModel.output_transcript_id.is_not(None),
+                )
+                .order_by(VideoTaskModel.id.desc())
+                .limit(1)
+            )
+            return _task_record(model) if model is not None else None
+        except SQLAlchemyError as exc:
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
     async def count_running(self, *, task_name: str) -> int:
         try:
             count = await self._session.scalar(

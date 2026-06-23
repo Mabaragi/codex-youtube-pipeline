@@ -1,6 +1,6 @@
 # YouTube Data Pipeline
 
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 
 이 문서는 YouTube channel resolve부터 videos, transcripts, LLM summaries까지 이어지는 데이터 파이프라인의 공통 설계 원칙을 정리한다. 특정 endpoint 구현 절차보다, 앞으로 새 수집/가공 단계를 추가할 때 따라야 하는 상태 추적과 데이터 연결 규칙을 우선한다.
 
@@ -11,7 +11,8 @@ Last updated: 2026-06-22
 3. channel 기반으로 videos를 수집한다.
 4. video 기반으로 transcripts를 수집한다.
 5. transcript 기반으로 prompt-friendly cue row를 생성한다.
-6. transcript/cue 기반으로 LLM summary를 생성한다.
+6. transcript cue 기반으로 micro-event 후보와 ASR 보정 후보를 추출한다.
+7. transcript/cue/micro-event 후보 기반으로 LLM summary를 생성한다.
 
 각 단계는 동기 REST API, 수동 실행, 또는 future worker/queue로 실행될 수 있다. 실행 방식이 달라도 job/attempt/raw/domain row 연결 규칙은 동일해야 한다.
 
@@ -23,7 +24,10 @@ Last updated: 2026-06-22
 - `pipeline_job_attempts`: job을 실제로 실행한 1회 시도다. retry가 생기면 같은 job 아래에 attempt가 추가된다.
 - `external_api_calls`: 외부 API 요청/응답 metadata다. raw response body는 object storage에 저장하고, DB에는 저장 위치, hash, 검증 상태, sanitized request metadata만 둔다.
 - `video_tasks`: video 단위 durable work item이다. 수동 channel API가 대상을 고르더라도 중복 방지와 완료 상태는 이 row가 소유한다.
-- Domain tables: `channels`, `videos`, `youtube_transcripts`, `transcript_cues`, future summaries처럼 애플리케이션이 사용하는 정규화 결과다.
+- Domain tables: `channels`, `videos`, `youtube_transcripts`,
+  `transcript_cues`, `micro_event_extraction_windows`,
+  `micro_event_candidates`, `asr_correction_candidates`, future summaries처럼
+  애플리케이션이 사용하는 정규화 결과다.
 
 연결 방향은 다음을 기본으로 한다.
 
@@ -69,6 +73,10 @@ Last updated: 2026-06-22
 - Videos collect output: normalized video rows, source listing/details API call metadata.
 - Transcript collect output: transcript metadata row, raw transcript storage metadata.
 - Transcript cue generate output: transcript row에서 파생된 cue count와 cue id 범위다. 원본 transcript JSON은 storage에 유지하고, DB cue row는 prompt/후처리용 식별 단위다.
+- Micro-event extract output: stored cue window 범위별 raw Codex response와
+  정규화된 `micro_event_candidates`, `asr_correction_candidates` 후보 row다.
+  최종 timeline/chapter/summary는 만들지 않고 후속 merge 단계가 재구성할 수
+  있도록 cue id 범위와 후보만 저장한다.
 - Summary generate output: future summary row, LLM request/response metadata.
 
 API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한 local identifiers를 포함할 수 있다. pipeline step을 실행하는 endpoint는 가능하면 `jobId`, `jobAttemptId`, 그리고 raw metadata id를 응답에 포함한다.
@@ -82,7 +90,8 @@ API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한
   `subjectType`, `subjectId`, `externalKey`, `cursor`, `limit` 필터를 지원하고,
   latest attempt 상태와 attempt count를 함께 반환한다.
 - `GET /pipeline/jobs/{jobId}`: 단일 job의 입력, attempts, 연결된
-`external_api_calls`, 현재 구현된 domain output인 `channels`, `videos`, `transcripts`, `transcriptCues`를 함께 반환한다.
+`external_api_calls`, 현재 구현된 domain output인 `channels`, `videos`,
+`transcripts`, `transcriptCues`, `microEventExtractions`를 함께 반환한다.
 - `POST /pipeline/jobs/{jobId}/retry`: failed job 재시도 command다. 현재는
   `channel_resolve`, `video_collect`, `transcript_collect`를 지원한다.
 
@@ -91,6 +100,15 @@ API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한
   through durable `video_tasks` rows for videos with succeeded transcript tasks.
 - `POST /pipeline/jobs/{jobId}/retry`: also supports
   `transcript_cue_generate`; task-aware cue jobs reuse the linked `videoTaskId`.
+- `POST /videos/{video_id}/video-tasks/micro-event-extract`: synchronously
+  executes `video_tasks.task_name="micro_event_extract"` for one stored video
+  after a succeeded cue-generation task exists.
+- `GET /videos/{video_id}/micro-event-extractions/latest` and
+  `GET /videos/{video_id}/micro-event-extractions/{video_task_id}`: return the
+  latest succeeded extraction or a task-specific extraction with window-level
+  raw/validation state and normalized candidate rows.
+- `POST /pipeline/jobs/{jobId}/retry`: also supports `micro_event_extract` for
+  failed or timed-out task-aware extraction jobs.
 
 ## Current Baseline
 

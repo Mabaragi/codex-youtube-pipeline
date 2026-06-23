@@ -37,6 +37,9 @@ class VideoRecord:
 
 
 class VideoRepositoryPort(Protocol):
+    async def get_video(self, video_id: int) -> VideoRecord | None:
+        """Return one stored video by local ID."""
+
     async def get_video_by_youtube_video_id(
         self,
         youtube_video_id: str,

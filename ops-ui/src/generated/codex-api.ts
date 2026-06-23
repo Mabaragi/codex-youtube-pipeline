@@ -520,6 +520,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos/{video_id}/micro-event-extractions/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Latest Video Micro Event Extraction */
+        get: operations["get_latest_video_micro_event_extraction_videos__video_id__micro_event_extractions_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/micro-event-extractions/{video_task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Video Micro Event Extraction */
+        get: operations["get_video_micro_event_extraction_videos__video_id__micro_event_extractions__video_task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/video-tasks/micro-event-extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extract Video Micro Events */
+        post: operations["extract_video_micro_events_videos__video_id__video_tasks_micro_event_extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/youtube-transcripts": {
         parameters: {
             query?: never;
@@ -645,6 +696,41 @@ export interface components {
              * @example sk-proj-example
              */
             apiKey: string;
+        };
+        /** AsrCorrectionCandidateResponse */
+        AsrCorrectionCandidateResponse: {
+            /**
+             * Applyscope
+             * @enum {string}
+             */
+            applyScope: "NONE" | "SEARCH_ONLY" | "SEARCH_AND_SUMMARY" | "DISPLAY_ALLOWED";
+            /** Asrcorrectioncandidateid */
+            asrCorrectionCandidateId: number;
+            /** Candidateindex */
+            candidateIndex: number;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Correctiontype
+             * @enum {string}
+             */
+            correctionType: "PROPER_NOUN" | "GAME_TITLE" | "CONTENT_TITLE" | "COMMON_WORD" | "FOOD" | "PLACE" | "STREAM_TERM" | "CONTEXTUAL_TERM" | "UNCERTAIN";
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Evidencecueids */
+            evidenceCueIds: string[];
+            /** Original */
+            original: string;
+            /** Suggested */
+            suggested: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
         };
         /**
          * ChannelCreateRequest
@@ -984,6 +1070,207 @@ export interface components {
         LogoutResponse: {
             /** Success */
             success: boolean;
+        };
+        /** MicroEventCandidateResponse */
+        MicroEventCandidateResponse: {
+            /**
+             * Activity
+             * @enum {string}
+             */
+            activity: "PRE_ROLL" | "OPENING" | "JUST_CHATTING" | "ANNOUNCEMENT" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "GAME_SETUP" | "GAMEPLAY" | "BREAK" | "POST_GAME" | "CLOSING" | "UNKNOWN";
+            /** Boundaryafter */
+            boundaryAfter: boolean;
+            /** Boundarybefore */
+            boundaryBefore: boolean;
+            /** Candidateindex */
+            candidateIndex: number;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Endcueid */
+            endCueId: string;
+            /** Event */
+            event: string;
+            /** Evidencecueids */
+            evidenceCueIds: string[];
+            /** Microeventcandidateid */
+            microEventCandidateId: number;
+            /** Startcueid */
+            startCueId: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /**
+         * MicroEventExtractRequest
+         * @example {
+         *       "overlapMinutes": 5,
+         *       "regenerateSucceeded": false,
+         *       "retryFailed": false,
+         *       "windowMinutes": 30
+         *     }
+         */
+        MicroEventExtractRequest: {
+            /**
+             * Overlapminutes
+             * @default 5
+             */
+            overlapMinutes: number;
+            /**
+             * Regeneratesucceeded
+             * @default false
+             */
+            regenerateSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /**
+             * Windowminutes
+             * @default 30
+             */
+            windowMinutes: number;
+        };
+        /** MicroEventExtractResponse */
+        MicroEventExtractResponse: {
+            /** Asrcorrectioncandidatecount */
+            asrCorrectionCandidateCount: number | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Firstcueid */
+            firstCueId: string | null;
+            /** Jobattemptid */
+            jobAttemptId: number | null;
+            /** Jobid */
+            jobId: number | null;
+            /** Lastcueid */
+            lastCueId: string | null;
+            /** Microeventcount */
+            microEventCount: number | null;
+            /** Reason */
+            reason: string;
+            /** Status */
+            status: string;
+            /** Transcriptid */
+            transcriptId: number | null;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Windowcount */
+            windowCount: number | null;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
+        /** MicroEventExtractionDetailResponse */
+        MicroEventExtractionDetailResponse: {
+            /** Asrcorrectioncandidatecount */
+            asrCorrectionCandidateCount: number;
+            /** Completedat */
+            completedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Firstcueid */
+            firstCueId: string | null;
+            /** Jobattemptid */
+            jobAttemptId: number | null;
+            /** Jobid */
+            jobId: number | null;
+            /** Lastcueid */
+            lastCueId: string | null;
+            /** Microeventcount */
+            microEventCount: number;
+            /** Outputjson */
+            outputJson: {
+                [key: string]: unknown;
+            } | null;
+            /** Startedat */
+            startedAt: string | null;
+            /** Status */
+            status: string;
+            /** Transcriptid */
+            transcriptId: number | null;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number;
+            /** Windowcount */
+            windowCount: number;
+            /** Windows */
+            windows: components["schemas"]["MicroEventExtractionWindowResponse"][];
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
+        /** MicroEventExtractionWindowResponse */
+        MicroEventExtractionWindowResponse: {
+            /** Asrcorrectioncandidates */
+            asrCorrectionCandidates: components["schemas"]["AsrCorrectionCandidateResponse"][];
+            /** Carryoutunfinished */
+            carryOutUnfinished: boolean;
+            /** Codexthreadid */
+            codexThreadId: string | null;
+            /** Codexturnid */
+            codexTurnId: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Cuecount */
+            cueCount: number;
+            /** Endcueid */
+            endCueId: string;
+            /** Microevents */
+            microEvents: components["schemas"]["MicroEventCandidateResponse"][];
+            /** Parsedresponsejson */
+            parsedResponseJson: {
+                [key: string]: unknown;
+            } | null;
+            /** Rawresponsetext */
+            rawResponseText: string | null;
+            /** Sourcejobattemptid */
+            sourceJobAttemptId: number | null;
+            /** Sourcejobid */
+            sourceJobId: number | null;
+            /** Startcueid */
+            startCueId: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "failed";
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Validationerror */
+            validationError: string | null;
+            /** Windowid */
+            windowId: number;
+            /** Windowindex */
+            windowIndex: number;
         };
         /** OperationEventListResponse */
         OperationEventListResponse: {
@@ -1475,6 +1762,8 @@ export interface components {
             };
             /** Jobid */
             jobId: number;
+            /** Microeventextractions */
+            microEventExtractions: components["schemas"]["PipelineMicroEventExtractionOutputResponse"][];
             /** Parentjobid */
             parentJobId: number | null;
             /**
@@ -1535,6 +1824,27 @@ export interface components {
              * Format: date-time
              */
             updatedAt: string;
+        };
+        /** PipelineMicroEventExtractionOutputResponse */
+        PipelineMicroEventExtractionOutputResponse: {
+            /** Asrcorrectioncandidatecount */
+            asrCorrectionCandidateCount: number;
+            /** Firstcueid */
+            firstCueId: string | null;
+            /** Lastcueid */
+            lastCueId: string | null;
+            /** Microeventcount */
+            microEventCount: number;
+            /** Sourcejobid */
+            sourceJobId: number | null;
+            /** Transcriptid */
+            transcriptId: number;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number;
+            /** Windowcount */
+            windowCount: number;
         };
         /** PipelineTranscriptCueOutputResponse */
         PipelineTranscriptCueOutputResponse: {
@@ -3168,6 +3478,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GenerateAllTranscriptCueTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_video_micro_event_extraction_videos__video_id__micro_event_extractions_latest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MicroEventExtractionDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_micro_event_extraction_videos__video_id__micro_event_extractions__video_task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: number;
+                video_task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MicroEventExtractionDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extract_video_micro_events_videos__video_id__video_tasks_micro_event_extract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MicroEventExtractRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MicroEventExtractResponse"];
                 };
             };
             /** @description Validation Error */

@@ -11,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
+from codex_sdk_cli.domains.micro_events.ports import (
+    MicroEventExtractionRepositoryPort,
+    MicroEventExtractorPort,
+)
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventRecorderPort,
     OperationEventRepositoryPort,
@@ -39,6 +43,10 @@ from codex_sdk_cli.infra.database.session import (
 from codex_sdk_cli.infra.external_api_calls.recorder import ExternalApiCallRecorder
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
+from codex_sdk_cli.infra.micro_events.extractor import CodexMicroEventExtractor
+from codex_sdk_cli.infra.micro_events.repository import (
+    SqlAlchemyMicroEventExtractionRepository,
+)
 from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
@@ -131,6 +139,19 @@ async def get_video_task_repository(
     session: DatabaseSessionDep,
 ) -> VideoTaskRepositoryPort:
     return SqlAlchemyVideoTaskRepository(session)
+
+
+async def get_micro_event_extraction_repository(
+    session: DatabaseSessionDep,
+) -> MicroEventExtractionRepositoryPort:
+    return SqlAlchemyMicroEventExtractionRepository(session)
+
+
+async def get_micro_event_extractor(
+    runtime: CodexRuntimeDep,
+    settings: Annotated[CliSettings, Depends(get_settings)],
+) -> MicroEventExtractorPort:
+    return CodexMicroEventExtractor(runtime, model=settings.model)
 
 
 async def get_transcript_cue_repository(
@@ -229,6 +250,14 @@ VideoRepositoryDep = Annotated[
 VideoTaskRepositoryDep = Annotated[
     VideoTaskRepositoryPort,
     Depends(get_video_task_repository),
+]
+MicroEventExtractionRepositoryDep = Annotated[
+    MicroEventExtractionRepositoryPort,
+    Depends(get_micro_event_extraction_repository),
+]
+MicroEventExtractorDep = Annotated[
+    MicroEventExtractorPort,
+    Depends(get_micro_event_extractor),
 ]
 TranscriptCueRepositoryDep = Annotated[
     TranscriptCueRepositoryPort,

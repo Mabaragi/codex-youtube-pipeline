@@ -1,13 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { requestJson } from "@/lib/api-client";
+import { ApiClientError, requestJson } from "@/lib/api-client";
 import type {
   CollectAllTranscriptsResult,
   CollectChannelTranscriptsResult,
   CollectChannelVideosResult,
   GenerateAllTranscriptCuesResult,
   GenerateChannelTranscriptCuesResult,
+  MicroEventExtractRequest,
+  MicroEventExtractResult,
+  MicroEventExtractionDetail,
   OperationEventFilters,
   OperationEventList,
   OpsChannelList,
@@ -41,6 +44,8 @@ export const queryKeys = {
     ["youtube-transcripts", transcriptId, "content"] as const,
   transcriptCues: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "cues"] as const,
+  microEventExtraction: (videoId: number) =>
+    ["micro-event-extractions", videoId, "latest"] as const,
 };
 
 export function useOpsSummary() {
@@ -102,6 +107,30 @@ export function useTranscriptCues(transcriptId: number, enabled: boolean) {
 
 export function fetchTranscriptContent(transcriptId: number) {
   return requestJson<TranscriptContent>(`/youtube-transcripts/${transcriptId}/content`);
+}
+
+export function useMicroEventExtraction(videoId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.microEventExtraction(videoId),
+    queryFn: () => fetchLatestMicroEventExtraction(videoId),
+    enabled: enabled && Number.isFinite(videoId) && videoId > 0,
+    staleTime: 30_000,
+  });
+}
+
+export async function fetchLatestMicroEventExtraction(
+  videoId: number,
+): Promise<MicroEventExtractionDetail | null> {
+  try {
+    return await requestJson<MicroEventExtractionDetail>(
+      `/videos/${videoId}/micro-event-extractions/latest`,
+    );
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function useOpsVideoTasks(filters: OpsVideoTaskFilters) {
@@ -333,6 +362,45 @@ export function useGenerateTranscriptCuesMutation() {
         queryClient.invalidateQueries({ queryKey: ["ops"] }),
         queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
         queryClient.invalidateQueries({ queryKey: ["youtube-transcripts"] }),
+      ]);
+    },
+  });
+}
+
+export function useExtractMicroEventsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      videoId,
+      retryFailed = false,
+      regenerateSucceeded = false,
+      windowMinutes = 30,
+      overlapMinutes = 5,
+    }: {
+      videoId: number;
+    } & Partial<MicroEventExtractRequest>) =>
+      requestJson<MicroEventExtractResult>(
+        `/videos/${videoId}/video-tasks/micro-event-extract`,
+        {
+          method: "POST",
+          body: {
+            retryFailed,
+            regenerateSucceeded,
+            windowMinutes,
+            overlapMinutes,
+          },
+        },
+      ),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.videoDetail(variables.videoId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.microEventExtraction(variables.videoId),
+        }),
       ]);
     },
   });
