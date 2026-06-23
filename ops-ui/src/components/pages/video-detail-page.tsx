@@ -279,6 +279,14 @@ function MicroEventExtractionPanel({
     });
   }
 
+  function handleDownloadJson() {
+    if (!extraction) {
+      return;
+    }
+    const file = buildMicroEventDownload(extraction);
+    downloadTextFile(file.fileName, file.content, file.contentType);
+  }
+
   return (
     <section className="ops-panel p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -286,16 +294,29 @@ function MicroEventExtractionPanel({
           <ListTree size={16} />
           <h2 className="text-sm font-semibold">Micro Events</h2>
         </div>
-        <button
-          className={`ops-button ${extraction ? "" : "ops-button-primary"}`}
-          disabled={disabled}
-          onClick={handleExtract}
-          title={actionTitle}
-          type="button"
-        >
-          <Play size={14} />
-          {extractMicroEvents.isPending ? "Running..." : actionLabel}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {extraction ? (
+            <button
+              className="ops-button"
+              onClick={handleDownloadJson}
+              title="Download micro-event extraction JSON"
+              type="button"
+            >
+              <Download size={14} />
+              Download JSON
+            </button>
+          ) : null}
+          <button
+            className={`ops-button ${extraction ? "" : "ops-button-primary"}`}
+            disabled={disabled}
+            onClick={handleExtract}
+            title={actionTitle}
+            type="button"
+          >
+            <Play size={14} />
+            {extractMicroEvents.isPending ? "Running..." : actionLabel}
+          </button>
+        </div>
       </div>
 
       {!hasSucceededCueTask ? (
@@ -798,6 +819,21 @@ function buildTranscriptDownload(
   }
   return {
     content: JSON.stringify(content, null, 2),
+    contentType: "application/json;charset=utf-8",
+    fileName: `${baseName}.json`,
+  };
+}
+
+function buildMicroEventDownload(extraction: MicroEventExtractionDetail): {
+  content: string;
+  contentType: string;
+  fileName: string;
+} {
+  const baseName = sanitizeFileName(
+    `${extraction.youtubeVideoId}-micro-events-task-${extraction.videoTaskId}`,
+  );
+  return {
+    content: JSON.stringify(extraction, null, 2),
     contentType: "application/json;charset=utf-8",
     fileName: `${baseName}.json`,
   };

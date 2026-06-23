@@ -403,6 +403,7 @@ describe("VideoDetailPage", () => {
     render(<VideoDetailPage videoId={42} />);
 
     expect(screen.getByText("Micro Events")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Download JSON/i })).toBeTruthy();
     expect(screen.getByText("Window #1")).toBeTruthy();
     expect(screen.getByText("Streamer reacts to the opening chat topic.")).toBeTruthy();
     expect(screen.getByText("recoding -> recording")).toBeTruthy();
@@ -432,6 +433,7 @@ describe("VideoDetailPage", () => {
     render(<VideoDetailPage videoId={42} />);
 
     expect(screen.getByText("No extraction yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Download JSON/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Extract events/i }));
     expect(queryMocks.mutation.mutate).toHaveBeenCalledWith({
       videoId: 42,
@@ -507,12 +509,31 @@ describe("VideoDetailPage", () => {
     expect(downloadedBlob?.type).toBe("text/plain;charset=utf-8");
     await expect(downloadedBlob?.text()).resolves.toBe("first line\nsecond line");
 
-    fireEvent.click(screen.getByRole("button", { name: /JSON/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^JSON$/i }));
 
     await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(2));
     expect(downloadedFileName).toBe("abc123DEF45-ko-11.json");
     expect(downloadedBlob?.type).toBe("application/json;charset=utf-8");
     await expect(downloadedBlob?.text()).resolves.toContain('"videoId": "abc123DEF45"');
+  });
+
+  it("downloads the latest micro-event extraction as one JSON file", async () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Download JSON/i }));
+
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1));
+    expect(downloadedFileName).toBe("abc123DEF45-micro-events-task-16.json");
+    expect(downloadedBlob?.type).toBe("application/json;charset=utf-8");
+    const payload = JSON.parse((await downloadedBlob?.text()) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(payload.videoTaskId).toBe(16);
+    expect(payload.windows).toEqual(microEventExtraction.windows);
+    expect(JSON.stringify(payload)).toContain("Streamer reacts to the opening chat topic.");
+    expect(JSON.stringify(payload)).toContain("recoding");
+    expect(JSON.stringify(payload)).toContain("rawResponseText");
   });
 
   it("shows a compact empty state when no transcripts are stored", () => {
