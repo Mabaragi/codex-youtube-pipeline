@@ -1183,6 +1183,10 @@ export interface components {
             candidateIndex: number;
             /** Confidence */
             confidence: number;
+            /** Contentkind */
+            contentKind?: ("ANNOUNCEMENT" | "PERSONAL_STORY" | "OPINION" | "QNA" | "REACTION" | "TECHNICAL_SETUP" | "GAME_PROGRESS" | "GAME_DISCUSSION" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "META_CHAT" | "OTHER") | null;
+            /** Continuestonext */
+            continuesToNext?: boolean | null;
             /**
              * Createdat
              * Format: date-time
@@ -1196,6 +1200,40 @@ export interface components {
             evidenceCueIds: string[];
             /** Microeventcandidateid */
             microEventCandidateId: number;
+            /** Programmode */
+            programMode?: ("OPENING" | "JUST_CHATTING" | "GAME_SETUP" | "GAMEPLAY" | "BREAK" | "POST_GAME" | "CLOSING" | "UNKNOWN") | null;
+            /** Relationtoprevious */
+            relationToPrevious?: ("NEW_TOPIC" | "CONTINUATION" | "ASIDE" | "RETURN") | null;
+            /** Startcueid */
+            startCueId: string;
+            /** Supportlevel */
+            supportLevel?: ("DIRECT" | "CONTEXTUAL" | "AMBIGUOUS") | null;
+            /** Topics */
+            topics?: string[] | null;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** MicroEventExcludedRangeResponse */
+        MicroEventExcludedRangeResponse: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Endcueid */
+            endCueId: string;
+            /** Excludedrangeid */
+            excludedRangeId: number;
+            /** Rangeindex */
+            rangeIndex: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "MUSIC_ONLY" | "SILENCE_OR_GAP" | "UNINTELLIGIBLE" | "LOW_INFORMATION" | "TECHNICAL_NOISE";
             /** Startcueid */
             startCueId: string;
             /**
@@ -1338,6 +1376,8 @@ export interface components {
             cueCount: number;
             /** Endcueid */
             endCueId: string;
+            /** Excludedranges */
+            excludedRanges: components["schemas"]["MicroEventExcludedRangeResponse"][];
             /** Microevents */
             microEvents: components["schemas"]["MicroEventCandidateResponse"][];
             /** Parsedresponsejson */

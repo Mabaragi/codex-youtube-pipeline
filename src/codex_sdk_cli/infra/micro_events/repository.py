@@ -33,14 +33,21 @@ from codex_sdk_cli.domains.micro_events.ports import (
     ApplyScope,
     AsrCorrectionCandidateCreate,
     AsrCorrectionCandidateRecord,
+    ContentKind,
     CorrectionType,
+    ExcludedRangeReason,
     JsonObject,
     MicroEventCandidateCreate,
     MicroEventCandidateRecord,
+    MicroEventExcludedRangeCreate,
+    MicroEventExcludedRangeRecord,
     MicroEventExtractionDetailRecord,
     MicroEventExtractionRepositoryPort,
     MicroEventExtractionWindowCreate,
     MicroEventExtractionWindowRecord,
+    ProgramMode,
+    RelationToPrevious,
+    SupportLevel,
     WindowStatus,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
@@ -158,6 +165,59 @@ class MicroEventCandidateModel(Base):
     boundary_before: Mapped[bool] = mapped_column(Boolean, nullable=False)
     boundary_after: Mapped[bool] = mapped_column(Boolean, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    program_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    content_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    topics: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    relation_to_previous: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    continues_to_next: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    support_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class MicroEventExcludedRangeModel(Base):
+    __tablename__ = "micro_event_excluded_ranges"
+    __table_args__ = (
+        UniqueConstraint(
+            "window_id",
+            "range_index",
+            name="uq_micro_event_excluded_ranges_window_index",
+        ),
+        CheckConstraint(
+            "range_index >= 1",
+            name="micro_event_excluded_ranges_index_min",
+        ),
+        Index("ix_micro_event_excluded_ranges_window_id", "window_id"),
+        Index("ix_micro_event_excluded_ranges_video_task", "video_task_id"),
+        Index("ix_micro_event_excluded_ranges_transcript_id", "transcript_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    window_id: Mapped[int] = mapped_column(
+        ForeignKey("micro_event_extraction_windows.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    video_task_id: Mapped[int] = mapped_column(
+        ForeignKey("video_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    transcript_id: Mapped[int] = mapped_column(
+        ForeignKey("youtube_transcripts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    range_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_cue_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    end_cue_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -260,6 +320,12 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
                 )
                 self._session.add_all(
                     [
+                        _excluded_range_model(model.id, window, excluded_range)
+                        for excluded_range in window.excluded_ranges
+                    ]
+                )
+                self._session.add_all(
+                    [
                         _asr_correction_model(model.id, window, candidate)
                         for candidate in window.asr_correction_candidates
                     ]
@@ -352,6 +418,11 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
             )
         )
         await self._session.execute(
+            delete(MicroEventExcludedRangeModel).where(
+                MicroEventExcludedRangeModel.window_id.in_(window_ids)
+            )
+        )
+        await self._session.execute(
             delete(MicroEventExtractionWindowModel).where(
                 MicroEventExtractionWindowModel.video_task_id == video_task_id
             )
@@ -377,6 +448,9 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
         asr_by_window: dict[int, list[AsrCorrectionCandidateRecord]] = {
             window.id: [] for window in windows
         }
+        excluded_by_window: dict[int, list[MicroEventExcludedRangeRecord]] = {
+            window.id: [] for window in windows
+        }
         if window_ids:
             micro_events = (
                 await self._session.scalars(
@@ -391,6 +465,20 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
             for candidate in micro_events:
                 micro_events_by_window[candidate.window_id].append(
                     _micro_event_record(candidate)
+                )
+            excluded_ranges = (
+                await self._session.scalars(
+                    select(MicroEventExcludedRangeModel)
+                    .where(MicroEventExcludedRangeModel.window_id.in_(window_ids))
+                    .order_by(
+                        MicroEventExcludedRangeModel.window_id.asc(),
+                        MicroEventExcludedRangeModel.range_index.asc(),
+                    )
+                )
+            ).all()
+            for excluded_range in excluded_ranges:
+                excluded_by_window[excluded_range.window_id].append(
+                    _excluded_range_record(excluded_range)
                 )
             asr_candidates = (
                 await self._session.scalars(
@@ -408,6 +496,7 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
             _window_record(
                 window,
                 micro_events=micro_events_by_window[window.id],
+                excluded_ranges=excluded_by_window[window.id],
                 asr_correction_candidates=asr_by_window[window.id],
             )
             for window in windows
@@ -453,6 +542,28 @@ def _micro_event_model(
         boundary_before=candidate.boundary_before,
         boundary_after=candidate.boundary_after,
         confidence=candidate.confidence,
+        program_mode=candidate.program_mode,
+        content_kind=candidate.content_kind,
+        topics=candidate.topics,
+        relation_to_previous=candidate.relation_to_previous,
+        continues_to_next=candidate.continues_to_next,
+        support_level=candidate.support_level,
+    )
+
+
+def _excluded_range_model(
+    window_id: int,
+    window: MicroEventExtractionWindowCreate,
+    excluded_range: MicroEventExcludedRangeCreate,
+) -> MicroEventExcludedRangeModel:
+    return MicroEventExcludedRangeModel(
+        window_id=window_id,
+        video_task_id=window.video_task_id,
+        transcript_id=window.transcript_id,
+        range_index=excluded_range.range_index,
+        start_cue_id=excluded_range.start_cue_id,
+        end_cue_id=excluded_range.end_cue_id,
+        reason=excluded_range.reason,
     )
 
 
@@ -503,6 +614,7 @@ def _window_record(
     model: MicroEventExtractionWindowModel,
     *,
     micro_events: list[MicroEventCandidateRecord],
+    excluded_ranges: list[MicroEventExcludedRangeRecord],
     asr_correction_candidates: list[AsrCorrectionCandidateRecord],
 ) -> MicroEventExtractionWindowRecord:
     return MicroEventExtractionWindowRecord(
@@ -526,6 +638,7 @@ def _window_record(
         created_at=model.created_at,
         updated_at=model.updated_at,
         micro_events=micro_events,
+        excluded_ranges=excluded_ranges,
         asr_correction_candidates=asr_correction_candidates,
     )
 
@@ -545,6 +658,29 @@ def _micro_event_record(model: MicroEventCandidateModel) -> MicroEventCandidateR
         boundary_before=model.boundary_before,
         boundary_after=model.boundary_after,
         confidence=model.confidence,
+        program_mode=_program_mode_or_none(model.program_mode),
+        content_kind=_content_kind_or_none(model.content_kind),
+        topics=model.topics,
+        relation_to_previous=_relation_to_previous_or_none(model.relation_to_previous),
+        continues_to_next=model.continues_to_next,
+        support_level=_support_level_or_none(model.support_level),
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
+
+
+def _excluded_range_record(
+    model: MicroEventExcludedRangeModel,
+) -> MicroEventExcludedRangeRecord:
+    return MicroEventExcludedRangeRecord(
+        id=model.id,
+        window_id=model.window_id,
+        video_task_id=model.video_task_id,
+        transcript_id=model.transcript_id,
+        range_index=model.range_index,
+        start_cue_id=model.start_cue_id,
+        end_cue_id=model.end_cue_id,
+        reason=_excluded_range_reason(model.reason),
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
@@ -602,6 +738,68 @@ def _activity(value: str) -> Activity:
         "UNKNOWN",
     }
     return cast(Activity, value) if value in allowed else "UNKNOWN"
+
+
+def _program_mode_or_none(value: str | None) -> ProgramMode | None:
+    allowed: set[ProgramMode] = {
+        "OPENING",
+        "JUST_CHATTING",
+        "GAME_SETUP",
+        "GAMEPLAY",
+        "BREAK",
+        "POST_GAME",
+        "CLOSING",
+        "UNKNOWN",
+    }
+    return cast(ProgramMode, value) if value in allowed else None
+
+
+def _content_kind_or_none(value: str | None) -> ContentKind | None:
+    allowed: set[ContentKind] = {
+        "ANNOUNCEMENT",
+        "PERSONAL_STORY",
+        "OPINION",
+        "QNA",
+        "REACTION",
+        "TECHNICAL_SETUP",
+        "GAME_PROGRESS",
+        "GAME_DISCUSSION",
+        "COMMUNITY_REVIEW",
+        "MEDIA_REVIEW",
+        "META_CHAT",
+        "OTHER",
+    }
+    return cast(ContentKind, value) if value in allowed else None
+
+
+def _relation_to_previous_or_none(value: str | None) -> RelationToPrevious | None:
+    allowed: set[RelationToPrevious] = {
+        "NEW_TOPIC",
+        "CONTINUATION",
+        "ASIDE",
+        "RETURN",
+    }
+    return cast(RelationToPrevious, value) if value in allowed else None
+
+
+def _support_level_or_none(value: str | None) -> SupportLevel | None:
+    allowed: set[SupportLevel] = {"DIRECT", "CONTEXTUAL", "AMBIGUOUS"}
+    return cast(SupportLevel, value) if value in allowed else None
+
+
+def _excluded_range_reason(value: str) -> ExcludedRangeReason:
+    allowed: set[ExcludedRangeReason] = {
+        "MUSIC_ONLY",
+        "SILENCE_OR_GAP",
+        "UNINTELLIGIBLE",
+        "LOW_INFORMATION",
+        "TECHNICAL_NOISE",
+    }
+    return (
+        cast(ExcludedRangeReason, value)
+        if value in allowed
+        else "LOW_INFORMATION"
+    )
 
 
 def _correction_type(value: str) -> CorrectionType:

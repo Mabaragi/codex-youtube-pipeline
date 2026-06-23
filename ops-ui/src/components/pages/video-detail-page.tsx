@@ -30,6 +30,8 @@ import type {
 type TranscriptMetadata = OpsVideoDetail["transcripts"][number];
 type TranscriptSegment = TranscriptContent["segments"][number];
 type TranscriptDownloadFormat = "srt" | "txt" | "json";
+type MicroEventExcludedRange =
+  MicroEventExtractionWindow["excludedRanges"][number];
 
 const TRANSCRIPT_DOWNLOAD_FORMATS: readonly TranscriptDownloadFormat[] = [
   "srt",
@@ -444,6 +446,7 @@ function MicroEventWindowItem({
             <span>{formatCueIdRange(window.startCueId, window.endCueId)}</span>
             <span>{window.cueCount} cues</span>
             <span>{window.microEvents.length} events</span>
+            <span>{window.excludedRanges.length} excluded</span>
             <span>{window.asrCorrectionCandidates.length} ASR</span>
           </div>
         </div>
@@ -475,6 +478,24 @@ function MicroEventWindowItem({
           </div>
         )}
       </div>
+
+      {window.excludedRanges.length > 0 ? (
+        <div className="grid gap-2">
+          <div className="text-xs font-semibold uppercase text-slate-500">
+            Excluded Ranges
+          </div>
+          <div className="rounded border border-slate-200">
+            <div className="divide-y divide-slate-100">
+              {window.excludedRanges.map((excludedRange) => (
+                <MicroEventExcludedRangeRow
+                  excludedRange={excludedRange}
+                  key={excludedRange.excludedRangeId}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {window.asrCorrectionCandidates.length > 0 ? (
         <div className="grid gap-2">
@@ -514,20 +535,40 @@ function MicroEventCandidateRow({
   candidate: MicroEventCandidate;
 }) {
   return (
-    <div className="grid gap-3 p-2 text-xs md:grid-cols-[156px_minmax(0,1fr)_128px]">
+    <div className="grid gap-3 p-2 text-xs md:grid-cols-[176px_minmax(0,1fr)_156px]">
       <div className="min-w-0">
-        <StatusBadge status={candidate.activity} />
+        <StatusBadge status={candidate.programMode ?? candidate.activity} />
         <div className="mt-1 truncate font-mono text-slate-500">
           {formatCueIdRange(candidate.startCueId, candidate.endCueId)}
         </div>
+        {candidate.contentKind ? (
+          <div className="mt-1 text-slate-500">{candidate.contentKind}</div>
+        ) : null}
       </div>
       <div className="min-w-0">
         <div className="break-words text-sm text-slate-800">{candidate.event}</div>
+        {candidate.topics?.length ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {candidate.topics.map((topic) => (
+              <span
+                className="rounded border border-slate-200 px-1.5 py-0.5 text-slate-500"
+                key={topic}
+              >
+                {topic}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-1 break-words font-mono text-slate-500">
           evidence {candidate.evidenceCueIds.join(", ")}
         </div>
       </div>
       <div className="grid content-start gap-1 text-slate-500">
+        {candidate.supportLevel ? <span>{candidate.supportLevel}</span> : null}
+        {candidate.relationToPrevious ? (
+          <span>{candidate.relationToPrevious}</span>
+        ) : null}
+        {candidate.continuesToNext ? <span>continues</span> : null}
         <span>{formatConfidence(candidate.confidence)}</span>
         <span>
           {candidate.boundaryBefore ? "boundary before" : ""}
@@ -535,6 +576,25 @@ function MicroEventCandidateRow({
           {candidate.boundaryAfter ? "boundary after" : ""}
           {!candidate.boundaryBefore && !candidate.boundaryAfter ? "no boundary" : ""}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function MicroEventExcludedRangeRow({
+  excludedRange,
+}: {
+  excludedRange: MicroEventExcludedRange;
+}) {
+  return (
+    <div className="grid gap-3 p-2 text-xs md:grid-cols-[176px_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <StatusBadge status={excludedRange.reason} />
+      </div>
+      <div className="min-w-0">
+        <div className="truncate font-mono text-slate-500">
+          {formatCueIdRange(excludedRange.startCueId, excludedRange.endCueId)}
+        </div>
       </div>
     </div>
   );

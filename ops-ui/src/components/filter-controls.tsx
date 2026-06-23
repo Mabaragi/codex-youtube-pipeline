@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Filter, RotateCcw } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ChangeEventHandler, ReactNode } from "react";
 import type { OpsChannel } from "@/lib/types";
 
 type SelectOption = {
@@ -26,16 +26,23 @@ export function FilterField({
 export function ChannelFilterSelect({
   channels,
   value,
+  onChange,
 }: {
   channels: OpsChannel[];
   value: number | null | undefined;
+  onChange?: ChangeEventHandler<HTMLSelectElement>;
 }) {
   const selectedValue = value ? String(value) : "";
   const hasSelectedChannel = channels.some((channel) => channel.channelId === value);
 
   return (
     <FilterField label="Channel">
-      <select className="ops-input" name="channelId" defaultValue={selectedValue}>
+      <select
+        className="ops-input"
+        name="channelId"
+        defaultValue={selectedValue}
+        onChange={onChange}
+      >
         <option value="">All channels</option>
         {value && !hasSelectedChannel ? <option value={value}>#{value}</option> : null}
         {channels.map((channel) => (
@@ -76,15 +83,22 @@ export function FilterSelect({
   name,
   defaultValue,
   options,
+  onChange,
 }: {
   label: string;
   name: string;
   defaultValue: string | null | undefined;
   options: SelectOption[];
+  onChange?: ChangeEventHandler<HTMLSelectElement>;
 }) {
   return (
     <FilterField label={label}>
-      <select className="ops-input" name={name} defaultValue={defaultValue ?? ""}>
+      <select
+        className="ops-input"
+        name={name}
+        defaultValue={defaultValue ?? ""}
+        onChange={onChange}
+      >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

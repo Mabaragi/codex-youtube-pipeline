@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye } from "lucide-react";
-import type { FormEvent } from "react";
+import type { ChangeEvent } from "react";
 import { DataTable } from "@/components/data-table";
 import {
   ChannelFilterSelect,
@@ -42,6 +42,14 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const router = useRouter();
   const { data: channelsData } = useOpsChannels();
   const { data, isLoading, error } = useOpsVideos(initialFilters);
+  const applyFormFilters = (form: HTMLFormElement | null) => {
+    if (form) {
+      router.push(videosHref(formFilters(form)));
+    }
+  };
+  const applySelectFilters = (event: ChangeEvent<HTMLSelectElement>) => {
+    applyFormFilters(event.currentTarget.form);
+  };
 
   const columns: ColumnDef<OpsVideo>[] = [
     {
@@ -88,12 +96,13 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
         className="ops-panel mb-4 p-4"
         onSubmit={(event) => {
           event.preventDefault();
-          router.push(videosHref(formFilters(event)));
+          applyFormFilters(event.currentTarget);
         }}
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <ChannelFilterSelect
             channels={channelsData?.items ?? []}
+            onChange={applySelectFilters}
             value={initialFilters.channelId}
           />
           <FilterInput
@@ -106,6 +115,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             label="Task status"
             name="taskStatus"
             defaultValue={initialFilters.taskStatus}
+            onChange={applySelectFilters}
             options={VIDEO_TASK_STATUS_OPTIONS}
           />
           <FilterInput label="Limit" name="limit" defaultValue={initialFilters.limit ?? 100} />
@@ -120,8 +130,8 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   );
 }
 
-function formFilters(event: FormEvent<HTMLFormElement>): OpsVideoFilters {
-  const form = new FormData(event.currentTarget);
+function formFilters(formElement: HTMLFormElement): OpsVideoFilters {
+  const form = new FormData(formElement);
   return {
     channelId: positiveNumberFormValue(form.get("channelId")),
     search: stringFormValue(form.get("search")),

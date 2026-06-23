@@ -6,6 +6,7 @@ from codex_sdk_cli.infra.external_api_calls.repository import ExternalApiCallMod
 from codex_sdk_cli.infra.micro_events.repository import (
     AsrCorrectionCandidateModel,
     MicroEventCandidateModel,
+    MicroEventExcludedRangeModel,
     MicroEventExtractionWindowModel,
 )
 from codex_sdk_cli.infra.operation_events.repository import OperationEventModel
@@ -25,6 +26,7 @@ __all__ = [
     "CodexRunUsageModel",
     "ExternalApiCallModel",
     "MicroEventCandidateModel",
+    "MicroEventExcludedRangeModel",
     "MicroEventExtractionWindowModel",
     "OperationEventModel",
     "PipelineJobAttemptModel",

@@ -13,6 +13,7 @@ from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.micro_events.ports import (
     AsrCorrectionCandidateCreate,
     MicroEventCandidateCreate,
+    MicroEventExcludedRangeCreate,
     MicroEventExtractionWindowCreate,
 )
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate
@@ -46,6 +47,7 @@ def test_micro_event_repository_replaces_and_reads_extraction(
 
     assert result["window_count"] == 1
     assert result["micro_event_count"] == 1
+    assert result["excluded_range_count"] == 1
     assert result["asr_count"] == 1
     assert result["latest_task_id"] == result["task_id"]
     assert result["pipeline_micro_event_count"] == 1
@@ -210,6 +212,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | None]:
                 "task_id": succeeded.id,
                 "window_count": len(detail.windows),
                 "micro_event_count": len(detail.windows[0].micro_events),
+                "excluded_range_count": len(detail.windows[0].excluded_ranges),
                 "asr_count": len(detail.windows[0].asr_correction_candidates),
                 "latest_task_id": latest.video_task_id,
                 "pipeline_micro_event_count": (
@@ -259,6 +262,22 @@ def _window(
                 boundary_before=True,
                 boundary_after=False,
                 confidence=0.9,
+                program_mode="JUST_CHATTING",
+                content_kind="META_CHAT",
+                topics=["방송 주제"],
+                relation_to_previous="NEW_TOPIC",
+                continues_to_next=False,
+                support_level="DIRECT",
+            )
+        ]
+        if with_candidates
+        else [],
+        excluded_ranges=[
+            MicroEventExcludedRangeCreate(
+                range_index=1,
+                start_cue_id=f"tr{transcript_id}-c000002",
+                end_cue_id=f"tr{transcript_id}-c000002",
+                reason="LOW_INFORMATION",
             )
         ]
         if with_candidates

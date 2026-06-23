@@ -7,8 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .ports import (
     Activity,
     ApplyScope,
+    ContentKind,
     CorrectionType,
+    ExcludedRangeReason,
     JsonObject,
+    ProgramMode,
+    RelationToPrevious,
+    SupportLevel,
     VideoTaskStatus,
     WindowStatus,
 )
@@ -77,6 +82,15 @@ class MicroEventCandidateResponse(BaseModel):
     boundary_before: bool = Field(alias="boundaryBefore")
     boundary_after: bool = Field(alias="boundaryAfter")
     confidence: float
+    program_mode: ProgramMode | None = Field(default=None, alias="programMode")
+    content_kind: ContentKind | None = Field(default=None, alias="contentKind")
+    topics: list[str] | None = None
+    relation_to_previous: RelationToPrevious | None = Field(
+        default=None,
+        alias="relationToPrevious",
+    )
+    continues_to_next: bool | None = Field(default=None, alias="continuesToNext")
+    support_level: SupportLevel | None = Field(default=None, alias="supportLevel")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -92,6 +106,18 @@ class AsrCorrectionCandidateResponse(BaseModel):
     apply_scope: ApplyScope = Field(alias="applyScope")
     evidence_cue_ids: list[str] = Field(alias="evidenceCueIds")
     confidence: float
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class MicroEventExcludedRangeResponse(BaseModel):
+    excluded_range_id: int = Field(alias="excludedRangeId")
+    range_index: int = Field(alias="rangeIndex")
+    start_cue_id: str = Field(alias="startCueId")
+    end_cue_id: str = Field(alias="endCueId")
+    reason: ExcludedRangeReason
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -116,6 +142,9 @@ class MicroEventExtractionWindowResponse(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     micro_events: list[MicroEventCandidateResponse] = Field(alias="microEvents")
+    excluded_ranges: list[MicroEventExcludedRangeResponse] = Field(
+        alias="excludedRanges"
+    )
     asr_correction_candidates: list[AsrCorrectionCandidateResponse] = Field(
         alias="asrCorrectionCandidates"
     )

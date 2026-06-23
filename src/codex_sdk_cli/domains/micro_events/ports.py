@@ -22,6 +22,39 @@ Activity = Literal[
     "CLOSING",
     "UNKNOWN",
 ]
+ProgramMode = Literal[
+    "OPENING",
+    "JUST_CHATTING",
+    "GAME_SETUP",
+    "GAMEPLAY",
+    "BREAK",
+    "POST_GAME",
+    "CLOSING",
+    "UNKNOWN",
+]
+ContentKind = Literal[
+    "ANNOUNCEMENT",
+    "PERSONAL_STORY",
+    "OPINION",
+    "QNA",
+    "REACTION",
+    "TECHNICAL_SETUP",
+    "GAME_PROGRESS",
+    "GAME_DISCUSSION",
+    "COMMUNITY_REVIEW",
+    "MEDIA_REVIEW",
+    "META_CHAT",
+    "OTHER",
+]
+RelationToPrevious = Literal["NEW_TOPIC", "CONTINUATION", "ASIDE", "RETURN"]
+SupportLevel = Literal["DIRECT", "CONTEXTUAL", "AMBIGUOUS"]
+ExcludedRangeReason = Literal[
+    "MUSIC_ONLY",
+    "SILENCE_OR_GAP",
+    "UNINTELLIGIBLE",
+    "LOW_INFORMATION",
+    "TECHNICAL_NOISE",
+]
 CorrectionType = Literal[
     "PROPER_NOUN",
     "GAME_TITLE",
@@ -79,6 +112,12 @@ class MicroEventCandidateCreate:
     boundary_before: bool
     boundary_after: bool
     confidence: float
+    program_mode: ProgramMode | None = None
+    content_kind: ContentKind | None = None
+    topics: list[str] | None = None
+    relation_to_previous: RelationToPrevious | None = None
+    continues_to_next: bool | None = None
+    support_level: SupportLevel | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +129,14 @@ class AsrCorrectionCandidateCreate:
     apply_scope: ApplyScope
     evidence_cue_ids: list[str]
     confidence: float
+
+
+@dataclass(frozen=True, slots=True)
+class MicroEventExcludedRangeCreate:
+    range_index: int
+    start_cue_id: str
+    end_cue_id: str
+    reason: ExcludedRangeReason
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +158,7 @@ class MicroEventExtractionWindowCreate:
     source_job_id: int
     source_job_attempt_id: int
     micro_events: list[MicroEventCandidateCreate] = field(default_factory=list)
+    excluded_ranges: list[MicroEventExcludedRangeCreate] = field(default_factory=list)
     asr_correction_candidates: list[AsrCorrectionCandidateCreate] = field(
         default_factory=list
     )
@@ -131,6 +179,12 @@ class MicroEventCandidateRecord:
     boundary_before: bool
     boundary_after: bool
     confidence: float
+    program_mode: ProgramMode | None
+    content_kind: ContentKind | None
+    topics: list[str] | None
+    relation_to_previous: RelationToPrevious | None
+    continues_to_next: bool | None
+    support_level: SupportLevel | None
     created_at: datetime
     updated_at: datetime
 
@@ -148,6 +202,20 @@ class AsrCorrectionCandidateRecord:
     apply_scope: ApplyScope
     evidence_cue_ids: list[str]
     confidence: float
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class MicroEventExcludedRangeRecord:
+    id: int
+    window_id: int
+    video_task_id: int
+    transcript_id: int
+    range_index: int
+    start_cue_id: str
+    end_cue_id: str
+    reason: ExcludedRangeReason
     created_at: datetime
     updated_at: datetime
 
@@ -174,6 +242,7 @@ class MicroEventExtractionWindowRecord:
     created_at: datetime
     updated_at: datetime
     micro_events: list[MicroEventCandidateRecord] = field(default_factory=list)
+    excluded_ranges: list[MicroEventExcludedRangeRecord] = field(default_factory=list)
     asr_correction_candidates: list[AsrCorrectionCandidateRecord] = field(
         default_factory=list
     )

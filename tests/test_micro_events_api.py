@@ -23,6 +23,7 @@ from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.micro_events.ports import (
     AsrCorrectionCandidateRecord,
     MicroEventCandidateRecord,
+    MicroEventExcludedRangeRecord,
     MicroEventExtractionDetailRecord,
     MicroEventExtractionRepositoryPort,
     MicroEventExtractionRequest,
@@ -528,6 +529,7 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
         self.windows_by_task: dict[int, list[MicroEventExtractionWindowRecord]] = {}
         self.next_window_id = 1
         self.next_micro_event_id = 1
+        self.next_excluded_range_id = 1
         self.next_asr_id = 1
 
     async def delete_extraction(self, video_task_id: int) -> None:
@@ -557,11 +559,34 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
                         boundary_before=candidate.boundary_before,
                         boundary_after=candidate.boundary_after,
                         confidence=candidate.confidence,
+                        program_mode=candidate.program_mode,
+                        content_kind=candidate.content_kind,
+                        topics=candidate.topics,
+                        relation_to_previous=candidate.relation_to_previous,
+                        continues_to_next=candidate.continues_to_next,
+                        support_level=candidate.support_level,
                         created_at=NOW,
                         updated_at=NOW,
                     )
                 )
                 self.next_micro_event_id += 1
+            excluded_ranges: list[MicroEventExcludedRangeRecord] = []
+            for excluded_range in window.excluded_ranges:
+                excluded_ranges.append(
+                    MicroEventExcludedRangeRecord(
+                        id=self.next_excluded_range_id,
+                        window_id=self.next_window_id,
+                        video_task_id=window.video_task_id,
+                        transcript_id=window.transcript_id,
+                        range_index=excluded_range.range_index,
+                        start_cue_id=excluded_range.start_cue_id,
+                        end_cue_id=excluded_range.end_cue_id,
+                        reason=excluded_range.reason,
+                        created_at=NOW,
+                        updated_at=NOW,
+                    )
+                )
+                self.next_excluded_range_id += 1
             asr_candidates: list[AsrCorrectionCandidateRecord] = []
             for candidate in window.asr_correction_candidates:
                 asr_candidates.append(
@@ -604,6 +629,7 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
                     created_at=NOW,
                     updated_at=NOW,
                     micro_events=micro_events,
+                    excluded_ranges=excluded_ranges,
                     asr_correction_candidates=asr_candidates,
                 )
             )
@@ -721,6 +747,9 @@ def test_micro_event_extract_succeeds_and_detail_can_be_read() -> None:
     assert response["asrCorrectionCandidateCount"] == 1
     assert latest["videoTaskId"] == response["videoTaskId"]
     assert latest["windows"][0]["rawResponseText"]
+    assert latest["windows"][0]["microEvents"][0]["programMode"] == "JUST_CHATTING"
+    assert latest["windows"][0]["microEvents"][0]["contentKind"] == "META_CHAT"
+    assert latest["windows"][0]["excludedRanges"] == []
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert fakes.video_tasks.tasks[2].status == "succeeded"
 
@@ -745,10 +774,11 @@ def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
     asyncio.run(_extract(fakes))
 
     prompt = fakes.extractor.prompts[0]
-    assert "cue_id는 숫자가 아니라 불투명한 문자열이다" in prompt
-    assert "tr33-c004500은 tr33-c00500" in prompt
+    assert "OWNED_RANGE의 모든 cue는 정확히 하나의 event 또는 excluded_range" in prompt
+    assert "CONTEXT_BEFORE" in prompt
+    assert "OWNED_START_CUE_ID: tr1-c000001" in prompt
     assert fakes.pipeline_jobs.jobs[1].input_json["promptVersion"] == (
-        "micro-event-extract-v2"
+        "micro-event-extract-v3"
     )
 
 
@@ -798,12 +828,63 @@ def test_micro_event_extract_records_invalid_json_as_failed_task() -> None:
     assert detail["windows"][0]["validationError"] == "Extractor returned invalid JSON."
 
 
+def test_micro_event_extract_rejects_output_that_leaves_owned_cue_gap() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [_extractor_json("tr1-c000001", "tr1-c000001")]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "failed"
+    assert detail["windows"][0]["status"] == "failed"
+    assert "cover every owned cue" in detail["windows"][0]["validationError"]
+
+
+def test_micro_event_extract_accepts_excluded_ranges_for_owned_coverage() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "스트리머가 방송 주제를 설명한다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                    }
+                ],
+                "excluded_ranges": [
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "reason": "LOW_INFORMATION",
+                    }
+                ],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    latest = asyncio.run(_get_latest(fakes))
+
+    assert response["status"] == "succeeded"
+    assert latest["windows"][0]["excludedRanges"][0]["reason"] == "LOW_INFORMATION"
+
+
 def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap() -> None:
     fakes = _seed_ready_fakes()
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000])
     fakes.extractor.responses = [
-        _extractor_json("tr1-c000001"),
-        _extractor_json("tr1-c000002"),
+        _extractor_json("tr1-c000001", "tr1-c000001"),
+        _extractor_json("tr1-c000002", "tr1-c000002"),
     ]
 
     response = asyncio.run(_extract(fakes))
@@ -982,32 +1063,38 @@ def _seed_cue_task(fakes: _Fakes) -> None:
     fakes.video_tasks.next_id = 2
 
 
-def _extractor_json(cue_id: str = "tr1-c000001") -> str:
+def _extractor_json(
+    start_cue_id: str = "tr1-c000001",
+    end_cue_id: str | None = "tr1-c000002",
+) -> str:
+    end_cue_id = end_cue_id or start_cue_id
     return json.dumps(
         {
-            "micro_events": [
+            "events": [
                 {
-                    "activity": "JUST_CHATTING",
+                    "start_cue_id": start_cue_id,
+                    "end_cue_id": end_cue_id,
                     "event": "스트리머가 방송 주제를 설명한다.",
-                    "start_cue_id": cue_id,
-                    "end_cue_id": cue_id,
-                    "evidence_cue_ids": [cue_id],
-                    "boundary_before": True,
-                    "boundary_after": False,
-                    "confidence": 0.9,
+                    "program_mode": "JUST_CHATTING",
+                    "content_kind": "META_CHAT",
+                    "topics": ["방송 주제"],
+                    "relation_to_previous": "NEW_TOPIC",
+                    "continues_to_next": False,
+                    "evidence_cue_ids": [start_cue_id],
+                    "support_level": "DIRECT",
                 }
             ],
+            "excluded_ranges": [],
             "asr_correction_candidates": [
                 {
-                    "original": "코덱스",
+                    "original": "코덱쓰",
                     "suggested": "Codex",
                     "correction_type": "PROPER_NOUN",
                     "apply_scope": "SEARCH_ONLY",
-                    "evidence_cue_ids": [cue_id],
+                    "evidence_cue_ids": [start_cue_id],
                     "confidence": 0.8,
                 }
             ],
-            "carry_out": {"unfinished": False},
         },
         ensure_ascii=False,
     )

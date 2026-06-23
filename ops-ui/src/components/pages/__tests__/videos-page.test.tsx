@@ -128,6 +128,25 @@ describe("VideosPage", () => {
     );
   });
 
+  it("applies channel and task filters as soon as they are selected", () => {
+    render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
+
+    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "needle" } });
+    fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "7" } });
+
+    expect(routerPush).toHaveBeenLastCalledWith(
+      "/videos?channelId=7&search=needle&limit=100",
+    );
+
+    fireEvent.change(screen.getByLabelText("Task status"), {
+      target: { value: "running" },
+    });
+
+    expect(routerPush).toHaveBeenLastCalledWith(
+      "/videos?channelId=7&search=needle&taskStatus=running&limit=100",
+    );
+  });
+
   it("preserves an unknown selected channel option", () => {
     queryMocks.channels.data = { items: [] };
 

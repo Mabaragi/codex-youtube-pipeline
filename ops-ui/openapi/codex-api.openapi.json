@@ -1260,6 +1260,42 @@
             "title": "Confidence",
             "type": "number"
           },
+          "contentKind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ANNOUNCEMENT",
+                  "PERSONAL_STORY",
+                  "OPINION",
+                  "QNA",
+                  "REACTION",
+                  "TECHNICAL_SETUP",
+                  "GAME_PROGRESS",
+                  "GAME_DISCUSSION",
+                  "COMMUNITY_REVIEW",
+                  "MEDIA_REVIEW",
+                  "META_CHAT",
+                  "OTHER"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contentkind"
+          },
+          "continuesToNext": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continuestonext"
+          },
           "createdAt": {
             "format": "date-time",
             "title": "Createdat",
@@ -1284,9 +1320,77 @@
             "title": "Microeventcandidateid",
             "type": "integer"
           },
+          "programMode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "OPENING",
+                  "JUST_CHATTING",
+                  "GAME_SETUP",
+                  "GAMEPLAY",
+                  "BREAK",
+                  "POST_GAME",
+                  "CLOSING",
+                  "UNKNOWN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Programmode"
+          },
+          "relationToPrevious": {
+            "anyOf": [
+              {
+                "enum": [
+                  "NEW_TOPIC",
+                  "CONTINUATION",
+                  "ASIDE",
+                  "RETURN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relationtoprevious"
+          },
           "startCueId": {
             "title": "Startcueid",
             "type": "string"
+          },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "DIRECT",
+                  "CONTEXTUAL",
+                  "AMBIGUOUS"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supportlevel"
+          },
+          "topics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topics"
           },
           "updatedAt": {
             "format": "date-time",
@@ -1309,6 +1413,58 @@
           "updatedAt"
         ],
         "title": "MicroEventCandidateResponse",
+        "type": "object"
+      },
+      "MicroEventExcludedRangeResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "endCueId": {
+            "title": "Endcueid",
+            "type": "string"
+          },
+          "excludedRangeId": {
+            "title": "Excludedrangeid",
+            "type": "integer"
+          },
+          "rangeIndex": {
+            "title": "Rangeindex",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "MUSIC_ONLY",
+              "SILENCE_OR_GAP",
+              "UNINTELLIGIBLE",
+              "LOW_INFORMATION",
+              "TECHNICAL_NOISE"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "startCueId": {
+            "title": "Startcueid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "excludedRangeId",
+          "rangeIndex",
+          "startCueId",
+          "endCueId",
+          "reason",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "MicroEventExcludedRangeResponse",
         "type": "object"
       },
       "MicroEventExtractRequest": {
@@ -1744,6 +1900,13 @@
             "title": "Endcueid",
             "type": "string"
           },
+          "excludedRanges": {
+            "items": {
+              "$ref": "#/components/schemas/MicroEventExcludedRangeResponse"
+            },
+            "title": "Excludedranges",
+            "type": "array"
+          },
           "microEvents": {
             "items": {
               "$ref": "#/components/schemas/MicroEventCandidateResponse"
@@ -1851,6 +2014,7 @@
           "createdAt",
           "updatedAt",
           "microEvents",
+          "excludedRanges",
           "asrCorrectionCandidates"
         ],
         "title": "MicroEventExtractionWindowResponse",

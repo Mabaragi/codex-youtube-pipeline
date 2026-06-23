@@ -22,6 +22,7 @@ def test_database_base_registers_app_tables() -> None:
         "codex_run_usages",
         "external_api_calls",
         "micro_event_candidates",
+        "micro_event_excluded_ranges",
         "micro_event_extraction_windows",
         "operation_events",
         "pipeline_job_attempts",
@@ -176,6 +177,16 @@ def test_alembic_upgrade_creates_app_tables(
             index["name"]: index["column_names"]
             for index in inspector.get_indexes("transcript_cues")
         }
+        micro_event_candidate_columns = {
+            column["name"] for column in inspector.get_columns("micro_event_candidates")
+        }
+        micro_event_excluded_range_columns = {
+            column["name"]
+            for column in inspector.get_columns("micro_event_excluded_ranges")
+        }
+        micro_event_excluded_range_foreign_keys = inspector.get_foreign_keys(
+            "micro_event_excluded_ranges"
+        )
     finally:
         engine.dispose()
 
@@ -185,6 +196,7 @@ def test_alembic_upgrade_creates_app_tables(
         "codex_run_usages",
         "external_api_calls",
         "micro_event_candidates",
+        "micro_event_excluded_ranges",
         "micro_event_extraction_windows",
         "operation_events",
         "pipeline_job_attempts",
@@ -530,6 +542,29 @@ def test_alembic_upgrade_creates_app_tables(
     assert transcript_cue_indexes["ix_transcript_cues_source_job_id"] == [
         "source_job_id"
     ]
+    assert {
+        "program_mode",
+        "content_kind",
+        "topics",
+        "relation_to_previous",
+        "continues_to_next",
+        "support_level",
+    }.issubset(micro_event_candidate_columns)
+    assert {
+        "id",
+        "window_id",
+        "video_task_id",
+        "transcript_id",
+        "range_index",
+        "start_cue_id",
+        "end_cue_id",
+        "reason",
+    }.issubset(micro_event_excluded_range_columns)
+    assert any(
+        foreign_key["referred_table"] == "micro_event_extraction_windows"
+        and foreign_key["constrained_columns"] == ["window_id"]
+        for foreign_key in micro_event_excluded_range_foreign_keys
+    )
 
 
 def test_alembic_migrates_transcript_not_found_tasks(

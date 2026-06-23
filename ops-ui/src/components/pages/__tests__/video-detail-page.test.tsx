@@ -149,6 +149,7 @@ const videoDetail: OpsVideoDetail = {
       outputJson: {
         windowCount: 1,
         microEventCount: 1,
+        excludedRangeCount: 1,
         asrCorrectionCandidateCount: 1,
       },
       errorType: null,
@@ -275,6 +276,7 @@ const microEventExtraction: MicroEventExtractionDetail = {
   outputJson: {
     windowCount: 1,
     microEventCount: 1,
+    excludedRangeCount: 1,
     asrCorrectionCandidateCount: 1,
   },
   errorType: null,
@@ -313,6 +315,23 @@ const microEventExtraction: MicroEventExtractionDetail = {
           boundaryBefore: true,
           boundaryAfter: false,
           confidence: 0.87,
+          programMode: "JUST_CHATTING",
+          contentKind: "META_CHAT",
+          topics: ["opening chat"],
+          relationToPrevious: "NEW_TOPIC",
+          continuesToNext: false,
+          supportLevel: "DIRECT",
+          createdAt: "2026-06-18T00:59:00Z",
+          updatedAt: "2026-06-18T00:59:00Z",
+        },
+      ],
+      excludedRanges: [
+        {
+          excludedRangeId: 501,
+          rangeIndex: 1,
+          startCueId: "tr11-c000002",
+          endCueId: "tr11-c000002",
+          reason: "LOW_INFORMATION",
           createdAt: "2026-06-18T00:59:00Z",
           updatedAt: "2026-06-18T00:59:00Z",
         },
@@ -406,6 +425,10 @@ describe("VideoDetailPage", () => {
     expect(screen.getByRole("button", { name: /Download JSON/i })).toBeTruthy();
     expect(screen.getByText("Window #1")).toBeTruthy();
     expect(screen.getByText("Streamer reacts to the opening chat topic.")).toBeTruthy();
+    expect(screen.getByText("META_CHAT")).toBeTruthy();
+    expect(screen.getByText("opening chat")).toBeTruthy();
+    expect(screen.getByText("Excluded Ranges")).toBeTruthy();
+    expect(screen.getByText("LOW_INFORMATION")).toBeTruthy();
     expect(screen.getByText("recoding -> recording")).toBeTruthy();
     expect(screen.getByText("ASR Candidates")).toBeTruthy();
     expect(queryMocks.microEventExtraction).toHaveBeenLastCalledWith(42, true);
@@ -533,6 +556,7 @@ describe("VideoDetailPage", () => {
     expect(payload.windows).toEqual(microEventExtraction.windows);
     expect(JSON.stringify(payload)).toContain("Streamer reacts to the opening chat topic.");
     expect(JSON.stringify(payload)).toContain("recoding");
+    expect(JSON.stringify(payload)).toContain("LOW_INFORMATION");
     expect(JSON.stringify(payload)).toContain("rawResponseText");
   });
 
