@@ -26,6 +26,7 @@ class VideoTaskCreate:
     task_version: str
     input_hash: str
     timeout_seconds: int
+    input_json: JsonObject | None = None
     status: VideoTaskStatus = "pending"
 
 
@@ -49,6 +50,7 @@ class VideoTaskRecord:
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    input_json: JsonObject | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,8 +111,37 @@ class VideoTaskRepositoryPort(Protocol):
     ) -> VideoTaskRecord | None:
         """Return the newest succeeded task for one video and task name."""
 
+    async def get_latest_task_for_video(self, video_id: int) -> VideoTaskRecord | None:
+        """Return the newest task for one video, regardless of task name/status."""
+
     async def count_running(self, *, task_name: str) -> int:
         """Count currently running tasks by type."""
+
+    async def claim_next_pending_task(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        """Atomically claim one pending task and mark it running."""
+
+    async def reset_task_to_pending(
+        self,
+        task_id: int,
+        *,
+        timeout_seconds: int,
+        input_json: JsonObject,
+    ) -> VideoTaskRecord:
+        """Reset an existing task so a worker can run it again."""
+
+    async def attach_task_execution(
+        self,
+        task_id: int,
+        *,
+        job_id: int,
+        job_attempt_id: int,
+    ) -> VideoTaskRecord:
+        """Attach job and attempt IDs after a worker has claimed a task."""
 
     async def mark_task_running(
         self,

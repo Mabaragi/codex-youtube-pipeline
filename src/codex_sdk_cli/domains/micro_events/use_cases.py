@@ -86,6 +86,9 @@ from .ports import (
 from .schemas import (
     MicroEventBatchExtractRequest,
     MicroEventBatchExtractResponse,
+    MicroEventEnqueueItemResponse,
+    MicroEventEnqueueRequest,
+    MicroEventEnqueueResponse,
     MicroEventExtractionDetailResponse,
     MicroEventExtractRequest,
     MicroEventExtractResponse,
@@ -340,6 +343,24 @@ class _ExtractionExecutionInput:
     domain_knowledge_fingerprint: str
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedExtraction:
+    execution_input: _ExtractionExecutionInput
+    input_hash: str
+    input_json: JsonObject
+
+
+@dataclass(slots=True)
+class _EnqueueCounters:
+    scanned_count: int = 0
+    enqueued_count: int = 0
+    already_pending_count: int = 0
+    already_running_count: int = 0
+    already_succeeded_count: int = 0
+    skipped_failed_count: int = 0
+    ineligible_count: int = 0
+
+
 class _MicroEventWindowValidationFailure(Exception):
     def __init__(
         self,
@@ -390,63 +411,45 @@ class ExtractVideoMicroEventsUseCase:
         video_id: int,
         request: MicroEventExtractRequest,
     ) -> MicroEventExtractResponse:
-        video, metadata, cues = await self._load_inputs(video_id)
-        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
-        domain_knowledge_fingerprint = _domain_knowledge_fingerprint(
-            domain_knowledge_entries
-        )
-        model = request.model or self._model
-        reasoning_effort = request.reasoning_effort or self._reasoning_effort
-        input_hash = _task_input_hash(
-            video=video,
-            metadata=metadata,
-            window_minutes=request.window_minutes,
-            overlap_minutes=request.overlap_minutes,
-            model=model,
-            reasoning_effort=reasoning_effort,
-            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+        prepared = await self._prepare_extraction(
+            video_id,
+            request,
+            actor_type="manual_api",
         )
         task = await self._video_tasks.get_or_create_task(
             VideoTaskCreate(
-                video_id=video.id,
+                video_id=prepared.execution_input.video.id,
                 task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
                 task_version=MICRO_EVENT_EXTRACT_TASK_VERSION,
-                input_hash=input_hash,
+                input_hash=prepared.input_hash,
                 timeout_seconds=self._timeout_seconds,
+                input_json=prepared.input_json,
             )
-        )
-        execution_input = _ExtractionExecutionInput(
-            video=video,
-            metadata=metadata,
-            cues=cues,
-            window_minutes=request.window_minutes,
-            overlap_minutes=request.overlap_minutes,
-            model=model,
-            reasoning_effort=reasoning_effort,
-            actor_type="manual_api",
-            domain_knowledge_entries=domain_knowledge_entries,
-            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
         )
         await self._record_task_event(
             "micro_event_extract.task_selected",
             "info",
             "Micro-event extraction task was selected.",
             task=task,
-            execution_input=execution_input,
+            execution_input=prepared.execution_input,
             metadata_json={
                 "taskStatus": task.status,
                 "retryFailed": request.retry_failed,
                 "regenerateSucceeded": request.regenerate_succeeded,
-                "model": model,
-                "reasoningEffort": reasoning_effort,
-                "domainKnowledgeEntryCount": len(domain_knowledge_entries),
-                "domainKnowledgeFingerprint": domain_knowledge_fingerprint,
+                "model": prepared.execution_input.model,
+                "reasoningEffort": prepared.execution_input.reasoning_effort,
+                "domainKnowledgeEntryCount": len(
+                    prepared.execution_input.domain_knowledge_entries
+                ),
+                "domainKnowledgeFingerprint": (
+                    prepared.execution_input.domain_knowledge_fingerprint
+                ),
             },
         )
         return await self._process_task(
             task,
-            execution_input,
-            input_hash,
+            prepared.execution_input,
+            prepared.input_hash,
             retry_failed=request.retry_failed,
             regenerate_succeeded=request.regenerate_succeeded,
         )
@@ -502,6 +505,36 @@ class ExtractVideoMicroEventsUseCase:
             ineligibleCount=ineligible_count,
             items=items,
         )
+
+    async def enqueue(
+        self,
+        request: MicroEventEnqueueRequest,
+    ) -> MicroEventEnqueueResponse:
+        counters = _EnqueueCounters()
+        items: list[MicroEventEnqueueItemResponse] = []
+        if request.target == "selected_videos":
+            for video_id in request.video_ids[: request.limit]:
+                counters.scanned_count += 1
+                items.append(await self._enqueue_video_id(video_id, request, counters))
+            return _enqueue_response(request, counters, items)
+
+        candidates = await self._video_tasks.list_latest_succeeded_tasks(
+            task_name=TRANSCRIPT_CUE_GENERATE_TASK_NAME,
+            channel_id=request.channel_id,
+            limit=MICRO_EVENT_EXTRACT_BATCH_SCAN_LIMIT,
+        )
+        for candidate in candidates:
+            counters.scanned_count += 1
+            if request.target == "current_filters" and not await self._matches_enqueue_filters(
+                candidate.video,
+                request,
+            ):
+                continue
+            item = await self._enqueue_video(candidate.video, request, counters)
+            items.append(item)
+            if counters.enqueued_count >= request.limit:
+                break
+        return _enqueue_response(request, counters, items)
 
     async def get_latest(self, video_id: int) -> MicroEventExtractionDetailResponse:
         if await self._videos.get_video(video_id) is None:
@@ -593,6 +626,371 @@ class ExtractVideoMicroEventsUseCase:
             timeout_seconds=timeout_seconds,
         )
         return response.model_dump(by_alias=True)
+
+    async def execute_claimed_task(
+        self,
+        task: VideoTaskRecord,
+        *,
+        worker_id: str,
+    ) -> MicroEventExtractResponse:
+        if task.task_name != MICRO_EVENT_EXTRACT_TASK_NAME or task.status != "running":
+            raise VideoTaskRetryNotAllowed("Only claimed micro-event tasks can be executed.")
+        input_json = task.input_json or {}
+        if not input_json:
+            await self._video_tasks.mark_task_failed(
+                task.id,
+                error_type="InvalidTaskInput",
+                error_message="Queued micro-event task is missing input_json.",
+            )
+            raise VideoTaskRetryNotAllowed("Queued micro-event task is missing input_json.")
+        timeout_seconds = _int_output(input_json, "timeoutSeconds") or task.timeout_seconds
+        job_input_json = {**input_json, "videoTaskId": task.id}
+        job = await self._pipeline_jobs.create_job(
+            PipelineJobCreate(
+                step=MICRO_EVENT_EXTRACT_TASK_NAME,
+                status="running",
+                subject_type="video",
+                subject_id=_required_int(job_input_json, "videoId"),
+                external_key=_str_output(job_input_json, "youtubeVideoId"),
+                input_json=job_input_json,
+                input_hash=task.input_hash,
+            )
+        )
+        attempt = await self._pipeline_jobs.create_attempt(
+            job_id=job.id,
+            worker_id=worker_id,
+        )
+        task = await self._video_tasks.attach_task_execution(
+            task.id,
+            job_id=job.id,
+            job_attempt_id=attempt.id,
+        )
+        try:
+            execution_input = await self._execution_input_from_task_input(
+                task,
+                job_input_json,
+                actor_type="system",
+            )
+        except Exception as exc:
+            error_type = exc.__class__.__name__
+            error_message = str(exc) or error_type
+            await self._pipeline_jobs.mark_attempt_failed(
+                attempt.id,
+                error_type=error_type,
+                error_message=error_message,
+            )
+            await self._pipeline_jobs.mark_job_failed(job.id)
+            await self._video_tasks.mark_task_failed(
+                task.id,
+                error_type=error_type,
+                error_message=error_message,
+                output_json={"jobId": job.id, "jobAttemptId": attempt.id},
+            )
+            raise
+        await self._record_task_event(
+            "micro_event_extract.task_running",
+            "info",
+            "Micro-event extraction task started running.",
+            task=task,
+            execution_input=execution_input,
+            metadata_json={"attemptId": attempt.id, "workerId": worker_id},
+        )
+        return await self._execute_job_attempt(
+            job,
+            attempt,
+            task=task,
+            execution_input=execution_input,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def _enqueue_video_id(
+        self,
+        video_id: int,
+        request: MicroEventEnqueueRequest,
+        counters: _EnqueueCounters,
+    ) -> MicroEventEnqueueItemResponse:
+        video = await self._videos.get_video(video_id)
+        if video is None:
+            counters.ineligible_count += 1
+            return _enqueue_item(
+                video_id=video_id,
+                youtube_video_id=None,
+                task=None,
+                status="skipped",
+                reason="video_not_found",
+                request=request,
+                transcript_id=None,
+                error_type="VideoNotFound",
+                error_message="Video not found.",
+            )
+        return await self._enqueue_video(video, request, counters)
+
+    async def _enqueue_video(
+        self,
+        video: VideoRecord,
+        request: MicroEventEnqueueRequest,
+        counters: _EnqueueCounters,
+    ) -> MicroEventEnqueueItemResponse:
+        try:
+            prepared = await self._prepare_extraction(
+                video.id,
+                request,
+                actor_type="manual_api",
+            )
+        except (
+            MicroEventExtractionPreconditionFailed,
+            YouTubeTranscriptMetadataNotFound,
+        ) as exc:
+            counters.ineligible_count += 1
+            return _enqueue_item(
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                task=None,
+                status="skipped",
+                reason="ineligible",
+                request=request,
+                transcript_id=None,
+                error_type=exc.__class__.__name__,
+                error_message=str(exc) or exc.__class__.__name__,
+            )
+        existing = await self._video_tasks.get_task_for_input(
+            video_id=video.id,
+            task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
+            task_version=MICRO_EVENT_EXTRACT_TASK_VERSION,
+            input_hash=prepared.input_hash,
+        )
+        if existing is None:
+            task = await self._video_tasks.get_or_create_task(
+                VideoTaskCreate(
+                    video_id=video.id,
+                    task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
+                    task_version=MICRO_EVENT_EXTRACT_TASK_VERSION,
+                    input_hash=prepared.input_hash,
+                    timeout_seconds=self._timeout_seconds,
+                    input_json=prepared.input_json,
+                    status="pending",
+                )
+            )
+            counters.enqueued_count += 1
+            await self._record_task_event(
+                "micro_event_extract.task_enqueued",
+                "info",
+                "Micro-event extraction task was queued.",
+                task=task,
+                execution_input=prepared.execution_input,
+                reason="enqueued",
+                metadata_json=prepared.input_json,
+            )
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=video,
+                status="pending",
+                reason="enqueued",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        return await self._enqueue_existing_task(
+            existing,
+            prepared,
+            request,
+            counters,
+        )
+
+    async def _enqueue_existing_task(
+        self,
+        task: VideoTaskRecord,
+        prepared: _PreparedExtraction,
+        request: MicroEventEnqueueRequest,
+        counters: _EnqueueCounters,
+    ) -> MicroEventEnqueueItemResponse:
+        if task.status == "pending":
+            if task.input_json is None:
+                reset = await self._video_tasks.reset_task_to_pending(
+                    task.id,
+                    timeout_seconds=self._timeout_seconds,
+                    input_json=prepared.input_json,
+                )
+                counters.enqueued_count += 1
+                return _enqueue_item_from_task(
+                    reset,
+                    request=request,
+                    video=prepared.execution_input.video,
+                    status="pending",
+                    reason="enqueued",
+                    transcript_id=prepared.execution_input.metadata.id,
+                )
+            counters.already_pending_count += 1
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=prepared.execution_input.video,
+                status="pending",
+                reason="already_pending",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        if task.status == "running":
+            counters.already_running_count += 1
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=prepared.execution_input.video,
+                status="skipped",
+                reason="already_running",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        if task.status == "succeeded" and not request.regenerate_succeeded:
+            counters.already_succeeded_count += 1
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=prepared.execution_input.video,
+                status="skipped",
+                reason="already_succeeded",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        if task.status in {"failed", "timed_out"} and not request.retry_failed:
+            counters.skipped_failed_count += 1
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=prepared.execution_input.video,
+                status="skipped",
+                reason=f"previously_{task.status}",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        if task.status in {"skipped", "canceled", "no_transcript"}:
+            counters.ineligible_count += 1
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=prepared.execution_input.video,
+                status="skipped",
+                reason="not_retryable",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        reset = await self._video_tasks.reset_task_to_pending(
+            task.id,
+            timeout_seconds=self._timeout_seconds,
+            input_json=prepared.input_json,
+        )
+        counters.enqueued_count += 1
+        await self._record_task_event(
+            "micro_event_extract.task_enqueued",
+            "info",
+            "Micro-event extraction task was queued.",
+            task=reset,
+            execution_input=prepared.execution_input,
+            reason="requeued",
+            metadata_json=prepared.input_json,
+        )
+        return _enqueue_item_from_task(
+            reset,
+            request=request,
+            video=prepared.execution_input.video,
+            status="pending",
+            reason="requeued",
+            transcript_id=prepared.execution_input.metadata.id,
+        )
+
+    async def _matches_enqueue_filters(
+        self,
+        video: VideoRecord,
+        request: MicroEventEnqueueRequest,
+    ) -> bool:
+        if request.search is not None:
+            search = request.search.casefold()
+            if (
+                search not in video.title.casefold()
+                and search not in video.youtube_video_id.casefold()
+            ):
+                return False
+        if request.task_status is not None:
+            latest_task = await self._video_tasks.get_latest_task_for_video(video.id)
+            if latest_task is None or latest_task.status != request.task_status:
+                return False
+        return True
+
+    async def _prepare_extraction(
+        self,
+        video_id: int,
+        request: MicroEventExtractRequest,
+        *,
+        actor_type: OperationEventActorType,
+    ) -> _PreparedExtraction:
+        video, metadata, cues = await self._load_inputs(video_id)
+        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_fingerprint = _domain_knowledge_fingerprint(
+            domain_knowledge_entries
+        )
+        model = request.model or self._model
+        reasoning_effort = request.reasoning_effort or self._reasoning_effort
+        input_hash = _task_input_hash(
+            video=video,
+            metadata=metadata,
+            window_minutes=request.window_minutes,
+            overlap_minutes=request.overlap_minutes,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+        )
+        execution_input = _ExtractionExecutionInput(
+            video=video,
+            metadata=metadata,
+            cues=cues,
+            window_minutes=request.window_minutes,
+            overlap_minutes=request.overlap_minutes,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            actor_type=actor_type,
+            domain_knowledge_entries=domain_knowledge_entries,
+            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+        )
+        return _PreparedExtraction(
+            execution_input=execution_input,
+            input_hash=input_hash,
+            input_json=_task_input_json(
+                execution_input,
+                input_hash=input_hash,
+                timeout_seconds=self._timeout_seconds,
+            ),
+        )
+
+    async def _execution_input_from_task_input(
+        self,
+        task: VideoTaskRecord,
+        input_json: JsonObject,
+        *,
+        actor_type: OperationEventActorType,
+    ) -> _ExtractionExecutionInput:
+        video_id = _required_int(input_json, "videoId")
+        transcript_id = _required_int(input_json, "transcriptId")
+        video = await self._videos.get_video(video_id)
+        if video is None:
+            raise VideoNotFound("Video not found.")
+        metadata = await self._transcripts.get_transcript_metadata(transcript_id)
+        if metadata is None:
+            raise YouTubeTranscriptMetadataNotFound("Transcript metadata not found.")
+        cues = await self._transcript_cues.list_cues(metadata.id)
+        if not cues:
+            raise MicroEventExtractionPreconditionFailed("Transcript cues are required.")
+        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_fingerprint = (
+            _str_output(input_json, "domainKnowledgeFingerprint")
+            or _domain_knowledge_fingerprint(domain_knowledge_entries)
+        )
+        return _ExtractionExecutionInput(
+            video=video,
+            metadata=metadata,
+            cues=cues,
+            window_minutes=_required_int(input_json, "windowMinutes"),
+            overlap_minutes=_required_int(input_json, "overlapMinutes"),
+            model=_model_output(input_json) or self._model,
+            reasoning_effort=_reasoning_effort_output(input_json)
+            or self._reasoning_effort,
+            actor_type=actor_type,
+            domain_knowledge_entries=domain_knowledge_entries,
+            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+        )
 
     async def _batch_candidate_action(
         self,
@@ -820,8 +1218,8 @@ class ExtractVideoMicroEventsUseCase:
         execution_input: _ExtractionExecutionInput,
         timeout_seconds: int,
     ) -> MicroEventExtractResponse:
-        await self._micro_events.delete_extraction(task.id)
         try:
+            await self._micro_events.delete_extraction(task.id)
             windows = await asyncio.wait_for(
                 self._extract_windows(
                     task=task,
@@ -1659,6 +2057,100 @@ def _task_input_hash(
     return hashlib.sha256(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
+
+
+def _task_input_json(
+    execution_input: _ExtractionExecutionInput,
+    *,
+    input_hash: str,
+    timeout_seconds: int,
+) -> JsonObject:
+    return {
+        "videoId": execution_input.video.id,
+        "youtubeVideoId": execution_input.video.youtube_video_id,
+        "transcriptId": execution_input.metadata.id,
+        "responseSha256": execution_input.metadata.response_sha256,
+        "taskVersion": MICRO_EVENT_EXTRACT_TASK_VERSION,
+        "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
+        "inputHash": input_hash,
+        "windowMinutes": execution_input.window_minutes,
+        "overlapMinutes": execution_input.overlap_minutes,
+        "model": execution_input.model,
+        "reasoningEffort": execution_input.reasoning_effort,
+        "domainKnowledgeEntryCount": len(execution_input.domain_knowledge_entries),
+        "domainKnowledgeFingerprint": execution_input.domain_knowledge_fingerprint,
+        "timeoutSeconds": timeout_seconds,
+    }
+
+
+def _enqueue_response(
+    request: MicroEventEnqueueRequest,
+    counters: _EnqueueCounters,
+    items: list[MicroEventEnqueueItemResponse],
+) -> MicroEventEnqueueResponse:
+    requested_count = min(
+        request.limit,
+        len(request.video_ids) if request.target == "selected_videos" else request.limit,
+    )
+    return MicroEventEnqueueResponse(
+        requestedCount=requested_count,
+        scannedCount=counters.scanned_count,
+        enqueuedCount=counters.enqueued_count,
+        alreadyPendingCount=counters.already_pending_count,
+        alreadyRunningCount=counters.already_running_count,
+        alreadySucceededCount=counters.already_succeeded_count,
+        skippedFailedCount=counters.skipped_failed_count,
+        ineligibleCount=counters.ineligible_count,
+        items=items,
+    )
+
+
+def _enqueue_item_from_task(
+    task: VideoTaskRecord,
+    *,
+    request: MicroEventEnqueueRequest,
+    video: VideoRecord,
+    status: str,
+    reason: str,
+    transcript_id: int | None,
+) -> MicroEventEnqueueItemResponse:
+    return _enqueue_item(
+        video_id=video.id,
+        youtube_video_id=video.youtube_video_id,
+        task=task,
+        status=status,
+        reason=reason,
+        request=request,
+        transcript_id=transcript_id,
+        error_type=task.error_type,
+        error_message=task.error_message,
+    )
+
+
+def _enqueue_item(
+    *,
+    video_id: int,
+    youtube_video_id: str | None,
+    task: VideoTaskRecord | None,
+    status: str,
+    reason: str,
+    request: MicroEventEnqueueRequest,
+    transcript_id: int | None,
+    error_type: str | None,
+    error_message: str | None,
+) -> MicroEventEnqueueItemResponse:
+    return MicroEventEnqueueItemResponse(
+        videoId=video_id,
+        youtubeVideoId=youtube_video_id,
+        videoTaskId=task.id if task is not None else None,
+        status=status,
+        reason=reason,
+        model=request.model,
+        reasoningEffort=request.reasoning_effort,
+        transcriptId=transcript_id,
+        errorType=error_type,
+        errorMessage=error_message,
+    )
 
 
 def _attempt_output_json(

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    update,
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,6 +56,7 @@ class VideoTaskModel(Base):
         ),
         CheckConstraint("timeout_seconds >= 1", name="video_tasks_timeout_seconds_min"),
         Index("ix_video_tasks_task_status", "task_name", "status"),
+        Index("ix_video_tasks_pending_claim", "task_name", "status", "id"),
         Index("ix_video_tasks_video_task", "video_id", "task_name"),
     )
 
@@ -70,6 +72,7 @@ class VideoTaskModel(Base):
     status: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     worker_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    input_json: Mapped[JsonObject | None] = mapped_column(JSON, nullable=True)
     job_id: Mapped[int | None] = mapped_column(
         ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
         index=True,
@@ -153,6 +156,7 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
                 input_hash=task.input_hash,
                 status=task.status,
                 timeout_seconds=task.timeout_seconds,
+                input_json=task.input_json,
             )
             self._session.add(model)
             await self._session.commit()
@@ -269,6 +273,19 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
 
     @override
+    async def get_latest_task_for_video(self, video_id: int) -> VideoTaskRecord | None:
+        try:
+            model = await self._session.scalar(
+                select(VideoTaskModel)
+                .where(VideoTaskModel.video_id == video_id)
+                .order_by(VideoTaskModel.id.desc())
+                .limit(1)
+            )
+            return _task_record(model) if model is not None else None
+        except SQLAlchemyError as exc:
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
     async def count_running(self, *, task_name: str) -> int:
         try:
             count = await self._session.scalar(
@@ -281,6 +298,106 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             )
             return count or 0
         except SQLAlchemyError as exc:
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
+    async def claim_next_pending_task(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        try:
+            task_id = await self._session.scalar(
+                select(VideoTaskModel.id)
+                .where(
+                    VideoTaskModel.task_name == task_name,
+                    VideoTaskModel.status == "pending",
+                )
+                .order_by(VideoTaskModel.id.asc())
+                .limit(1)
+            )
+            if task_id is None:
+                return None
+            now = datetime.now(UTC)
+            claimed_id = await self._session.scalar(
+                update(VideoTaskModel)
+                .where(
+                    VideoTaskModel.id == task_id,
+                    VideoTaskModel.status == "pending",
+                )
+                .values(
+                    status="running",
+                    worker_id=worker_id,
+                    error_type=None,
+                    error_message=None,
+                    started_at=now,
+                    completed_at=None,
+                )
+                .returning(VideoTaskModel.id)
+            )
+            if claimed_id is None:
+                await self._session.rollback()
+                return None
+            await self._session.commit()
+            model = await self._get_task_model_or_raise(claimed_id)
+            return _task_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
+    async def reset_task_to_pending(
+        self,
+        task_id: int,
+        *,
+        timeout_seconds: int,
+        input_json: JsonObject,
+    ) -> VideoTaskRecord:
+        try:
+            model = await self._get_task_model_or_raise(task_id)
+            model.status = "pending"
+            model.worker_id = None
+            model.timeout_seconds = timeout_seconds
+            model.input_json = input_json
+            model.job_id = None
+            model.job_attempt_id = None
+            model.output_transcript_id = None
+            model.output_json = None
+            model.error_type = None
+            model.error_message = None
+            model.started_at = None
+            model.completed_at = None
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _task_record(model)
+        except VideoTaskNotFound:
+            await self._session.rollback()
+            raise
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
+    async def attach_task_execution(
+        self,
+        task_id: int,
+        *,
+        job_id: int,
+        job_attempt_id: int,
+    ) -> VideoTaskRecord:
+        try:
+            model = await self._get_task_model_or_raise(task_id)
+            model.job_id = job_id
+            model.job_attempt_id = job_attempt_id
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _task_record(model)
+        except VideoTaskNotFound:
+            await self._session.rollback()
+            raise
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
 
     @override
@@ -445,6 +562,7 @@ def _task_record(model: VideoTaskModel) -> VideoTaskRecord:
         status=_task_status(model.status),
         worker_id=model.worker_id,
         timeout_seconds=model.timeout_seconds,
+        input_json=model.input_json,
         job_id=model.job_id,
         job_attempt_id=model.job_attempt_id,
         output_transcript_id=model.output_transcript_id,

@@ -3,8 +3,9 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Play, ScrollText } from "lucide-react";
-import type { ChangeEvent, FormEvent } from "react";
+import { CheckSquare, Eye, ListPlus, Play, ScrollText, Square, X } from "lucide-react";
+import type { ChangeEvent, Dispatch, SetStateAction } from "react";
+import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import {
   ChannelFilterSelect,
@@ -15,6 +16,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
+  useEnqueueMicroEventsMutation,
   useExtractAllMicroEventsMutation,
   useOpsChannels,
   useOpsVideos,
@@ -28,6 +30,7 @@ import {
 import { compactId, formatDateTime } from "@/lib/format";
 import type {
   MicroEventBatchExtractRequest,
+  MicroEventEnqueueRequest,
   OpsVideo,
   OpsVideoFilters,
 } from "@/lib/types";
@@ -39,6 +42,16 @@ import {
 
 type VideosPageProps = {
   initialFilters: OpsVideoFilters;
+};
+
+type MicroEventDefaults = {
+  limit: number;
+  model: NonNullable<MicroEventBatchExtractRequest["model"]>;
+  reasoningEffort: NonNullable<MicroEventBatchExtractRequest["reasoningEffort"]>;
+  retryFailed: boolean;
+  regenerateSucceeded: boolean;
+  windowMinutes: number;
+  overlapMinutes: number;
 };
 
 const VIDEO_TASK_STATUS_OPTIONS = [
@@ -57,6 +70,26 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const { data: channelsData } = useOpsChannels();
   const { data, isLoading, error } = useOpsVideos(initialFilters);
   const extractAllMicroEvents = useExtractAllMicroEventsMutation();
+  const enqueueMicroEvents = useEnqueueMicroEventsMutation();
+  const videos = useMemo(() => data?.items ?? [], [data?.items]);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [microEventDefaults, setMicroEventDefaults] = useState<MicroEventDefaults>({
+    limit: 20,
+    model: DEFAULT_CODEX_MODEL,
+    reasoningEffort: DEFAULT_CODEX_REASONING_EFFORT,
+    retryFailed: false,
+    regenerateSucceeded: false,
+    windowMinutes: 30,
+    overlapMinutes: 5,
+  });
+  const visibleVideoIds = videos.map((video) => video.videoId);
+  const selectedVisibleCount = visibleVideoIds.filter((videoId) =>
+    selectedVideoIds.has(videoId),
+  ).length;
+  const allVisibleSelected =
+    visibleVideoIds.length > 0 && selectedVisibleCount === visibleVideoIds.length;
   const applyFormFilters = (form: HTMLFormElement | null) => {
     if (form) {
       router.push(videosHref(formFilters(form)));
@@ -65,8 +98,93 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const applySelectFilters = (event: ChangeEvent<HTMLSelectElement>) => {
     applyFormFilters(event.currentTarget.form);
   };
+  const toggleVideoSelection = (videoId: number) => {
+    setSelectedVideoIds((current) => {
+      const next = new Set(current);
+      if (next.has(videoId)) {
+        next.delete(videoId);
+      } else {
+        next.add(videoId);
+      }
+      return next;
+    });
+  };
+  const toggleVisibleSelection = () => {
+    setSelectedVideoIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        for (const videoId of visibleVideoIds) {
+          next.delete(videoId);
+        }
+      } else {
+        for (const videoId of visibleVideoIds) {
+          next.add(videoId);
+        }
+      }
+      return next;
+    });
+  };
+  const clearSelection = () => {
+    setSelectedVideoIds(new Set());
+  };
+  const queueSelected = () => {
+    const videoIds = [...selectedVideoIds];
+    if (!videoIds.length) {
+      return;
+    }
+    enqueueMicroEvents.mutate(enqueueSelectedRequest(videoIds, microEventDefaults));
+  };
+  const queueOne = (videoId: number) => {
+    enqueueMicroEvents.mutate(enqueueSelectedRequest([videoId], microEventDefaults));
+  };
+  const queueCurrentFilters = () => {
+    enqueueMicroEvents.mutate(
+      enqueueCurrentFiltersRequest(initialFilters, microEventDefaults),
+    );
+  };
+  const runNow = () => {
+    extractAllMicroEvents.mutate({
+      limit: Math.min(Math.max(microEventDefaults.limit, 1), 5),
+      model: microEventDefaults.model,
+      reasoningEffort: microEventDefaults.reasoningEffort,
+      retryFailed: microEventDefaults.retryFailed,
+      regenerateSucceeded: microEventDefaults.regenerateSucceeded,
+      windowMinutes: microEventDefaults.windowMinutes,
+      overlapMinutes: microEventDefaults.overlapMinutes,
+    });
+  };
 
   const columns: ColumnDef<OpsVideo>[] = [
+    {
+      id: "select",
+      header: () => (
+        <button
+          aria-label={allVisibleSelected ? "Clear visible selection" : "Select visible videos"}
+          className="inline-flex"
+          onClick={toggleVisibleSelection}
+          type="button"
+        >
+          {allVisibleSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+        </button>
+      ),
+      cell: ({ row }) => {
+        const selected = selectedVideoIds.has(row.original.videoId);
+        return (
+          <button
+            aria-label={
+              selected
+                ? `Clear video ${row.original.videoId} selection`
+                : `Select video ${row.original.videoId}`
+            }
+            className="inline-flex"
+            onClick={() => toggleVideoSelection(row.original.videoId)}
+            type="button"
+          >
+            {selected ? <CheckSquare size={16} /> : <Square size={16} />}
+          </button>
+        );
+      },
+    },
     {
       header: "Video",
       cell: ({ row }) => (
@@ -95,10 +213,26 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     {
       header: "Action",
       cell: ({ row }) => (
-        <Link className="ops-button" href={`/videos/${row.original.videoId}`}>
-          <Eye size={15} />
-          Details
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="ops-button"
+            disabled={enqueueMicroEvents.isPending}
+            onClick={() => queueOne(row.original.videoId)}
+            title={
+              enqueueMicroEvents.isPending
+                ? "Queue request is running"
+                : "Queue this video"
+            }
+            type="button"
+          >
+            <ListPlus size={15} />
+            Queue
+          </button>
+          <Link className="ops-button" href={`/videos/${row.original.videoId}`}>
+            <Eye size={15} />
+            Details
+          </Link>
+        </div>
       ),
     },
   ];
@@ -106,7 +240,20 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   return (
     <>
       <PageHeader title="Videos" />
-      <MicroEventBatchPanel extractAllMicroEvents={extractAllMicroEvents} />
+      <MicroEventBatchPanel
+        allVisibleSelected={allVisibleSelected}
+        defaults={microEventDefaults}
+        enqueueMicroEvents={enqueueMicroEvents}
+        extractAllMicroEvents={extractAllMicroEvents}
+        onClearSelection={clearSelection}
+        onQueueCurrentFilters={queueCurrentFilters}
+        onQueueSelected={queueSelected}
+        onRunNow={runNow}
+        onToggleVisibleSelection={toggleVisibleSelection}
+        selectedCount={selectedVideoIds.size}
+        setDefaults={setMicroEventDefaults}
+        visibleCount={visibleVideoIds.length}
+      />
       <form
         key={JSON.stringify(initialFilters)}
         className="ops-panel mb-4 p-4"
@@ -140,31 +287,76 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       </form>
       {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
       {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
-      <DataTable columns={columns} data={data?.items ?? []} />
+      <DataTable columns={columns} data={videos} />
       <div className="mt-2 text-xs text-slate-500">Total {data?.total ?? 0}</div>
     </>
   );
 }
 
 type ExtractAllMicroEventsMutation = ReturnType<typeof useExtractAllMicroEventsMutation>;
+type EnqueueMicroEventsMutation = ReturnType<typeof useEnqueueMicroEventsMutation>;
 
 function MicroEventBatchPanel({
+  allVisibleSelected,
+  defaults,
+  enqueueMicroEvents,
   extractAllMicroEvents,
+  onClearSelection,
+  onQueueCurrentFilters,
+  onQueueSelected,
+  onRunNow,
+  onToggleVisibleSelection,
+  selectedCount,
+  setDefaults,
+  visibleCount,
 }: {
+  allVisibleSelected: boolean;
+  defaults: MicroEventDefaults;
+  enqueueMicroEvents: EnqueueMicroEventsMutation;
   extractAllMicroEvents: ExtractAllMicroEventsMutation;
+  onClearSelection: () => void;
+  onQueueCurrentFilters: () => void;
+  onQueueSelected: () => void;
+  onRunNow: () => void;
+  onToggleVisibleSelection: () => void;
+  selectedCount: number;
+  setDefaults: Dispatch<SetStateAction<MicroEventDefaults>>;
+  visibleCount: number;
 }) {
-  const result = extractAllMicroEvents.data;
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    extractAllMicroEvents.mutate({
-      limit: positiveNumberFormValue(form.get("limit")) ?? 1,
-      model: codexModelFormValue(form.get("model")),
-      reasoningEffort: reasoningEffortFormValue(form.get("reasoningEffort")),
-      retryFailed: form.get("retryFailed") === "on",
-      regenerateSucceeded: form.get("regenerateSucceeded") === "on",
-    });
-  };
+  const enqueueResult = enqueueMicroEvents.data;
+  const runNowResult = extractAllMicroEvents.data;
+  const busy = enqueueMicroEvents.isPending || extractAllMicroEvents.isPending;
+  const queueSelectedTitle =
+    selectedCount === 0 ? "Select at least one video first" : "Queue selected videos";
+  const visibleToggleLabel = allVisibleSelected ? "Clear visible" : "Select visible";
+
+  const setNumberDefault =
+    (key: "limit" | "windowMinutes" | "overlapMinutes") =>
+    (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const value = Number(event.currentTarget.value);
+      setDefaults((current) => ({
+        ...current,
+        [key]: Number.isFinite(value) ? value : current[key],
+      }));
+    };
+  const setStringDefault =
+    (key: "model" | "reasoningEffort") =>
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const value = event.currentTarget.value;
+      setDefaults((current) => ({
+        ...current,
+        [key]: value,
+      }));
+    };
+  const setBooleanDefault =
+    (key: "retryFailed" | "regenerateSucceeded") =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const checked = event.currentTarget.checked;
+      setDefaults((current) => ({
+        ...current,
+        [key]: checked,
+      }));
+    };
 
   return (
     <section className="ops-panel mb-4 p-4">
@@ -172,7 +364,7 @@ function MicroEventBatchPanel({
         <div>
           <h2 className="text-sm font-semibold">Micro events</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Runs the next eligible cue-ready videos.
+            Queue cue-ready videos for the server worker, or run a small batch now.
           </p>
         </div>
         <Link
@@ -183,106 +375,232 @@ function MicroEventBatchPanel({
           Tasks
         </Link>
       </div>
-      <form className="mt-4" onSubmit={handleSubmit}>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="grid gap-1 text-xs font-medium text-slate-600">
-            Batch size
-            <select className="ops-input" defaultValue="1" name="limit">
-              <option value="1">1 video</option>
-              <option value="3">3 videos</option>
-              <option value="5">5 videos</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs font-medium text-slate-600">
-            Model
-            <select className="ops-input" defaultValue={DEFAULT_CODEX_MODEL} name="model">
-              {CODEX_MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs font-medium text-slate-600">
-            Reasoning
-            <select
-              className="ops-input"
-              defaultValue={DEFAULT_CODEX_REASONING_EFFORT}
-              name="reasoningEffort"
-            >
-              {CODEX_REASONING_EFFORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 self-end text-xs font-medium text-slate-600">
-            <input className="h-4 w-4" name="retryFailed" type="checkbox" />
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Batch size
+          <select
+            className="ops-input"
+            onChange={setNumberDefault("limit")}
+            value={defaults.limit}
+          >
+            <option value="1">1 video</option>
+            <option value="3">3 videos</option>
+            <option value="5">5 videos</option>
+            <option value="20">20 queued</option>
+            <option value="50">50 queued</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Model
+          <select
+            className="ops-input"
+            onChange={setStringDefault("model")}
+            value={defaults.model}
+          >
+            {CODEX_MODEL_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Reasoning
+          <select
+            className="ops-input"
+            onChange={setStringDefault("reasoningEffort")}
+            value={defaults.reasoningEffort}
+          >
+            {CODEX_REASONING_EFFORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Window
+          <input
+            className="ops-input"
+            max={240}
+            min={1}
+            onChange={setNumberDefault("windowMinutes")}
+            type="number"
+            value={defaults.windowMinutes}
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Overlap
+          <input
+            className="ops-input"
+            max={239}
+            min={0}
+            onChange={setNumberDefault("overlapMinutes")}
+            type="number"
+            value={defaults.overlapMinutes}
+          />
+        </label>
+        <div className="grid gap-2 text-xs font-medium text-slate-600">
+          <label className="flex items-center gap-2">
+            <input
+              checked={defaults.retryFailed}
+              className="h-4 w-4"
+              onChange={setBooleanDefault("retryFailed")}
+              type="checkbox"
+            />
             Retry failed
           </label>
-          <label className="flex items-center gap-2 self-end text-xs font-medium text-slate-600">
+          <label className="flex items-center gap-2">
             <input
+              checked={defaults.regenerateSucceeded}
               className="h-4 w-4"
-              name="regenerateSucceeded"
+              onChange={setBooleanDefault("regenerateSucceeded")}
               type="checkbox"
             />
             Regenerate succeeded
           </label>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            className="ops-button ops-button-primary"
-            disabled={extractAllMicroEvents.isPending}
-            title={
-              extractAllMicroEvents.isPending
-                ? "Micro-event batch is running"
-                : "Run micro-event extraction batch"
-            }
-            type="submit"
-          >
-            <Play size={15} />
-            {extractAllMicroEvents.isPending ? "Running..." : "Extract batch"}
-          </button>
-          {extractAllMicroEvents.error ? (
-            <span className="text-xs text-red-700">
-              {formatUnknownError(extractAllMicroEvents.error)}
-            </span>
-          ) : null}
-        </div>
-      </form>
-      {result ? (
-        <div className="mt-4 border-t border-slate-200 pt-4">
-          <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
-            <Metric label="Processed" value={result.processedCount} />
-            <Metric label="Succeeded" value={result.succeededCount} />
-            <Metric label="Failed" value={result.failedCount} />
-            <Metric label="Skipped" value={result.skippedCount} />
-            <Metric label="Timed out" value={result.timedOutCount} />
-            <Metric label="Scanned" value={result.scannedCount} />
-            <Metric label="Satisfied" value={result.alreadySatisfiedCount} />
-            <Metric label="Ineligible" value={result.ineligibleCount} />
-          </div>
-          {result.items.length > 0 ? (
-            <div className="mt-3 grid gap-2">
-              {result.items.map((item) => (
-                <div
-                  className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
-                  key={`${item.videoId}-${item.videoTaskId ?? "none"}`}
-                >
-                  <Link className="font-semibold" href={`/videos/${item.videoId}`}>
-                    #{item.videoId}
-                  </Link>
-                  <StatusBadge status={item.status} />
-                  <span>{item.reason}</span>
-                  <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
-                </div>
-              ))}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          className="ops-button ops-button-primary"
+          disabled={busy || selectedCount === 0}
+          onClick={onQueueSelected}
+          title={queueSelectedTitle}
+          type="button"
+        >
+          <ListPlus size={15} />
+          Queue selected ({selectedCount})
+        </button>
+        <button
+          className="ops-button"
+          disabled={busy}
+          onClick={onQueueCurrentFilters}
+          type="button"
+        >
+          <ListPlus size={15} />
+          Queue current filters
+        </button>
+        <button
+          className="ops-button"
+          disabled={visibleCount === 0}
+          onClick={onToggleVisibleSelection}
+          type="button"
+        >
+          {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          {visibleToggleLabel}
+        </button>
+        <button
+          className="ops-button"
+          disabled={selectedCount === 0}
+          onClick={onClearSelection}
+          type="button"
+        >
+          <X size={15} />
+          Clear
+        </button>
+        <button
+          className="ops-button"
+          disabled={busy}
+          onClick={onRunNow}
+          title="Run the next eligible videos immediately"
+          type="button"
+        >
+          <Play size={15} />
+          {extractAllMicroEvents.isPending ? "Running..." : "Run now"}
+        </button>
+        {enqueueMicroEvents.error ? (
+          <span className="text-xs text-red-700">
+            {formatUnknownError(enqueueMicroEvents.error)}
+          </span>
+        ) : null}
+        {extractAllMicroEvents.error ? (
+          <span className="text-xs text-red-700">
+            {formatUnknownError(extractAllMicroEvents.error)}
+          </span>
+        ) : null}
+      </div>
+      {enqueueResult ? <MicroEventEnqueueResult result={enqueueResult} /> : null}
+      {runNowResult ? <MicroEventRunNowResult result={runNowResult} /> : null}
+    </section>
+  );
+}
+
+function MicroEventEnqueueResult({
+  result,
+}: {
+  result: NonNullable<EnqueueMicroEventsMutation["data"]>;
+}) {
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
+        <Metric label="Queued" value={result.enqueuedCount} />
+        <Metric label="Pending" value={result.alreadyPendingCount} />
+        <Metric label="Running" value={result.alreadyRunningCount} />
+        <Metric label="Succeeded" value={result.alreadySucceededCount} />
+        <Metric label="Skipped failed" value={result.skippedFailedCount} />
+        <Metric label="Ineligible" value={result.ineligibleCount} />
+        <Metric label="Scanned" value={result.scannedCount} />
+        <Metric label="Requested" value={result.requestedCount} />
+      </div>
+      {result.items.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {result.items.slice(0, 8).map((item) => (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
+              key={`${item.videoId}-${item.videoTaskId ?? item.reason}`}
+            >
+              <Link className="font-semibold" href={`/videos/${item.videoId}`}>
+                #{item.videoId}
+              </Link>
+              <StatusBadge status={item.status} />
+              <span>{item.reason}</span>
+              {item.youtubeVideoId ? (
+                <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
+              ) : null}
             </div>
-          ) : null}
+          ))}
         </div>
       ) : null}
-    </section>
+    </div>
+  );
+}
+
+function MicroEventRunNowResult({
+  result,
+}: {
+  result: NonNullable<ExtractAllMicroEventsMutation["data"]>;
+}) {
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
+        <Metric label="Processed" value={result.processedCount} />
+        <Metric label="Succeeded" value={result.succeededCount} />
+        <Metric label="Failed" value={result.failedCount} />
+        <Metric label="Skipped" value={result.skippedCount} />
+        <Metric label="Timed out" value={result.timedOutCount} />
+        <Metric label="Scanned" value={result.scannedCount} />
+        <Metric label="Satisfied" value={result.alreadySatisfiedCount} />
+        <Metric label="Ineligible" value={result.ineligibleCount} />
+      </div>
+      {result.items.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {result.items.map((item) => (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
+              key={`${item.videoId}-${item.videoTaskId ?? "none"}`}
+            >
+              <Link className="font-semibold" href={`/videos/${item.videoId}`}>
+                #{item.videoId}
+              </Link>
+              <StatusBadge status={item.status} />
+              <span>{item.reason}</span>
+              <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -309,20 +627,70 @@ function videosHref(filters: OpsVideoFilters): string {
   return hrefWithQuery("/videos", filters);
 }
 
-function codexModelFormValue(
-  value: FormDataEntryValue | null,
-): MicroEventBatchExtractRequest["model"] {
-  return (
-    stringFormValue(value) ?? DEFAULT_CODEX_MODEL
-  ) as MicroEventBatchExtractRequest["model"];
+function enqueueSelectedRequest(
+  videoIds: number[],
+  defaults: MicroEventDefaults,
+): MicroEventEnqueueRequest {
+  return {
+    ...microEventRequestDefaults(defaults),
+    target: "selected_videos",
+    videoIds,
+    limit: Math.min(videoIds.length, 200),
+  };
 }
 
-function reasoningEffortFormValue(
-  value: FormDataEntryValue | null,
-): MicroEventBatchExtractRequest["reasoningEffort"] {
-  return (
-    stringFormValue(value) ?? DEFAULT_CODEX_REASONING_EFFORT
-  ) as MicroEventBatchExtractRequest["reasoningEffort"];
+function enqueueCurrentFiltersRequest(
+  filters: OpsVideoFilters,
+  defaults: MicroEventDefaults,
+): MicroEventEnqueueRequest {
+  return {
+    ...microEventRequestDefaults(defaults),
+    target: "current_filters",
+    channelId: filters.channelId,
+    taskStatus: videoTaskStatusValue(filters.taskStatus),
+    search: filters.search || undefined,
+  };
+}
+
+function microEventRequestDefaults(
+  defaults: MicroEventDefaults,
+): Pick<
+  MicroEventEnqueueRequest,
+  | "limit"
+  | "model"
+  | "overlapMinutes"
+  | "reasoningEffort"
+  | "regenerateSucceeded"
+  | "retryFailed"
+  | "windowMinutes"
+> {
+  return {
+    limit: Math.min(Math.max(defaults.limit, 1), 200),
+    model: defaults.model,
+    reasoningEffort: defaults.reasoningEffort,
+    retryFailed: defaults.retryFailed,
+    regenerateSucceeded: defaults.regenerateSucceeded,
+    windowMinutes: defaults.windowMinutes,
+    overlapMinutes: defaults.overlapMinutes,
+  };
+}
+
+function videoTaskStatusValue(
+  status: OpsVideoFilters["taskStatus"],
+): MicroEventEnqueueRequest["taskStatus"] {
+  if (
+    status === "pending" ||
+    status === "running" ||
+    status === "succeeded" ||
+    status === "failed" ||
+    status === "timed_out" ||
+    status === "no_transcript" ||
+    status === "skipped" ||
+    status === "canceled"
+  ) {
+    return status;
+  }
+  return undefined;
 }
 
 function formatUnknownError(error: unknown): string {

@@ -22,6 +22,7 @@ dependencies = [
 [project.scripts]
 codex-api = "codex_sdk_cli.api.main:run"
 codex-demo = "codex_sdk_cli.cli:main"
+codex-micro-event-worker = "codex_sdk_cli.workers.micro_events:run"
 
 [dependency-groups]
 dev = [

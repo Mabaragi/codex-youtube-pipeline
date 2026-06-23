@@ -2735,6 +2735,321 @@
         "title": "MicroEventCandidateResponse",
         "type": "object"
       },
+      "MicroEventEnqueueItemResponse": {
+        "properties": {
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          },
+          "youtubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubevideoid"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "status",
+          "reason",
+          "model",
+          "reasoningEffort",
+          "transcriptId",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "MicroEventEnqueueItemResponse",
+        "type": "object"
+      },
+      "MicroEventEnqueueRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "limit": 20,
+            "model": "gpt-5.5",
+            "overlapMinutes": 5,
+            "reasoningEffort": "medium",
+            "regenerateSucceeded": false,
+            "retryFailed": false,
+            "target": "selected_videos",
+            "videoIds": [
+              1,
+              2,
+              3
+            ],
+            "windowMinutes": 30
+          }
+        ],
+        "properties": {
+          "channelId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channelid"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt-5.5",
+                  "gpt-5.4",
+                  "gpt-5.4-mini"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "overlapMinutes": {
+            "default": 5,
+            "maximum": 239.0,
+            "minimum": 0.0,
+            "title": "Overlapminutes",
+            "type": "integer"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
+          },
+          "regenerateSucceeded": {
+            "default": false,
+            "title": "Regeneratesucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search"
+          },
+          "target": {
+            "default": "next_eligible",
+            "enum": [
+              "selected_videos",
+              "current_filters",
+              "next_eligible"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "taskStatus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pending",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "timed_out",
+                  "no_transcript",
+                  "skipped",
+                  "canceled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskstatus"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "title": "Videoids",
+            "type": "array"
+          },
+          "windowMinutes": {
+            "default": 30,
+            "maximum": 240.0,
+            "minimum": 1.0,
+            "title": "Windowminutes",
+            "type": "integer"
+          }
+        },
+        "title": "MicroEventEnqueueRequest",
+        "type": "object"
+      },
+      "MicroEventEnqueueResponse": {
+        "properties": {
+          "alreadyPendingCount": {
+            "title": "Alreadypendingcount",
+            "type": "integer"
+          },
+          "alreadyRunningCount": {
+            "title": "Alreadyrunningcount",
+            "type": "integer"
+          },
+          "alreadySucceededCount": {
+            "title": "Alreadysucceededcount",
+            "type": "integer"
+          },
+          "enqueuedCount": {
+            "title": "Enqueuedcount",
+            "type": "integer"
+          },
+          "ineligibleCount": {
+            "title": "Ineligiblecount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MicroEventEnqueueItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "scannedCount": {
+            "title": "Scannedcount",
+            "type": "integer"
+          },
+          "skippedFailedCount": {
+            "title": "Skippedfailedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "scannedCount",
+          "enqueuedCount",
+          "alreadyPendingCount",
+          "alreadyRunningCount",
+          "alreadySucceededCount",
+          "skippedFailedCount",
+          "ineligibleCount",
+          "items"
+        ],
+        "title": "MicroEventEnqueueResponse",
+        "type": "object"
+      },
       "MicroEventExcludedRangeResponse": {
         "properties": {
           "createdAt": {
@@ -9950,6 +10265,54 @@
           }
         },
         "summary": "Extract All Video Micro Events",
+        "tags": [
+          "micro-events"
+        ]
+      }
+    },
+    "/video-tasks/micro-event-extract/enqueue": {
+      "post": {
+        "operationId": "enqueue_video_micro_events_video_tasks_micro_event_extract_enqueue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MicroEventEnqueueRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicroEventEnqueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enqueue Video Micro Events",
         "tags": [
           "micro-events"
         ]

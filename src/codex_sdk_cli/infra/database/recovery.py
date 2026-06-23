@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
-from sqlalchemy import update
+from sqlalchemy import or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ INTERRUPTED_ERROR_MESSAGE = (
     "API process started with unfinished running work; the previous in-request "
     "execution was interrupted."
 )
+WORKER_TIMEOUT_ERROR_TYPE = "WorkerTaskTimedOut"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,10 +37,24 @@ async def recover_interrupted_running_work(
     session: AsyncSession,
 ) -> InterruptedWorkRecoveryResult:
     now = datetime.now(UTC)
+    recoverable_attempt_filter = (
+        (PipelineJobAttemptModel.status == "running")
+        & (
+            PipelineJobAttemptModel.worker_id.is_(None)
+            | (PipelineJobAttemptModel.worker_id == "manual-api")
+        )
+    )
+    recoverable_job_ids = list(
+        (
+            await session.scalars(
+                select(PipelineJobAttemptModel.job_id).where(recoverable_attempt_filter)
+            )
+        ).all()
+    )
 
     attempts = await session.execute(
         update(PipelineJobAttemptModel)
-        .where(PipelineJobAttemptModel.status == "running")
+        .where(recoverable_attempt_filter)
         .values(
             status="failed",
             finished_at=now,
@@ -49,7 +64,10 @@ async def recover_interrupted_running_work(
     )
     jobs = await session.execute(
         update(PipelineJobModel)
-        .where(PipelineJobModel.status == "running")
+        .where(
+            PipelineJobModel.status == "running",
+            PipelineJobModel.id.in_(recoverable_job_ids),
+        )
         .values(
             status="failed",
             completed_at=now,
@@ -58,7 +76,10 @@ async def recover_interrupted_running_work(
     )
     tasks = await session.execute(
         update(VideoTaskModel)
-        .where(VideoTaskModel.status == "running")
+        .where(
+            VideoTaskModel.status == "running",
+            or_(VideoTaskModel.worker_id.is_(None), VideoTaskModel.worker_id == "manual-api"),
+        )
         .values(
             status="failed",
             completed_at=now,
@@ -78,3 +99,63 @@ async def recover_interrupted_running_work(
 def _rowcount(result: object) -> int:
     rowcount = cast(CursorResult[object], result).rowcount
     return max(rowcount if rowcount is not None else 0, 0)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+async def recover_timed_out_worker_tasks(
+    session: AsyncSession,
+    *,
+    task_name: str,
+    worker_id_prefix: str,
+) -> int:
+    now = datetime.now(UTC)
+    tasks = list(
+        (
+            await session.scalars(
+                select(VideoTaskModel).where(
+                    VideoTaskModel.task_name == task_name,
+                    VideoTaskModel.status == "running",
+                    VideoTaskModel.worker_id.like(f"{worker_id_prefix}%"),
+                )
+            )
+        ).all()
+    )
+    recovered = 0
+    for task in tasks:
+        if task.started_at is None:
+            continue
+        started_at = _as_utc(task.started_at)
+        if started_at + timedelta(seconds=task.timeout_seconds) > now:
+            continue
+        message = f"Worker task exceeded {task.timeout_seconds} seconds."
+        task.status = "timed_out"
+        task.completed_at = now
+        task.updated_at = now
+        task.error_type = WORKER_TIMEOUT_ERROR_TYPE
+        task.error_message = message
+        if task.job_attempt_id is not None:
+            await session.execute(
+                update(PipelineJobAttemptModel)
+                .where(PipelineJobAttemptModel.id == task.job_attempt_id)
+                .values(
+                    status="failed",
+                    finished_at=now,
+                    error_type=WORKER_TIMEOUT_ERROR_TYPE,
+                    error_message=message,
+                )
+            )
+        if task.job_id is not None:
+            await session.execute(
+                update(PipelineJobModel)
+                .where(PipelineJobModel.id == task.job_id)
+                .values(status="failed", completed_at=now, updated_at=now)
+            )
+        recovered += 1
+    if recovered:
+        await session.commit()
+    return recovered

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -21,6 +22,7 @@ from .ports import (
 )
 
 MicroEventExtractItemStatus = WindowStatus | VideoTaskStatus
+MicroEventEnqueueTarget = Literal["selected_videos", "current_filters", "next_eligible"]
 
 
 class MicroEventExtractRequest(BaseModel):
@@ -115,6 +117,70 @@ class MicroEventBatchExtractResponse(BaseModel):
     already_satisfied_count: int = Field(alias="alreadySatisfiedCount")
     ineligible_count: int = Field(alias="ineligibleCount")
     items: list[MicroEventExtractResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class MicroEventEnqueueRequest(MicroEventExtractRequest):
+    target: MicroEventEnqueueTarget = "next_eligible"
+    video_ids: list[int] = Field(default_factory=list, max_length=200, alias="videoIds")
+    channel_id: int | None = Field(default=None, ge=1, alias="channelId")
+    task_status: VideoTaskStatus | None = Field(default=None, alias="taskStatus")
+    search: str | None = Field(default=None, min_length=1, max_length=200)
+    limit: int = Field(default=20, ge=1, le=200)
+
+    @model_validator(mode="after")
+    def _selected_videos_require_ids(self) -> MicroEventEnqueueRequest:
+        if self.target == "selected_videos" and not self.video_ids:
+            raise ValueError("videoIds is required when target is selected_videos.")
+        return self
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "target": "selected_videos",
+                    "videoIds": [1, 2, 3],
+                    "limit": 20,
+                    "retryFailed": False,
+                    "regenerateSucceeded": False,
+                    "windowMinutes": 30,
+                    "overlapMinutes": 5,
+                    "model": "gpt-5.5",
+                    "reasoningEffort": "medium",
+                }
+            ]
+        },
+    )
+
+
+class MicroEventEnqueueItemResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str | None = Field(alias="youtubeVideoId")
+    video_task_id: int | None = Field(alias="videoTaskId")
+    status: str
+    reason: str
+    model: str | None
+    reasoning_effort: str | None = Field(alias="reasoningEffort")
+    transcript_id: int | None = Field(alias="transcriptId")
+    error_type: str | None = Field(alias="errorType")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class MicroEventEnqueueResponse(BaseModel):
+    requested_count: int = Field(alias="requestedCount")
+    scanned_count: int = Field(alias="scannedCount")
+    enqueued_count: int = Field(alias="enqueuedCount")
+    already_pending_count: int = Field(alias="alreadyPendingCount")
+    already_running_count: int = Field(alias="alreadyRunningCount")
+    already_succeeded_count: int = Field(alias="alreadySucceededCount")
+    skipped_failed_count: int = Field(alias="skippedFailedCount")
+    ineligible_count: int = Field(alias="ineligibleCount")
+    items: list[MicroEventEnqueueItemResponse]
 
     model_config = ConfigDict(populate_by_name=True)
 

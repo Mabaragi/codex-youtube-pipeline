@@ -14,6 +14,8 @@ import type {
   GenerateChannelTranscriptCuesResult,
   MicroEventBatchExtractRequest,
   MicroEventBatchExtractResult,
+  MicroEventEnqueueRequest,
+  MicroEventEnqueueResult,
   MicroEventExtractRequest,
   MicroEventExtractResult,
   MicroEventExtractionDetail,
@@ -675,6 +677,27 @@ export function useExtractAllMicroEventsMutation() {
           reasoningEffort,
         },
       }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["micro-event-extractions"] }),
+      ]);
+    },
+  });
+}
+
+export function useEnqueueMicroEventsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MicroEventEnqueueRequest) =>
+      requestJson<MicroEventEnqueueResult>(
+        "/video-tasks/micro-event-extract/enqueue",
+        {
+          method: "POST",
+          body,
+        },
+      ),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["ops"] }),

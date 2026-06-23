@@ -8,6 +8,8 @@ from .dependencies import ExtractVideoMicroEventsUseCaseDep
 from .schemas import (
     MicroEventBatchExtractRequest,
     MicroEventBatchExtractResponse,
+    MicroEventEnqueueRequest,
+    MicroEventEnqueueResponse,
     MicroEventExtractionDetailResponse,
     MicroEventExtractRequest,
     MicroEventExtractResponse,
@@ -39,6 +41,18 @@ async def extract_all_video_micro_events(
     request: Annotated[MicroEventBatchExtractRequest | None, Body()] = None,
 ) -> MicroEventBatchExtractResponse:
     return await use_case.execute_all(request or MicroEventBatchExtractRequest())
+
+
+@router.post(
+    "/video-tasks/micro-event-extract/enqueue",
+    response_model=MicroEventEnqueueResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def enqueue_video_micro_events(
+    use_case: ExtractVideoMicroEventsUseCaseDep,
+    request: Annotated[MicroEventEnqueueRequest | None, Body()] = None,
+) -> MicroEventEnqueueResponse:
+    return await use_case.enqueue(request or MicroEventEnqueueRequest())
 
 
 @router.get(

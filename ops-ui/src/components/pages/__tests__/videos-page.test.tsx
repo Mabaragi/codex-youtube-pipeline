@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VideosPage } from "../videos-page";
 import type {
   MicroEventBatchExtractResult,
+  MicroEventEnqueueResult,
   OpsChannel,
   OpsVideoFilters,
   OpsVideoList,
@@ -26,10 +27,17 @@ const queryMocks = vi.hoisted(() => ({
     data: undefined as MicroEventBatchExtractResult | undefined,
     error: null as Error | null,
   },
+  enqueueMicroEvents: {
+    mutate: vi.fn(),
+    isPending: false,
+    data: undefined as MicroEventEnqueueResult | undefined,
+    error: null as Error | null,
+  },
   videoFilters: undefined as OpsVideoFilters | undefined,
 }));
 
 vi.mock("@/lib/queries", () => ({
+  useEnqueueMicroEventsMutation: () => queryMocks.enqueueMicroEvents,
   useExtractAllMicroEventsMutation: () => queryMocks.extractAllMicroEvents,
   useOpsChannels: () => queryMocks.channels,
   useOpsVideos: (filters: OpsVideoFilters) => {
@@ -93,6 +101,10 @@ describe("VideosPage", () => {
     queryMocks.extractAllMicroEvents.isPending = false;
     queryMocks.extractAllMicroEvents.data = undefined;
     queryMocks.extractAllMicroEvents.error = null;
+    queryMocks.enqueueMicroEvents.mutate.mockReset();
+    queryMocks.enqueueMicroEvents.isPending = false;
+    queryMocks.enqueueMicroEvents.data = undefined;
+    queryMocks.enqueueMicroEvents.error = null;
     queryMocks.videoFilters = undefined;
   });
 
@@ -171,7 +183,31 @@ describe("VideosPage", () => {
     expect(screen.getByRole("option", { name: "#99" })).toBeTruthy();
   });
 
-  it("runs a micro-event batch with selected options", () => {
+  it("queues selected videos with selected options", () => {
+    render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Select video 42/i }));
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "gpt-5.4" } });
+    fireEvent.change(screen.getByLabelText("Reasoning"), {
+      target: { value: "high" },
+    });
+    fireEvent.click(screen.getByLabelText("Retry failed"));
+    fireEvent.click(screen.getByRole("button", { name: /Queue selected/i }));
+
+    expect(queryMocks.enqueueMicroEvents.mutate).toHaveBeenCalledWith({
+      target: "selected_videos",
+      videoIds: [42],
+      limit: 1,
+      model: "gpt-5.4",
+      reasoningEffort: "high",
+      retryFailed: true,
+      regenerateSucceeded: false,
+      windowMinutes: 30,
+      overlapMinutes: 5,
+    });
+  });
+
+  it("runs a micro-event batch now with selected options", () => {
     render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
 
     fireEvent.change(screen.getByLabelText("Batch size"), { target: { value: "3" } });
@@ -180,7 +216,7 @@ describe("VideosPage", () => {
       target: { value: "high" },
     });
     fireEvent.click(screen.getByLabelText("Retry failed"));
-    fireEvent.click(screen.getByRole("button", { name: /Extract batch/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
 
     expect(queryMocks.extractAllMicroEvents.mutate).toHaveBeenCalledWith({
       limit: 3,
@@ -188,6 +224,38 @@ describe("VideosPage", () => {
       reasoningEffort: "high",
       retryFailed: true,
       regenerateSucceeded: false,
+      windowMinutes: 30,
+      overlapMinutes: 5,
+    });
+  });
+
+  it("queues current filters using the active video filters", () => {
+    render(
+      <VideosPage
+        initialFilters={{
+          channelId: 7,
+          search: "Stored",
+          taskStatus: "succeeded",
+          limit: 100,
+          offset: 0,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Queue current filters/i }));
+
+    expect(queryMocks.enqueueMicroEvents.mutate).toHaveBeenCalledWith({
+      target: "current_filters",
+      channelId: 7,
+      search: "Stored",
+      taskStatus: "succeeded",
+      limit: 20,
+      model: "gpt-5.5",
+      reasoningEffort: "medium",
+      retryFailed: false,
+      regenerateSucceeded: false,
+      windowMinutes: 30,
+      overlapMinutes: 5,
     });
   });
 

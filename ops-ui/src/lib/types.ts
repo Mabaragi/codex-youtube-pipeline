@@ -19,6 +19,10 @@ export type MicroEventBatchExtractRequest =
   components["schemas"]["MicroEventBatchExtractRequest"];
 export type MicroEventBatchExtractResult =
   components["schemas"]["MicroEventBatchExtractResponse"];
+export type MicroEventEnqueueRequest =
+  components["schemas"]["MicroEventEnqueueRequest"];
+export type MicroEventEnqueueResult =
+  components["schemas"]["MicroEventEnqueueResponse"];
 export type MicroEventExtractionDetail =
   components["schemas"]["MicroEventExtractionDetailResponse"];
 export type MicroEventExtractionWindow =

@@ -75,6 +75,8 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert blank_settings.model == "gpt-5.5"
     assert blank_settings.reasoning_effort == "medium"
     assert blank_settings.micro_event_extract_concurrency_limit == 3
+    assert blank_settings.micro_event_worker_poll_interval_seconds == 5
+    assert blank_settings.micro_event_worker_id is None
 
     monkeypatch.setenv("CODEX_CLI_MODEL", " ")
     monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", " ")
@@ -90,6 +92,8 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS", "30")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_TIMEOUT_SECONDS", "1200")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT", "3")
+    monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WORKER_POLL_INTERVAL_SECONDS", "7")
+    monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WORKER_ID", "micro-event-worker:test")
 
     settings = CliSettings()
 
@@ -102,6 +106,8 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert settings.transcript_collect_delay_seconds == 30
     assert settings.micro_event_extract_timeout_seconds == 1200
     assert settings.micro_event_extract_concurrency_limit == 3
+    assert settings.micro_event_worker_poll_interval_seconds == 7
+    assert settings.micro_event_worker_id == "micro-event-worker:test"
 
 
 def test_blank_database_url_uses_default() -> None:
@@ -187,6 +193,10 @@ def test_alembic_upgrade_creates_app_tables(
         }
         video_task_foreign_keys = inspector.get_foreign_keys("video_tasks")
         video_task_unique_constraints = inspector.get_unique_constraints("video_tasks")
+        video_task_indexes = {
+            index["name"]: index["column_names"]
+            for index in inspector.get_indexes("video_tasks")
+        }
         operation_event_columns = {
             column["name"] for column in inspector.get_columns("operation_events")
         }
@@ -464,6 +474,7 @@ def test_alembic_upgrade_creates_app_tables(
         "status",
         "worker_id",
         "timeout_seconds",
+        "input_json",
         "job_id",
         "job_attempt_id",
         "output_transcript_id",
@@ -478,6 +489,11 @@ def test_alembic_upgrade_creates_app_tables(
         == ["video_id", "task_name", "task_version", "input_hash"]
         for unique_constraint in video_task_unique_constraints
     )
+    assert video_task_indexes["ix_video_tasks_pending_claim"] == [
+        "task_name",
+        "status",
+        "id",
+    ]
     assert any(
         foreign_key["referred_table"] == "videos"
         and foreign_key["constrained_columns"] == ["video_id"]

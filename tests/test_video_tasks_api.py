@@ -201,6 +201,7 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             status=task.status,
             worker_id=None,
             timeout_seconds=task.timeout_seconds,
+            input_json=task.input_json,
             job_id=None,
             job_attempt_id=None,
             output_transcript_id=None,
@@ -274,11 +275,73 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
         ]
         return max(candidates, key=lambda task: task.id, default=None)
 
+    async def get_latest_task_for_video(self, video_id: int) -> VideoTaskRecord | None:
+        candidates = [task for task in self.tasks.values() if task.video_id == video_id]
+        return max(candidates, key=lambda task: task.id, default=None)
+
     async def count_running(self, *, task_name: str) -> int:
         return sum(
             task.task_name == task_name and task.status == "running"
             for task in self.tasks.values()
         )
+
+    async def claim_next_pending_task(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        candidates = sorted(
+            (
+                task
+                for task in self.tasks.values()
+                if task.task_name == task_name and task.status == "pending"
+            ),
+            key=lambda task: task.id,
+        )
+        if not candidates:
+            return None
+        return self._update(
+            candidates[0].id,
+            status="running",
+            worker_id=worker_id,
+            error_type=None,
+            error_message=None,
+            started_at=NOW,
+            completed_at=None,
+        )
+
+    async def reset_task_to_pending(
+        self,
+        task_id: int,
+        *,
+        timeout_seconds: int,
+        input_json: JsonObject,
+    ) -> VideoTaskRecord:
+        return self._update(
+            task_id,
+            status="pending",
+            worker_id=None,
+            timeout_seconds=timeout_seconds,
+            input_json=input_json,
+            job_id=None,
+            job_attempt_id=None,
+            output_transcript_id=None,
+            output_json=None,
+            error_type=None,
+            error_message=None,
+            started_at=None,
+            completed_at=None,
+        )
+
+    async def attach_task_execution(
+        self,
+        task_id: int,
+        *,
+        job_id: int,
+        job_attempt_id: int,
+    ) -> VideoTaskRecord:
+        return self._update(task_id, job_id=job_id, job_attempt_id=job_attempt_id)
 
     async def mark_task_running(
         self,

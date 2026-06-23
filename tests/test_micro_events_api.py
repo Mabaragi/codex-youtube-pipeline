@@ -55,6 +55,7 @@ from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionWindowRecord,
     MicroEventExtractorPort,
 )
+from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventCreate,
     OperationEventRecorderPort,
@@ -173,6 +174,7 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             status=task.status,
             worker_id=None,
             timeout_seconds=task.timeout_seconds,
+            input_json=task.input_json,
             job_id=None,
             job_attempt_id=None,
             output_transcript_id=None,
@@ -253,10 +255,76 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
         ]
         return max(candidates, key=lambda task: task.id, default=None)
 
+    async def get_latest_task_for_video(self, video_id: int) -> VideoTaskRecord | None:
+        candidates = [task for task in self.tasks.values() if task.video_id == video_id]
+        return max(candidates, key=lambda task: task.id, default=None)
+
     async def count_running(self, *, task_name: str) -> int:
         return sum(
             task.task_name == task_name and task.status == "running"
             for task in self.tasks.values()
+        )
+
+    async def claim_next_pending_task(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        candidates = sorted(
+            (
+                task
+                for task in self.tasks.values()
+                if task.task_name == task_name and task.status == "pending"
+            ),
+            key=lambda task: task.id,
+        )
+        if not candidates:
+            return None
+        return self._update(
+            candidates[0].id,
+            status="running",
+            worker_id=worker_id,
+            error_type=None,
+            error_message=None,
+            started_at=NOW,
+            completed_at=None,
+        )
+
+    async def reset_task_to_pending(
+        self,
+        task_id: int,
+        *,
+        timeout_seconds: int,
+        input_json: JsonObject,
+    ) -> VideoTaskRecord:
+        return self._update(
+            task_id,
+            status="pending",
+            worker_id=None,
+            timeout_seconds=timeout_seconds,
+            input_json=input_json,
+            job_id=None,
+            job_attempt_id=None,
+            output_transcript_id=None,
+            output_json=None,
+            error_type=None,
+            error_message=None,
+            started_at=None,
+            completed_at=None,
+        )
+
+    async def attach_task_execution(
+        self,
+        task_id: int,
+        *,
+        job_id: int,
+        job_attempt_id: int,
+    ) -> VideoTaskRecord:
+        return self._update(
+            task_id,
+            job_id=job_id,
+            job_attempt_id=job_attempt_id,
         )
 
     async def mark_task_running(
@@ -1188,6 +1256,90 @@ def test_micro_event_batch_extract_regenerates_succeeded_when_requested() -> Non
     assert len(fakes.extractor.prompts) == 2
 
 
+def test_micro_event_enqueue_selected_video_creates_pending_task() -> None:
+    fakes = _seed_ready_fakes()
+
+    response = asyncio.run(
+        _enqueue(
+            fakes,
+            json={
+                "target": "selected_videos",
+                "videoIds": [1],
+                "model": "gpt-5.4-mini",
+                "reasoningEffort": "xhigh",
+            },
+        )
+    )
+
+    task = fakes.video_tasks.tasks[2]
+    assert response["requestedCount"] == 1
+    assert response["enqueuedCount"] == 1
+    assert response["items"][0]["status"] == "pending"
+    assert response["items"][0]["reason"] == "enqueued"
+    assert task.status == "pending"
+    assert task.input_json is not None
+    assert task.input_json["model"] == "gpt-5.4-mini"
+    assert task.input_json["reasoningEffort"] == "xhigh"
+    assert fakes.extractor.prompts == []
+
+
+def test_micro_event_enqueue_current_filters_skips_succeeded_and_finds_next() -> None:
+    fakes = _seed_ready_fakes()
+    asyncio.run(_extract(fakes))
+    _seed_ready_video(
+        fakes,
+        video_id=2,
+        transcript_id=2,
+        cue_task_id=3,
+        youtube_video_id="video2DEF456",
+        published_at=NOW - timedelta(minutes=1),
+    )
+
+    response = asyncio.run(
+        _enqueue(
+            fakes,
+            json={
+                "target": "current_filters",
+                "search": "Live VOD",
+                "limit": 1,
+            },
+        )
+    )
+
+    assert response["scannedCount"] == 2
+    assert response["alreadySucceededCount"] == 1
+    assert response["enqueuedCount"] == 1
+    assert response["items"][0]["reason"] == "already_succeeded"
+    assert response["items"][1]["videoId"] == 2
+    assert response["items"][1]["reason"] == "enqueued"
+
+
+def test_claimed_micro_event_task_executes_through_worker_path() -> None:
+    fakes = _seed_ready_fakes()
+    asyncio.run(
+        _enqueue(fakes, json={"target": "selected_videos", "videoIds": [1]})
+    )
+
+    claimed = asyncio.run(
+        fakes.video_tasks.claim_next_pending_task(
+            task_name="micro_event_extract",
+            worker_id="micro-event-worker:test",
+        )
+    )
+    assert claimed is not None
+    result = asyncio.run(
+        _use_case(fakes).execute_claimed_task(
+            claimed,
+            worker_id="micro-event-worker:test",
+        )
+    )
+
+    assert result.status == "succeeded"
+    assert fakes.video_tasks.tasks[2].status == "succeeded"
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    assert fakes.pipeline_jobs.attempts[1].worker_id == "micro-event-worker:test"
+
+
 def test_micro_event_extract_records_invalid_json_as_failed_task() -> None:
     fakes = _seed_ready_fakes()
     fakes.extractor.responses = ["not json"]
@@ -1505,6 +1657,9 @@ def test_micro_event_extract_openapi_paths_are_registered() -> None:
     assert schema["paths"]["/video-tasks/micro-event-extract"]["post"]["tags"] == [
         "micro-events"
     ]
+    assert schema["paths"]["/video-tasks/micro-event-extract/enqueue"]["post"]["tags"] == [
+        "micro-events"
+    ]
     assert schema["paths"]["/videos/{video_id}/micro-event-extractions/latest"]["get"][
         "tags"
     ] == ["micro-events"]
@@ -1543,6 +1698,26 @@ async def _extract_all(
     ) as client:
         response = await client.post(
             "/video-tasks/micro-event-extract",
+            json=json,
+        )
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+async def _enqueue(
+    fakes: _Fakes,
+    *,
+    json: dict[str, Any] | None = None,
+    expected_status: int = 201,
+) -> Any:
+    app = _app(fakes)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/video-tasks/micro-event-extract/enqueue",
             json=json,
         )
 
@@ -1597,6 +1772,25 @@ def _app(fakes: _Fakes) -> Any:
     app.dependency_overrides[get_operation_event_recorder] = lambda: fakes.events
     app.dependency_overrides[get_settings] = lambda: fakes.settings
     return app
+
+
+def _use_case(fakes: _Fakes) -> ExtractVideoMicroEventsUseCase:
+    return ExtractVideoMicroEventsUseCase(
+        videos=fakes.videos,
+        video_tasks=fakes.video_tasks,
+        transcripts=fakes.transcripts,
+        transcript_cues=fakes.cues,
+        channels=fakes.channels,
+        domain_knowledge=fakes.domain_knowledge,
+        pipeline_jobs=fakes.pipeline_jobs,
+        micro_events=fakes.micro_events,
+        extractor=fakes.extractor,
+        timeout_seconds=fakes.settings.micro_event_extract_timeout_seconds,
+        concurrency_limit=fakes.settings.micro_event_extract_concurrency_limit,
+        model=fakes.settings.model,
+        reasoning_effort=fakes.settings.reasoning_effort,
+        events=fakes.events,
+    )
 
 
 def _seed_ready_fakes() -> _Fakes:

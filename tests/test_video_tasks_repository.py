@@ -37,6 +37,9 @@ def test_video_task_repository_lifecycle(
     result = asyncio.run(_exercise_repository(database_url))
 
     assert result["same_task_id"] is True
+    assert result["queued_input_json"] == {"videoId": 1, "queued": True}
+    assert result["claimed_worker_id"] == "worker-claim"
+    assert result["attached_job_id"] == 2
     assert result["running_count"] == 1
     assert result["listed_youtube_ids"] == ["abc123DEF45"]
     assert result["latest_succeeded_youtube_ids"] == ["abc123DEF45"]
@@ -111,6 +114,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     task_version="v1",
                     input_hash="a" * 64,
                     timeout_seconds=600,
+                    input_json={"videoId": video.id},
                 )
             )
             same_task = await video_tasks.get_or_create_task(
@@ -134,8 +138,23 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 )
             )
             attempt = await pipeline_jobs.create_attempt(job_id=job.id)
-            running = await video_tasks.mark_task_running(
+            queued = await video_tasks.reset_task_to_pending(
                 task.id,
+                timeout_seconds=601,
+                input_json={"videoId": video.id, "queued": True},
+            )
+            claimed = await video_tasks.claim_next_pending_task(
+                task_name="transcript_collect",
+                worker_id="worker-claim",
+            )
+            assert claimed is not None
+            attached = await video_tasks.attach_task_execution(
+                claimed.id,
+                job_id=job.id,
+                job_attempt_id=attempt.id,
+            )
+            running = await video_tasks.mark_task_running(
+                attached.id,
                 worker_id="worker-1",
                 timeout_seconds=600,
                 job_id=job.id,
@@ -185,6 +204,9 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
 
             return {
                 "same_task_id": task.id == same_task.id,
+                "queued_input_json": queued.input_json,
+                "claimed_worker_id": claimed.worker_id,
+                "attached_job_id": attached.job_id,
                 "running_count": running_count,
                 "listed_youtube_ids": [record.youtube_video_id for record in listed],
                 "latest_succeeded_youtube_ids": [

@@ -47,6 +47,8 @@ class CliSettings(BaseSettings):
     transcript_cue_generate_concurrency_limit: int = 1
     micro_event_extract_timeout_seconds: int = 3600
     micro_event_extract_concurrency_limit: int = 3
+    micro_event_worker_poll_interval_seconds: int = 5
+    micro_event_worker_id: str | None = None
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
@@ -65,6 +67,7 @@ class CliSettings(BaseSettings):
         "youtube_http_proxy",
         "youtube_https_proxy",
         "youtube_data_api_key",
+        "micro_event_worker_id",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
         "transcript_minio_secret_key",
@@ -109,6 +112,7 @@ class CliSettings(BaseSettings):
         "transcript_cue_generate_concurrency_limit",
         "micro_event_extract_timeout_seconds",
         "micro_event_extract_concurrency_limit",
+        "micro_event_worker_poll_interval_seconds",
     )
     @classmethod
     def _positive_int(cls, value: int) -> int:

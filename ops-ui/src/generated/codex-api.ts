@@ -678,6 +678,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/micro-event-extract/enqueue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enqueue Video Micro Events */
+        post: operations["enqueue_video_micro_events_video_tasks_micro_event_extract_enqueue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/video-tasks/transcript-collect": {
         parameters: {
             query?: never;
@@ -1798,6 +1815,113 @@ export interface components {
              * Format: date-time
              */
             updatedAt: string;
+        };
+        /** MicroEventEnqueueItemResponse */
+        MicroEventEnqueueItemResponse: {
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Model */
+            model: string | null;
+            /** Reason */
+            reason: string;
+            /** Reasoningeffort */
+            reasoningEffort: string | null;
+            /** Status */
+            status: string;
+            /** Transcriptid */
+            transcriptId: number | null;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Youtubevideoid */
+            youtubeVideoId: string | null;
+        };
+        /**
+         * MicroEventEnqueueRequest
+         * @example {
+         *       "limit": 20,
+         *       "model": "gpt-5.5",
+         *       "overlapMinutes": 5,
+         *       "reasoningEffort": "medium",
+         *       "regenerateSucceeded": false,
+         *       "retryFailed": false,
+         *       "target": "selected_videos",
+         *       "videoIds": [
+         *         1,
+         *         2,
+         *         3
+         *       ],
+         *       "windowMinutes": 30
+         *     }
+         */
+        MicroEventEnqueueRequest: {
+            /** Channelid */
+            channelId?: number | null;
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /** Model */
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            /**
+             * Overlapminutes
+             * @default 5
+             */
+            overlapMinutes: number;
+            /** Reasoningeffort */
+            reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
+            /**
+             * Regeneratesucceeded
+             * @default false
+             */
+            regenerateSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /** Search */
+            search?: string | null;
+            /**
+             * Target
+             * @default next_eligible
+             * @enum {string}
+             */
+            target: "selected_videos" | "current_filters" | "next_eligible";
+            /** Taskstatus */
+            taskStatus?: ("pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled") | null;
+            /** Videoids */
+            videoIds?: number[];
+            /**
+             * Windowminutes
+             * @default 30
+             */
+            windowMinutes: number;
+        };
+        /** MicroEventEnqueueResponse */
+        MicroEventEnqueueResponse: {
+            /** Alreadypendingcount */
+            alreadyPendingCount: number;
+            /** Alreadyrunningcount */
+            alreadyRunningCount: number;
+            /** Alreadysucceededcount */
+            alreadySucceededCount: number;
+            /** Enqueuedcount */
+            enqueuedCount: number;
+            /** Ineligiblecount */
+            ineligibleCount: number;
+            /** Items */
+            items: components["schemas"]["MicroEventEnqueueItemResponse"][];
+            /** Requestedcount */
+            requestedCount: number;
+            /** Scannedcount */
+            scannedCount: number;
+            /** Skippedfailedcount */
+            skippedFailedCount: number;
         };
         /** MicroEventExcludedRangeResponse */
         MicroEventExcludedRangeResponse: {
@@ -4698,6 +4822,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MicroEventBatchExtractResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enqueue_video_micro_events_video_tasks_micro_event_extract_enqueue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MicroEventEnqueueRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MicroEventEnqueueResponse"];
                 };
             };
             /** @description Validation Error */
