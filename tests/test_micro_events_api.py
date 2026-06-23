@@ -723,6 +723,19 @@ def test_micro_event_extract_succeeds_and_detail_can_be_read() -> None:
     assert fakes.video_tasks.tasks[2].status == "succeeded"
 
 
+def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
+    fakes = _seed_ready_fakes()
+
+    asyncio.run(_extract(fakes))
+
+    prompt = fakes.extractor.prompts[0]
+    assert "cue_id는 숫자가 아니라 불투명한 문자열이다" in prompt
+    assert "tr33-c004500은 tr33-c00500" in prompt
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptVersion"] == (
+        "micro-event-extract-v2"
+    )
+
+
 def test_micro_event_extract_missing_video_returns_not_found() -> None:
     response = asyncio.run(_extract(_Fakes(), expected_status=404))
 
