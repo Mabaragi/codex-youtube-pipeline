@@ -832,7 +832,7 @@ class _MicroEventOutput(BaseModel):
     event: str = Field(min_length=1)
     program_mode: ProgramMode
     content_kind: ContentKind
-    topics: list[str] = Field(min_length=1, max_length=6)
+    topics: list[str] = Field(min_length=1)
     relation_to_previous: RelationToPrevious
     continues_to_next: bool
     evidence_cue_ids: list[str] = Field(min_length=1, max_length=6)
@@ -995,7 +995,7 @@ def _validated_window(
                 confidence=_support_level_confidence(event.support_level),
                 program_mode=event.program_mode,
                 content_kind=event.content_kind,
-                topics=event.topics,
+                topics=_normalized_topics(event.topics),
                 relation_to_previous=event.relation_to_previous,
                 continues_to_next=event.continues_to_next,
                 support_level=event.support_level,
@@ -1247,6 +1247,17 @@ def _support_level_confidence(support_level: SupportLevel) -> float:
     if support_level == "CONTEXTUAL":
         return 0.7
     return 0.4
+
+
+def _normalized_topics(topics: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for topic in topics:
+        stripped = topic.strip()
+        if stripped:
+            normalized.append(stripped)
+        if len(normalized) == 6:
+            break
+    return normalized or ["UNKNOWN"]
 
 
 def _format_cue_block(cues: list[TranscriptCueRecord]) -> str:

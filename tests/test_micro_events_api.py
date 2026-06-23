@@ -920,6 +920,60 @@ def test_micro_event_extract_filters_event_evidence_outside_event_range() -> Non
     ]
 
 
+def test_micro_event_extract_truncates_too_many_topics() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "?ㅽ듃由щ㉧媛 諛⑹넚 二쇱젣瑜??ㅻ챸?쒕떎.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": [
+                            "topic-1",
+                            "topic-2",
+                            "topic-3",
+                            "topic-4",
+                            "topic-5",
+                            "topic-6",
+                            "topic-7",
+                        ],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                    }
+                ],
+                "excluded_ranges": [
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "reason": "LOW_INFORMATION",
+                    }
+                ],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert detail["windows"][0]["microEvents"][0]["topics"] == [
+        "topic-1",
+        "topic-2",
+        "topic-3",
+        "topic-4",
+        "topic-5",
+        "topic-6",
+    ]
+
+
 def test_micro_event_extract_repairs_unique_nearby_cue_id_typo() -> None:
     fakes = _seed_ready_fakes()
     _seed_cues(fakes, cue_starts_ms=[0, 1_000, 2_000])
