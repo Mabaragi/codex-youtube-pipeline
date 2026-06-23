@@ -68,8 +68,17 @@ def test_youtube_data_settings_handle_blank_and_env_override(
 
     assert blank_settings.youtube_data_api_key is None
     assert blank_settings.youtube_data_api_key_value() is None
+    assert blank_settings.model == "gpt-5.5"
+    assert blank_settings.reasoning_effort == "medium"
     assert blank_settings.micro_event_extract_concurrency_limit == 3
 
+    monkeypatch.setenv("CODEX_CLI_MODEL", " ")
+    monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", " ")
+    assert CliSettings().model == "gpt-5.5"
+    assert CliSettings().reasoning_effort == "medium"
+
+    monkeypatch.setenv("CODEX_CLI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", "xhigh")
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", "AIza-test")
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS", "3.5")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS", "300")
@@ -80,6 +89,8 @@ def test_youtube_data_settings_handle_blank_and_env_override(
 
     settings = CliSettings()
 
+    assert settings.model == "gpt-5.4-mini"
+    assert settings.reasoning_effort == "xhigh"
     assert settings.youtube_data_api_key_value() == "AIza-test"
     assert settings.youtube_data_timeout_seconds == 3.5
     assert settings.transcript_collect_timeout_seconds == 300
@@ -308,6 +319,7 @@ def test_alembic_upgrade_creates_app_tables(
         "source",
         "operation",
         "model",
+        "reasoning_effort",
         "status",
         "thread_id",
         "turn_id",

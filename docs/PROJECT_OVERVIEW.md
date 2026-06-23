@@ -203,7 +203,8 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 
 환경변수는 `CODEX_CLI_` prefix를 사용한다.
 
-- `CODEX_CLI_MODEL`: 기본 model.
+- `CODEX_CLI_MODEL`: Codex model. Default `gpt-5.5`; allowed values are `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`.
+- `CODEX_CLI_REASONING_EFFORT`: Codex reasoning effort. Default `medium`; allowed values are `low`, `medium`, `high`, `xhigh`.
 - `CODEX_CLI_SANDBOX`: `read-only`, `workspace-write`, `full-access`.
 - `CODEX_CLI_APPROVAL`: `auto-review`, `deny-all`.
 - `CODEX_CLI_CODEX_BIN`: 특정 local Codex binary를 강제로 사용할 때 지정.

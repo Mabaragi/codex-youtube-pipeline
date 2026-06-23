@@ -266,6 +266,8 @@ const microEventExtraction: MicroEventExtractionDetail = {
   youtubeVideoId: "abc123DEF45",
   transcriptId: 11,
   status: "succeeded",
+  model: "gpt-5.4",
+  reasoningEffort: "high",
   jobId: 16,
   jobAttemptId: 17,
   windowCount: 1,
@@ -274,6 +276,8 @@ const microEventExtraction: MicroEventExtractionDetail = {
   firstCueId: "tr11-c000001",
   lastCueId: "tr11-c000002",
   outputJson: {
+    model: "gpt-5.4",
+    reasoningEffort: "high",
     windowCount: 1,
     microEventCount: 1,
     excludedRangeCount: 1,
@@ -427,6 +431,8 @@ describe("VideoDetailPage", () => {
     expect(screen.getByText("Streamer reacts to the opening chat topic.")).toBeTruthy();
     expect(screen.getByText("META_CHAT")).toBeTruthy();
     expect(screen.getByText("opening chat")).toBeTruthy();
+    expect(screen.getByText("gpt-5.4")).toBeTruthy();
+    expect(screen.getByText("high")).toBeTruthy();
     expect(screen.getByText("Excluded Ranges")).toBeTruthy();
     expect(screen.getByText("LOW_INFORMATION")).toBeTruthy();
     expect(screen.getByText("recoding -> recording")).toBeTruthy();
@@ -443,6 +449,8 @@ describe("VideoDetailPage", () => {
       videoId: 42,
       retryFailed: false,
       regenerateSucceeded: true,
+      model: "gpt-5.4",
+      reasoningEffort: "high",
     });
   });
 
@@ -462,6 +470,8 @@ describe("VideoDetailPage", () => {
       videoId: 42,
       retryFailed: false,
       regenerateSucceeded: false,
+      model: "gpt-5.5",
+      reasoningEffort: "medium",
     });
   });
 
@@ -553,6 +563,8 @@ describe("VideoDetailPage", () => {
       unknown
     >;
     expect(payload.videoTaskId).toBe(16);
+    expect(payload.model).toBe("gpt-5.4");
+    expect(payload.reasoningEffort).toBe("high");
     expect(payload.windows).toEqual(microEventExtraction.windows);
     expect(JSON.stringify(payload)).toContain("Streamer reacts to the opening chat topic.");
     expect(JSON.stringify(payload)).toContain("recoding");

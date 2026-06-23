@@ -20,6 +20,7 @@ function parseFilters(params: RawSearchParams): CodexUsageFilters {
     source: stringParam(params.source),
     status: statusParam(params.status),
     model: stringParam(params.model),
+    reasoningEffort: reasoningEffortParam(params.reasoningEffort),
     videoId: positiveNumberParam(params.videoId),
     videoTaskId: positiveNumberParam(params.videoTaskId),
     jobId: positiveNumberParam(params.jobId),
@@ -33,4 +34,13 @@ function statusParam(
 ): CodexUsageFilters["status"] | undefined {
   const text = stringParam(value);
   return text === "succeeded" || text === "failed" ? text : undefined;
+}
+
+function reasoningEffortParam(
+  value: string | string[] | undefined,
+): CodexUsageFilters["reasoningEffort"] | undefined {
+  const text = stringParam(value);
+  return text === "low" || text === "medium" || text === "high" || text === "xhigh"
+    ? text
+    : undefined;
 }

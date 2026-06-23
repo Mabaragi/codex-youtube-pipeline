@@ -71,6 +71,7 @@ class CodexRunUsageModel(Base):
         Index("ix_codex_run_usages_created_at", "created_at", "id"),
         Index("ix_codex_run_usages_source", "source"),
         Index("ix_codex_run_usages_model", "model"),
+        Index("ix_codex_run_usages_reasoning_effort", "reasoning_effort"),
         Index("ix_codex_run_usages_status", "status"),
         Index("ix_codex_run_usages_video_task_id", "video_task_id"),
         Index("ix_codex_run_usages_job_id", "job_id"),
@@ -80,6 +81,7 @@ class CodexRunUsageModel(Base):
     source: Mapped[str] = mapped_column(String(128), nullable=False)
     operation: Mapped[str] = mapped_column(String(128), nullable=False)
     model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     turn_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -131,6 +133,7 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
                 source=usage.source,
                 operation=usage.operation,
                 model=usage.model,
+                reasoning_effort=usage.reasoning_effort,
                 status=usage.status,
                 thread_id=usage.thread_id,
                 turn_id=usage.turn_id,
@@ -290,6 +293,8 @@ def _conditions(
         conditions.append(CodexRunUsageModel.status == query.status)
     if query.model is not None:
         conditions.append(CodexRunUsageModel.model == query.model)
+    if query.reasoning_effort is not None:
+        conditions.append(CodexRunUsageModel.reasoning_effort == query.reasoning_effort)
     if query.video_id is not None:
         conditions.append(CodexRunUsageModel.video_id == query.video_id)
     if query.video_task_id is not None:
@@ -332,6 +337,7 @@ def _record(model: CodexRunUsageModel) -> CodexUsageRecord:
         source=model.source,
         operation=model.operation,
         model=model.model,
+        reasoning_effort=model.reasoning_effort,
         status=_status(model.status),
         thread_id=model.thread_id,
         turn_id=model.turn_id,
@@ -385,6 +391,9 @@ class _VideoUsageAccumulator:
     cached_input_tokens: int = 0
     reasoning_output_tokens: int = 0
     latest_created_at: datetime | None = None
+    latest_id: int | None = None
+    latest_model: str | None = None
+    latest_reasoning_effort: str | None = None
 
     def add(self, record: CodexUsageRecord) -> None:
         self.run_count += 1
@@ -396,14 +405,23 @@ class _VideoUsageAccumulator:
         if (
             self.latest_created_at is None
             or record.created_at > self.latest_created_at
+            or (
+                record.created_at == self.latest_created_at
+                and (self.latest_id is None or record.id > self.latest_id)
+            )
         ):
             self.latest_created_at = record.created_at
+            self.latest_id = record.id
+            self.latest_model = record.model
+            self.latest_reasoning_effort = record.reasoning_effort
 
     def to_record(self, *, video: VideoModel | None) -> CodexUsageVideoSummaryRecord:
         return CodexUsageVideoSummaryRecord(
             video_id=self.video_id,
             youtube_video_id=video.youtube_video_id if video is not None else None,
             title=video.title if video is not None else None,
+            latest_model=self.latest_model,
+            latest_reasoning_effort=self.latest_reasoning_effort,
             run_count=self.run_count,
             input_tokens=self.input_tokens,
             output_tokens=self.output_tokens,

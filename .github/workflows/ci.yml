@@ -310,6 +310,7 @@ jobs:
       CODEX_API_IMAGE: ${{ needs.publish_images.outputs.api_image }}
       CODEX_OPS_UI_IMAGE: ${{ needs.publish_images.outputs.ops_ui_image }}
       CODEX_CLI_MODEL: ${{ vars.CODEX_CLI_MODEL }}
+      CODEX_CLI_REASONING_EFFORT: ${{ vars.CODEX_CLI_REASONING_EFFORT }}
       CODEX_CLI_SANDBOX: ${{ vars.CODEX_CLI_SANDBOX || 'workspace-write' }}
       CODEX_CLI_APPROVAL: ${{ vars.CODEX_CLI_APPROVAL || 'auto-review' }}
       CODEX_CLI_YOUTUBE_HTTP_PROXY: ${{ secrets.CODEX_CLI_YOUTUBE_HTTP_PROXY || vars.CODEX_CLI_YOUTUBE_HTTP_PROXY }}

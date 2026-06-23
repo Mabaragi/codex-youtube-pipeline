@@ -23,13 +23,16 @@ class RunCodexPromptUseCase:
         prompt = request.prompt.strip()
         if not prompt:
             raise InvalidCodexRequest("Prompt cannot be empty.")
+        model = request.model or self._settings.model
+        reasoning_effort = request.reasoning_effort or self._settings.reasoning_effort
 
         result = await self._runtime.run_prompt(
             CodexRunCommand(
                 prompt=prompt,
                 thread_id=None,
                 cwd=None,
-                model=self._settings.model,
+                model=model,
+                reasoning_effort=reasoning_effort,
                 sandbox=self._settings.sandbox,
                 approval=self._settings.approval,
                 persist=False,
@@ -41,7 +44,15 @@ class RunCodexPromptUseCase:
                 ),
             )
         )
-        return RunResponse.model_validate(result.model_dump())
+        return RunResponse(
+            threadId=result.thread_id,
+            turnId=result.turn_id,
+            status=result.status,
+            finalResponse=result.final_response,
+            model=model,
+            reasoningEffort=reasoning_effort,
+            usage=result.usage,
+        )
 
 
 class GetCodexAccountUseCase:

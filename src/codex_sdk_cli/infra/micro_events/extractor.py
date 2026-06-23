@@ -12,6 +12,7 @@ from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionResult,
     MicroEventExtractorPort,
 )
+from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
 
 class CodexMicroEventExtractor(MicroEventExtractorPort):
@@ -19,10 +20,12 @@ class CodexMicroEventExtractor(MicroEventExtractorPort):
         self,
         runtime: CodexRuntimePort,
         *,
-        model: str | None,
+        model: CodexModelChoice,
+        reasoning_effort: ReasoningEffortChoice,
     ) -> None:
         self._runtime = runtime
         self._model = model
+        self._reasoning_effort = reasoning_effort
 
     @override
     async def extract_window(
@@ -34,7 +37,8 @@ class CodexMicroEventExtractor(MicroEventExtractorPort):
                 prompt=request.prompt,
                 thread_id=None,
                 cwd=None,
-                model=self._model,
+                model=request.model or self._model,
+                reasoning_effort=request.reasoning_effort or self._reasoning_effort,
                 sandbox="read-only",
                 approval="deny-all",
                 persist=False,

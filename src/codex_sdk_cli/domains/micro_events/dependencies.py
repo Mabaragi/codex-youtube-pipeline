@@ -41,6 +41,7 @@ def get_extract_video_micro_events_use_case(
         timeout_seconds=settings.micro_event_extract_timeout_seconds,
         concurrency_limit=settings.micro_event_extract_concurrency_limit,
         model=settings.model,
+        reasoning_effort=settings.reasoning_effort,
         events=events,
     )
 

@@ -72,6 +72,8 @@ def test_recording_codex_runtime_records_success_usage() -> None:
     assert usage.job_id == 3
     assert usage.window_index == 6
     assert usage.status == "succeeded"
+    assert usage.model == "gpt-5.4"
+    assert usage.reasoning_effort == "high"
     assert usage.thread_id == "thread-1"
     assert usage.turn_id == "turn-1"
     assert usage.input_tokens == 20
@@ -132,7 +134,8 @@ def _command() -> CodexRunCommand:
         prompt="hello",
         thread_id=None,
         cwd=None,
-        model="gpt-test",
+        model="gpt-5.4",
+        reasoning_effort="high",
         sandbox="read-only",
         approval="deny-all",
         persist=False,

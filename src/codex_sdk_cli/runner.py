@@ -9,8 +9,9 @@ from typing import Protocol, runtime_checkable
 
 from openai_codex import ApprovalMode, AsyncCodex, CodexConfig, Sandbox
 from openai_codex import AsyncThread as SdkAsyncThread
+from openai_codex.generated.v2_all import ReasoningEffort
 
-from .settings import ApprovalChoice, SandboxChoice
+from .settings import ApprovalChoice, ReasoningEffortChoice, SandboxChoice
 
 
 class CodexCliError(Exception):
@@ -27,6 +28,7 @@ class RunRequest:
     thread_id: str | None
     cwd: Path | None
     model: str | None
+    reasoning_effort: ReasoningEffort | None
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
@@ -72,7 +74,12 @@ class ThreadLike(Protocol):
     def id(self) -> str:
         """Thread id."""
 
-    def run(self, input: str) -> Awaitable[TurnResultLike]:
+    def run(
+        self,
+        input: str,
+        *,
+        effort: ReasoningEffort | None = None,
+    ) -> Awaitable[TurnResultLike]:
         """Run a Codex turn."""
 
 
@@ -148,8 +155,13 @@ class SdkThreadAdapter(ThreadLike):
     def id(self) -> str:
         return self._thread.id
 
-    async def run(self, input: str) -> TurnResultLike:
-        return await self._thread.run(input)
+    async def run(
+        self,
+        input: str,
+        *,
+        effort: ReasoningEffort | None = None,
+    ) -> TurnResultLike:
+        return await self._thread.run(input, effort=effort)
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,6 +254,10 @@ def parse_approval(value: ApprovalChoice) -> ApprovalMode:
             return ApprovalMode.deny_all
 
 
+def parse_reasoning_effort(value: ReasoningEffortChoice | None) -> ReasoningEffort | None:
+    return None if value is None else ReasoningEffort(value)
+
+
 async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
     cwd = str(request.cwd) if request.cwd is not None else None
 
@@ -266,7 +282,7 @@ async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
             sandbox=request.sandbox,
         )
 
-    result = await thread.run(request.prompt)
+    result = await thread.run(request.prompt, effort=request.reasoning_effort)
 
     return RunOutput(
         thread_id=thread.id,

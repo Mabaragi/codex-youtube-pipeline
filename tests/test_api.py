@@ -88,13 +88,16 @@ def test_run_endpoint_uses_defaults_and_returns_camel_case_response() -> None:
         "turnId": "turn-1",
         "status": "completed",
         "finalResponse": "done",
+        "model": "gpt-5.4",
+        "reasoningEffort": "high",
         "usage": {"totalTokens": 3},
     }
     assert fake.run_command == CodexRunCommand(
         prompt="hello",
         thread_id=None,
         cwd=None,
-        model="gpt-test",
+        model="gpt-5.4",
+        reasoning_effort="high",
         sandbox="read-only",
         approval="deny-all",
         persist=False,
@@ -124,6 +127,29 @@ def test_run_endpoint_normalizes_blank_instructions_to_single_spaces() -> None:
     assert fake.run_command is not None
     assert fake.run_command.base_instructions == " "
     assert fake.run_command.developer_instructions == " "
+
+
+def test_run_endpoint_accepts_model_and_reasoning_effort_overrides() -> None:
+    fake = FakeCodexRuntime()
+
+    response = asyncio.run(
+        _request(
+            "POST",
+            "/codex/runs",
+            runtime=fake,
+            json={
+                "prompt": "hello",
+                "model": "gpt-5.4-mini",
+                "reasoningEffort": "low",
+            },
+        )
+    )
+
+    assert response["model"] == "gpt-5.4-mini"
+    assert response["reasoningEffort"] == "low"
+    assert fake.run_command is not None
+    assert fake.run_command.model == "gpt-5.4-mini"
+    assert fake.run_command.reasoning_effort == "low"
 
 
 def test_run_endpoint_passes_custom_instructions() -> None:
@@ -255,7 +281,8 @@ async def _request(
     fake = runtime or FakeCodexRuntime()
     app.dependency_overrides[get_codex_runtime] = lambda: fake
     app.dependency_overrides[get_settings] = lambda: CliSettings(
-        model="gpt-test",
+        model="gpt-5.4",
+        reasoning_effort="high",
         sandbox="read-only",
         approval="deny-all",
     )

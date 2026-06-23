@@ -8,6 +8,14 @@ import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
+  CODEX_MODEL_OPTIONS,
+  CODEX_REASONING_EFFORT_OPTIONS,
+  DEFAULT_CODEX_MODEL,
+  DEFAULT_CODEX_REASONING_EFFORT,
+  type CodexModelOption,
+  type CodexReasoningEffortOption,
+} from "@/lib/codex-options";
+import {
   fetchTranscriptContent,
   useExtractMicroEventsMutation,
   useMicroEventExtraction,
@@ -189,6 +197,7 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
             extractionError={microEventError}
             extractionLoading={microEventLoading}
             extractMicroEvents={extractMicroEvents}
+            key={videoId}
             latestCueTask={latestCueTask}
             latestMicroEventTask={latestMicroEventTask}
             videoId={videoId}
@@ -254,6 +263,17 @@ function MicroEventExtractionPanel({
   extractionError: Error | null;
   extractMicroEvents: ExtractMicroEventsMutation;
 }) {
+  const [selectedModel, setSelectedModel] = useState<CodexModelOption | null>(null);
+  const [selectedReasoningEffort, setSelectedReasoningEffort] =
+    useState<CodexReasoningEffortOption | null>(null);
+  const model =
+    selectedModel ??
+    (isCodexModelOption(extraction?.model) ? extraction.model : DEFAULT_CODEX_MODEL);
+  const reasoningEffort =
+    selectedReasoningEffort ??
+    (isCodexReasoningEffortOption(extraction?.reasoningEffort)
+      ? extraction.reasoningEffort
+      : DEFAULT_CODEX_REASONING_EFFORT);
   const hasSucceededCueTask = latestCueTask?.status === "succeeded";
   const taskIsRunning = latestMicroEventTask?.status === "running";
   const taskFailed =
@@ -278,6 +298,8 @@ function MicroEventExtractionPanel({
       videoId,
       retryFailed: taskFailed,
       regenerateSucceeded: taskSucceeded,
+      model,
+      reasoningEffort,
     });
   }
 
@@ -326,6 +348,46 @@ function MicroEventExtractionPanel({
           Succeeded transcript cues are required before extraction.
         </div>
       ) : null}
+      <div className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <label className="grid gap-1 text-xs font-semibold text-slate-600">
+          Model
+          <select
+            className="ops-input"
+            disabled={taskIsRunning || extractMicroEvents.isPending}
+            onChange={(event) => {
+              if (isCodexModelOption(event.target.value)) {
+                setSelectedModel(event.target.value);
+              }
+            }}
+            value={model}
+          >
+            {CODEX_MODEL_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-slate-600">
+          Reasoning
+          <select
+            className="ops-input"
+            disabled={taskIsRunning || extractMicroEvents.isPending}
+            onChange={(event) => {
+              if (isCodexReasoningEffortOption(event.target.value)) {
+                setSelectedReasoningEffort(event.target.value);
+              }
+            }}
+            value={reasoningEffort}
+          >
+            {CODEX_REASONING_EFFORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       {extractMicroEvents.error ? (
         <div className="mb-3 text-sm text-red-700">
           {formatUnknownError(extractMicroEvents.error)}
@@ -362,6 +424,8 @@ function MicroEventExtractionView({
       <div className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
         <SummaryCell label="Status" status={extraction.status} value={extraction.status} />
         <SummaryCell label="Task" value={`#${extraction.videoTaskId}`} />
+        <SummaryCell label="Model" value={extraction.model ?? "-"} />
+        <SummaryCell label="Reasoning" value={extraction.reasoningEffort ?? "-"} />
         <SummaryCell label="Transcript" value={idValue(extraction.transcriptId)} />
         <SummaryCell label="Job" value={idValue(extraction.jobId)} />
         <SummaryCell label="Windows" value={String(extraction.windowCount)} />
@@ -955,6 +1019,16 @@ function cueCountValue(task: OpsVideoTask | undefined): string {
 
 function idValue(value: number | null | undefined): string {
   return value === null || value === undefined ? "-" : `#${value}`;
+}
+
+function isCodexModelOption(value: unknown): value is CodexModelOption {
+  return CODEX_MODEL_OPTIONS.some((option) => option.value === value);
+}
+
+function isCodexReasoningEffortOption(
+  value: unknown,
+): value is CodexReasoningEffortOption {
+  return CODEX_REASONING_EFFORT_OPTIONS.some((option) => option.value === value);
 }
 
 function formatCueIdRange(

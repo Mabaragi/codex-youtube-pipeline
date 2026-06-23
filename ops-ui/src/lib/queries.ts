@@ -2,6 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiClientError, requestJson } from "@/lib/api-client";
+import {
+  DEFAULT_CODEX_MODEL,
+  DEFAULT_CODEX_REASONING_EFFORT,
+} from "@/lib/codex-options";
 import type {
   CollectAllTranscriptsResult,
   CollectChannelTranscriptsResult,
@@ -403,6 +407,8 @@ export function useExtractMicroEventsMutation() {
       regenerateSucceeded = false,
       windowMinutes = 30,
       overlapMinutes = 5,
+      model = DEFAULT_CODEX_MODEL,
+      reasoningEffort = DEFAULT_CODEX_REASONING_EFFORT,
     }: {
       videoId: number;
     } & Partial<MicroEventExtractRequest>) =>
@@ -415,6 +421,8 @@ export function useExtractMicroEventsMutation() {
             regenerateSucceeded,
             windowMinutes,
             overlapMinutes,
+            model,
+            reasoningEffort,
           },
         },
       ),

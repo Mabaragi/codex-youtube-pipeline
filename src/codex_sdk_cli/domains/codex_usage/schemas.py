@@ -12,6 +12,7 @@ class CodexUsageResponse(BaseModel):
     source: str
     operation: str
     model: str | None
+    reasoning_effort: str | None = Field(alias="reasoningEffort")
     status: CodexUsageStatus
     thread_id: str | None = Field(alias="threadId")
     turn_id: str | None = Field(alias="turnId")
@@ -58,6 +59,8 @@ class CodexUsageVideoSummaryResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str | None = Field(alias="youtubeVideoId")
     title: str | None
+    latest_model: str | None = Field(alias="latestModel")
+    latest_reasoning_effort: str | None = Field(alias="latestReasoningEffort")
     run_count: int = Field(alias="runCount")
     input_tokens: int = Field(alias="inputTokens")
     output_tokens: int = Field(alias="outputTokens")

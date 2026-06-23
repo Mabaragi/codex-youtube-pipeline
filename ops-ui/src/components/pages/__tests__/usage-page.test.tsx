@@ -45,7 +45,8 @@ const usageList: CodexUsageList = {
       codexUsageId: 12,
       source: "micro_event_extract",
       operation: "extract_window",
-      model: "gpt-test",
+      model: "gpt-5.4",
+      reasoningEffort: "high",
       status: "succeeded",
       threadId: "thread-123456789",
       turnId: "turn-123456789",
@@ -90,6 +91,8 @@ const usageByVideoList: CodexUsageByVideoList = {
       totalTokens: 66,
       cachedInputTokens: 4,
       reasoningOutputTokens: 2,
+      latestModel: "gpt-5.4",
+      latestReasoningEffort: "high",
       latestCreatedAt: "2026-06-23T05:18:00Z",
     },
   ],
@@ -121,6 +124,8 @@ describe("UsagePage", () => {
     expect(screen.getByText("66")).toBeTruthy();
     expect(screen.getAllByText("micro_event_extract").length).toBeGreaterThan(0);
     expect(screen.getByText("extract_window")).toBeTruthy();
+    expect(screen.getAllByText("gpt-5.4").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("high").length).toBeGreaterThan(0);
     expect(screen.getByText("By Video")).toBeTruthy();
     expect(screen.getByText("Video 1")).toBeTruthy();
     expect(screen.getByText("33 total")).toBeTruthy();
@@ -172,7 +177,10 @@ describe("UsagePage", () => {
       target: { value: "succeeded" },
     });
     fireEvent.change(screen.getByLabelText("Model"), {
-      target: { value: "gpt-test" },
+      target: { value: "gpt-5.4" },
+    });
+    fireEvent.change(screen.getByLabelText("Reasoning"), {
+      target: { value: "high" },
     });
     fireEvent.change(screen.getByLabelText("Task ID"), {
       target: { value: "2" },
@@ -180,7 +188,7 @@ describe("UsagePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
 
     expect(routerPush).toHaveBeenCalledWith(
-      "/usage?source=micro_event_extract&status=succeeded&model=gpt-test&videoTaskId=2&limit=50",
+      "/usage?source=micro_event_extract&status=succeeded&model=gpt-5.4&reasoningEffort=high&videoTaskId=2&limit=50",
     );
   });
 

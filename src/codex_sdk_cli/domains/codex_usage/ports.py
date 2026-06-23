@@ -13,6 +13,7 @@ class CodexUsageCreate:
     source: str
     operation: str
     model: str | None
+    reasoning_effort: str | None
     status: CodexUsageStatus
     thread_id: str | None
     turn_id: str | None
@@ -39,6 +40,7 @@ class CodexUsageRecord:
     source: str
     operation: str
     model: str | None
+    reasoning_effort: str | None
     status: CodexUsageStatus
     thread_id: str | None
     turn_id: str | None
@@ -65,6 +67,7 @@ class CodexUsageListQuery:
     source: str | None = None
     status: str | None = None
     model: str | None = None
+    reasoning_effort: str | None = None
     video_id: int | None = None
     video_task_id: int | None = None
     job_id: int | None = None
@@ -87,6 +90,8 @@ class CodexUsageVideoSummaryRecord:
     video_id: int
     youtube_video_id: str | None
     title: str | None
+    latest_model: str | None
+    latest_reasoning_effort: str | None
     run_count: int
     input_tokens: int
     output_tokens: int

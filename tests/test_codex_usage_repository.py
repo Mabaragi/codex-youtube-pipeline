@@ -29,12 +29,16 @@ def test_codex_usage_repository_creates_lists_and_summarizes_usage(
 
     assert result == {
         "first_source": "micro_event_extract",
+        "first_reasoning_effort": "medium",
         "first_total_tokens": 33,
         "summary_run_count": 3,
         "summary_total_tokens": 76,
+        "effort_summary_total_tokens": 33,
         "source_summary_run_count": 2,
         "source_summary_total_tokens": 66,
         "video_summary_count": 1,
+        "video_summary_latest_model": "gpt-test",
+        "video_summary_latest_reasoning_effort": "medium",
         "video_summary_title": "Video 1",
         "video_summary_total_tokens": 66,
         "next_cursor": 2,
@@ -53,6 +57,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     source="codex_runs",
                     operation="run_prompt",
                     model="gpt-test",
+                    reasoning_effort="low",
                     status="succeeded",
                     thread_id="thread-0",
                     turn_id="turn-0",
@@ -70,6 +75,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     source="micro_event_extract",
                     operation="extract_window",
                     model="gpt-test",
+                    reasoning_effort="high",
                     status="succeeded",
                     thread_id="thread-1",
                     turn_id="turn-1",
@@ -93,6 +99,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     source="micro_event_extract",
                     operation="extract_window",
                     model="gpt-test",
+                    reasoning_effort="medium",
                     status="succeeded",
                     thread_id="thread-2",
                     turn_id="turn-2",
@@ -125,17 +132,26 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
             source_rows = await repository.list_usages(
                 CodexUsageListQuery(source="micro_event_extract", limit=50)
             )
+            effort_rows = await repository.list_usages(
+                CodexUsageListQuery(reasoning_effort="high", limit=50)
+            )
             video_rows = await repository.list_usage_by_video(
                 CodexUsageListQuery(source="micro_event_extract", limit=50)
             )
             return {
                 "first_source": all_rows.items[0].source,
+                "first_reasoning_effort": all_rows.items[0].reasoning_effort,
                 "first_total_tokens": all_rows.items[0].total_tokens,
                 "summary_run_count": all_rows.summary.run_count,
                 "summary_total_tokens": all_rows.summary.total_tokens,
+                "effort_summary_total_tokens": effort_rows.summary.total_tokens,
                 "source_summary_run_count": source_rows.summary.run_count,
                 "source_summary_total_tokens": source_rows.summary.total_tokens,
                 "video_summary_count": len(video_rows),
+                "video_summary_latest_model": video_rows[0].latest_model,
+                "video_summary_latest_reasoning_effort": (
+                    video_rows[0].latest_reasoning_effort
+                ),
                 "video_summary_title": video_rows[0].title,
                 "video_summary_total_tokens": video_rows[0].total_tokens,
                 "next_cursor": all_rows.next_cursor,

@@ -340,6 +340,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
             timeout_seconds=self._settings.micro_event_extract_timeout_seconds,
             concurrency_limit=self._settings.micro_event_extract_concurrency_limit,
             model=self._settings.model,
+            reasoning_effort=self._settings.reasoning_effort,
             events=self._events,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)

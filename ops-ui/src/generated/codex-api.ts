@@ -884,6 +884,8 @@ export interface components {
             operation: string;
             /** Outputtokens */
             outputTokens: number | null;
+            /** Reasoningeffort */
+            reasoningEffort: string | null;
             /** Reasoningoutputtokens */
             reasoningOutputTokens: number | null;
             /** Source */
@@ -938,6 +940,10 @@ export interface components {
              * Format: date-time
              */
             latestCreatedAt: string;
+            /** Latestmodel */
+            latestModel: string | null;
+            /** Latestreasoningeffort */
+            latestReasoningEffort: string | null;
             /** Outputtokens */
             outputTokens: number;
             /** Reasoningoutputtokens */
@@ -1294,18 +1300,24 @@ export interface components {
         /**
          * MicroEventExtractRequest
          * @example {
+         *       "model": "gpt-5.5",
          *       "overlapMinutes": 5,
+         *       "reasoningEffort": "medium",
          *       "regenerateSucceeded": false,
          *       "retryFailed": false,
          *       "windowMinutes": 30
          *     }
          */
         MicroEventExtractRequest: {
+            /** Model */
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
             /**
              * Overlapminutes
              * @default 5
              */
             overlapMinutes: number;
+            /** Reasoningeffort */
+            reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
             /**
              * Regeneratesucceeded
              * @default false
@@ -1340,8 +1352,12 @@ export interface components {
             lastCueId: string | null;
             /** Microeventcount */
             microEventCount: number | null;
+            /** Model */
+            model: string | null;
             /** Reason */
             reason: string;
+            /** Reasoningeffort */
+            reasoningEffort: string | null;
             /** Status */
             status: string;
             /** Transcriptid */
@@ -1380,10 +1396,14 @@ export interface components {
             lastCueId: string | null;
             /** Microeventcount */
             microEventCount: number;
+            /** Model */
+            model: string | null;
             /** Outputjson */
             outputJson: {
                 [key: string]: unknown;
             } | null;
+            /** Reasoningeffort */
+            reasoningEffort: string | null;
             /** Startedat */
             startedAt: string | null;
             /** Status */
@@ -2149,7 +2169,9 @@ export interface components {
          * @example {
          *       "baseInstructions": "Answer concisely and include file paths when relevant.",
          *       "developerInstructions": "Do not modify files; only inspect the repository.",
-         *       "prompt": "Explain how this project is structured."
+         *       "model": "gpt-5.5",
+         *       "prompt": "Explain how this project is structured.",
+         *       "reasoningEffort": "medium"
          *     }
          */
         RunRequest: {
@@ -2166,16 +2188,32 @@ export interface components {
              */
             developerInstructions?: string | null;
             /**
+             * Model
+             * @description Optional model override for this run.
+             * @example gpt-5.5
+             */
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            /**
              * Prompt
              * @description User prompt to send to a Codex thread.
              * @example Explain how this project is structured.
              */
             prompt: string;
+            /**
+             * Reasoningeffort
+             * @description Optional reasoning effort override for this run.
+             * @example medium
+             */
+            reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
         };
         /** RunResponse */
         RunResponse: {
             /** Finalresponse */
             finalResponse: string;
+            /** Model */
+            model: string;
+            /** Reasoningeffort */
+            reasoningEffort: string;
             /** Status */
             status: string;
             /** Threadid */
@@ -3085,6 +3123,7 @@ export interface operations {
                 source?: string | null;
                 status?: string | null;
                 model?: string | null;
+                reasoningEffort?: string | null;
                 videoId?: number | null;
                 videoTaskId?: number | null;
                 jobId?: number | null;
@@ -3123,6 +3162,7 @@ export interface operations {
                 source?: string | null;
                 status?: string | null;
                 model?: string | null;
+                reasoningEffort?: string | null;
                 videoId?: number | null;
                 videoTaskId?: number | null;
                 jobId?: number | null;

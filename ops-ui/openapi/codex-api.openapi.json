@@ -465,6 +465,17 @@
             ],
             "title": "Outputtokens"
           },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
+          },
           "reasoningOutputTokens": {
             "anyOf": [
               {
@@ -583,6 +594,7 @@
           "source",
           "operation",
           "model",
+          "reasoningEffort",
           "status",
           "threadId",
           "turnId",
@@ -659,6 +671,28 @@
             "title": "Latestcreatedat",
             "type": "string"
           },
+          "latestModel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestmodel"
+          },
+          "latestReasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestreasoningeffort"
+          },
           "outputTokens": {
             "title": "Outputtokens",
             "type": "integer"
@@ -706,6 +740,8 @@
           "videoId",
           "youtubeVideoId",
           "title",
+          "latestModel",
+          "latestReasoningEffort",
           "runCount",
           "inputTokens",
           "outputTokens",
@@ -1564,19 +1600,54 @@
         "additionalProperties": false,
         "examples": [
           {
+            "model": "gpt-5.5",
             "overlapMinutes": 5,
+            "reasoningEffort": "medium",
             "regenerateSucceeded": false,
             "retryFailed": false,
             "windowMinutes": 30
           }
         ],
         "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt-5.5",
+                  "gpt-5.4",
+                  "gpt-5.4-mini"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
           "overlapMinutes": {
             "default": 5,
             "maximum": 239.0,
             "minimum": 0.0,
             "title": "Overlapminutes",
             "type": "integer"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
           },
           "regenerateSucceeded": {
             "default": false,
@@ -1689,9 +1760,31 @@
             ],
             "title": "Microeventcount"
           },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
           },
           "status": {
             "title": "Status",
@@ -1745,6 +1838,8 @@
           "videoTaskId",
           "status",
           "reason",
+          "model",
+          "reasoningEffort",
           "jobId",
           "jobAttemptId",
           "transcriptId",
@@ -1852,6 +1947,17 @@
             "title": "Microeventcount",
             "type": "integer"
           },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
           "outputJson": {
             "anyOf": [
               {
@@ -1863,6 +1969,17 @@
               }
             ],
             "title": "Outputjson"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
           },
           "startedAt": {
             "anyOf": [
@@ -1924,6 +2041,8 @@
           "videoTaskId",
           "videoId",
           "youtubeVideoId",
+          "model",
+          "reasoningEffort",
           "transcriptId",
           "status",
           "jobId",
@@ -4314,7 +4433,9 @@
           {
             "baseInstructions": "Answer concisely and include file paths when relevant.",
             "developerInstructions": "Do not modify files; only inspect the repository.",
-            "prompt": "Explain how this project is structured."
+            "model": "gpt-5.5",
+            "prompt": "Explain how this project is structured.",
+            "reasoningEffort": "medium"
           }
         ],
         "properties": {
@@ -4348,6 +4469,26 @@
             ],
             "title": "Developerinstructions"
           },
+          "model": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt-5.5",
+                  "gpt-5.4",
+                  "gpt-5.4-mini"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional model override for this run.",
+            "examples": [
+              "gpt-5.5"
+            ],
+            "title": "Model"
+          },
           "prompt": {
             "description": "User prompt to send to a Codex thread.",
             "examples": [
@@ -4356,6 +4497,27 @@
             "minLength": 1,
             "title": "Prompt",
             "type": "string"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional reasoning effort override for this run.",
+            "examples": [
+              "medium"
+            ],
+            "title": "Reasoningeffort"
           }
         },
         "required": [
@@ -4368,6 +4530,14 @@
         "properties": {
           "finalResponse": {
             "title": "Finalresponse",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "reasoningEffort": {
+            "title": "Reasoningeffort",
             "type": "string"
           },
           "status": {
@@ -4396,7 +4566,9 @@
           "threadId",
           "turnId",
           "status",
-          "finalResponse"
+          "finalResponse",
+          "model",
+          "reasoningEffort"
         ],
         "title": "RunResponse",
         "type": "object"
@@ -6375,6 +6547,24 @@
           },
           {
             "in": "query",
+            "name": "reasoningEffort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reasoningeffort"
+            }
+          },
+          {
+            "in": "query",
             "name": "videoId",
             "required": false,
             "schema": {
@@ -6538,6 +6728,24 @@
                 }
               ],
               "title": "Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reasoningEffort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reasoningeffort"
             }
           },
           {

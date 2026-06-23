@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from openai_codex import ApprovalMode, Sandbox
+from openai_codex.generated.v2_all import ReasoningEffort
 
 from codex_sdk_cli.runner import (
     BLANK_BASE_INSTRUCTIONS,
@@ -18,6 +19,7 @@ from codex_sdk_cli.runner import (
     login_with_browser,
     login_with_device_code,
     parse_approval,
+    parse_reasoning_effort,
     parse_sandbox,
     run_prompt,
 )
@@ -36,9 +38,16 @@ class FakeThread(ThreadLike):
 
     def __init__(self) -> None:
         self.inputs: list[str] = []
+        self.efforts: list[ReasoningEffort | None] = []
 
-    async def run(self, input: str) -> FakeTurnResult:
+    async def run(
+        self,
+        input: str,
+        *,
+        effort: ReasoningEffort | None = None,
+    ) -> FakeTurnResult:
         self.inputs.append(input)
+        self.efforts.append(effort)
         return FakeTurnResult()
 
 
@@ -143,6 +152,14 @@ def test_parse_approval_maps_cli_values_to_sdk_enum() -> None:
     assert parse_approval("deny-all") is ApprovalMode.deny_all
 
 
+def test_parse_reasoning_effort_maps_cli_values_to_sdk_enum() -> None:
+    assert parse_reasoning_effort("low") is ReasoningEffort.low
+    assert parse_reasoning_effort("medium") is ReasoningEffort.medium
+    assert parse_reasoning_effort("high") is ReasoningEffort.high
+    assert parse_reasoning_effort("xhigh") is ReasoningEffort.xhigh
+    assert parse_reasoning_effort(None) is None
+
+
 def test_run_prompt_starts_new_thread() -> None:
     codex = FakeCodex()
     request = RunRequest(
@@ -150,6 +167,7 @@ def test_run_prompt_starts_new_thread() -> None:
         thread_id=None,
         cwd=Path("C:/repo"),
         model="gpt-test",
+        reasoning_effort=ReasoningEffort.high,
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
@@ -162,6 +180,7 @@ def test_run_prompt_starts_new_thread() -> None:
     assert codex.started is True
     assert codex.resumed_thread_id is None
     assert codex.thread.inputs == ["hello"]
+    assert codex.thread.efforts == [ReasoningEffort.high]
     assert codex.thread_kwargs == {
         "approval_mode": ApprovalMode.deny_all,
         "base_instructions": None,
@@ -183,6 +202,7 @@ def test_run_prompt_can_persist_new_thread() -> None:
         thread_id=None,
         cwd=None,
         model=None,
+        reasoning_effort=None,
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=True,
@@ -203,6 +223,7 @@ def test_run_prompt_can_empty_base_instructions_for_new_thread() -> None:
         thread_id=None,
         cwd=None,
         model=None,
+        reasoning_effort=None,
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
@@ -222,6 +243,7 @@ def test_run_prompt_can_empty_developer_instructions_for_new_thread() -> None:
         thread_id=None,
         cwd=None,
         model=None,
+        reasoning_effort=None,
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
@@ -241,6 +263,7 @@ def test_run_prompt_resumes_existing_thread() -> None:
         thread_id="thread-old",
         cwd=None,
         model=None,
+        reasoning_effort=None,
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=True,
@@ -264,6 +287,7 @@ def test_run_prompt_can_empty_base_instructions_when_resuming() -> None:
         thread_id="thread-old",
         cwd=None,
         model=None,
+        reasoning_effort=None,
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,
@@ -284,6 +308,7 @@ def test_run_prompt_can_empty_developer_instructions_when_resuming() -> None:
         thread_id="thread-old",
         cwd=None,
         model=None,
+        reasoning_effort=None,
         sandbox=Sandbox.workspace_write,
         approval_mode=ApprovalMode.auto_review,
         persist=False,

@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
+from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
 JsonObject = dict[str, object]
 WindowStatus = Literal["succeeded", "failed"]
@@ -83,6 +84,8 @@ class MicroEventExtractionRequest:
     job_attempt_id: int | None = None
     transcript_id: int | None = None
     window_index: int | None = None
+    model: CodexModelChoice | None = None
+    reasoning_effort: ReasoningEffortChoice | None = None
 
 
 @dataclass(frozen=True, slots=True)

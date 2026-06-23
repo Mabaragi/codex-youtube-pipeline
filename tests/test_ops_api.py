@@ -275,6 +275,7 @@ class FakeCodexUsageRepository(CodexUsageRepositoryPort):
                     source="micro_event_extract",
                     operation="extract_window",
                     model="gpt-test",
+                    reasoning_effort="high",
                     status="succeeded",
                     thread_id="thread-1",
                     turn_id="turn-1",
@@ -323,6 +324,8 @@ class FakeCodexUsageRepository(CodexUsageRepositoryPort):
                 total_tokens=66,
                 cached_input_tokens=4,
                 reasoning_output_tokens=2,
+                latest_model="gpt-test",
+                latest_reasoning_effort="high",
                 latest_created_at=datetime.now(UTC),
             )
         ]
@@ -381,6 +384,7 @@ async def _test_ops_codex_usage_is_filterable() -> None:
                 "source": "micro_event_extract",
                 "status": "succeeded",
                 "model": "gpt-test",
+                "reasoningEffort": "high",
                 "videoId": 1,
                 "videoTaskId": 2,
                 "jobId": 3,
@@ -393,6 +397,7 @@ async def _test_ops_codex_usage_is_filterable() -> None:
     payload = response.json()
     assert payload["summary"]["totalTokens"] == 66
     assert payload["items"][0]["codexUsageId"] == 12
+    assert payload["items"][0]["reasoningEffort"] == "high"
     assert payload["items"][0]["windowIndex"] == 6
     assert payload["items"][0]["usageJson"] == {"totalTokens": 33}
     assert payload["nextCursor"] == 9
@@ -400,6 +405,7 @@ async def _test_ops_codex_usage_is_filterable() -> None:
         source="micro_event_extract",
         status="succeeded",
         model="gpt-test",
+        reasoning_effort="high",
         video_id=1,
         video_task_id=2,
         job_id=3,
@@ -427,6 +433,7 @@ async def _test_ops_codex_usage_by_video_is_filterable() -> None:
                 "source": "micro_event_extract",
                 "status": "succeeded",
                 "model": "gpt-test",
+                "reasoningEffort": "high",
                 "videoId": 1,
                 "videoTaskId": 2,
                 "jobId": 3,
@@ -440,10 +447,13 @@ async def _test_ops_codex_usage_by_video_is_filterable() -> None:
     assert payload["items"][0]["videoId"] == 1
     assert payload["items"][0]["youtubeVideoId"] == "youtube-1"
     assert payload["items"][0]["title"] == "Video 1"
+    assert payload["items"][0]["latestModel"] == "gpt-test"
+    assert payload["items"][0]["latestReasoningEffort"] == "high"
     assert repository.queries[0] == CodexUsageListQuery(
         source="micro_event_extract",
         status="succeeded",
         model="gpt-test",
+        reasoning_effort="high",
         video_id=1,
         video_task_id=2,
         job_id=3,

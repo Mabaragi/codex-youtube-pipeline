@@ -5,7 +5,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from codex_sdk_cli.settings import ApprovalChoice, SandboxChoice
+from codex_sdk_cli.settings import ApprovalChoice, ReasoningEffortChoice, SandboxChoice
 
 
 class CodexRunUsageContext(BaseModel):
@@ -26,6 +26,7 @@ class CodexRunCommand(BaseModel):
     thread_id: str | None
     cwd: Path | None
     model: str | None
+    reasoning_effort: ReasoningEffortChoice | None
     sandbox: SandboxChoice
     approval: ApprovalChoice
     persist: bool

@@ -8,6 +8,7 @@ from timeit import repeat
 
 import pytest
 from openai_codex import ApprovalMode, Sandbox
+from openai_codex.generated.v2_all import ReasoningEffort
 from pydantic import BaseModel, ConfigDict
 
 
@@ -17,6 +18,7 @@ class DataclassRunRequest:
     thread_id: str | None
     cwd: Path | None
     model: str | None
+    reasoning_effort: ReasoningEffort | None
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
@@ -46,6 +48,7 @@ class PydanticRunRequest(BaseModel):
     thread_id: str | None
     cwd: Path | None
     model: str | None
+    reasoning_effort: ReasoningEffort | None
     sandbox: Sandbox
     approval_mode: ApprovalMode
     persist: bool
@@ -83,6 +86,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         thread_id=None,
         cwd=cwd,
         model="gpt-test",
+        reasoning_effort=ReasoningEffort.medium,
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
@@ -94,6 +98,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
         thread_id=None,
         cwd=cwd,
         model="gpt-test",
+        reasoning_effort=ReasoningEffort.medium,
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
@@ -104,6 +109,7 @@ def test_pydantic_models_match_dataclass_shapes() -> None:
     assert pydantic_request.prompt == dataclass_request.prompt
     assert pydantic_request.cwd == dataclass_request.cwd
     assert pydantic_request.sandbox is dataclass_request.sandbox
+    assert pydantic_request.reasoning_effort is dataclass_request.reasoning_effort
     assert pydantic_request.approval_mode is dataclass_request.approval_mode
     assert pydantic_request.persist is dataclass_request.persist
     assert pydantic_request.base_instructions is dataclass_request.base_instructions
@@ -132,6 +138,7 @@ def test_pydantic_model_performance() -> None:
         None,
         cwd,
         "gpt-test",
+        ReasoningEffort.medium,
         Sandbox.read_only,
         ApprovalMode.deny_all,
         False,
@@ -143,6 +150,7 @@ def test_pydantic_model_performance() -> None:
         thread_id=None,
         cwd=cwd,
         model="gpt-test",
+        reasoning_effort=ReasoningEffort.medium,
         sandbox=Sandbox.read_only,
         approval_mode=ApprovalMode.deny_all,
         persist=False,
@@ -158,6 +166,7 @@ def test_pydantic_model_performance() -> None:
                 None,
                 cwd,
                 "gpt-test",
+                ReasoningEffort.medium,
                 Sandbox.read_only,
                 ApprovalMode.deny_all,
                 False,
@@ -169,6 +178,7 @@ def test_pydantic_model_performance() -> None:
                 thread_id=None,
                 cwd=cwd,
                 model="gpt-test",
+                reasoning_effort=ReasoningEffort.medium,
                 sandbox=Sandbox.read_only,
                 approval_mode=ApprovalMode.deny_all,
                 persist=False,

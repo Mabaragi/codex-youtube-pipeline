@@ -45,6 +45,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
     YouTubeTranscriptRepositoryPort,
 )
+from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
 from .constants import (
     MICRO_EVENT_EXTRACT_PROMPT_VERSION,
@@ -321,6 +322,8 @@ class _ExtractionExecutionInput:
     cues: list[TranscriptCueRecord]
     window_minutes: int
     overlap_minutes: int
+    model: CodexModelChoice
+    reasoning_effort: ReasoningEffortChoice
     actor_type: OperationEventActorType
 
 
@@ -348,7 +351,8 @@ class ExtractVideoMicroEventsUseCase:
         extractor: MicroEventExtractorPort,
         timeout_seconds: int,
         concurrency_limit: int,
-        model: str | None,
+        model: CodexModelChoice,
+        reasoning_effort: ReasoningEffortChoice,
         events: OperationEventRecorderPort,
     ) -> None:
         self._videos = videos
@@ -361,6 +365,7 @@ class ExtractVideoMicroEventsUseCase:
         self._timeout_seconds = timeout_seconds
         self._concurrency_limit = concurrency_limit
         self._model = model
+        self._reasoning_effort = reasoning_effort
         self._events = events
 
     async def execute(
@@ -369,12 +374,15 @@ class ExtractVideoMicroEventsUseCase:
         request: MicroEventExtractRequest,
     ) -> MicroEventExtractResponse:
         video, metadata, cues = await self._load_inputs(video_id)
+        model = request.model or self._model
+        reasoning_effort = request.reasoning_effort or self._reasoning_effort
         input_hash = _task_input_hash(
             video=video,
             metadata=metadata,
             window_minutes=request.window_minutes,
             overlap_minutes=request.overlap_minutes,
-            model=self._model,
+            model=model,
+            reasoning_effort=reasoning_effort,
         )
         task = await self._video_tasks.get_or_create_task(
             VideoTaskCreate(
@@ -391,6 +399,8 @@ class ExtractVideoMicroEventsUseCase:
             cues=cues,
             window_minutes=request.window_minutes,
             overlap_minutes=request.overlap_minutes,
+            model=model,
+            reasoning_effort=reasoning_effort,
             actor_type="manual_api",
         )
         await self._record_task_event(
@@ -403,6 +413,8 @@ class ExtractVideoMicroEventsUseCase:
                 "taskStatus": task.status,
                 "retryFailed": request.retry_failed,
                 "regenerateSucceeded": request.regenerate_succeeded,
+                "model": model,
+                "reasoningEffort": reasoning_effort,
             },
         )
         return await self._process_task(
@@ -472,6 +484,10 @@ class ExtractVideoMicroEventsUseCase:
             cues=cues,
             window_minutes=_required_int(job.input_json, "windowMinutes"),
             overlap_minutes=_required_int(job.input_json, "overlapMinutes"),
+            model=_model_output(job.input_json) or self._model,
+            reasoning_effort=(
+                _reasoning_effort_output(job.input_json) or self._reasoning_effort
+            ),
             actor_type="retry_executor",
         )
         await self._record_task_event(
@@ -536,6 +552,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=detail,
                 status="succeeded",
                 reason="already_succeeded",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         if task.status == "running":
             return _extract_response(
@@ -544,6 +562,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=None,
                 status="skipped",
                 reason="already_running",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         if task.status in {"failed", "timed_out"} and not retry_failed:
             return _extract_response(
@@ -552,6 +572,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=None,
                 status="skipped",
                 reason=f"previously_{task.status}",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         if task.status in {"skipped", "canceled", "no_transcript"}:
             return _extract_response(
@@ -560,6 +582,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=None,
                 status="skipped",
                 reason="not_retryable",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         running_count = await self._video_tasks.count_running(
             task_name=MICRO_EVENT_EXTRACT_TASK_NAME
@@ -571,6 +595,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=None,
                 status="skipped",
                 reason="concurrency_limit",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         return await self._execute_task(task, execution_input, input_hash)
 
@@ -591,7 +617,8 @@ class ExtractVideoMicroEventsUseCase:
             "inputHash": input_hash,
             "windowMinutes": execution_input.window_minutes,
             "overlapMinutes": execution_input.overlap_minutes,
-            "model": self._model,
+            "model": execution_input.model,
+            "reasoningEffort": execution_input.reasoning_effort,
             "timeoutSeconds": self._timeout_seconds,
         }
         job = await self._pipeline_jobs.create_job(
@@ -663,7 +690,7 @@ class ExtractVideoMicroEventsUseCase:
             updated = await self._video_tasks.mark_task_timed_out(
                 task.id,
                 error_message=message,
-                output_json={"jobId": job.id, "jobAttemptId": attempt.id},
+                output_json=_attempt_output_json(execution_input, job=job, attempt=attempt),
             )
             await self._record_task_event(
                 "micro_event_extract.task_timed_out",
@@ -681,6 +708,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=None,
                 status="timed_out",
                 reason="timeout",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         except Exception as exc:
             error_type = exc.__class__.__name__
@@ -689,7 +718,7 @@ class ExtractVideoMicroEventsUseCase:
                 task.id,
                 error_type=error_type,
                 error_message=error_message,
-                output_json={"jobId": job.id, "jobAttemptId": attempt.id},
+                output_json=_attempt_output_json(execution_input, job=job, attempt=attempt),
             )
             await self._pipeline_jobs.mark_attempt_failed(
                 attempt.id,
@@ -717,6 +746,8 @@ class ExtractVideoMicroEventsUseCase:
                 detail=detail,
                 status="failed",
                 reason="error",
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
 
         detail = await self._micro_events.replace_extraction(task.id, windows)
@@ -746,6 +777,8 @@ class ExtractVideoMicroEventsUseCase:
             detail=detail,
             status="succeeded",
             reason="extracted",
+            model=execution_input.model,
+            reasoning_effort=execution_input.reasoning_effort,
         )
 
     async def _extract_windows(
@@ -826,6 +859,8 @@ class ExtractVideoMicroEventsUseCase:
                 job_attempt_id=attempt.id,
                 transcript_id=execution_input.metadata.id,
                 window_index=cue_window.window_index,
+                model=execution_input.model,
+                reasoning_effort=execution_input.reasoning_effort,
             )
         )
         try:
@@ -868,6 +903,8 @@ class ExtractVideoMicroEventsUseCase:
         if reason is not None:
             metadata["reason"] = reason
         metadata["transcriptId"] = execution_input.metadata.id
+        metadata["model"] = execution_input.model
+        metadata["reasoningEffort"] = execution_input.reasoning_effort
         await record_operation_event(
             self._events,
             OperationEventCreate(
@@ -1345,12 +1382,14 @@ def _task_input_hash(
     metadata: YouTubeTranscriptMetadataRecord,
     window_minutes: int,
     overlap_minutes: int,
-    model: str | None,
+    model: CodexModelChoice,
+    reasoning_effort: ReasoningEffortChoice,
 ) -> str:
     payload = {
         "model": model,
         "overlapMinutes": overlap_minutes,
         "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
+        "reasoningEffort": reasoning_effort,
         "responseSha256": metadata.response_sha256,
         "taskVersion": MICRO_EVENT_EXTRACT_TASK_VERSION,
         "transcriptId": metadata.id,
@@ -1361,6 +1400,23 @@ def _task_input_hash(
     return hashlib.sha256(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()
+
+
+def _attempt_output_json(
+    execution_input: _ExtractionExecutionInput,
+    *,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+) -> JsonObject:
+    return {
+        "videoId": execution_input.video.id,
+        "youtubeVideoId": execution_input.video.youtube_video_id,
+        "transcriptId": execution_input.metadata.id,
+        "model": execution_input.model,
+        "reasoningEffort": execution_input.reasoning_effort,
+        "jobId": job.id,
+        "jobAttemptId": attempt.id,
+    }
 
 
 def _output_json(
@@ -1374,6 +1430,8 @@ def _output_json(
         "videoId": execution_input.video.id,
         "youtubeVideoId": execution_input.video.youtube_video_id,
         "transcriptId": execution_input.metadata.id,
+        "model": execution_input.model,
+        "reasoningEffort": execution_input.reasoning_effort,
         "windowCount": _window_count(detail),
         "microEventCount": _micro_event_count(detail),
         "excludedRangeCount": _excluded_range_count(detail),
@@ -1392,6 +1450,8 @@ def _extract_response(
     detail: MicroEventExtractionDetailRecord | None,
     status: str,
     reason: str,
+    model: CodexModelChoice | None = None,
+    reasoning_effort: ReasoningEffortChoice | None = None,
 ) -> MicroEventExtractResponse:
     output_json = task.output_json or {}
     window_count = (
@@ -1409,12 +1469,16 @@ def _extract_response(
         if detail is not None
         else _str_output(output_json, "lastCueId")
     )
+    model = model or _model_output(output_json)
+    reasoning_effort = reasoning_effort or _reasoning_effort_output(output_json)
     return MicroEventExtractResponse(
         videoId=video.id,
         youtubeVideoId=video.youtube_video_id,
         videoTaskId=task.id,
         status=status,
         reason=reason,
+        model=model,
+        reasoningEffort=reasoning_effort,
         jobId=task.job_id,
         jobAttemptId=task.job_attempt_id,
         transcriptId=task.output_transcript_id,
@@ -1443,6 +1507,8 @@ def _detail_response(
         videoTaskId=detail.video_task_id,
         videoId=detail.video_id,
         youtubeVideoId=detail.youtube_video_id,
+        model=_model_output(detail.output_json or {}),
+        reasoningEffort=_reasoning_effort_output(detail.output_json or {}),
         transcriptId=detail.transcript_id,
         status=detail.status,
         jobId=detail.job_id,
@@ -1575,6 +1641,20 @@ def _int_output(output_json: JsonObject, key: str) -> int | None:
 def _str_output(output_json: JsonObject, key: str) -> str | None:
     value = output_json.get(key)
     return value if isinstance(value, str) else None
+
+
+def _model_output(output_json: JsonObject) -> CodexModelChoice | None:
+    value = _str_output(output_json, "model")
+    if value in {"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}:
+        return cast(CodexModelChoice, value)
+    return None
+
+
+def _reasoning_effort_output(output_json: JsonObject) -> ReasoningEffortChoice | None:
+    value = _str_output(output_json, "reasoningEffort")
+    if value in {"low", "medium", "high", "xhigh"}:
+        return cast(ReasoningEffortChoice, value)
+    return None
 
 
 def _required_int(input_json: JsonObject, key: str) -> int:

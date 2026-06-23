@@ -21,6 +21,7 @@ from codex_sdk_cli.runner import (
     logout_codex,
     open_codex,
     parse_approval,
+    parse_reasoning_effort,
     parse_sandbox,
     run_prompt,
 )
@@ -44,6 +45,9 @@ class CodexRuntimeClient(CodexRuntimePort):
                         thread_id=command.thread_id,
                         cwd=command.cwd,
                         model=command.model,
+                        reasoning_effort=parse_reasoning_effort(
+                            command.reasoning_effort
+                        ),
                         sandbox=parse_sandbox(command.sandbox),
                         approval_mode=parse_approval(command.approval),
                         persist=command.persist,

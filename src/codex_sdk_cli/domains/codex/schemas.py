@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr
 
+from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
+
 
 class RunRequest(BaseModel):
     prompt: str = Field(
@@ -23,6 +25,17 @@ class RunRequest(BaseModel):
         description="Optional developer instructions for this run.",
         examples=["Do not modify files; only inspect the repository."],
     )
+    model: CodexModelChoice | None = Field(
+        default=None,
+        description="Optional model override for this run.",
+        examples=["gpt-5.5"],
+    )
+    reasoning_effort: ReasoningEffortChoice | None = Field(
+        default=None,
+        alias="reasoningEffort",
+        description="Optional reasoning effort override for this run.",
+        examples=["medium"],
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -34,6 +47,8 @@ class RunRequest(BaseModel):
                     "prompt": "Explain how this project is structured.",
                     "baseInstructions": "Answer concisely and include file paths when relevant.",
                     "developerInstructions": "Do not modify files; only inspect the repository.",
+                    "model": "gpt-5.5",
+                    "reasoningEffort": "medium",
                 }
             ]
         },
@@ -45,6 +60,8 @@ class RunResponse(BaseModel):
     turn_id: str = Field(alias="turnId")
     status: str
     final_response: str = Field(alias="finalResponse")
+    model: str
+    reasoning_effort: str = Field(alias="reasoningEffort")
     usage: Any | None = None
 
     model_config = ConfigDict(populate_by_name=True)

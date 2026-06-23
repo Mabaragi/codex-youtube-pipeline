@@ -9,13 +9,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ApprovalChoice = Literal["auto-review", "deny-all"]
 SandboxChoice = Literal["read-only", "workspace-write", "full-access"]
+CodexModelChoice = Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]
+ReasoningEffortChoice = Literal["low", "medium", "high", "xhigh"]
 DEFAULT_DATABASE_URL = "sqlite+aiosqlite:///./data/app.db"
+DEFAULT_CODEX_MODEL: CodexModelChoice = "gpt-5.5"
+DEFAULT_CODEX_REASONING_EFFORT: ReasoningEffortChoice = "medium"
+CODEX_MODEL_CHOICES: tuple[CodexModelChoice, ...] = (
+    "gpt-5.5",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+)
+CODEX_REASONING_EFFORT_CHOICES: tuple[ReasoningEffortChoice, ...] = (
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+)
 
 
 class CliSettings(BaseSettings):
     """Environment-backed defaults for the CLI."""
 
-    model: str | None = None
+    model: CodexModelChoice = DEFAULT_CODEX_MODEL
+    reasoning_effort: ReasoningEffortChoice = DEFAULT_CODEX_REASONING_EFFORT
     sandbox: SandboxChoice = "workspace-write"
     approval: ApprovalChoice = "auto-review"
     codex_bin: Path | None = None
@@ -44,7 +60,6 @@ class CliSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CODEX_CLI_", extra="ignore")
 
     @field_validator(
-        "model",
         "codex_bin",
         "api_key",
         "youtube_http_proxy",
@@ -60,6 +75,24 @@ class CliSettings(BaseSettings):
     def _blank_string_to_none(cls, value: object) -> object | None:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def _blank_model_to_default(cls, value: object) -> object:
+        if value is None:
+            return DEFAULT_CODEX_MODEL
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_CODEX_MODEL
+        return value
+
+    @field_validator("reasoning_effort", mode="before")
+    @classmethod
+    def _blank_reasoning_effort_to_default(cls, value: object) -> object:
+        if value is None:
+            return DEFAULT_CODEX_REASONING_EFFORT
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_CODEX_REASONING_EFFORT
         return value
 
     @field_validator("database_url", mode="before")

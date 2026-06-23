@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
+
 from .ports import (
     Activity,
     ApplyScope,
@@ -26,6 +28,11 @@ class MicroEventExtractRequest(BaseModel):
     regenerate_succeeded: bool = Field(default=False, alias="regenerateSucceeded")
     window_minutes: int = Field(default=30, ge=1, le=240, alias="windowMinutes")
     overlap_minutes: int = Field(default=5, ge=0, le=239, alias="overlapMinutes")
+    model: CodexModelChoice | None = Field(default=None)
+    reasoning_effort: ReasoningEffortChoice | None = Field(
+        default=None,
+        alias="reasoningEffort",
+    )
 
     @model_validator(mode="after")
     def _overlap_must_be_shorter_than_window(self) -> MicroEventExtractRequest:
@@ -43,6 +50,8 @@ class MicroEventExtractRequest(BaseModel):
                     "regenerateSucceeded": False,
                     "windowMinutes": 30,
                     "overlapMinutes": 5,
+                    "model": "gpt-5.5",
+                    "reasoningEffort": "medium",
                 }
             ]
         },
@@ -55,6 +64,8 @@ class MicroEventExtractResponse(BaseModel):
     video_task_id: int | None = Field(alias="videoTaskId")
     status: str
     reason: str
+    model: str | None
+    reasoning_effort: str | None = Field(alias="reasoningEffort")
     job_id: int | None = Field(alias="jobId")
     job_attempt_id: int | None = Field(alias="jobAttemptId")
     transcript_id: int | None = Field(alias="transcriptId")
@@ -156,6 +167,8 @@ class MicroEventExtractionDetailResponse(BaseModel):
     video_task_id: int = Field(alias="videoTaskId")
     video_id: int = Field(alias="videoId")
     youtube_video_id: str = Field(alias="youtubeVideoId")
+    model: str | None
+    reasoning_effort: str | None = Field(alias="reasoningEffort")
     transcript_id: int | None = Field(alias="transcriptId")
     status: str
     job_id: int | None = Field(alias="jobId")

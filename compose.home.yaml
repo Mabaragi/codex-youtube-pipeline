@@ -8,6 +8,7 @@ services:
       - "8000"
     environment:
       CODEX_CLI_MODEL: ${CODEX_CLI_MODEL:-}
+      CODEX_CLI_REASONING_EFFORT: ${CODEX_CLI_REASONING_EFFORT:-}
       CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
       CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
       CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}
@@ -46,6 +47,7 @@ services:
     working_dir: /work
     environment:
       CODEX_CLI_MODEL: ${CODEX_CLI_MODEL:-}
+      CODEX_CLI_REASONING_EFFORT: ${CODEX_CLI_REASONING_EFFORT:-}
       CODEX_CLI_SANDBOX: ${CODEX_CLI_SANDBOX:-workspace-write}
       CODEX_CLI_APPROVAL: ${CODEX_CLI_APPROVAL:-auto-review}
       CODEX_CLI_API_KEY: ${CODEX_CLI_API_KEY:-}

@@ -8,6 +8,10 @@ import { DataTable } from "@/components/data-table";
 import { FilterActions, FilterInput, FilterSelect } from "@/components/filter-controls";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  CODEX_MODEL_OPTIONS,
+  CODEX_REASONING_EFFORT_OPTIONS,
+} from "@/lib/codex-options";
 import { compactId, formatDateTime } from "@/lib/format";
 import { useCodexUsage, useCodexUsageByVideo } from "@/lib/queries";
 import type {
@@ -39,6 +43,16 @@ const SOURCE_OPTIONS = [
   { value: "codex_runtime", label: "codex_runtime" },
 ];
 
+const MODEL_OPTIONS = [
+  { value: "", label: "All models" },
+  ...CODEX_MODEL_OPTIONS,
+];
+
+const REASONING_EFFORT_OPTIONS = [
+  { value: "", label: "All efforts" },
+  ...CODEX_REASONING_EFFORT_OPTIONS,
+];
+
 export function UsagePage({ initialFilters }: UsagePageProps) {
   const router = useRouter();
   const { data, isLoading, error } = useCodexUsage(initialFilters);
@@ -61,7 +75,17 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
       ),
     },
     { header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    { header: "Model", cell: ({ row }) => row.original.model ?? "-" },
+    {
+      header: "Model",
+      cell: ({ row }) => (
+        <div className="grid gap-1 text-xs">
+          <span className="font-semibold">{row.original.model ?? "-"}</span>
+          <span className="text-slate-500">
+            {row.original.reasoningEffort ?? "-"}
+          </span>
+        </div>
+      ),
+    },
     {
       header: "Tokens",
       cell: ({ row }) => (
@@ -126,6 +150,8 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
             <span>video #{row.original.videoId}</span>
             <span>{row.original.youtubeVideoId ?? "-"}</span>
+            <span>{row.original.latestModel ?? "-"}</span>
+            <span>{row.original.latestReasoningEffort ?? "-"}</span>
           </div>
         </div>
       ),
@@ -200,11 +226,17 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
             defaultValue={initialFilters.status}
             options={STATUS_OPTIONS}
           />
-          <FilterInput
+          <FilterSelect
             label="Model"
             name="model"
             defaultValue={initialFilters.model}
-            placeholder="gpt-..."
+            options={MODEL_OPTIONS}
+          />
+          <FilterSelect
+            label="Reasoning"
+            name="reasoningEffort"
+            defaultValue={initialFilters.reasoningEffort}
+            options={REASONING_EFFORT_OPTIONS}
           />
           <FilterSelect
             label="Limit"
@@ -290,6 +322,7 @@ function formFilters(event: FormEvent<HTMLFormElement>): CodexUsageFilters {
     source: stringFormValue(form.get("source")),
     status: statusValue(form.get("status")),
     model: stringFormValue(form.get("model")),
+    reasoningEffort: reasoningEffortValue(form.get("reasoningEffort")),
     videoId: positiveNumberFormValue(form.get("videoId")),
     videoTaskId: positiveNumberFormValue(form.get("videoTaskId")),
     jobId: positiveNumberFormValue(form.get("jobId")),
@@ -304,6 +337,15 @@ function statusValue(
   return text === "succeeded" || text === "failed" ? text : undefined;
 }
 
+function reasoningEffortValue(
+  value: FormDataEntryValue | null,
+): CodexUsageFilters["reasoningEffort"] | undefined {
+  const text = stringFormValue(value);
+  return text === "low" || text === "medium" || text === "high" || text === "xhigh"
+    ? text
+    : undefined;
+}
+
 function usageHref(filters: CodexUsageFilters): string {
   return hrefWithQuery("/usage", filters);
 }
@@ -313,6 +355,7 @@ function usageByVideoFilters(filters: CodexUsageFilters): CodexUsageByVideoFilte
     source: filters.source,
     status: filters.status,
     model: filters.model,
+    reasoningEffort: filters.reasoningEffort,
     videoId: filters.videoId,
     videoTaskId: filters.videoTaskId,
     jobId: filters.jobId,

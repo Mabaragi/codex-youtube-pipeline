@@ -6,12 +6,14 @@ from dataclasses import dataclass
 
 from click.testing import CliRunner
 from openai_codex import ApprovalMode, Sandbox
+from openai_codex.generated.v2_all import ReasoningEffort
 
 from codex_sdk_cli.cli import main
 from codex_sdk_cli.runner import (
     BLANK_BASE_INSTRUCTIONS,
     BLANK_DEVELOPER_INSTRUCTIONS,
     CodexLike,
+    ThreadLike,
 )
 
 
@@ -23,14 +25,21 @@ class FakeTurnResult:
     usage: object | None = None
 
 
-class FakeThread:
+class FakeThread(ThreadLike):
     id = "thread-1"
 
     def __init__(self) -> None:
         self.inputs: list[str] = []
+        self.efforts: list[ReasoningEffort | None] = []
 
-    async def run(self, input: str) -> FakeTurnResult:
+    async def run(
+        self,
+        input: str,
+        *,
+        effort: ReasoningEffort | None = None,
+    ) -> FakeTurnResult:
         self.inputs.append(input)
+        self.efforts.append(effort)
         return FakeTurnResult()
 
 
@@ -165,6 +174,28 @@ def test_run_command_outputs_thread_metadata_and_response() -> None:
     assert codex.thread_kwargs["ephemeral"] is True
     assert codex.thread_kwargs["base_instructions"] is None
     assert codex.thread_kwargs["developer_instructions"] is None
+    assert codex.thread_kwargs["model"] == "gpt-5.5"
+    assert codex.thread.efforts == [ReasoningEffort.medium]
+
+
+def test_run_command_accepts_model_and_reasoning_effort_overrides() -> None:
+    codex = FakeCodexForCli()
+
+    result = invoke_with_fake(
+        codex,
+        [
+            "run",
+            "--model",
+            "gpt-5.4-mini",
+            "--reasoning-effort",
+            "xhigh",
+            "hello",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert codex.thread_kwargs["model"] == "gpt-5.4-mini"
+    assert codex.thread.efforts == [ReasoningEffort.xhigh]
 
 
 def test_run_command_persists_new_thread_when_requested() -> None:

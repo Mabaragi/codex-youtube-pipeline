@@ -183,7 +183,8 @@ flowchart LR
 - `HOME_NGINX_PORT`: 기본값 `18080`.
 - `NGROK_DOMAIN`: ngrok dev domain. 현재 값은
   `mutation-runny-smelting.ngrok-free.dev`.
-- `CODEX_CLI_MODEL`
+- `CODEX_CLI_MODEL`: default `gpt-5.5`; allowed values are `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`.
+- `CODEX_CLI_REASONING_EFFORT`: default `medium`; allowed values are `low`, `medium`, `high`, `xhigh`.
 - `CODEX_CLI_SANDBOX`: 기본값 `workspace-write`.
 - `CODEX_CLI_APPROVAL`: 기본값 `auto-review`.
 

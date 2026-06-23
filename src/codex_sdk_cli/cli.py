@@ -25,10 +25,11 @@ from .runner import (
     logout_codex,
     open_codex,
     parse_approval,
+    parse_reasoning_effort,
     parse_sandbox,
     run_prompt,
 )
-from .settings import ApprovalChoice, CliSettings, SandboxChoice
+from .settings import ApprovalChoice, CliSettings, ReasoningEffortChoice, SandboxChoice
 
 CodexFactory = Callable[[CliSettings], AbstractAsyncContextManager[CodexLike]]
 T = TypeVar("T")
@@ -53,6 +54,11 @@ def main(ctx: click.Context) -> None:
     help="Workspace directory for the Codex thread.",
 )
 @click.option("--model", help="Model override for this thread.")
+@click.option(
+    "--reasoning-effort",
+    type=click.Choice(["low", "medium", "high", "xhigh"]),
+    help="Reasoning effort override for this turn.",
+)
 @click.option(
     "--sandbox",
     type=click.Choice(["read-only", "workspace-write", "full-access"]),
@@ -85,6 +91,7 @@ def run(
     thread_id: str | None,
     cwd: Path | None,
     model: str | None,
+    reasoning_effort: ReasoningEffortChoice | None,
     sandbox: SandboxChoice | None,
     approval: ApprovalChoice | None,
     persist: bool,
@@ -100,6 +107,7 @@ def run(
                 thread_id,
                 cwd,
                 model,
+                reasoning_effort,
                 sandbox,
                 approval,
                 persist,
@@ -122,6 +130,7 @@ async def _run_async(
     thread_id: str | None,
     cwd: Path | None,
     model: str | None,
+    reasoning_effort: ReasoningEffortChoice | None,
     sandbox: SandboxChoice | None,
     approval: ApprovalChoice | None,
     persist: bool,
@@ -135,6 +144,9 @@ async def _run_async(
         thread_id=thread_id,
         cwd=cwd,
         model=model or settings.model,
+        reasoning_effort=parse_reasoning_effort(
+            reasoning_effort or settings.reasoning_effort
+        ),
         sandbox=parse_sandbox(sandbox or settings.sandbox),
         approval_mode=parse_approval(approval or settings.approval),
         persist=persist,

@@ -107,6 +107,7 @@ def _usage_create(
         source=context.source,
         operation=context.operation,
         model=command.model,
+        reasoning_effort=command.reasoning_effort,
         status="failed" if status == "failed" else "succeeded",
         thread_id=thread_id,
         turn_id=turn_id,

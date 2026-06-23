@@ -179,7 +179,11 @@ async def get_micro_event_extractor(
     runtime: CodexRuntimeDep,
     settings: Annotated[CliSettings, Depends(get_settings)],
 ) -> MicroEventExtractorPort:
-    return CodexMicroEventExtractor(runtime, model=settings.model)
+    return CodexMicroEventExtractor(
+        runtime,
+        model=settings.model,
+        reasoning_effort=settings.reasoning_effort,
+    )
 
 
 async def get_transcript_cue_repository(

@@ -755,6 +755,8 @@ class _Fakes:
         self.settings = CliSettings(
             micro_event_extract_timeout_seconds=60,
             micro_event_extract_concurrency_limit=1,
+            model="gpt-5.4",
+            reasoning_effort="high",
         )
 
 
@@ -766,10 +768,14 @@ def test_micro_event_extract_succeeds_and_detail_can_be_read() -> None:
 
     assert response["status"] == "succeeded"
     assert response["reason"] == "extracted"
+    assert response["model"] == "gpt-5.4"
+    assert response["reasoningEffort"] == "high"
     assert response["windowCount"] == 1
     assert response["microEventCount"] == 1
     assert response["asrCorrectionCandidateCount"] == 1
     assert latest["videoTaskId"] == response["videoTaskId"]
+    assert latest["model"] == "gpt-5.4"
+    assert latest["reasoningEffort"] == "high"
     assert latest["windows"][0]["rawResponseText"]
     assert latest["windows"][0]["microEvents"][0]["programMode"] == "JUST_CHATTING"
     assert latest["windows"][0]["microEvents"][0]["contentKind"] == "META_CHAT"
@@ -790,6 +796,39 @@ def test_micro_event_extract_passes_codex_usage_context_per_window() -> None:
     assert request.job_attempt_id == response["jobAttemptId"]
     assert request.transcript_id == response["transcriptId"]
     assert request.window_index == 1
+    assert request.model == "gpt-5.4"
+    assert request.reasoning_effort == "high"
+
+
+def test_micro_event_extract_accepts_requested_model_and_reasoning_effort() -> None:
+    fakes = _seed_ready_fakes()
+
+    response = asyncio.run(
+        _extract(
+            fakes,
+            json={
+                "model": "gpt-5.4-mini",
+                "reasoningEffort": "xhigh",
+            },
+        )
+    )
+    latest = asyncio.run(_get_latest(fakes))
+
+    assert response["status"] == "succeeded"
+    assert response["model"] == "gpt-5.4-mini"
+    assert response["reasoningEffort"] == "xhigh"
+    assert latest["model"] == "gpt-5.4-mini"
+    assert latest["reasoningEffort"] == "xhigh"
+    assert fakes.pipeline_jobs.jobs[1].input_json["model"] == "gpt-5.4-mini"
+    assert fakes.pipeline_jobs.jobs[1].input_json["reasoningEffort"] == "xhigh"
+    assert fakes.pipeline_jobs.attempts[1].output_json is not None
+    assert fakes.pipeline_jobs.attempts[1].output_json["model"] == "gpt-5.4-mini"
+    assert fakes.pipeline_jobs.attempts[1].output_json["reasoningEffort"] == "xhigh"
+    assert fakes.video_tasks.tasks[2].output_json is not None
+    assert fakes.video_tasks.tasks[2].output_json["model"] == "gpt-5.4-mini"
+    assert fakes.video_tasks.tasks[2].output_json["reasoningEffort"] == "xhigh"
+    assert fakes.extractor.requests[0].model == "gpt-5.4-mini"
+    assert fakes.extractor.requests[0].reasoning_effort == "xhigh"
 
 
 def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
