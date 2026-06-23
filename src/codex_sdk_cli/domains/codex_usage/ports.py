@@ -83,6 +83,20 @@ class CodexUsageSummaryRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class CodexUsageVideoSummaryRecord:
+    video_id: int
+    youtube_video_id: str | None
+    title: str | None
+    run_count: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cached_input_tokens: int
+    reasoning_output_tokens: int
+    latest_created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class CodexUsageListResult:
     items: list[CodexUsageRecord]
     next_cursor: int | None
@@ -95,6 +109,12 @@ class CodexUsageRepositoryPort(Protocol):
 
     async def list_usages(self, query: CodexUsageListQuery) -> CodexUsageListResult:
         """List Codex run usage rows with a summary for the current filters."""
+
+    async def list_usage_by_video(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageVideoSummaryRecord]:
+        """List Codex usage summarized by video for the current filters."""
 
 
 class CodexUsageRecorderPort(Protocol):

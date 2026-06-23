@@ -52,3 +52,25 @@ class CodexUsageListResponse(BaseModel):
     summary: CodexUsageSummaryResponse
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class CodexUsageVideoSummaryResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str | None = Field(alias="youtubeVideoId")
+    title: str | None
+    run_count: int = Field(alias="runCount")
+    input_tokens: int = Field(alias="inputTokens")
+    output_tokens: int = Field(alias="outputTokens")
+    total_tokens: int = Field(alias="totalTokens")
+    cached_input_tokens: int = Field(alias="cachedInputTokens")
+    reasoning_output_tokens: int = Field(alias="reasoningOutputTokens")
+    latest_created_at: datetime = Field(alias="latestCreatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CodexUsageByVideoResponse(BaseModel):
+    items: list[CodexUsageVideoSummaryResponse]
+    summary: CodexUsageSummaryResponse
+
+    model_config = ConfigDict(populate_by_name=True)

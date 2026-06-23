@@ -278,6 +278,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/codex-usage/by-video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Codex Usage By Video */
+        get: operations["list_codex_usage_by_video_ops_codex_usage_by_video_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/events": {
         parameters: {
             query?: never;
@@ -824,6 +841,12 @@ export interface components {
              */
             youtubeChannelId?: string | null;
         };
+        /** CodexUsageByVideoResponse */
+        CodexUsageByVideoResponse: {
+            /** Items */
+            items: components["schemas"]["CodexUsageVideoSummaryResponse"][];
+            summary: components["schemas"]["CodexUsageSummaryResponse"];
+        };
         /** CodexUsageListResponse */
         CodexUsageListResponse: {
             /** Items */
@@ -903,6 +926,32 @@ export interface components {
             runCount: number;
             /** Totaltokens */
             totalTokens: number;
+        };
+        /** CodexUsageVideoSummaryResponse */
+        CodexUsageVideoSummaryResponse: {
+            /** Cachedinputtokens */
+            cachedInputTokens: number;
+            /** Inputtokens */
+            inputTokens: number;
+            /**
+             * Latestcreatedat
+             * Format: date-time
+             */
+            latestCreatedAt: string;
+            /** Outputtokens */
+            outputTokens: number;
+            /** Reasoningoutputtokens */
+            reasoningOutputTokens: number;
+            /** Runcount */
+            runCount: number;
+            /** Title */
+            title: string | null;
+            /** Totaltokens */
+            totalTokens: number;
+            /** Videoid */
+            videoId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string | null;
         };
         /**
          * CollectAllTranscriptTasksRequest
@@ -3055,6 +3104,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CodexUsageListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_codex_usage_by_video_ops_codex_usage_by_video_get: {
+        parameters: {
+            query?: {
+                source?: string | null;
+                status?: string | null;
+                model?: string | null;
+                videoId?: number | null;
+                videoTaskId?: number | null;
+                jobId?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodexUsageByVideoResponse"];
                 };
             };
             /** @description Validation Error */

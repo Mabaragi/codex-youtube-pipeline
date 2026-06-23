@@ -19,6 +19,7 @@ from codex_sdk_cli.domains.codex_usage.ports import (
     CodexUsageRecord,
     CodexUsageRepositoryPort,
     CodexUsageSummaryRecord,
+    CodexUsageVideoSummaryRecord,
 )
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventCreate,
@@ -306,6 +307,26 @@ class FakeCodexUsageRepository(CodexUsageRepositoryPort):
             ),
         )
 
+    async def list_usage_by_video(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageVideoSummaryRecord]:
+        self.queries.append(query)
+        return [
+            CodexUsageVideoSummaryRecord(
+                video_id=1,
+                youtube_video_id="youtube-1",
+                title="Video 1",
+                run_count=2,
+                input_tokens=40,
+                output_tokens=26,
+                total_tokens=66,
+                cached_input_tokens=4,
+                reasoning_output_tokens=2,
+                latest_created_at=datetime.now(UTC),
+            )
+        ]
+
 
 def test_ops_summary_and_lists_are_available() -> None:
     asyncio.run(_test_ops_summary_and_lists_are_available())
@@ -384,6 +405,50 @@ async def _test_ops_codex_usage_is_filterable() -> None:
         job_id=3,
         limit=25,
         cursor=99,
+    )
+
+
+def test_ops_codex_usage_by_video_is_filterable() -> None:
+    asyncio.run(_test_ops_codex_usage_by_video_is_filterable())
+
+
+async def _test_ops_codex_usage_by_video_is_filterable() -> None:
+    repository = FakeCodexUsageRepository()
+    app = create_app()
+    app.dependency_overrides[get_codex_usage_repository] = lambda: repository
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get(
+            "/ops/codex-usage/by-video",
+            params={
+                "source": "micro_event_extract",
+                "status": "succeeded",
+                "model": "gpt-test",
+                "videoId": 1,
+                "videoTaskId": 2,
+                "jobId": 3,
+                "limit": 25,
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["summary"]["totalTokens"] == 66
+    assert payload["items"][0]["videoId"] == 1
+    assert payload["items"][0]["youtubeVideoId"] == "youtube-1"
+    assert payload["items"][0]["title"] == "Video 1"
+    assert repository.queries[0] == CodexUsageListQuery(
+        source="micro_event_extract",
+        status="succeeded",
+        model="gpt-test",
+        video_id=1,
+        video_task_id=2,
+        job_id=3,
+        limit=25,
+        cursor=None,
     )
 
 

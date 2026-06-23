@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsagePage } from "../usage-page";
-import type { CodexUsageFilters, CodexUsageList } from "@/lib/types";
+import type {
+  CodexUsageByVideoFilters,
+  CodexUsageByVideoList,
+  CodexUsageFilters,
+  CodexUsageList,
+} from "@/lib/types";
 
 const routerPush = vi.hoisted(() => vi.fn());
 const queryMocks = vi.hoisted(() => ({
@@ -10,7 +15,13 @@ const queryMocks = vi.hoisted(() => ({
     isLoading: false,
     error: null as Error | null,
   },
+  usageByVideo: {
+    data: undefined as CodexUsageByVideoList | undefined,
+    isLoading: false,
+    error: null as Error | null,
+  },
   filters: undefined as CodexUsageFilters | undefined,
+  byVideoFilters: undefined as CodexUsageByVideoFilters | undefined,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -21,6 +32,10 @@ vi.mock("@/lib/queries", () => ({
   useCodexUsage: (filters: CodexUsageFilters) => {
     queryMocks.filters = filters;
     return queryMocks.usage;
+  },
+  useCodexUsageByVideo: (filters: CodexUsageByVideoFilters) => {
+    queryMocks.byVideoFilters = filters;
+    return queryMocks.usageByVideo;
   },
 }));
 
@@ -63,12 +78,40 @@ const usageList: CodexUsageList = {
   },
 };
 
+const usageByVideoList: CodexUsageByVideoList = {
+  items: [
+    {
+      videoId: 1,
+      youtubeVideoId: "youtube-1",
+      title: "Video 1",
+      runCount: 2,
+      inputTokens: 40,
+      outputTokens: 26,
+      totalTokens: 66,
+      cachedInputTokens: 4,
+      reasoningOutputTokens: 2,
+      latestCreatedAt: "2026-06-23T05:18:00Z",
+    },
+  ],
+  summary: {
+    runCount: 2,
+    inputTokens: 40,
+    outputTokens: 26,
+    totalTokens: 66,
+    cachedInputTokens: 4,
+    reasoningOutputTokens: 2,
+  },
+};
+
 describe("UsagePage", () => {
   beforeEach(() => {
     routerPush.mockReset();
     queryMocks.usage.data = usageList;
     queryMocks.usage.isLoading = false;
     queryMocks.usage.error = null;
+    queryMocks.usageByVideo.data = usageByVideoList;
+    queryMocks.usageByVideo.isLoading = false;
+    queryMocks.usageByVideo.error = null;
   });
 
   it("renders codex usage summary and rows", () => {
@@ -78,11 +121,14 @@ describe("UsagePage", () => {
     expect(screen.getByText("66")).toBeTruthy();
     expect(screen.getAllByText("micro_event_extract").length).toBeGreaterThan(0);
     expect(screen.getByText("extract_window")).toBeTruthy();
+    expect(screen.getByText("By Video")).toBeTruthy();
+    expect(screen.getByText("Video 1")).toBeTruthy();
     expect(screen.getByText("33 total")).toBeTruthy();
-    expect(screen.getByText("video #1")).toBeTruthy();
+    expect(screen.getAllByText("video #1").length).toBeGreaterThan(0);
     expect(screen.getByText("window #6")).toBeTruthy();
     expect(screen.getByText("Older")).toBeTruthy();
     expect(queryMocks.filters).toEqual({ limit: 50 });
+    expect(queryMocks.byVideoFilters).toEqual({ limit: 50 });
   });
 
   it("renders row tokens from nested usage json when token columns are null", () => {
@@ -152,9 +198,21 @@ describe("UsagePage", () => {
         reasoningOutputTokens: 0,
       },
     };
+    queryMocks.usageByVideo.data = {
+      ...usageByVideoList,
+      items: [],
+      summary: {
+        runCount: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cachedInputTokens: 0,
+        reasoningOutputTokens: 0,
+      },
+    };
 
     render(<UsagePage initialFilters={{ limit: 50 }} />);
 
-    expect(screen.getByText("No rows.")).toBeTruthy();
+    expect(screen.getAllByText("No rows.").length).toBeGreaterThan(0);
   });
 });

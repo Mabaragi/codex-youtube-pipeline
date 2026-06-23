@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from alembic.config import Config
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from alembic import command
 from codex_sdk_cli.domains.codex_usage.ports import CodexUsageCreate, CodexUsageListQuery
+from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import SqlAlchemyCodexUsageRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
+from codex_sdk_cli.infra.streamers.repository import StreamerModel
+from codex_sdk_cli.infra.videos.repository import VideoModel
 
 
 def test_codex_usage_repository_creates_lists_and_summarizes_usage(
@@ -29,6 +34,9 @@ def test_codex_usage_repository_creates_lists_and_summarizes_usage(
         "summary_total_tokens": 76,
         "source_summary_run_count": 2,
         "source_summary_total_tokens": 66,
+        "video_summary_count": 1,
+        "video_summary_title": "Video 1",
+        "video_summary_total_tokens": 66,
         "next_cursor": 2,
     }
 
@@ -39,6 +47,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
         session_factory = create_session_factory(engine)
         async with session_factory() as session:
             repository = SqlAlchemyCodexUsageRepository(session)
+            video = await _create_video(session)
             await repository.create_usage(
                 CodexUsageCreate(
                     source="codex_runs",
@@ -71,7 +80,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     cached_input_tokens=2,
                     reasoning_output_tokens=1,
                     duration_ms=1234,
-                    video_id=None,
+                    video_id=video.id,
                     video_task_id=None,
                     job_id=None,
                     job_attempt_id=None,
@@ -103,7 +112,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     cached_input_tokens=None,
                     reasoning_output_tokens=None,
                     duration_ms=1234,
-                    video_id=None,
+                    video_id=video.id,
                     video_task_id=None,
                     job_id=None,
                     job_attempt_id=None,
@@ -116,6 +125,9 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
             source_rows = await repository.list_usages(
                 CodexUsageListQuery(source="micro_event_extract", limit=50)
             )
+            video_rows = await repository.list_usage_by_video(
+                CodexUsageListQuery(source="micro_event_extract", limit=50)
+            )
             return {
                 "first_source": all_rows.items[0].source,
                 "first_total_tokens": all_rows.items[0].total_tokens,
@@ -123,10 +135,42 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                 "summary_total_tokens": all_rows.summary.total_tokens,
                 "source_summary_run_count": source_rows.summary.run_count,
                 "source_summary_total_tokens": source_rows.summary.total_tokens,
+                "video_summary_count": len(video_rows),
+                "video_summary_title": video_rows[0].title,
+                "video_summary_total_tokens": video_rows[0].total_tokens,
                 "next_cursor": all_rows.next_cursor,
             }
     finally:
         await engine.dispose()
+
+
+async def _create_video(session: AsyncSession) -> VideoModel:
+    now = datetime.now(UTC)
+    streamer = StreamerModel(name="Streamer")
+    session.add(streamer)
+    await session.flush()
+    channel = ChannelModel(
+        streamer_id=streamer.id,
+        handle="@streamer",
+        name="Channel",
+        youtube_channel_id="channel-1",
+        uploads_playlist_id="uploads-1",
+    )
+    session.add(channel)
+    await session.flush()
+    video = VideoModel(
+        channel_id=channel.id,
+        youtube_video_id="youtube-1",
+        title="Video 1",
+        description="Description",
+        published_at=now,
+        duration="PT1H",
+        thumbnail_url=None,
+    )
+    session.add(video)
+    await session.commit()
+    await session.refresh(video)
+    return video
 
 
 def _alembic_config() -> Config:

@@ -306,6 +306,26 @@
         "title": "ChannelUpdateRequest",
         "type": "object"
       },
+      "CodexUsageByVideoResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodexUsageVideoSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CodexUsageSummaryResponse"
+          }
+        },
+        "required": [
+          "items",
+          "summary"
+        ],
+        "title": "CodexUsageByVideoResponse",
+        "type": "object"
+      },
       "CodexUsageListResponse": {
         "properties": {
           "items": {
@@ -622,6 +642,79 @@
           "reasoningOutputTokens"
         ],
         "title": "CodexUsageSummaryResponse",
+        "type": "object"
+      },
+      "CodexUsageVideoSummaryResponse": {
+        "properties": {
+          "cachedInputTokens": {
+            "title": "Cachedinputtokens",
+            "type": "integer"
+          },
+          "inputTokens": {
+            "title": "Inputtokens",
+            "type": "integer"
+          },
+          "latestCreatedAt": {
+            "format": "date-time",
+            "title": "Latestcreatedat",
+            "type": "string"
+          },
+          "outputTokens": {
+            "title": "Outputtokens",
+            "type": "integer"
+          },
+          "reasoningOutputTokens": {
+            "title": "Reasoningoutputtokens",
+            "type": "integer"
+          },
+          "runCount": {
+            "title": "Runcount",
+            "type": "integer"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "totalTokens": {
+            "title": "Totaltokens",
+            "type": "integer"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubevideoid"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "title",
+          "runCount",
+          "inputTokens",
+          "outputTokens",
+          "totalTokens",
+          "cachedInputTokens",
+          "reasoningOutputTokens",
+          "latestCreatedAt"
+        ],
+        "title": "CodexUsageVideoSummaryResponse",
         "type": "object"
       },
       "CollectAllTranscriptTasksRequest": {
@@ -6384,6 +6477,156 @@
           }
         },
         "summary": "List Codex Usage",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/codex-usage/by-video": {
+      "get": {
+        "operationId": "list_codex_usage_by_video_ops_codex_usage_by_video_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "videoId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Videoid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "videoTaskId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Videotaskid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "jobId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Jobid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodexUsageByVideoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Codex Usage By Video",
         "tags": [
           "ops"
         ]

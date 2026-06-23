@@ -12,6 +12,8 @@ import type {
   MicroEventExtractResult,
   MicroEventExtractionDetail,
   CodexUsageFilters,
+  CodexUsageByVideoFilters,
+  CodexUsageByVideoList,
   CodexUsageList,
   OperationEventFilters,
   OperationEventList,
@@ -43,6 +45,8 @@ export const queryKeys = {
   jobs: (filters: Record<string, unknown>) => ["pipeline", "jobs", filters] as const,
   codexUsage: (filters: Record<string, unknown>) =>
     ["ops", "codex-usage", filters] as const,
+  codexUsageByVideo: (filters: Record<string, unknown>) =>
+    ["ops", "codex-usage", "by-video", filters] as const,
   schemaGraph: ["ops", "schema-graph"] as const,
   transcriptContent: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "content"] as const,
@@ -158,6 +162,17 @@ export function useCodexUsage(filters: CodexUsageFilters) {
   return useQuery({
     queryKey: queryKeys.codexUsage(filters),
     queryFn: () => requestJson<CodexUsageList>("/ops/codex-usage", { query: filters }),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useCodexUsageByVideo(filters: CodexUsageByVideoFilters) {
+  return useQuery({
+    queryKey: queryKeys.codexUsageByVideo(filters),
+    queryFn: () =>
+      requestJson<CodexUsageByVideoList>("/ops/codex-usage/by-video", {
+        query: filters,
+      }),
     refetchInterval: 10_000,
   });
 }

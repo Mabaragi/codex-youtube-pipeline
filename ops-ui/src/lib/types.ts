@@ -27,6 +27,10 @@ export type OperationEventList = components["schemas"]["OperationEventListRespon
 export type OperationEvent = components["schemas"]["OperationEventResponse"];
 export type CodexUsageList = components["schemas"]["CodexUsageListResponse"];
 export type CodexUsage = components["schemas"]["CodexUsageResponse"];
+export type CodexUsageByVideoList =
+  components["schemas"]["CodexUsageByVideoResponse"];
+export type CodexUsageVideoSummary =
+  components["schemas"]["CodexUsageVideoSummaryResponse"];
 export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
 export type OpsSchemaTable = components["schemas"]["OpsSchemaTableResponse"];
 export type Streamer = components["schemas"]["StreamerResponse"];
@@ -62,4 +66,7 @@ export type OperationEventFilters = NonNullable<
 >;
 export type CodexUsageFilters = NonNullable<
   NonNullable<paths["/ops/codex-usage"]["get"]["parameters"]["query"]>
+>;
+export type CodexUsageByVideoFilters = NonNullable<
+  NonNullable<paths["/ops/codex-usage/by-video"]["get"]["parameters"]["query"]>
 >;

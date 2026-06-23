@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import (
@@ -28,9 +29,11 @@ from codex_sdk_cli.domains.codex_usage.ports import (
     CodexUsageRepositoryPort,
     CodexUsageStatus,
     CodexUsageSummaryRecord,
+    CodexUsageVideoSummaryRecord,
     JsonObject,
 )
 from codex_sdk_cli.infra.database.base import Base
+from codex_sdk_cli.infra.videos.repository import VideoModel
 
 
 class CodexUsagePersistenceError(Exception):
@@ -192,6 +195,63 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
             summary=summary,
         )
 
+    @override
+    async def list_usage_by_video(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageVideoSummaryRecord]:
+        conditions = _conditions(query, include_cursor=False)
+        conditions.append(CodexRunUsageModel.video_id.is_not(None))
+        try:
+            models = list(
+                (
+                    await self._session.scalars(
+                        select(CodexRunUsageModel).where(*conditions)
+                    )
+                ).all()
+            )
+            video_ids = {
+                model.video_id for model in models if model.video_id is not None
+            }
+            videos = {
+                video.id: video
+                for video in (
+                    (
+                        await self._session.scalars(
+                            select(VideoModel).where(VideoModel.id.in_(video_ids))
+                        )
+                    ).all()
+                    if video_ids
+                    else []
+                )
+            }
+        except SQLAlchemyError as exc:
+            raise CodexUsagePersistenceError("Codex usage persistence failed.") from exc
+
+        grouped: dict[int, _VideoUsageAccumulator] = {}
+        for model in models:
+            if model.video_id is None:
+                continue
+            record = _record(model)
+            accumulator = grouped.setdefault(
+                model.video_id,
+                _VideoUsageAccumulator(video_id=model.video_id),
+            )
+            accumulator.add(record)
+        records = [
+            accumulator.to_record(video=videos.get(video_id))
+            for video_id, accumulator in grouped.items()
+        ]
+        return sorted(
+            records,
+            key=lambda item: (
+                item.total_tokens,
+                item.latest_created_at,
+                item.video_id,
+            ),
+            reverse=True,
+        )[: query.limit]
+
 
 class SessionFactoryCodexUsageRepository(CodexUsageRepositoryPort):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -206,6 +266,16 @@ class SessionFactoryCodexUsageRepository(CodexUsageRepositoryPort):
     async def list_usages(self, query: CodexUsageListQuery) -> CodexUsageListResult:
         async with self._session_factory() as session:
             return await SqlAlchemyCodexUsageRepository(session).list_usages(query)
+
+    @override
+    async def list_usage_by_video(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageVideoSummaryRecord]:
+        async with self._session_factory() as session:
+            return await SqlAlchemyCodexUsageRepository(session).list_usage_by_video(
+                query
+            )
 
 
 def _conditions(
@@ -303,3 +373,42 @@ def _resolved_usage_tokens(
             else extracted[4]
         ),
     )
+
+
+@dataclass(slots=True)
+class _VideoUsageAccumulator:
+    video_id: int
+    run_count: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cached_input_tokens: int = 0
+    reasoning_output_tokens: int = 0
+    latest_created_at: datetime | None = None
+
+    def add(self, record: CodexUsageRecord) -> None:
+        self.run_count += 1
+        self.input_tokens += record.input_tokens or 0
+        self.output_tokens += record.output_tokens or 0
+        self.total_tokens += record.total_tokens or 0
+        self.cached_input_tokens += record.cached_input_tokens or 0
+        self.reasoning_output_tokens += record.reasoning_output_tokens or 0
+        if (
+            self.latest_created_at is None
+            or record.created_at > self.latest_created_at
+        ):
+            self.latest_created_at = record.created_at
+
+    def to_record(self, *, video: VideoModel | None) -> CodexUsageVideoSummaryRecord:
+        return CodexUsageVideoSummaryRecord(
+            video_id=self.video_id,
+            youtube_video_id=video.youtube_video_id if video is not None else None,
+            title=video.title if video is not None else None,
+            run_count=self.run_count,
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            total_tokens=self.total_tokens,
+            cached_input_tokens=self.cached_input_tokens,
+            reasoning_output_tokens=self.reasoning_output_tokens,
+            latest_created_at=self.latest_created_at or datetime.min,
+        )
