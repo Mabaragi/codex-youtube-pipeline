@@ -55,14 +55,16 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
       header: "Tokens",
       cell: ({ row }) => (
         <div className="grid gap-1 text-xs">
-          <span className="font-semibold">{tokenValue(row.original.totalTokens)} total</span>
-          <span className="text-slate-500">
-            in {tokenValue(row.original.inputTokens)} / out{" "}
-            {tokenValue(row.original.outputTokens)}
+          <span className="font-semibold">
+            {tokenValue(usageToken(row.original, "totalTokens"))} total
           </span>
           <span className="text-slate-500">
-            cached {tokenValue(row.original.cachedInputTokens)} / reasoning{" "}
-            {tokenValue(row.original.reasoningOutputTokens)}
+            in {tokenValue(usageToken(row.original, "inputTokens"))} / out{" "}
+            {tokenValue(usageToken(row.original, "outputTokens"))}
+          </span>
+          <span className="text-slate-500">
+            cached {tokenValue(usageToken(row.original, "cachedInputTokens"))} /
+            reasoning {tokenValue(usageToken(row.original, "reasoningOutputTokens"))}
           </span>
         </div>
       ),
@@ -231,4 +233,69 @@ function idValue(value: number | null | undefined): string {
 
 function tokenValue(value: number | null | undefined): string {
   return value === null || value === undefined ? "-" : value.toLocaleString("en");
+}
+
+type UsageTokenKey =
+  | "inputTokens"
+  | "outputTokens"
+  | "totalTokens"
+  | "cachedInputTokens"
+  | "reasoningOutputTokens";
+
+const USAGE_JSON_TOKEN_KEYS: Record<UsageTokenKey, string[]> = {
+  inputTokens: ["inputTokens", "input_tokens", "promptTokens", "prompt_tokens"],
+  outputTokens: [
+    "outputTokens",
+    "output_tokens",
+    "completionTokens",
+    "completion_tokens",
+  ],
+  totalTokens: ["totalTokens", "total_tokens", "total", "tokens"],
+  cachedInputTokens: [
+    "cachedInputTokens",
+    "cached_input_tokens",
+    "cachedTokens",
+    "cached_tokens",
+  ],
+  reasoningOutputTokens: [
+    "reasoningOutputTokens",
+    "reasoning_output_tokens",
+    "reasoningTokens",
+    "reasoning_tokens",
+  ],
+};
+
+function usageToken(usage: CodexUsage, key: UsageTokenKey): number | null | undefined {
+  const directValue = usage[key];
+  if (directValue !== null && directValue !== undefined) {
+    return directValue;
+  }
+  const source = usageJsonTokenSource(usage.usageJson);
+  if (!source) {
+    return directValue;
+  }
+  for (const jsonKey of USAGE_JSON_TOKEN_KEYS[key]) {
+    const value = source[jsonKey];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return directValue;
+}
+
+function usageJsonTokenSource(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  if (isRecord(value.total)) {
+    return value.total;
+  }
+  if (isRecord(value.last)) {
+    return value.last;
+  }
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

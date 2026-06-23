@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import override
 
+from codex_sdk_cli.domains.codex_usage.normalization import extract_usage_tokens
 from codex_sdk_cli.domains.codex_usage.ports import (
     CodexUsageCreate,
     CodexUsageListQuery,
@@ -172,37 +173,23 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
                     )
                 ).all()
             )
-            summary_row = (
-                await self._session.execute(
-                    select(
-                        func.count(CodexRunUsageModel.id),
-                        func.coalesce(func.sum(CodexRunUsageModel.input_tokens), 0),
-                        func.coalesce(func.sum(CodexRunUsageModel.output_tokens), 0),
-                        func.coalesce(func.sum(CodexRunUsageModel.total_tokens), 0),
-                        func.coalesce(func.sum(CodexRunUsageModel.cached_input_tokens), 0),
-                        func.coalesce(
-                            func.sum(CodexRunUsageModel.reasoning_output_tokens),
-                            0,
-                        ),
-                    ).where(*conditions)
-                )
-            ).one()
+            summary_rows = list(
+                (
+                    await self._session.scalars(
+                        select(CodexRunUsageModel).where(*conditions)
+                    )
+                ).all()
+            )
         except SQLAlchemyError as exc:
             raise CodexUsagePersistenceError("Codex usage persistence failed.") from exc
 
         items = rows[: query.limit]
         next_cursor = rows[query.limit].id if len(rows) > query.limit else None
+        summary = _summary(summary_rows)
         return CodexUsageListResult(
             items=[_record(row) for row in items],
             next_cursor=next_cursor,
-            summary=CodexUsageSummaryRecord(
-                run_count=_summary_int(summary_row[0]),
-                input_tokens=_summary_int(summary_row[1]),
-                output_tokens=_summary_int(summary_row[2]),
-                total_tokens=_summary_int(summary_row[3]),
-                cached_input_tokens=_summary_int(summary_row[4]),
-                reasoning_output_tokens=_summary_int(summary_row[5]),
-            ),
+            summary=summary,
         )
 
 
@@ -248,11 +235,28 @@ def _status(value: str) -> CodexUsageStatus:
     return "failed" if value == "failed" else "succeeded"
 
 
-def _summary_int(value: object) -> int:
-    return value if isinstance(value, int) else 0
+def _summary(models: list[CodexRunUsageModel]) -> CodexUsageSummaryRecord:
+    records = [_record(model) for model in models]
+    return CodexUsageSummaryRecord(
+        run_count=len(records),
+        input_tokens=sum(record.input_tokens or 0 for record in records),
+        output_tokens=sum(record.output_tokens or 0 for record in records),
+        total_tokens=sum(record.total_tokens or 0 for record in records),
+        cached_input_tokens=sum(record.cached_input_tokens or 0 for record in records),
+        reasoning_output_tokens=sum(
+            record.reasoning_output_tokens or 0 for record in records
+        ),
+    )
 
 
 def _record(model: CodexRunUsageModel) -> CodexUsageRecord:
+    (
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_input_tokens,
+        reasoning_output_tokens,
+    ) = _resolved_usage_tokens(model)
     return CodexUsageRecord(
         id=model.id,
         source=model.source,
@@ -262,11 +266,11 @@ def _record(model: CodexRunUsageModel) -> CodexUsageRecord:
         thread_id=model.thread_id,
         turn_id=model.turn_id,
         usage_json=model.usage_json,
-        input_tokens=model.input_tokens,
-        output_tokens=model.output_tokens,
-        total_tokens=model.total_tokens,
-        cached_input_tokens=model.cached_input_tokens,
-        reasoning_output_tokens=model.reasoning_output_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        cached_input_tokens=cached_input_tokens,
+        reasoning_output_tokens=reasoning_output_tokens,
         duration_ms=model.duration_ms,
         error_type=model.error_type,
         error_message=model.error_message,
@@ -277,4 +281,25 @@ def _record(model: CodexRunUsageModel) -> CodexUsageRecord:
         transcript_id=model.transcript_id,
         window_index=model.window_index,
         created_at=model.created_at,
+    )
+
+
+def _resolved_usage_tokens(
+    model: CodexRunUsageModel,
+) -> tuple[int | None, int | None, int | None, int | None, int | None]:
+    extracted = extract_usage_tokens(model.usage_json)
+    return (
+        model.input_tokens if model.input_tokens is not None else extracted[0],
+        model.output_tokens if model.output_tokens is not None else extracted[1],
+        model.total_tokens if model.total_tokens is not None else extracted[2],
+        (
+            model.cached_input_tokens
+            if model.cached_input_tokens is not None
+            else extracted[3]
+        ),
+        (
+            model.reasoning_output_tokens
+            if model.reasoning_output_tokens is not None
+            else extracted[4]
+        ),
     )

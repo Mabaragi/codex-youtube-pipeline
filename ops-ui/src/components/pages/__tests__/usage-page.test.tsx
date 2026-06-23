@@ -85,6 +85,37 @@ describe("UsagePage", () => {
     expect(queryMocks.filters).toEqual({ limit: 50 });
   });
 
+  it("renders row tokens from nested usage json when token columns are null", () => {
+    queryMocks.usage.data = {
+      ...usageList,
+      items: [
+        {
+          ...usageList.items[0],
+          usageJson: {
+            total: {
+              inputTokens: 20,
+              outputTokens: 13,
+              totalTokens: 33,
+              cachedInputTokens: 2,
+              reasoningOutputTokens: 1,
+            },
+          },
+          inputTokens: null,
+          outputTokens: null,
+          totalTokens: null,
+          cachedInputTokens: null,
+          reasoningOutputTokens: null,
+        },
+      ],
+    };
+
+    render(<UsagePage initialFilters={{ limit: 50 }} />);
+
+    expect(screen.getByText("33 total")).toBeTruthy();
+    expect(screen.getByText("in 20 / out 13")).toBeTruthy();
+    expect(screen.getByText("cached 2 / reasoning 1")).toBeTruthy();
+  });
+
   it("applies filters through the URL", () => {
     render(<UsagePage initialFilters={{ limit: 50 }} />);
 

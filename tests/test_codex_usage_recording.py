@@ -18,6 +18,13 @@ from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
 class FakeRuntime(CodexRuntimePort):
     def __init__(self) -> None:
         self.fail = False
+        self.usage: object = {
+            "input_tokens": 20,
+            "output_tokens": 13,
+            "total_tokens": 33,
+            "input_tokens_details": {"cached_tokens": 2},
+            "output_tokens_details": {"reasoning_tokens": 1},
+        }
 
     async def run_prompt(self, command: CodexRunCommand) -> CodexRunResult:
         if self.fail:
@@ -27,13 +34,7 @@ class FakeRuntime(CodexRuntimePort):
             turn_id="turn-1",
             status="completed",
             final_response="done",
-            usage={
-                "input_tokens": 20,
-                "output_tokens": 13,
-                "total_tokens": 33,
-                "input_tokens_details": {"cached_tokens": 2},
-                "output_tokens_details": {"reasoning_tokens": 1},
-            },
+            usage=self.usage,
         )
 
     async def login_with_device_code(self) -> CodexLoginResult:
@@ -79,6 +80,35 @@ def test_recording_codex_runtime_records_success_usage() -> None:
     assert usage.cached_input_tokens == 2
     assert usage.reasoning_output_tokens == 1
     assert usage.duration_ms >= 0
+
+
+def test_recording_codex_runtime_extracts_nested_total_usage() -> None:
+    recorder = FakeRecorder()
+    wrapped = FakeRuntime()
+    wrapped.usage = {
+        "last": {
+            "inputTokens": 1,
+            "outputTokens": 2,
+            "totalTokens": 3,
+        },
+        "total": {
+            "inputTokens": 20,
+            "outputTokens": 13,
+            "totalTokens": 33,
+            "cachedInputTokens": 2,
+            "reasoningOutputTokens": 1,
+        },
+    }
+    runtime = RecordingCodexRuntime(wrapped, recorder)
+
+    asyncio.run(runtime.run_prompt(_command()))
+
+    usage = recorder.usages[0]
+    assert usage.input_tokens == 20
+    assert usage.output_tokens == 13
+    assert usage.total_tokens == 33
+    assert usage.cached_input_tokens == 2
+    assert usage.reasoning_output_tokens == 1
 
 
 def test_recording_codex_runtime_records_failure_and_reraises() -> None:

@@ -25,10 +25,11 @@ def test_codex_usage_repository_creates_lists_and_summarizes_usage(
     assert result == {
         "first_source": "micro_event_extract",
         "first_total_tokens": 33,
-        "summary_run_count": 2,
-        "summary_total_tokens": 43,
-        "source_summary_run_count": 1,
-        "next_cursor": 1,
+        "summary_run_count": 3,
+        "summary_total_tokens": 76,
+        "source_summary_run_count": 2,
+        "source_summary_total_tokens": 66,
+        "next_cursor": 2,
     }
 
 
@@ -78,6 +79,38 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     window_index=1,
                 )
             )
+            await repository.create_usage(
+                CodexUsageCreate(
+                    source="micro_event_extract",
+                    operation="extract_window",
+                    model="gpt-test",
+                    status="succeeded",
+                    thread_id="thread-2",
+                    turn_id="turn-2",
+                    usage_json={
+                        "last": {"totalTokens": 3},
+                        "total": {
+                            "inputTokens": 20,
+                            "outputTokens": 13,
+                            "totalTokens": 33,
+                            "cachedInputTokens": 2,
+                            "reasoningOutputTokens": 1,
+                        },
+                    },
+                    input_tokens=None,
+                    output_tokens=None,
+                    total_tokens=None,
+                    cached_input_tokens=None,
+                    reasoning_output_tokens=None,
+                    duration_ms=1234,
+                    video_id=None,
+                    video_task_id=None,
+                    job_id=None,
+                    job_attempt_id=None,
+                    transcript_id=None,
+                    window_index=2,
+                )
+            )
 
             all_rows = await repository.list_usages(CodexUsageListQuery(limit=1))
             source_rows = await repository.list_usages(
@@ -89,6 +122,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                 "summary_run_count": all_rows.summary.run_count,
                 "summary_total_tokens": all_rows.summary.total_tokens,
                 "source_summary_run_count": source_rows.summary.run_count,
+                "source_summary_total_tokens": source_rows.summary.total_tokens,
                 "next_cursor": all_rows.next_cursor,
             }
     finally:

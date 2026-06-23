@@ -27,29 +27,30 @@ def extract_usage_tokens(
 ) -> tuple[int | None, int | None, int | None, int | None, int | None]:
     if usage_json is None:
         return None, None, None, None, None
+    token_source = _token_source(usage_json)
     input_tokens = _int_at(
-        usage_json,
+        token_source,
         "inputTokens",
         "input_tokens",
         "promptTokens",
         "prompt_tokens",
     )
     output_tokens = _int_at(
-        usage_json,
+        token_source,
         "outputTokens",
         "output_tokens",
         "completionTokens",
         "completion_tokens",
     )
     total_tokens = _int_at(
-        usage_json,
+        token_source,
         "totalTokens",
         "total_tokens",
         "total",
         "tokens",
     )
     cached_input_tokens = _int_at(
-        usage_json,
+        token_source,
         "cachedInputTokens",
         "cached_input_tokens",
         "cachedTokens",
@@ -60,7 +61,7 @@ def extract_usage_tokens(
         ("prompt_tokens_details", "cached_tokens"),
     )
     reasoning_output_tokens = _int_at(
-        usage_json,
+        token_source,
         "reasoningOutputTokens",
         "reasoning_output_tokens",
         "reasoningTokens",
@@ -77,6 +78,14 @@ def extract_usage_tokens(
         cached_input_tokens,
         reasoning_output_tokens,
     )
+
+
+def _token_source(usage_json: JsonObject) -> JsonObject:
+    for key in ("total", "last"):
+        value = usage_json.get(key)
+        if isinstance(value, dict):
+            return {str(item_key): item_value for item_key, item_value in value.items()}
+    return usage_json
 
 
 def _to_jsonable(value: object) -> object:
