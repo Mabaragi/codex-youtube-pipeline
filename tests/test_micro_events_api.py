@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from httpx import ASGITransport, AsyncClient
@@ -208,7 +208,34 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
         channel_id: int | None,
         limit: int,
     ) -> list[VideoTaskWithVideoRecord]:
-        return []
+        latest_by_video: dict[int, VideoTaskRecord] = {}
+        for task in self.tasks.values():
+            if (
+                task.task_name != task_name
+                or task.status != "succeeded"
+                or task.output_transcript_id is None
+            ):
+                continue
+            video = self.videos.videos.get(task.video_id)
+            if video is None:
+                continue
+            if channel_id is not None and video.channel_id != channel_id:
+                continue
+            current = latest_by_video.get(task.video_id)
+            if current is None or task.id > current.id:
+                latest_by_video[task.video_id] = task
+        records = [
+            VideoTaskWithVideoRecord(
+                task=task,
+                video=self.videos.videos[task.video_id],
+            )
+            for task in latest_by_video.values()
+        ]
+        records.sort(
+            key=lambda record: (record.video.published_at, record.video.id),
+            reverse=True,
+        )
+        return records[:limit]
 
     async def get_latest_succeeded_task_for_video(
         self,
@@ -1102,6 +1129,65 @@ def test_micro_event_extract_skips_succeeded_until_regenerate_requested() -> Non
     assert len(fakes.extractor.prompts) == 2
 
 
+def test_micro_event_batch_extract_processes_next_eligible_video_after_succeeded() -> None:
+    fakes = _seed_ready_fakes()
+    first = asyncio.run(_extract(fakes))
+    _seed_ready_video(
+        fakes,
+        video_id=2,
+        transcript_id=2,
+        cue_task_id=3,
+        youtube_video_id="video2DEF456",
+        published_at=NOW - timedelta(minutes=1),
+    )
+    fakes.extractor.responses = [_extractor_json("tr2-c000001", "tr2-c000002")]
+
+    response = asyncio.run(_extract_all(fakes, json={"limit": 1}))
+
+    assert first["status"] == "succeeded"
+    assert response["requestedCount"] == 1
+    assert response["processedCount"] == 1
+    assert response["succeededCount"] == 1
+    assert response["scannedCount"] == 2
+    assert response["alreadySatisfiedCount"] == 1
+    assert response["items"][0]["videoId"] == 2
+    assert response["items"][0]["reason"] == "extracted"
+    assert len(fakes.extractor.prompts) == 2
+
+
+def test_micro_event_batch_extract_retries_failed_only_when_requested() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = ["not json"]
+    failed = asyncio.run(_extract(fakes))
+
+    skipped = asyncio.run(_extract_all(fakes, json={"limit": 1}))
+    fakes.extractor.responses = [_extractor_json()]
+    retried = asyncio.run(_extract_all(fakes, json={"limit": 1, "retryFailed": True}))
+
+    assert failed["status"] == "failed"
+    assert skipped["processedCount"] == 0
+    assert skipped["ineligibleCount"] == 1
+    assert retried["processedCount"] == 1
+    assert retried["succeededCount"] == 1
+    assert retried["items"][0]["reason"] == "extracted"
+
+
+def test_micro_event_batch_extract_regenerates_succeeded_when_requested() -> None:
+    fakes = _seed_ready_fakes()
+    asyncio.run(_extract(fakes))
+
+    skipped = asyncio.run(_extract_all(fakes, json={"limit": 1}))
+    regenerated = asyncio.run(
+        _extract_all(fakes, json={"limit": 1, "regenerateSucceeded": True})
+    )
+
+    assert skipped["processedCount"] == 0
+    assert skipped["alreadySatisfiedCount"] == 1
+    assert regenerated["processedCount"] == 1
+    assert regenerated["items"][0]["reason"] == "extracted"
+    assert len(fakes.extractor.prompts) == 2
+
+
 def test_micro_event_extract_records_invalid_json_as_failed_task() -> None:
     fakes = _seed_ready_fakes()
     fakes.extractor.responses = ["not json"]
@@ -1416,6 +1502,9 @@ def test_micro_event_extract_openapi_paths_are_registered() -> None:
     assert schema["paths"]["/videos/{video_id}/video-tasks/micro-event-extract"][
         "post"
     ]["tags"] == ["micro-events"]
+    assert schema["paths"]["/video-tasks/micro-event-extract"]["post"]["tags"] == [
+        "micro-events"
+    ]
     assert schema["paths"]["/videos/{video_id}/micro-event-extractions/latest"]["get"][
         "tags"
     ] == ["micro-events"]
@@ -1434,6 +1523,26 @@ async def _extract(
     ) as client:
         response = await client.post(
             "/videos/1/video-tasks/micro-event-extract",
+            json=json,
+        )
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+async def _extract_all(
+    fakes: _Fakes,
+    *,
+    json: dict[str, Any] | None = None,
+    expected_status: int = 201,
+) -> Any:
+    app = _app(fakes)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post(
+            "/video-tasks/micro-event-extract",
             json=json,
         )
 
@@ -1492,21 +1601,53 @@ def _app(fakes: _Fakes) -> Any:
 
 def _seed_ready_fakes() -> _Fakes:
     fakes = _Fakes()
-    _seed_video(fakes)
-    _seed_transcript(fakes)
-    _seed_cues(fakes)
-    _seed_cue_task(fakes)
+    _seed_ready_video(fakes)
     return fakes
 
 
-def _seed_video(fakes: _Fakes) -> None:
-    fakes.videos.videos[1] = VideoRecord(
-        id=1,
+def _seed_ready_video(
+    fakes: _Fakes,
+    *,
+    video_id: int = 1,
+    transcript_id: int = 1,
+    cue_task_id: int = 1,
+    youtube_video_id: str = YOUTUBE_VIDEO_ID,
+    published_at: datetime = NOW,
+) -> None:
+    _seed_video(
+        fakes,
+        video_id=video_id,
+        youtube_video_id=youtube_video_id,
+        published_at=published_at,
+    )
+    _seed_transcript(
+        fakes,
+        transcript_id=transcript_id,
+        youtube_video_id=youtube_video_id,
+    )
+    _seed_cues(fakes, transcript_id=transcript_id)
+    _seed_cue_task(
+        fakes,
+        task_id=cue_task_id,
+        video_id=video_id,
+        transcript_id=transcript_id,
+    )
+
+
+def _seed_video(
+    fakes: _Fakes,
+    *,
+    video_id: int = 1,
+    youtube_video_id: str = YOUTUBE_VIDEO_ID,
+    published_at: datetime = NOW,
+) -> None:
+    fakes.videos.videos[video_id] = VideoRecord(
+        id=video_id,
         channel_id=1,
-        youtube_video_id=YOUTUBE_VIDEO_ID,
-        title="Live VOD",
+        youtube_video_id=youtube_video_id,
+        title=f"Live VOD {video_id}",
         description="Description",
-        published_at=NOW,
+        published_at=published_at,
         duration="PT1H",
         thumbnail_url=None,
         source_listing_api_call_id=None,
@@ -1517,18 +1658,23 @@ def _seed_video(fakes: _Fakes) -> None:
     )
 
 
-def _seed_transcript(fakes: _Fakes) -> None:
-    fakes.transcripts.records[1] = YouTubeTranscriptMetadataRecord(
-        id=1,
-        video_id=YOUTUBE_VIDEO_ID,
+def _seed_transcript(
+    fakes: _Fakes,
+    *,
+    transcript_id: int = 1,
+    youtube_video_id: str = YOUTUBE_VIDEO_ID,
+) -> None:
+    fakes.transcripts.records[transcript_id] = YouTubeTranscriptMetadataRecord(
+        id=transcript_id,
+        video_id=youtube_video_id,
         language="Korean",
         language_code="ko",
         is_generated=True,
         requested_languages=("ko", "en"),
         preserve_formatting=False,
         storage_bucket="raw",
-        storage_object_name="youtube/transcripts/abc123DEF45.json",
-        storage_uri="s3://raw/youtube/transcripts/abc123DEF45.json",
+        storage_object_name=f"youtube/transcripts/{youtube_video_id}.json",
+        storage_uri=f"s3://raw/youtube/transcripts/{youtube_video_id}.json",
         response_sha256="a" * 64,
         segment_count=2,
         text_length=10,
@@ -1538,13 +1684,18 @@ def _seed_transcript(fakes: _Fakes) -> None:
     )
 
 
-def _seed_cues(fakes: _Fakes, *, cue_starts_ms: list[int] | None = None) -> None:
+def _seed_cues(
+    fakes: _Fakes,
+    *,
+    transcript_id: int = 1,
+    cue_starts_ms: list[int] | None = None,
+) -> None:
     starts = cue_starts_ms or [0, 60_000]
-    fakes.cues.records[1] = [
+    fakes.cues.records[transcript_id] = [
         TranscriptCueRecord(
             id=index,
-            transcript_id=1,
-            cue_id=f"tr1-c{index:06d}",
+            transcript_id=transcript_id,
+            cue_id=f"tr{transcript_id}-c{index:06d}",
             cue_index=index,
             text=f"cue {index}",
             start_ms=start_ms,
@@ -1560,10 +1711,16 @@ def _seed_cues(fakes: _Fakes, *, cue_starts_ms: list[int] | None = None) -> None
     ]
 
 
-def _seed_cue_task(fakes: _Fakes) -> None:
-    fakes.video_tasks.tasks[1] = VideoTaskRecord(
-        id=1,
-        video_id=1,
+def _seed_cue_task(
+    fakes: _Fakes,
+    *,
+    task_id: int = 1,
+    video_id: int = 1,
+    transcript_id: int = 1,
+) -> None:
+    fakes.video_tasks.tasks[task_id] = VideoTaskRecord(
+        id=task_id,
+        video_id=video_id,
         task_name="transcript_cue_generate",
         task_version="v1",
         input_hash="c" * 64,
@@ -1572,7 +1729,7 @@ def _seed_cue_task(fakes: _Fakes) -> None:
         timeout_seconds=600,
         job_id=None,
         job_attempt_id=None,
-        output_transcript_id=1,
+        output_transcript_id=transcript_id,
         output_json={"cueCount": 2},
         error_type=None,
         error_message=None,
@@ -1581,7 +1738,7 @@ def _seed_cue_task(fakes: _Fakes) -> None:
         created_at=NOW,
         updated_at=NOW,
     )
-    fakes.video_tasks.next_id = 2
+    fakes.video_tasks.next_id = max(fakes.video_tasks.next_id, task_id + 1)
 
 
 def _extractor_json(

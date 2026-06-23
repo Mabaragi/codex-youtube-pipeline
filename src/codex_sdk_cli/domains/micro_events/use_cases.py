@@ -41,6 +41,7 @@ from codex_sdk_cli.domains.video_tasks.ports import (
     VideoTaskCreate,
     VideoTaskRecord,
     VideoTaskRepositoryPort,
+    VideoTaskWithVideoRecord,
 )
 from codex_sdk_cli.domains.videos.exceptions import VideoNotFound
 from codex_sdk_cli.domains.videos.ports import VideoRecord, VideoRepositoryPort
@@ -83,6 +84,8 @@ from .ports import (
     SupportLevel,
 )
 from .schemas import (
+    MicroEventBatchExtractRequest,
+    MicroEventBatchExtractResponse,
     MicroEventExtractionDetailResponse,
     MicroEventExtractRequest,
     MicroEventExtractResponse,
@@ -311,6 +314,7 @@ event는 한 문장으로 구체적으로 작성한다.
 
 
 MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT = 1
+MICRO_EVENT_EXTRACT_BATCH_SCAN_LIMIT = 500
 DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT = 80
 
 
@@ -447,6 +451,58 @@ class ExtractVideoMicroEventsUseCase:
             regenerate_succeeded=request.regenerate_succeeded,
         )
 
+    async def execute_all(
+        self,
+        request: MicroEventBatchExtractRequest,
+    ) -> MicroEventBatchExtractResponse:
+        candidates = await self._video_tasks.list_latest_succeeded_tasks(
+            task_name=TRANSCRIPT_CUE_GENERATE_TASK_NAME,
+            channel_id=None,
+            limit=MICRO_EVENT_EXTRACT_BATCH_SCAN_LIMIT,
+        )
+        items: list[MicroEventExtractResponse] = []
+        scanned_count = 0
+        already_satisfied_count = 0
+        ineligible_count = 0
+        domain_fingerprint_cache: dict[int, str] = {}
+        single_request = _single_extract_request(request)
+
+        for candidate in candidates:
+            if len(items) >= request.limit:
+                break
+            scanned_count += 1
+            action = await self._batch_candidate_action(
+                candidate,
+                request,
+                domain_fingerprint_cache,
+            )
+            if action == "already_satisfied":
+                already_satisfied_count += 1
+                continue
+            if action == "ineligible":
+                ineligible_count += 1
+                continue
+            running_count = await self._video_tasks.count_running(
+                task_name=MICRO_EVENT_EXTRACT_TASK_NAME
+            )
+            if running_count >= MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT:
+                ineligible_count += 1
+                break
+            items.append(await self.execute(candidate.video.id, single_request))
+
+        return MicroEventBatchExtractResponse(
+            requestedCount=request.limit,
+            processedCount=len(items),
+            succeededCount=sum(item.status == "succeeded" for item in items),
+            failedCount=sum(item.status == "failed" for item in items),
+            skippedCount=sum(item.status == "skipped" for item in items),
+            timedOutCount=sum(item.status == "timed_out" for item in items),
+            scannedCount=scanned_count,
+            alreadySatisfiedCount=already_satisfied_count,
+            ineligibleCount=ineligible_count,
+            items=items,
+        )
+
     async def get_latest(self, video_id: int) -> MicroEventExtractionDetailResponse:
         if await self._videos.get_video(video_id) is None:
             raise VideoNotFound("Video not found.")
@@ -537,6 +593,61 @@ class ExtractVideoMicroEventsUseCase:
             timeout_seconds=timeout_seconds,
         )
         return response.model_dump(by_alias=True)
+
+    async def _batch_candidate_action(
+        self,
+        candidate: VideoTaskWithVideoRecord,
+        request: MicroEventBatchExtractRequest,
+        domain_fingerprint_cache: dict[int, str],
+    ) -> str:
+        transcript_id = candidate.task.output_transcript_id
+        if transcript_id is None:
+            return "ineligible"
+        metadata = await self._transcripts.get_transcript_metadata(transcript_id)
+        if metadata is None:
+            return "ineligible"
+        model = request.model or self._model
+        reasoning_effort = request.reasoning_effort or self._reasoning_effort
+        input_hash = _task_input_hash(
+            video=candidate.video,
+            metadata=metadata,
+            window_minutes=request.window_minutes,
+            overlap_minutes=request.overlap_minutes,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            domain_knowledge_fingerprint=(
+                await self._batch_domain_knowledge_fingerprint(
+                    candidate.video,
+                    domain_fingerprint_cache,
+                )
+            ),
+        )
+        task = await self._video_tasks.get_task_for_input(
+            video_id=candidate.video.id,
+            task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
+            task_version=MICRO_EVENT_EXTRACT_TASK_VERSION,
+            input_hash=input_hash,
+        )
+        if task is None or task.status == "pending":
+            return "execute"
+        if task.status == "succeeded":
+            return "execute" if request.regenerate_succeeded else "already_satisfied"
+        if task.status in {"failed", "timed_out"}:
+            return "execute" if request.retry_failed else "ineligible"
+        return "ineligible"
+
+    async def _batch_domain_knowledge_fingerprint(
+        self,
+        video: VideoRecord,
+        cache: dict[int, str],
+    ) -> str:
+        cached = cache.get(video.channel_id)
+        if cached is not None:
+            return cached
+        entries = await self._load_domain_knowledge_entries(video)
+        fingerprint = _domain_knowledge_fingerprint(entries)
+        cache[video.channel_id] = fingerprint
+        return fingerprint
 
     async def _load_inputs(
         self,
@@ -1507,6 +1618,19 @@ def _domain_knowledge_fingerprint(
             sort_keys=True,
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _single_extract_request(
+    request: MicroEventBatchExtractRequest,
+) -> MicroEventExtractRequest:
+    return MicroEventExtractRequest(
+        retryFailed=request.retry_failed,
+        regenerateSucceeded=request.regenerate_succeeded,
+        windowMinutes=request.window_minutes,
+        overlapMinutes=request.overlap_minutes,
+        model=request.model,
+        reasoningEffort=request.reasoning_effort,
+    )
 
 
 def _task_input_hash(

@@ -58,6 +58,28 @@ class MicroEventExtractRequest(BaseModel):
     )
 
 
+class MicroEventBatchExtractRequest(MicroEventExtractRequest):
+    limit: int = Field(default=1, ge=1, le=5)
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "limit": 1,
+                    "retryFailed": False,
+                    "regenerateSucceeded": False,
+                    "windowMinutes": 30,
+                    "overlapMinutes": 5,
+                    "model": "gpt-5.5",
+                    "reasoningEffort": "medium",
+                }
+            ]
+        },
+    )
+
+
 class MicroEventExtractResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str = Field(alias="youtubeVideoId")
@@ -78,6 +100,21 @@ class MicroEventExtractResponse(BaseModel):
     last_cue_id: str | None = Field(alias="lastCueId")
     error_type: str | None = Field(alias="errorType")
     error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class MicroEventBatchExtractResponse(BaseModel):
+    requested_count: int = Field(alias="requestedCount")
+    processed_count: int = Field(alias="processedCount")
+    succeeded_count: int = Field(alias="succeededCount")
+    failed_count: int = Field(alias="failedCount")
+    skipped_count: int = Field(alias="skippedCount")
+    timed_out_count: int = Field(alias="timedOutCount")
+    scanned_count: int = Field(alias="scannedCount")
+    already_satisfied_count: int = Field(alias="alreadySatisfiedCount")
+    ineligible_count: int = Field(alias="ineligibleCount")
+    items: list[MicroEventExtractResponse]
 
     model_config = ConfigDict(populate_by_name=True)
 

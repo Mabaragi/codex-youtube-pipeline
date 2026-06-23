@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VideosPage } from "../videos-page";
-import type { OpsChannel, OpsVideoFilters, OpsVideoList } from "@/lib/types";
+import type {
+  MicroEventBatchExtractResult,
+  OpsChannel,
+  OpsVideoFilters,
+  OpsVideoList,
+} from "@/lib/types";
 
 const routerPush = vi.hoisted(() => vi.fn());
 const queryMocks = vi.hoisted(() => ({
@@ -15,10 +20,17 @@ const queryMocks = vi.hoisted(() => ({
     isLoading: false,
     error: null as Error | null,
   },
+  extractAllMicroEvents: {
+    mutate: vi.fn(),
+    isPending: false,
+    data: undefined as MicroEventBatchExtractResult | undefined,
+    error: null as Error | null,
+  },
   videoFilters: undefined as OpsVideoFilters | undefined,
 }));
 
 vi.mock("@/lib/queries", () => ({
+  useExtractAllMicroEventsMutation: () => queryMocks.extractAllMicroEvents,
   useOpsChannels: () => queryMocks.channels,
   useOpsVideos: (filters: OpsVideoFilters) => {
     queryMocks.videoFilters = filters;
@@ -77,6 +89,10 @@ describe("VideosPage", () => {
     queryMocks.videos.data = videoList;
     queryMocks.videos.isLoading = false;
     queryMocks.videos.error = null;
+    queryMocks.extractAllMicroEvents.mutate.mockReset();
+    queryMocks.extractAllMicroEvents.isPending = false;
+    queryMocks.extractAllMicroEvents.data = undefined;
+    queryMocks.extractAllMicroEvents.error = null;
     queryMocks.videoFilters = undefined;
   });
 
@@ -153,5 +169,69 @@ describe("VideosPage", () => {
     render(<VideosPage initialFilters={{ channelId: 99, limit: 100, offset: 0 }} />);
 
     expect(screen.getByRole("option", { name: "#99" })).toBeTruthy();
+  });
+
+  it("runs a micro-event batch with selected options", () => {
+    render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
+
+    fireEvent.change(screen.getByLabelText("Batch size"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "gpt-5.4" } });
+    fireEvent.change(screen.getByLabelText("Reasoning"), {
+      target: { value: "high" },
+    });
+    fireEvent.click(screen.getByLabelText("Retry failed"));
+    fireEvent.click(screen.getByRole("button", { name: /Extract batch/i }));
+
+    expect(queryMocks.extractAllMicroEvents.mutate).toHaveBeenCalledWith({
+      limit: 3,
+      model: "gpt-5.4",
+      reasoningEffort: "high",
+      retryFailed: true,
+      regenerateSucceeded: false,
+    });
+  });
+
+  it("shows micro-event batch result counts and task link", () => {
+    queryMocks.extractAllMicroEvents.data = {
+      requestedCount: 1,
+      processedCount: 1,
+      succeededCount: 1,
+      failedCount: 0,
+      skippedCount: 0,
+      timedOutCount: 0,
+      scannedCount: 2,
+      alreadySatisfiedCount: 1,
+      ineligibleCount: 0,
+      items: [
+        {
+          videoId: 42,
+          youtubeVideoId: "abc123DEF45",
+          videoTaskId: 99,
+          status: "succeeded",
+          reason: "extracted",
+          model: "gpt-5.4",
+          reasoningEffort: "high",
+          jobId: 77,
+          jobAttemptId: 88,
+          transcriptId: 11,
+          windowCount: 1,
+          microEventCount: 2,
+          asrCorrectionCandidateCount: 0,
+          firstCueId: "tr1-c000001",
+          lastCueId: "tr1-c000002",
+          errorType: null,
+          errorMessage: null,
+        },
+      ],
+    };
+
+    render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
+
+    expect(screen.getByText("Processed")).toBeTruthy();
+    expect(screen.getByText("Satisfied")).toBeTruthy();
+    expect(screen.getByText("extracted")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Tasks/i }).getAttribute("href")).toBe(
+      "/tasks?taskName=micro_event_extract&limit=100",
+    );
   });
 });

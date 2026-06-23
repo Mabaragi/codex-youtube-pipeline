@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
@@ -516,10 +517,21 @@ async def _resolve_domain_entry_type_filter(
     if entry_type is None:
         return None
     normalized = entry_type.strip().casefold()
+    normalized_key = _normalized_domain_entry_type_key(entry_type)
     for record in await repository.list_types():
-        if record.key.casefold() == normalized or record.label.casefold() == normalized:
+        if (
+            record.key.casefold() in {normalized, normalized_key}
+            or record.label.casefold() == normalized
+        ):
             return record.id
     raise click.ClickException(f"Domain entry type not found: {entry_type}")
+
+
+def _normalized_domain_entry_type_key(value: str) -> str:
+    lowered = value.strip().lower()
+    key = re.sub(r"[^\w-]+", "-", lowered, flags=re.UNICODE)
+    key = re.sub(r"_+", "-", key).strip("-")
+    return key or "type"
 
 
 async def _with_domain_repository(

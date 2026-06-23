@@ -6,6 +6,8 @@ from fastapi import APIRouter, Body, Path, status
 
 from .dependencies import ExtractVideoMicroEventsUseCaseDep
 from .schemas import (
+    MicroEventBatchExtractRequest,
+    MicroEventBatchExtractResponse,
     MicroEventExtractionDetailResponse,
     MicroEventExtractRequest,
     MicroEventExtractResponse,
@@ -25,6 +27,18 @@ async def extract_video_micro_events(
     request: Annotated[MicroEventExtractRequest | None, Body()] = None,
 ) -> MicroEventExtractResponse:
     return await use_case.execute(video_id, request or MicroEventExtractRequest())
+
+
+@router.post(
+    "/video-tasks/micro-event-extract",
+    response_model=MicroEventBatchExtractResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def extract_all_video_micro_events(
+    use_case: ExtractVideoMicroEventsUseCaseDep,
+    request: Annotated[MicroEventBatchExtractRequest | None, Body()] = None,
+) -> MicroEventBatchExtractResponse:
+    return await use_case.execute_all(request or MicroEventBatchExtractRequest())
 
 
 @router.get(

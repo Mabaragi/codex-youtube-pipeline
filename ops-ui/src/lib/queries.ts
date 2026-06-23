@@ -12,6 +12,8 @@ import type {
   CollectChannelVideosResult,
   GenerateAllTranscriptCuesResult,
   GenerateChannelTranscriptCuesResult,
+  MicroEventBatchExtractRequest,
+  MicroEventBatchExtractResult,
   MicroEventExtractRequest,
   MicroEventExtractResult,
   MicroEventExtractionDetail,
@@ -644,6 +646,40 @@ export function useExtractMicroEventsMutation() {
         queryClient.invalidateQueries({
           queryKey: queryKeys.microEventExtraction(variables.videoId),
         }),
+      ]);
+    },
+  });
+}
+
+export function useExtractAllMicroEventsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      limit = 1,
+      retryFailed = false,
+      regenerateSucceeded = false,
+      windowMinutes = 30,
+      overlapMinutes = 5,
+      model = DEFAULT_CODEX_MODEL,
+      reasoningEffort = DEFAULT_CODEX_REASONING_EFFORT,
+    }: Partial<MicroEventBatchExtractRequest> = {}) =>
+      requestJson<MicroEventBatchExtractResult>("/video-tasks/micro-event-extract", {
+        method: "POST",
+        body: {
+          limit,
+          retryFailed,
+          regenerateSucceeded,
+          windowMinutes,
+          overlapMinutes,
+          model,
+          reasoningEffort,
+        },
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["micro-event-extractions"] }),
       ]);
     },
   });

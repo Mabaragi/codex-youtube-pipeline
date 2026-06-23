@@ -661,6 +661,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/micro-event-extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extract All Video Micro Events */
+        post: operations["extract_all_video_micro_events_video_tasks_micro_event_extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/video-tasks/transcript-collect": {
         parameters: {
             query?: never;
@@ -1667,6 +1684,72 @@ export interface components {
         LogoutResponse: {
             /** Success */
             success: boolean;
+        };
+        /**
+         * MicroEventBatchExtractRequest
+         * @example {
+         *       "limit": 1,
+         *       "model": "gpt-5.5",
+         *       "overlapMinutes": 5,
+         *       "reasoningEffort": "medium",
+         *       "regenerateSucceeded": false,
+         *       "retryFailed": false,
+         *       "windowMinutes": 30
+         *     }
+         */
+        MicroEventBatchExtractRequest: {
+            /**
+             * Limit
+             * @default 1
+             */
+            limit: number;
+            /** Model */
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            /**
+             * Overlapminutes
+             * @default 5
+             */
+            overlapMinutes: number;
+            /** Reasoningeffort */
+            reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
+            /**
+             * Regeneratesucceeded
+             * @default false
+             */
+            regenerateSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /**
+             * Windowminutes
+             * @default 30
+             */
+            windowMinutes: number;
+        };
+        /** MicroEventBatchExtractResponse */
+        MicroEventBatchExtractResponse: {
+            /** Alreadysatisfiedcount */
+            alreadySatisfiedCount: number;
+            /** Failedcount */
+            failedCount: number;
+            /** Ineligiblecount */
+            ineligibleCount: number;
+            /** Items */
+            items: components["schemas"]["MicroEventExtractResponse"][];
+            /** Processedcount */
+            processedCount: number;
+            /** Requestedcount */
+            requestedCount: number;
+            /** Scannedcount */
+            scannedCount: number;
+            /** Skippedcount */
+            skippedCount: number;
+            /** Succeededcount */
+            succeededCount: number;
+            /** Timedoutcount */
+            timedOutCount: number;
         };
         /** MicroEventCandidateResponse */
         MicroEventCandidateResponse: {
@@ -4582,6 +4665,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveYouTubeChannelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extract_all_video_micro_events_video_tasks_micro_event_extract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MicroEventBatchExtractRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MicroEventBatchExtractResponse"];
                 };
             };
             /** @description Validation Error */

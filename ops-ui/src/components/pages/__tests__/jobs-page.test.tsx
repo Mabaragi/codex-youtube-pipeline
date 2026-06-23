@@ -192,6 +192,12 @@ describe("JobsPage filters", () => {
     expect(screen.getByRole("option", { name: "#99" })).toBeTruthy();
   });
 
+  it("includes micro-event extraction in the step filter", () => {
+    render(<JobsPage initialFilters={{ limit: 50 }} />);
+
+    expect(screen.getByRole("option", { name: "micro_event_extract" })).toBeTruthy();
+  });
+
   it("disables transcript job retry while transcript collection is running", () => {
     queryMocks.jobs.data = {
       items: [
