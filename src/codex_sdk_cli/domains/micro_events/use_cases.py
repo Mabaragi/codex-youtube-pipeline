@@ -971,7 +971,13 @@ def _validated_window(
     event_creates: list[MicroEventCandidateCreate] = []
     ranges: list[tuple[str, int, int]] = []
     for index, event in enumerate(output.events, start=1):
-        start_position, end_position, evidence_cue_ids = _validate_event_cue_refs(
+        (
+            start_cue_id,
+            end_cue_id,
+            start_position,
+            end_position,
+            evidence_cue_ids,
+        ) = _validate_event_cue_refs(
             event,
             cue_id_to_position,
         )
@@ -981,8 +987,8 @@ def _validated_window(
                 candidate_index=index,
                 activity=event.program_mode,
                 event=event.event,
-                start_cue_id=event.start_cue_id,
-                end_cue_id=event.end_cue_id,
+                start_cue_id=start_cue_id,
+                end_cue_id=end_cue_id,
                 evidence_cue_ids=evidence_cue_ids,
                 boundary_before=event.relation_to_previous in {"NEW_TOPIC", "RETURN"},
                 boundary_after=not event.continues_to_next,
@@ -997,7 +1003,12 @@ def _validated_window(
         )
     excluded_creates: list[MicroEventExcludedRangeCreate] = []
     for index, excluded_range in enumerate(output.excluded_ranges, start=1):
-        start_position, end_position = _validate_range_cue_refs(
+        (
+            start_cue_id,
+            end_cue_id,
+            start_position,
+            end_position,
+        ) = _validate_range_cue_refs(
             excluded_range.start_cue_id,
             excluded_range.end_cue_id,
             cue_id_to_position,
@@ -1006,15 +1017,18 @@ def _validated_window(
         excluded_creates.append(
             MicroEventExcludedRangeCreate(
                 range_index=index,
-                start_cue_id=excluded_range.start_cue_id,
-                end_cue_id=excluded_range.end_cue_id,
+                start_cue_id=start_cue_id,
+                end_cue_id=end_cue_id,
                 reason=excluded_range.reason,
             )
         )
     _validate_owned_range_coverage(ranges, owned_cue_count=len(cue_window.owned_cues))
     asr_creates: list[AsrCorrectionCandidateCreate] = []
     for index, candidate in enumerate(output.asr_correction_candidates, start=1):
-        _validate_evidence_cue_ids(candidate.evidence_cue_ids, cue_id_to_position)
+        evidence_cue_ids = _validate_evidence_cue_ids(
+            candidate.evidence_cue_ids,
+            cue_id_to_position,
+        )
         asr_creates.append(
             AsrCorrectionCandidateCreate(
                 candidate_index=index,
@@ -1022,7 +1036,7 @@ def _validated_window(
                 suggested=candidate.suggested,
                 correction_type=candidate.correction_type,
                 apply_scope=candidate.apply_scope,
-                evidence_cue_ids=candidate.evidence_cue_ids,
+                evidence_cue_ids=evidence_cue_ids,
                 confidence=candidate.confidence,
             )
         )
@@ -1107,53 +1121,97 @@ def _validate_extractor_output(parsed: JsonObject) -> _ExtractorOutput:
 def _validate_event_cue_refs(
     event: _MicroEventOutput,
     cue_id_to_position: dict[str, int],
-) -> tuple[int, int, list[str]]:
-    start_position, end_position = _validate_range_cue_refs(
+) -> tuple[str, str, int, int, list[str]]:
+    start_cue_id, end_cue_id, start_position, end_position = _validate_range_cue_refs(
         event.start_cue_id,
         event.end_cue_id,
         cue_id_to_position,
     )
     valid_evidence_cue_ids: list[str] = []
     for cue_id in event.evidence_cue_ids:
-        _validate_cue_id(cue_id, cue_id_to_position)
-        if start_position <= cue_id_to_position[cue_id] <= end_position:
-            valid_evidence_cue_ids.append(cue_id)
+        resolved_cue_id = _resolve_cue_id(cue_id, cue_id_to_position)
+        if start_position <= cue_id_to_position[resolved_cue_id] <= end_position:
+            valid_evidence_cue_ids.append(resolved_cue_id)
     if not valid_evidence_cue_ids:
         raise MicroEventExtractionOutputInvalid(
             "event must have at least one evidence_cue_id inside its cue range."
         )
-    return start_position, end_position, valid_evidence_cue_ids
+    return start_cue_id, end_cue_id, start_position, end_position, valid_evidence_cue_ids
 
 
 def _validate_range_cue_refs(
     start_cue_id: str,
     end_cue_id: str,
     cue_id_to_position: dict[str, int],
-) -> tuple[int, int]:
-    _validate_cue_id(start_cue_id, cue_id_to_position)
-    _validate_cue_id(end_cue_id, cue_id_to_position)
-    start_position = cue_id_to_position[start_cue_id]
-    end_position = cue_id_to_position[end_cue_id]
+) -> tuple[str, str, int, int]:
+    resolved_start_cue_id = _resolve_cue_id(start_cue_id, cue_id_to_position)
+    resolved_end_cue_id = _resolve_cue_id(end_cue_id, cue_id_to_position)
+    start_position = cue_id_to_position[resolved_start_cue_id]
+    end_position = cue_id_to_position[resolved_end_cue_id]
     if start_position > end_position:
         raise MicroEventExtractionOutputInvalid(
             "start_cue_id must not come after end_cue_id."
         )
-    return start_position, end_position
+    return resolved_start_cue_id, resolved_end_cue_id, start_position, end_position
 
 
 def _validate_evidence_cue_ids(
     evidence_cue_ids: list[str],
     cue_id_to_position: dict[str, int],
-) -> None:
-    for cue_id in evidence_cue_ids:
-        _validate_cue_id(cue_id, cue_id_to_position)
+) -> list[str]:
+    return [_resolve_cue_id(cue_id, cue_id_to_position) for cue_id in evidence_cue_ids]
 
 
-def _validate_cue_id(cue_id: str, cue_id_to_position: dict[str, int]) -> None:
+def _resolve_cue_id(cue_id: str, cue_id_to_position: dict[str, int]) -> str:
     if cue_id not in cue_id_to_position:
+        resolved_cue_id = _unique_nearby_cue_id(cue_id, cue_id_to_position)
+        if resolved_cue_id is not None:
+            return resolved_cue_id
         raise MicroEventExtractionOutputInvalid(
             f"Extractor referenced cue_id outside OWNED_RANGE: {cue_id}"
         )
+    return cue_id
+
+
+def _unique_nearby_cue_id(
+    cue_id: str,
+    cue_id_to_position: dict[str, int],
+) -> str | None:
+    split = cue_id.rsplit("-c", maxsplit=1)
+    if len(split) != 2:
+        return None
+    prefix, suffix = split
+    matches = [
+        candidate
+        for candidate in cue_id_to_position
+        if candidate.startswith(f"{prefix}-c")
+        and _edit_distance_at_most_one(candidate.rsplit("-c", maxsplit=1)[1], suffix)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _edit_distance_at_most_one(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if abs(len(left) - len(right)) > 1:
+        return False
+    if len(left) == len(right):
+        return sum(a != b for a, b in zip(left, right, strict=True)) == 1
+    if len(left) > len(right):
+        left, right = right, left
+    left_index = 0
+    right_index = 0
+    edits = 0
+    while left_index < len(left) and right_index < len(right):
+        if left[left_index] == right[right_index]:
+            left_index += 1
+            right_index += 1
+            continue
+        edits += 1
+        right_index += 1
+        if edits > 1:
+            return False
+    return edits + (len(right) - right_index) == 1
 
 
 def _validate_owned_range_coverage(
