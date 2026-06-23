@@ -29,8 +29,18 @@ def upgrade() -> None:
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("sort_order", sa.Integer(), nullable=False),
         sa.Column("is_system", sa.Boolean(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.CheckConstraint("sort_order >= 0", name="domain_entry_types_sort_order_min"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_domain_entry_types")),
         sa.UniqueConstraint("key", name="uq_domain_entry_types_key"),
@@ -135,8 +145,18 @@ def upgrade() -> None:
         sa.Column("priority", sa.Integer(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("source_note", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "prompt_policy IN ('AUTO_ON_MATCH', 'ALWAYS_FOR_SCOPED_STREAMER', 'DISABLED')",
             name="domain_entries_prompt_policy_allowed",
@@ -167,7 +187,12 @@ def upgrade() -> None:
         sa.Column("streamer_id", sa.Integer(), nullable=False),
         sa.Column("relevance", sa.String(length=255), nullable=True),
         sa.Column("note", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(
             ["entry_id"],
             ["domain_entries.id"],
@@ -206,10 +231,23 @@ def upgrade() -> None:
         sa.Column("apply_scope", sa.String(length=32), nullable=False),
         sa.Column("language_code", sa.String(length=16), nullable=True),
         sa.Column("note", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.CheckConstraint(
-            "alias_kind IN ('ALIAS', 'ASR_ERROR', 'SEARCH_ALIAS', 'NICKNAME', 'WORDPLAY', 'MISSPELLING')",
+            "alias_kind IN ("
+            "'ALIAS', 'ASR_ERROR', 'SEARCH_ALIAS', 'NICKNAME', "
+            "'WORDPLAY', 'MISSPELLING'"
+            ")",
             name="domain_entry_aliases_kind_allowed",
         ),
         sa.CheckConstraint(
