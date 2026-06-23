@@ -9,6 +9,8 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import (
+    get_channel_repository,
+    get_domain_knowledge_repository,
     get_micro_event_extraction_repository,
     get_micro_event_extractor,
     get_operation_event_recorder,
@@ -20,6 +22,27 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_repository,
 )
 from codex_sdk_cli.api.main import create_app
+from codex_sdk_cli.domains.channels.ports import (
+    ChannelCreate,
+    ChannelRecord,
+    ChannelRepositoryPort,
+    ChannelUpdate,
+)
+from codex_sdk_cli.domains.domain_knowledge.ports import (
+    DomainEntryAliasCreate,
+    DomainEntryAliasRecord,
+    DomainEntryAliasUpdate,
+    DomainEntryCreate,
+    DomainEntryListQuery,
+    DomainEntryRecord,
+    DomainEntryStreamerLinkCreate,
+    DomainEntryTypeCreate,
+    DomainEntryTypeRecord,
+    DomainEntryUpdate,
+    DomainKnowledgePromptAliasRecord,
+    DomainKnowledgePromptEntryRecord,
+    DomainKnowledgeRepositoryPort,
+)
 from codex_sdk_cli.domains.micro_events.ports import (
     AsrCorrectionCandidateRecord,
     MicroEventCandidateRecord,
@@ -518,6 +541,145 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         return updated
 
 
+class FakeChannelRepository(ChannelRepositoryPort):
+    def __init__(self) -> None:
+        self.channels: dict[int, ChannelRecord] = {
+            1: ChannelRecord(
+                id=1,
+                streamer_id=1,
+                handle="@streamer",
+                name="Streamer Channel",
+                youtube_channel_id="channel-1",
+                uploads_playlist_id="uploads-1",
+                source_api_call_id=None,
+            )
+        }
+
+    async def create_channel(self, channel: ChannelCreate) -> ChannelRecord:
+        raise NotImplementedError
+
+    async def list_channels(
+        self,
+        *,
+        streamer_id: int | None = None,
+    ) -> list[ChannelRecord]:
+        if streamer_id is None:
+            return list(self.channels.values())
+        return [
+            channel
+            for channel in self.channels.values()
+            if channel.streamer_id == streamer_id
+        ]
+
+    async def get_channel(self, channel_id: int) -> ChannelRecord | None:
+        return self.channels.get(channel_id)
+
+    async def get_channel_by_youtube_channel_id(
+        self,
+        youtube_channel_id: str,
+    ) -> ChannelRecord | None:
+        return next(
+            (
+                channel
+                for channel in self.channels.values()
+                if channel.youtube_channel_id == youtube_channel_id
+            ),
+            None,
+        )
+
+    async def update_channel(
+        self,
+        channel_id: int,
+        update: ChannelUpdate,
+    ) -> ChannelRecord | None:
+        raise NotImplementedError
+
+    async def update_uploads_playlist_id(
+        self,
+        channel_id: int,
+        uploads_playlist_id: str,
+    ) -> ChannelRecord | None:
+        raise NotImplementedError
+
+    async def delete_channel(self, channel_id: int) -> bool:
+        raise NotImplementedError
+
+
+class FakeDomainKnowledgeRepository(DomainKnowledgeRepositoryPort):
+    def __init__(self) -> None:
+        self.prompt_entries: list[DomainKnowledgePromptEntryRecord] = []
+
+    async def list_types(self) -> list[DomainEntryTypeRecord]:
+        raise NotImplementedError
+
+    async def create_type(self, create: DomainEntryTypeCreate) -> DomainEntryTypeRecord:
+        raise NotImplementedError
+
+    async def get_or_create_type(
+        self,
+        create: DomainEntryTypeCreate,
+    ) -> DomainEntryTypeRecord:
+        raise NotImplementedError
+
+    async def get_type(self, type_id: int) -> DomainEntryTypeRecord | None:
+        raise NotImplementedError
+
+    async def list_entries(
+        self,
+        query: DomainEntryListQuery,
+    ) -> list[DomainEntryRecord]:
+        raise NotImplementedError
+
+    async def get_entry(self, entry_id: int) -> DomainEntryRecord | None:
+        raise NotImplementedError
+
+    async def create_entry(self, create: DomainEntryCreate) -> DomainEntryRecord:
+        raise NotImplementedError
+
+    async def update_entry(
+        self,
+        entry_id: int,
+        update: DomainEntryUpdate,
+    ) -> DomainEntryRecord | None:
+        raise NotImplementedError
+
+    async def archive_entry(self, entry_id: int) -> DomainEntryRecord | None:
+        raise NotImplementedError
+
+    async def add_streamer_link(
+        self,
+        entry_id: int,
+        link: DomainEntryStreamerLinkCreate,
+    ) -> DomainEntryRecord | None:
+        raise NotImplementedError
+
+    async def remove_streamer_link(self, entry_id: int, streamer_id: int) -> bool:
+        raise NotImplementedError
+
+    async def add_alias(
+        self,
+        entry_id: int,
+        alias: DomainEntryAliasCreate,
+    ) -> DomainEntryRecord | None:
+        raise NotImplementedError
+
+    async def update_alias(
+        self,
+        alias_id: int,
+        update: DomainEntryAliasUpdate,
+    ) -> DomainEntryAliasRecord | None:
+        raise NotImplementedError
+
+    async def delete_alias(self, alias_id: int) -> bool:
+        raise NotImplementedError
+
+    async def list_prompt_entries_for_streamer(
+        self,
+        streamer_id: int | None,
+    ) -> list[DomainKnowledgePromptEntryRecord]:
+        return self.prompt_entries
+
+
 class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
     def __init__(
         self,
@@ -746,6 +908,8 @@ class _Fakes:
         self.pipeline_jobs = FakePipelineJobRepository()
         self.transcripts = FakeTranscriptRepository()
         self.cues = FakeTranscriptCueRepository()
+        self.channels = FakeChannelRepository()
+        self.domain_knowledge = FakeDomainKnowledgeRepository()
         self.micro_events = FakeMicroEventExtractionRepository(
             self.videos,
             self.video_tasks,
@@ -843,6 +1007,68 @@ def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
     assert fakes.pipeline_jobs.jobs[1].input_json["promptVersion"] == (
         "micro-event-extract-v3"
     )
+
+
+def test_micro_event_extract_injects_matching_domain_knowledge_terms() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.domain_knowledge.prompt_entries = [
+        DomainKnowledgePromptEntryRecord(
+            entry_id=1,
+            type_key="person",
+            type_label="Person",
+            canonical_name="Known Person",
+            display_name=None,
+            disambiguation=None,
+            detail="Known person detail",
+            prompt_policy="AUTO_ON_MATCH",
+            priority=50,
+            aliases=[
+                DomainKnowledgePromptAliasRecord(
+                    surface_form="cue 1",
+                    alias_kind="ASR_ERROR",
+                    certainty="HIGH",
+                    apply_scope="SEARCH_AND_SUMMARY",
+                    language_code=None,
+                    note=None,
+                )
+            ],
+        ),
+        DomainKnowledgePromptEntryRecord(
+            entry_id=2,
+            type_key="term",
+            type_label="Term",
+            canonical_name="Always Term",
+            display_name=None,
+            disambiguation=None,
+            detail="Always scoped detail",
+            prompt_policy="ALWAYS_FOR_SCOPED_STREAMER",
+            priority=80,
+            aliases=[],
+        ),
+        DomainKnowledgePromptEntryRecord(
+            entry_id=3,
+            type_key="term",
+            type_label="Term",
+            canonical_name="Missing Term",
+            display_name=None,
+            disambiguation=None,
+            detail="This should not be injected",
+            prompt_policy="AUTO_ON_MATCH",
+            priority=90,
+            aliases=[],
+        ),
+    ]
+
+    asyncio.run(_extract(fakes))
+
+    prompt = fakes.extractor.prompts[0]
+    assert '"canonicalForm": "Known Person"' in prompt
+    assert '"detail": "Known person detail"' in prompt
+    assert '"relation": "ASR_ERROR"' in prompt
+    assert '"canonicalForm": "Always Term"' in prompt
+    assert "Missing Term" not in prompt
+    assert fakes.pipeline_jobs.jobs[1].input_json["domainKnowledgeEntryCount"] == 3
+    assert "domainKnowledgeFingerprint" in fakes.pipeline_jobs.jobs[1].input_json
 
 
 def test_micro_event_extract_missing_video_returns_not_found() -> None:
@@ -1246,6 +1472,10 @@ async def _get_detail(
 
 def _app(fakes: _Fakes) -> Any:
     app = create_app()
+    app.dependency_overrides[get_channel_repository] = lambda: fakes.channels
+    app.dependency_overrides[get_domain_knowledge_repository] = (
+        lambda: fakes.domain_knowledge
+    )
     app.dependency_overrides[get_video_repository] = lambda: fakes.videos
     app.dependency_overrides[get_video_task_repository] = lambda: fakes.video_tasks
     app.dependency_overrides[get_pipeline_job_repository] = lambda: fakes.pipeline_jobs

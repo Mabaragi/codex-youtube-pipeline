@@ -31,6 +31,25 @@ export type CodexUsageByVideoList =
   components["schemas"]["CodexUsageByVideoResponse"];
 export type CodexUsageVideoSummary =
   components["schemas"]["CodexUsageVideoSummaryResponse"];
+export type CodexUsageByJobList =
+  components["schemas"]["CodexUsageByJobResponse"];
+export type CodexUsageJobSummary =
+  components["schemas"]["CodexUsageJobSummaryResponse"];
+export type DomainEntryType = components["schemas"]["DomainEntryTypeResponse"];
+export type DomainEntryTypeCreateRequest =
+  components["schemas"]["DomainEntryTypeCreateRequest"];
+export type DomainEntryList = components["schemas"]["DomainEntryListResponse"];
+export type DomainEntry = components["schemas"]["DomainEntryResponse"];
+export type DomainEntryCreateRequest =
+  components["schemas"]["DomainEntryCreateRequest"];
+export type DomainEntryUpdateRequest =
+  components["schemas"]["DomainEntryUpdateRequest"];
+export type DomainEntryAliasCreateRequest =
+  components["schemas"]["DomainEntryAliasCreateRequest"];
+export type DomainEntryAliasUpdateRequest =
+  components["schemas"]["DomainEntryAliasUpdateRequest"];
+export type DomainEntryStreamerLinkRequest =
+  components["schemas"]["DomainEntryStreamerLinkRequest"];
 export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
 export type OpsSchemaTable = components["schemas"]["OpsSchemaTableResponse"];
 export type Streamer = components["schemas"]["StreamerResponse"];
@@ -69,4 +88,10 @@ export type CodexUsageFilters = NonNullable<
 >;
 export type CodexUsageByVideoFilters = NonNullable<
   NonNullable<paths["/ops/codex-usage/by-video"]["get"]["parameters"]["query"]>
+>;
+export type CodexUsageByJobFilters = NonNullable<
+  NonNullable<paths["/ops/codex-usage/by-job"]["get"]["parameters"]["query"]>
+>;
+export type DomainEntryFilters = NonNullable<
+  NonNullable<paths["/domain-entries"]["get"]["parameters"]["query"]>
 >;

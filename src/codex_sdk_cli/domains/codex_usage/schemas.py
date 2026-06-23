@@ -77,3 +77,30 @@ class CodexUsageByVideoResponse(BaseModel):
     summary: CodexUsageSummaryResponse
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class CodexUsageJobSummaryResponse(BaseModel):
+    job_id: int | None = Field(alias="jobId")
+    job_step: str | None = Field(alias="jobStep")
+    job_status: str | None = Field(alias="jobStatus")
+    subject_type: str | None = Field(alias="subjectType")
+    subject_id: int | None = Field(alias="subjectId")
+    external_key: str | None = Field(alias="externalKey")
+    latest_model: str | None = Field(alias="latestModel")
+    latest_reasoning_effort: str | None = Field(alias="latestReasoningEffort")
+    run_count: int = Field(alias="runCount")
+    input_tokens: int = Field(alias="inputTokens")
+    output_tokens: int = Field(alias="outputTokens")
+    total_tokens: int = Field(alias="totalTokens")
+    cached_input_tokens: int = Field(alias="cachedInputTokens")
+    reasoning_output_tokens: int = Field(alias="reasoningOutputTokens")
+    latest_created_at: datetime = Field(alias="latestCreatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CodexUsageByJobResponse(BaseModel):
+    items: list[CodexUsageJobSummaryResponse]
+    summary: CodexUsageSummaryResponse
+
+    model_config = ConfigDict(populate_by_name=True)

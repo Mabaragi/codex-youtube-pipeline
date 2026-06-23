@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
@@ -23,6 +24,7 @@ from typing_extensions import override
 from codex_sdk_cli.domains.codex_usage.normalization import extract_usage_tokens
 from codex_sdk_cli.domains.codex_usage.ports import (
     CodexUsageCreate,
+    CodexUsageJobSummaryRecord,
     CodexUsageListQuery,
     CodexUsageListResult,
     CodexUsageRecord,
@@ -34,6 +36,9 @@ from codex_sdk_cli.domains.codex_usage.ports import (
 )
 from codex_sdk_cli.infra.database.base import Base
 from codex_sdk_cli.infra.videos.repository import VideoModel
+
+if TYPE_CHECKING:
+    from codex_sdk_cli.infra.pipeline_jobs.repository import PipelineJobModel
 
 
 class CodexUsagePersistenceError(Exception):
@@ -255,6 +260,60 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
             reverse=True,
         )[: query.limit]
 
+    @override
+    async def list_usage_by_job(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageJobSummaryRecord]:
+        from codex_sdk_cli.infra.pipeline_jobs.repository import PipelineJobModel
+
+        conditions = _conditions(query, include_cursor=False)
+        try:
+            models = list(
+                (
+                    await self._session.scalars(
+                        select(CodexRunUsageModel).where(*conditions)
+                    )
+                ).all()
+            )
+            job_ids = {model.job_id for model in models if model.job_id is not None}
+            jobs = {
+                job.id: job
+                for job in (
+                    (
+                        await self._session.scalars(
+                            select(PipelineJobModel).where(PipelineJobModel.id.in_(job_ids))
+                        )
+                    ).all()
+                    if job_ids
+                    else []
+                )
+            }
+        except SQLAlchemyError as exc:
+            raise CodexUsagePersistenceError("Codex usage persistence failed.") from exc
+
+        grouped: dict[int | None, _JobUsageAccumulator] = {}
+        for model in models:
+            record = _record(model)
+            accumulator = grouped.setdefault(
+                model.job_id,
+                _JobUsageAccumulator(job_id=model.job_id),
+            )
+            accumulator.add(record)
+        records = [
+            accumulator.to_record(job=jobs.get(job_id) if job_id is not None else None)
+            for job_id, accumulator in grouped.items()
+        ]
+        return sorted(
+            records,
+            key=lambda item: (
+                item.total_tokens,
+                item.latest_created_at,
+                item.job_id or 0,
+            ),
+            reverse=True,
+        )[: query.limit]
+
 
 class SessionFactoryCodexUsageRepository(CodexUsageRepositoryPort):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -279,6 +338,14 @@ class SessionFactoryCodexUsageRepository(CodexUsageRepositoryPort):
             return await SqlAlchemyCodexUsageRepository(session).list_usage_by_video(
                 query
             )
+
+    @override
+    async def list_usage_by_job(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageJobSummaryRecord]:
+        async with self._session_factory() as session:
+            return await SqlAlchemyCodexUsageRepository(session).list_usage_by_job(query)
 
 
 def _conditions(
@@ -420,6 +487,60 @@ class _VideoUsageAccumulator:
             video_id=self.video_id,
             youtube_video_id=video.youtube_video_id if video is not None else None,
             title=video.title if video is not None else None,
+            latest_model=self.latest_model,
+            latest_reasoning_effort=self.latest_reasoning_effort,
+            run_count=self.run_count,
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            total_tokens=self.total_tokens,
+            cached_input_tokens=self.cached_input_tokens,
+            reasoning_output_tokens=self.reasoning_output_tokens,
+            latest_created_at=self.latest_created_at or datetime.min,
+        )
+
+
+@dataclass(slots=True)
+class _JobUsageAccumulator:
+    job_id: int | None
+    run_count: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cached_input_tokens: int = 0
+    reasoning_output_tokens: int = 0
+    latest_created_at: datetime | None = None
+    latest_id: int | None = None
+    latest_model: str | None = None
+    latest_reasoning_effort: str | None = None
+
+    def add(self, record: CodexUsageRecord) -> None:
+        self.run_count += 1
+        self.input_tokens += record.input_tokens or 0
+        self.output_tokens += record.output_tokens or 0
+        self.total_tokens += record.total_tokens or 0
+        self.cached_input_tokens += record.cached_input_tokens or 0
+        self.reasoning_output_tokens += record.reasoning_output_tokens or 0
+        if (
+            self.latest_created_at is None
+            or record.created_at > self.latest_created_at
+            or (
+                record.created_at == self.latest_created_at
+                and (self.latest_id is None or record.id > self.latest_id)
+            )
+        ):
+            self.latest_created_at = record.created_at
+            self.latest_id = record.id
+            self.latest_model = record.model
+            self.latest_reasoning_effort = record.reasoning_effort
+
+    def to_record(self, *, job: PipelineJobModel | None) -> CodexUsageJobSummaryRecord:
+        return CodexUsageJobSummaryRecord(
+            job_id=self.job_id,
+            job_step=job.step if job is not None else None,
+            job_status=job.status if job is not None else None,
+            subject_type=job.subject_type if job is not None else None,
+            subject_id=job.subject_id if job is not None else None,
+            external_key=job.external_key if job is not None else None,
             latest_model=self.latest_model,
             latest_reasoning_effort=self.latest_reasoning_effort,
             run_count=self.run_count,

@@ -5,6 +5,8 @@ from typing import Annotated
 from fastapi import Depends
 
 from codex_sdk_cli.api.dependencies import (
+    ChannelRepositoryDep,
+    DomainKnowledgeRepositoryDep,
     MicroEventExtractionRepositoryDep,
     MicroEventExtractorDep,
     OperationEventRecorderDep,
@@ -24,6 +26,8 @@ def get_extract_video_micro_events_use_case(
     video_tasks: VideoTaskRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
     transcript_cues: TranscriptCueRepositoryDep,
+    channels: ChannelRepositoryDep,
+    domain_knowledge: DomainKnowledgeRepositoryDep,
     pipeline_jobs: PipelineJobRepositoryDep,
     micro_events: MicroEventExtractionRepositoryDep,
     extractor: MicroEventExtractorDep,
@@ -35,6 +39,8 @@ def get_extract_video_micro_events_use_case(
         video_tasks=video_tasks,
         transcripts=transcripts,
         transcript_cues=transcript_cues,
+        channels=channels,
+        domain_knowledge=domain_knowledge,
         pipeline_jobs=pipeline_jobs,
         micro_events=micro_events,
         extractor=extractor,

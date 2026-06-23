@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsagePage } from "../usage-page";
 import type {
+  CodexUsageByJobFilters,
+  CodexUsageByJobList,
   CodexUsageByVideoFilters,
   CodexUsageByVideoList,
   CodexUsageFilters,
@@ -20,8 +22,14 @@ const queryMocks = vi.hoisted(() => ({
     isLoading: false,
     error: null as Error | null,
   },
+  usageByJob: {
+    data: undefined as CodexUsageByJobList | undefined,
+    isLoading: false,
+    error: null as Error | null,
+  },
   filters: undefined as CodexUsageFilters | undefined,
   byVideoFilters: undefined as CodexUsageByVideoFilters | undefined,
+  byJobFilters: undefined as CodexUsageByJobFilters | undefined,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -36,6 +44,10 @@ vi.mock("@/lib/queries", () => ({
   useCodexUsageByVideo: (filters: CodexUsageByVideoFilters) => {
     queryMocks.byVideoFilters = filters;
     return queryMocks.usageByVideo;
+  },
+  useCodexUsageByJob: (filters: CodexUsageByJobFilters) => {
+    queryMocks.byJobFilters = filters;
+    return queryMocks.usageByJob;
   },
 }));
 
@@ -106,6 +118,53 @@ const usageByVideoList: CodexUsageByVideoList = {
   },
 };
 
+const usageByJobList: CodexUsageByJobList = {
+  items: [
+    {
+      jobId: 3,
+      jobStep: "micro_event_extract",
+      jobStatus: "succeeded",
+      subjectType: "video",
+      subjectId: 1,
+      externalKey: "youtube-1",
+      runCount: 1,
+      inputTokens: 20,
+      outputTokens: 13,
+      totalTokens: 33,
+      cachedInputTokens: 2,
+      reasoningOutputTokens: 1,
+      latestModel: "gpt-5.4",
+      latestReasoningEffort: "high",
+      latestCreatedAt: "2026-06-23T05:18:00Z",
+    },
+    {
+      jobId: null,
+      jobStep: null,
+      jobStatus: null,
+      subjectType: null,
+      subjectId: null,
+      externalKey: null,
+      runCount: 1,
+      inputTokens: 20,
+      outputTokens: 13,
+      totalTokens: 33,
+      cachedInputTokens: 2,
+      reasoningOutputTokens: 1,
+      latestModel: "gpt-5.4",
+      latestReasoningEffort: "high",
+      latestCreatedAt: "2026-06-23T05:18:00Z",
+    },
+  ],
+  summary: {
+    runCount: 2,
+    inputTokens: 40,
+    outputTokens: 26,
+    totalTokens: 66,
+    cachedInputTokens: 4,
+    reasoningOutputTokens: 2,
+  },
+};
+
 describe("UsagePage", () => {
   beforeEach(() => {
     routerPush.mockReset();
@@ -115,6 +174,10 @@ describe("UsagePage", () => {
     queryMocks.usageByVideo.data = usageByVideoList;
     queryMocks.usageByVideo.isLoading = false;
     queryMocks.usageByVideo.error = null;
+    queryMocks.usageByJob.data = usageByJobList;
+    queryMocks.usageByJob.isLoading = false;
+    queryMocks.usageByJob.error = null;
+    queryMocks.byJobFilters = undefined;
   });
 
   it("renders codex usage summary and rows", () => {
@@ -134,6 +197,33 @@ describe("UsagePage", () => {
     expect(screen.getByText("Older")).toBeTruthy();
     expect(queryMocks.filters).toEqual({ limit: 50 });
     expect(queryMocks.byVideoFilters).toEqual({ limit: 50 });
+  });
+
+  it("expands a video to show job usage summaries", () => {
+    render(
+      <UsagePage
+        initialFilters={{
+          source: "micro_event_extract",
+          model: "gpt-5.4",
+          limit: 50,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show jobs for video 1" }));
+
+    expect(screen.getByText("By Job")).toBeTruthy();
+    expect(screen.getByText("#3 micro_event_extract")).toBeTruthy();
+    expect(screen.getAllByText("Unlinked").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("View runs")[0].closest("a")?.getAttribute("href")).toBe(
+      "/usage?source=micro_event_extract&model=gpt-5.4&limit=50&videoId=1&jobId=3",
+    );
+    expect(queryMocks.byJobFilters).toEqual({
+      source: "micro_event_extract",
+      model: "gpt-5.4",
+      videoId: 1,
+      limit: 50,
+    });
   });
 
   it("renders row tokens from nested usage json when token columns are null", () => {
@@ -208,6 +298,18 @@ describe("UsagePage", () => {
     };
     queryMocks.usageByVideo.data = {
       ...usageByVideoList,
+      items: [],
+      summary: {
+        runCount: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cachedInputTokens: 0,
+        reasoningOutputTokens: 0,
+      },
+    };
+    queryMocks.usageByJob.data = {
+      ...usageByJobList,
       items: [],
       summary: {
         runCount: 0,

@@ -15,6 +15,7 @@ from codex_sdk_cli.domains.codex_usage.ports import (
     CodexUsageRepositoryPort,
 )
 from codex_sdk_cli.domains.codex_usage.recorder import BestEffortCodexUsageRecorder
+from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRepositoryPort,
@@ -49,6 +50,9 @@ from codex_sdk_cli.infra.codex_usage.repository import (
 from codex_sdk_cli.infra.database.session import (
     create_database_engine,
     create_session_factory,
+)
+from codex_sdk_cli.infra.domain_knowledge.repository import (
+    SqlAlchemyDomainKnowledgeRepository,
 )
 from codex_sdk_cli.infra.external_api_calls.recorder import ExternalApiCallRecorder
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
@@ -164,6 +168,12 @@ async def get_codex_usage_repository(
     return SqlAlchemyCodexUsageRepository(session)
 
 
+async def get_domain_knowledge_repository(
+    session: DatabaseSessionDep,
+) -> DomainKnowledgeRepositoryPort:
+    return SqlAlchemyDomainKnowledgeRepository(session)
+
+
 async def get_codex_usage_recorder(
     session_factory: Annotated[
         async_sessionmaker[AsyncSession],
@@ -258,6 +268,10 @@ DatabaseSessionDep = Annotated[AsyncSession, Depends(get_database_session)]
 CodexUsageRepositoryDep = Annotated[
     CodexUsageRepositoryPort,
     Depends(get_codex_usage_repository),
+]
+DomainKnowledgeRepositoryDep = Annotated[
+    DomainKnowledgeRepositoryPort,
+    Depends(get_domain_knowledge_repository),
 ]
 CodexUsageRecorderDep = Annotated[
     CodexUsageRecorderPort,

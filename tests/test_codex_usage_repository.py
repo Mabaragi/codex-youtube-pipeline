@@ -13,6 +13,7 @@ from codex_sdk_cli.domains.codex_usage.ports import CodexUsageCreate, CodexUsage
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import SqlAlchemyCodexUsageRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
+from codex_sdk_cli.infra.pipeline_jobs.repository import PipelineJobModel
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
 
@@ -29,19 +30,23 @@ def test_codex_usage_repository_creates_lists_and_summarizes_usage(
 
     assert result == {
         "first_source": "micro_event_extract",
-        "first_reasoning_effort": "medium",
-        "first_total_tokens": 33,
-        "summary_run_count": 3,
-        "summary_total_tokens": 76,
+        "first_reasoning_effort": "low",
+        "first_total_tokens": 11,
+        "summary_run_count": 4,
+        "summary_total_tokens": 87,
         "effort_summary_total_tokens": 33,
-        "source_summary_run_count": 2,
-        "source_summary_total_tokens": 66,
+        "source_summary_run_count": 3,
+        "source_summary_total_tokens": 77,
         "video_summary_count": 1,
         "video_summary_latest_model": "gpt-test",
-        "video_summary_latest_reasoning_effort": "medium",
+        "video_summary_latest_reasoning_effort": "low",
         "video_summary_title": "Video 1",
-        "video_summary_total_tokens": 66,
-        "next_cursor": 2,
+        "video_summary_total_tokens": 77,
+        "job_summary_count": 3,
+        "job_summary_total_tokens": 77,
+        "job_summary_has_unlinked": True,
+        "job_summary_has_step": True,
+        "next_cursor": 3,
     }
 
 
@@ -52,6 +57,20 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
         async with session_factory() as session:
             repository = SqlAlchemyCodexUsageRepository(session)
             video = await _create_video(session)
+            first_job = await _create_job(
+                session,
+                step="micro_event_extract",
+                status="succeeded",
+                video_id=video.id,
+                external_key=video.youtube_video_id,
+            )
+            second_job = await _create_job(
+                session,
+                step="micro_event_extract",
+                status="failed",
+                video_id=video.id,
+                external_key=video.youtube_video_id,
+            )
             await repository.create_usage(
                 CodexUsageCreate(
                     source="codex_runs",
@@ -88,7 +107,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     duration_ms=1234,
                     video_id=video.id,
                     video_task_id=None,
-                    job_id=None,
+                    job_id=first_job.id,
                     job_attempt_id=None,
                     transcript_id=None,
                     window_index=1,
@@ -121,10 +140,34 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                     duration_ms=1234,
                     video_id=video.id,
                     video_task_id=None,
-                    job_id=None,
+                    job_id=second_job.id,
                     job_attempt_id=None,
                     transcript_id=None,
                     window_index=2,
+                )
+            )
+            await repository.create_usage(
+                CodexUsageCreate(
+                    source="micro_event_extract",
+                    operation="extract_window",
+                    model="gpt-test",
+                    reasoning_effort="low",
+                    status="succeeded",
+                    thread_id="thread-3",
+                    turn_id="turn-3",
+                    usage_json={"totalTokens": 11},
+                    input_tokens=8,
+                    output_tokens=3,
+                    total_tokens=11,
+                    cached_input_tokens=0,
+                    reasoning_output_tokens=0,
+                    duration_ms=100,
+                    video_id=video.id,
+                    video_task_id=None,
+                    job_id=None,
+                    job_attempt_id=None,
+                    transcript_id=None,
+                    window_index=3,
                 )
             )
 
@@ -137,6 +180,9 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
             )
             video_rows = await repository.list_usage_by_video(
                 CodexUsageListQuery(source="micro_event_extract", limit=50)
+            )
+            job_rows = await repository.list_usage_by_job(
+                CodexUsageListQuery(source="micro_event_extract", video_id=video.id, limit=50)
             )
             return {
                 "first_source": all_rows.items[0].source,
@@ -154,6 +200,13 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                 ),
                 "video_summary_title": video_rows[0].title,
                 "video_summary_total_tokens": video_rows[0].total_tokens,
+                "job_summary_count": len(job_rows),
+                "job_summary_total_tokens": sum(row.total_tokens for row in job_rows),
+                "job_summary_has_unlinked": any(row.job_id is None for row in job_rows),
+                "job_summary_has_step": any(
+                    row.job_step == "micro_event_extract" and row.job_status == "failed"
+                    for row in job_rows
+                ),
                 "next_cursor": all_rows.next_cursor,
             }
     finally:
@@ -187,6 +240,29 @@ async def _create_video(session: AsyncSession) -> VideoModel:
     await session.commit()
     await session.refresh(video)
     return video
+
+
+async def _create_job(
+    session: AsyncSession,
+    *,
+    step: str,
+    status: str,
+    video_id: int,
+    external_key: str,
+) -> PipelineJobModel:
+    job = PipelineJobModel(
+        step=step,
+        status=status,
+        subject_type="video",
+        subject_id=video_id,
+        external_key=external_key,
+        input_json={"videoId": video_id},
+        input_hash=f"{step}-{status}-{video_id}",
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
 
 
 def _alembic_config() -> Config:

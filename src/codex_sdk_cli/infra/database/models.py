@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import CodexRunUsageModel
+from codex_sdk_cli.infra.domain_knowledge.repository import (
+    DomainEntryAliasModel,
+    DomainEntryModel,
+    DomainEntryStreamerModel,
+    DomainEntryTypeModel,
+)
 from codex_sdk_cli.infra.external_api_calls.repository import ExternalApiCallModel
 from codex_sdk_cli.infra.micro_events.repository import (
     AsrCorrectionCandidateModel,
@@ -24,6 +30,10 @@ __all__ = [
     "ChannelModel",
     "AsrCorrectionCandidateModel",
     "CodexRunUsageModel",
+    "DomainEntryAliasModel",
+    "DomainEntryModel",
+    "DomainEntryStreamerModel",
+    "DomainEntryTypeModel",
     "ExternalApiCallModel",
     "MicroEventCandidateModel",
     "MicroEventExcludedRangeModel",

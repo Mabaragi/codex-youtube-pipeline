@@ -13,6 +13,7 @@ from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.domains.channels.router import router as channels_router
 from codex_sdk_cli.domains.codex.router import router as codex_router
 from codex_sdk_cli.domains.codex_usage.router import router as codex_usage_router
+from codex_sdk_cli.domains.domain_knowledge.router import router as domain_knowledge_router
 from codex_sdk_cli.domains.micro_events.router import router as micro_events_router
 from codex_sdk_cli.domains.operation_events.router import router as operation_events_router
 from codex_sdk_cli.domains.ops.router import router as ops_router
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(codex_router, prefix="/codex", tags=["codex"])
     app.include_router(ops_router, prefix="/ops", tags=["ops"])
     app.include_router(codex_usage_router, prefix="/ops", tags=["ops"])
+    app.include_router(domain_knowledge_router, tags=["domain-knowledge"])
     app.include_router(operation_events_router, prefix="/ops", tags=["ops"])
     app.include_router(pipeline_jobs_router, prefix="/pipeline", tags=["pipeline-jobs"])
     app.include_router(streamers_router, tags=["streamers"])

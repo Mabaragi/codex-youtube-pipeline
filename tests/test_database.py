@@ -20,6 +20,10 @@ def test_database_base_registers_app_tables() -> None:
         "asr_correction_candidates",
         "channels",
         "codex_run_usages",
+        "domain_entries",
+        "domain_entry_aliases",
+        "domain_entry_streamers",
+        "domain_entry_types",
         "external_api_calls",
         "micro_event_candidates",
         "micro_event_excluded_ranges",
@@ -152,6 +156,19 @@ def test_alembic_upgrade_creates_app_tables(
             index["name"]: index["column_names"]
             for index in inspector.get_indexes("codex_run_usages")
         }
+        domain_entry_type_columns = {
+            column["name"] for column in inspector.get_columns("domain_entry_types")
+        }
+        domain_entry_columns = {
+            column["name"] for column in inspector.get_columns("domain_entries")
+        }
+        domain_entry_streamer_columns = {
+            column["name"]
+            for column in inspector.get_columns("domain_entry_streamers")
+        }
+        domain_entry_alias_columns = {
+            column["name"] for column in inspector.get_columns("domain_entry_aliases")
+        }
         pipeline_job_columns = {
             column["name"] for column in inspector.get_columns("pipeline_jobs")
         }
@@ -206,6 +223,10 @@ def test_alembic_upgrade_creates_app_tables(
         "asr_correction_candidates",
         "channels",
         "codex_run_usages",
+        "domain_entries",
+        "domain_entry_aliases",
+        "domain_entry_streamers",
+        "domain_entry_types",
         "external_api_calls",
         "micro_event_candidates",
         "micro_event_excluded_ranges",
@@ -340,6 +361,34 @@ def test_alembic_upgrade_creates_app_tables(
         "window_index",
         "created_at",
     }.issubset(codex_usage_columns)
+    assert {
+        "id",
+        "key",
+        "label",
+        "label_normalized",
+        "sort_order",
+        "is_system",
+    }.issubset(domain_entry_type_columns)
+    assert {
+        "id",
+        "type_id",
+        "canonical_name",
+        "detail",
+        "prompt_policy",
+        "priority",
+        "is_active",
+    }.issubset(domain_entry_columns)
+    assert {"entry_id", "streamer_id", "relevance", "note"}.issubset(
+        domain_entry_streamer_columns
+    )
+    assert {
+        "id",
+        "entry_id",
+        "surface_form",
+        "alias_kind",
+        "certainty",
+        "apply_scope",
+    }.issubset(domain_entry_alias_columns)
     assert any(
         foreign_key["referred_table"] == "videos"
         and foreign_key["constrained_columns"] == ["video_id"]

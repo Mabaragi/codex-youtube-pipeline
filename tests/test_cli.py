@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 
+import pytest
+from alembic.config import Config
 from click.testing import CliRunner
 from openai_codex import ApprovalMode, Sandbox
 from openai_codex.generated.v2_all import ReasoningEffort
+from sqlalchemy import create_engine, text
 
+from alembic import command
 from codex_sdk_cli.cli import main
 from codex_sdk_cli.runner import (
     BLANK_BASE_INSTRUCTIONS,
@@ -226,6 +232,44 @@ def test_run_command_can_empty_developer_instructions() -> None:
     assert codex.thread_kwargs["developer_instructions"] == BLANK_DEVELOPER_INSTRUCTIONS
 
 
+def test_domain_entry_add_creates_type_entry_streamer_and_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_file = tmp_path / "domain-cli.db"
+    database_url = f"sqlite+aiosqlite:///{database_file.as_posix()}"
+    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
+    command.upgrade(_alembic_config(), "head")
+    _insert_streamer(database_file)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "domain",
+            "entry",
+            "add",
+            "--type",
+            "사람 이름",
+            "--name",
+            "테스트 인물",
+            "--detail",
+            "테스트 인물 설명",
+            "--streamer-id",
+            "1",
+            "--alias",
+            "테인",
+        ],
+        env={"CODEX_CLI_DATABASE_URL": database_url},
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["canonicalName"] == "테스트 인물"
+    assert payload["typeLabel"] == "사람 이름"
+    assert payload["streamers"][0]["streamerId"] == 1
+    assert payload["aliases"][0]["surfaceForm"] == "테인"
+
+
 def test_run_command_resumes_thread() -> None:
     codex = FakeCodexForCli()
 
@@ -322,3 +366,20 @@ def test_logout_command() -> None:
     assert result.exit_code == 0
     assert codex.logged_out is True
     assert "Logged out." in result.output
+
+
+def _insert_streamer(database_file: Path) -> None:
+    engine = create_engine(f"sqlite:///{database_file.as_posix()}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO streamers (name) VALUES ('Streamer')"))
+    finally:
+        engine.dispose()
+
+
+def _alembic_config() -> Config:
+    config = Config()
+    config.set_main_option("script_location", "alembic")
+    config.set_main_option("prepend_sys_path", ".")
+    config.set_main_option("path_separator", "os")
+    return config

@@ -15,10 +15,22 @@ import type {
   MicroEventExtractRequest,
   MicroEventExtractResult,
   MicroEventExtractionDetail,
+  CodexUsageByJobFilters,
+  CodexUsageByJobList,
   CodexUsageFilters,
   CodexUsageByVideoFilters,
   CodexUsageByVideoList,
   CodexUsageList,
+  DomainEntry,
+  DomainEntryAliasCreateRequest,
+  DomainEntryAliasUpdateRequest,
+  DomainEntryCreateRequest,
+  DomainEntryFilters,
+  DomainEntryList,
+  DomainEntryStreamerLinkRequest,
+  DomainEntryType,
+  DomainEntryTypeCreateRequest,
+  DomainEntryUpdateRequest,
   OperationEventFilters,
   OperationEventList,
   OpsChannelList,
@@ -51,6 +63,12 @@ export const queryKeys = {
     ["ops", "codex-usage", filters] as const,
   codexUsageByVideo: (filters: Record<string, unknown>) =>
     ["ops", "codex-usage", "by-video", filters] as const,
+  codexUsageByJob: (filters: Record<string, unknown>) =>
+    ["ops", "codex-usage", "by-job", filters] as const,
+  domainEntryTypes: ["domain-entry-types"] as const,
+  domainEntries: (filters: Record<string, unknown>) =>
+    ["domain-entries", filters] as const,
+  domainEntry: (entryId: number) => ["domain-entries", entryId] as const,
   schemaGraph: ["ops", "schema-graph"] as const,
   transcriptContent: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "content"] as const,
@@ -178,6 +196,196 @@ export function useCodexUsageByVideo(filters: CodexUsageByVideoFilters) {
         query: filters,
       }),
     refetchInterval: 10_000,
+  });
+}
+
+export function useCodexUsageByJob(
+  filters: CodexUsageByJobFilters,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.codexUsageByJob(filters),
+    queryFn: () =>
+      requestJson<CodexUsageByJobList>("/ops/codex-usage/by-job", {
+        query: filters,
+      }),
+    enabled,
+    refetchInterval: enabled ? 10_000 : false,
+  });
+}
+
+export function useDomainEntryTypes() {
+  return useQuery({
+    queryKey: queryKeys.domainEntryTypes,
+    queryFn: () => requestJson<DomainEntryType[]>("/domain-entry-types"),
+  });
+}
+
+export function useDomainEntries(filters: DomainEntryFilters) {
+  return useQuery({
+    queryKey: queryKeys.domainEntries(filters),
+    queryFn: () => requestJson<DomainEntryList>("/domain-entries", { query: filters }),
+  });
+}
+
+export function useCreateDomainEntryTypeMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DomainEntryTypeCreateRequest) =>
+      requestJson<DomainEntryType>("/domain-entry-types", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.domainEntryTypes });
+    },
+  });
+}
+
+export function useCreateDomainEntryMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DomainEntryCreateRequest) =>
+      requestJson<DomainEntry>("/domain-entries", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["domain-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntryTypes }),
+      ]);
+    },
+  });
+}
+
+export function useUpdateDomainEntryMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entryId, body }: { entryId: number; body: DomainEntryUpdateRequest }) =>
+      requestJson<DomainEntry>(`/domain-entries/${entryId}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["domain-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntry(variables.entryId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntryTypes }),
+      ]);
+    },
+  });
+}
+
+export function useArchiveDomainEntryMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (entryId: number) =>
+      requestJson<DomainEntry>(`/domain-entries/${entryId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: async (_result, entryId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["domain-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntry(entryId) }),
+      ]);
+    },
+  });
+}
+
+export function useAddDomainEntryStreamerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entryId,
+      body,
+    }: {
+      entryId: number;
+      body: DomainEntryStreamerLinkRequest;
+    }) =>
+      requestJson<DomainEntry>(`/domain-entries/${entryId}/streamers`, {
+        method: "POST",
+        body,
+      }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["domain-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntry(variables.entryId) }),
+      ]);
+    },
+  });
+}
+
+export function useRemoveDomainEntryStreamerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entryId,
+      streamerId,
+    }: {
+      entryId: number;
+      streamerId: number;
+    }) =>
+      requestJson<{ success: boolean }>(
+        `/domain-entries/${entryId}/streamers/${streamerId}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["domain-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntry(variables.entryId) }),
+      ]);
+    },
+  });
+}
+
+export function useAddDomainEntryAliasMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entryId,
+      body,
+    }: {
+      entryId: number;
+      body: DomainEntryAliasCreateRequest;
+    }) =>
+      requestJson<DomainEntry>(`/domain-entries/${entryId}/aliases`, {
+        method: "POST",
+        body,
+      }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["domain-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.domainEntry(variables.entryId) }),
+      ]);
+    },
+  });
+}
+
+export function useUpdateDomainEntryAliasMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ aliasId, body }: { aliasId: number; body: DomainEntryAliasUpdateRequest }) =>
+      requestJson(`/domain-entry-aliases/${aliasId}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["domain-entries"] });
+    },
+  });
+}
+
+export function useDeleteDomainEntryAliasMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (aliasId: number) =>
+      requestJson<{ success: boolean }>(`/domain-entry-aliases/${aliasId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["domain-entries"] });
+    },
   });
 }
 

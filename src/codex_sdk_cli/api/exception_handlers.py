@@ -11,6 +11,12 @@ from codex_sdk_cli.domains.channels.exceptions import (
     ChannelPersistenceError,
 )
 from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
+from codex_sdk_cli.domains.domain_knowledge.exceptions import (
+    DomainKnowledgeConflict,
+    DomainKnowledgeDomainError,
+    DomainKnowledgeNotFound,
+    DomainKnowledgePersistenceError,
+)
 from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
 from codex_sdk_cli.domains.micro_events.exceptions import (
     MicroEventDomainError,
@@ -107,6 +113,20 @@ def add_exception_handlers(app: FastAPI) -> None:
         elif isinstance(exc, ChannelAlreadyExists):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, ChannelPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(DomainKnowledgeDomainError)
+    async def domain_knowledge_domain_error_handler(
+        _request: Request,
+        exc: DomainKnowledgeDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, DomainKnowledgeNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, DomainKnowledgeConflict):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, DomainKnowledgePersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 

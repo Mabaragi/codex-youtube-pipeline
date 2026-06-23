@@ -210,6 +210,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/domain-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Domain Entries */
+        get: operations["list_domain_entries_domain_entries_get"];
+        put?: never;
+        /** Create Domain Entry */
+        post: operations["create_domain_entry_domain_entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Domain Entry */
+        get: operations["get_domain_entry_domain_entries__entry_id__get"];
+        put?: never;
+        post?: never;
+        /** Archive Domain Entry */
+        delete: operations["archive_domain_entry_domain_entries__entry_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Domain Entry */
+        patch: operations["update_domain_entry_domain_entries__entry_id__patch"];
+        trace?: never;
+    };
+    "/domain-entries/{entry_id}/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Domain Entry Alias */
+        post: operations["add_domain_entry_alias_domain_entries__entry_id__aliases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-entries/{entry_id}/streamers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Domain Entry Streamer */
+        post: operations["add_domain_entry_streamer_domain_entries__entry_id__streamers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-entries/{entry_id}/streamers/{streamer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Domain Entry Streamer */
+        delete: operations["remove_domain_entry_streamer_domain_entries__entry_id__streamers__streamer_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-entry-aliases/{alias_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Domain Entry Alias */
+        delete: operations["delete_domain_entry_alias_domain_entry_aliases__alias_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Domain Entry Alias */
+        patch: operations["update_domain_entry_alias_domain_entry_aliases__alias_id__patch"];
+        trace?: never;
+    };
+    "/domain-entry-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Domain Entry Types */
+        get: operations["list_domain_entry_types_domain_entry_types_get"];
+        put?: never;
+        /** Create Domain Entry Type */
+        post: operations["create_domain_entry_type_domain_entry_types_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -270,6 +394,23 @@ export interface paths {
         };
         /** List Codex Usage */
         get: operations["list_codex_usage_ops_codex_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/codex-usage/by-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Codex Usage By Job */
+        get: operations["list_codex_usage_by_job_ops_codex_usage_by_job_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -841,11 +982,53 @@ export interface components {
              */
             youtubeChannelId?: string | null;
         };
+        /** CodexUsageByJobResponse */
+        CodexUsageByJobResponse: {
+            /** Items */
+            items: components["schemas"]["CodexUsageJobSummaryResponse"][];
+            summary: components["schemas"]["CodexUsageSummaryResponse"];
+        };
         /** CodexUsageByVideoResponse */
         CodexUsageByVideoResponse: {
             /** Items */
             items: components["schemas"]["CodexUsageVideoSummaryResponse"][];
             summary: components["schemas"]["CodexUsageSummaryResponse"];
+        };
+        /** CodexUsageJobSummaryResponse */
+        CodexUsageJobSummaryResponse: {
+            /** Cachedinputtokens */
+            cachedInputTokens: number;
+            /** Externalkey */
+            externalKey: string | null;
+            /** Inputtokens */
+            inputTokens: number;
+            /** Jobid */
+            jobId: number | null;
+            /** Jobstatus */
+            jobStatus: string | null;
+            /** Jobstep */
+            jobStep: string | null;
+            /**
+             * Latestcreatedat
+             * Format: date-time
+             */
+            latestCreatedAt: string;
+            /** Latestmodel */
+            latestModel: string | null;
+            /** Latestreasoningeffort */
+            latestReasoningEffort: string | null;
+            /** Outputtokens */
+            outputTokens: number;
+            /** Reasoningoutputtokens */
+            reasoningOutputTokens: number;
+            /** Runcount */
+            runCount: number;
+            /** Subjectid */
+            subjectId: number | null;
+            /** Subjecttype */
+            subjectType: string | null;
+            /** Totaltokens */
+            totalTokens: number;
         };
         /** CodexUsageListResponse */
         CodexUsageListResponse: {
@@ -1115,6 +1298,268 @@ export interface components {
         DeleteResponse: {
             /** Success */
             success: boolean;
+        };
+        /** DomainEntryAliasCreateRequest */
+        DomainEntryAliasCreateRequest: {
+            /**
+             * Aliaskind
+             * @default ALIAS
+             * @enum {string}
+             */
+            aliasKind: "ALIAS" | "ASR_ERROR" | "SEARCH_ALIAS" | "NICKNAME" | "WORDPLAY" | "MISSPELLING";
+            /**
+             * Applyscope
+             * @default SEARCH_ONLY
+             * @enum {string}
+             */
+            applyScope: "NONE" | "SEARCH_ONLY" | "SEARCH_AND_SUMMARY" | "DISPLAY_ALLOWED";
+            /**
+             * Certainty
+             * @default MEDIUM
+             * @enum {string}
+             */
+            certainty: "LOW" | "MEDIUM" | "HIGH";
+            /** Languagecode */
+            languageCode?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Surfaceform */
+            surfaceForm: string;
+        };
+        /** DomainEntryAliasResponse */
+        DomainEntryAliasResponse: {
+            /** Aliasid */
+            aliasId: number;
+            /**
+             * Aliaskind
+             * @enum {string}
+             */
+            aliasKind: "ALIAS" | "ASR_ERROR" | "SEARCH_ALIAS" | "NICKNAME" | "WORDPLAY" | "MISSPELLING";
+            /**
+             * Applyscope
+             * @enum {string}
+             */
+            applyScope: "NONE" | "SEARCH_ONLY" | "SEARCH_AND_SUMMARY" | "DISPLAY_ALLOWED";
+            /**
+             * Certainty
+             * @enum {string}
+             */
+            certainty: "LOW" | "MEDIUM" | "HIGH";
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Entryid */
+            entryId: number;
+            /** Languagecode */
+            languageCode: string | null;
+            /** Note */
+            note: string | null;
+            /** Surfaceform */
+            surfaceForm: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** DomainEntryAliasUpdateRequest */
+        DomainEntryAliasUpdateRequest: {
+            /** Aliaskind */
+            aliasKind?: ("ALIAS" | "ASR_ERROR" | "SEARCH_ALIAS" | "NICKNAME" | "WORDPLAY" | "MISSPELLING") | null;
+            /** Applyscope */
+            applyScope?: ("NONE" | "SEARCH_ONLY" | "SEARCH_AND_SUMMARY" | "DISPLAY_ALLOWED") | null;
+            /** Certainty */
+            certainty?: ("LOW" | "MEDIUM" | "HIGH") | null;
+            /** Languagecode */
+            languageCode?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Surfaceform */
+            surfaceForm?: string | null;
+        };
+        /** DomainEntryCreateRequest */
+        DomainEntryCreateRequest: {
+            /** Aliases */
+            aliases?: components["schemas"]["DomainEntryAliasCreateRequest"][];
+            /** Canonicalname */
+            canonicalName: string;
+            /** Detail */
+            detail?: string | null;
+            /** Disambiguation */
+            disambiguation?: string | null;
+            /** Displayname */
+            displayName?: string | null;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /**
+             * Priority
+             * @default 50
+             */
+            priority: number;
+            /**
+             * Promptpolicy
+             * @default AUTO_ON_MATCH
+             * @enum {string}
+             */
+            promptPolicy: "AUTO_ON_MATCH" | "ALWAYS_FOR_SCOPED_STREAMER" | "DISABLED";
+            /** Sourcenote */
+            sourceNote?: string | null;
+            /** Streamerids */
+            streamerIds?: number[];
+            /** Typeid */
+            typeId?: number | null;
+            /** Typekey */
+            typeKey?: string | null;
+            /** Typelabel */
+            typeLabel?: string | null;
+        };
+        /** DomainEntryListResponse */
+        DomainEntryListResponse: {
+            /** Items */
+            items: components["schemas"]["DomainEntryResponse"][];
+        };
+        /** DomainEntryResponse */
+        DomainEntryResponse: {
+            /** Aliases */
+            aliases: components["schemas"]["DomainEntryAliasResponse"][];
+            /** Canonicalname */
+            canonicalName: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Detail */
+            detail: string | null;
+            /** Disambiguation */
+            disambiguation: string | null;
+            /** Displayname */
+            displayName: string | null;
+            /** Entryid */
+            entryId: number;
+            /** Isactive */
+            isActive: boolean;
+            /** Priority */
+            priority: number;
+            /**
+             * Promptpolicy
+             * @enum {string}
+             */
+            promptPolicy: "AUTO_ON_MATCH" | "ALWAYS_FOR_SCOPED_STREAMER" | "DISABLED";
+            /** Sourcenote */
+            sourceNote: string | null;
+            /** Streamers */
+            streamers: components["schemas"]["DomainEntryStreamerResponse"][];
+            /** Typeid */
+            typeId: number;
+            /** Typekey */
+            typeKey: string;
+            /** Typelabel */
+            typeLabel: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** DomainEntryStreamerLinkRequest */
+        DomainEntryStreamerLinkRequest: {
+            /** Note */
+            note?: string | null;
+            /** Relevance */
+            relevance?: string | null;
+            /** Streamerid */
+            streamerId: number;
+        };
+        /** DomainEntryStreamerResponse */
+        DomainEntryStreamerResponse: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Note */
+            note: string | null;
+            /** Relevance */
+            relevance: string | null;
+            /** Streamerid */
+            streamerId: number;
+            /** Streamername */
+            streamerName: string;
+        };
+        /** DomainEntryTypeCreateRequest */
+        DomainEntryTypeCreateRequest: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Issystem
+             * @default false
+             */
+            isSystem: boolean;
+            /** Key */
+            key?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Sortorder
+             * @default 100
+             */
+            sortOrder: number;
+        };
+        /** DomainEntryTypeResponse */
+        DomainEntryTypeResponse: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Description */
+            description: string | null;
+            /** Issystem */
+            isSystem: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Sortorder */
+            sortOrder: number;
+            /** Typeid */
+            typeId: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** DomainEntryUpdateRequest */
+        DomainEntryUpdateRequest: {
+            /** Canonicalname */
+            canonicalName?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Disambiguation */
+            disambiguation?: string | null;
+            /** Displayname */
+            displayName?: string | null;
+            /** Isactive */
+            isActive?: boolean | null;
+            /** Priority */
+            priority?: number | null;
+            /** Promptpolicy */
+            promptPolicy?: ("AUTO_ON_MATCH" | "ALWAYS_FOR_SCOPED_STREAMER" | "DISABLED") | null;
+            /** Sourcenote */
+            sourceNote?: string | null;
+            /** Typeid */
+            typeId?: number | null;
+            /** Typekey */
+            typeKey?: string | null;
+            /** Typelabel */
+            typeLabel?: string | null;
         };
         /** ExternalApiCallSummaryResponse */
         ExternalApiCallSummaryResponse: {
@@ -3053,6 +3498,392 @@ export interface operations {
             };
         };
     };
+    list_domain_entries_domain_entries_get: {
+        parameters: {
+            query?: {
+                streamerId?: number | null;
+                typeId?: number | null;
+                q?: string | null;
+                active?: boolean | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_domain_entry_domain_entries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainEntryCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_domain_entry_domain_entries__entry_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_domain_entry_domain_entries__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_domain_entry_domain_entries__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainEntryUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_domain_entry_alias_domain_entries__entry_id__aliases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainEntryAliasCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_domain_entry_streamer_domain_entries__entry_id__streamers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainEntryStreamerLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_domain_entry_streamer_domain_entries__entry_id__streamers__streamer_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+                streamer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_domain_entry_alias_domain_entry_aliases__alias_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_domain_entry_alias_domain_entry_aliases__alias_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainEntryAliasUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryAliasResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_domain_entry_types_domain_entry_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryTypeResponse"][];
+                };
+            };
+        };
+    };
+    create_domain_entry_type_domain_entry_types_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainEntryTypeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainEntryTypeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_health_get: {
         parameters: {
             query?: never;
@@ -3143,6 +3974,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CodexUsageListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_codex_usage_by_job_ops_codex_usage_by_job_get: {
+        parameters: {
+            query?: {
+                source?: string | null;
+                status?: string | null;
+                model?: string | null;
+                reasoningEffort?: string | null;
+                videoId?: number | null;
+                videoTaskId?: number | null;
+                jobId?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodexUsageByJobResponse"];
                 };
             };
             /** @description Validation Error */

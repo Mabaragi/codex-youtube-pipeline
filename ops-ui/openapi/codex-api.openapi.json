@@ -306,6 +306,26 @@
         "title": "ChannelUpdateRequest",
         "type": "object"
       },
+      "CodexUsageByJobResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodexUsageJobSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CodexUsageSummaryResponse"
+          }
+        },
+        "required": [
+          "items",
+          "summary"
+        ],
+        "title": "CodexUsageByJobResponse",
+        "type": "object"
+      },
       "CodexUsageByVideoResponse": {
         "properties": {
           "items": {
@@ -324,6 +344,146 @@
           "summary"
         ],
         "title": "CodexUsageByVideoResponse",
+        "type": "object"
+      },
+      "CodexUsageJobSummaryResponse": {
+        "properties": {
+          "cachedInputTokens": {
+            "title": "Cachedinputtokens",
+            "type": "integer"
+          },
+          "externalKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Externalkey"
+          },
+          "inputTokens": {
+            "title": "Inputtokens",
+            "type": "integer"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "jobStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobstatus"
+          },
+          "jobStep": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobstep"
+          },
+          "latestCreatedAt": {
+            "format": "date-time",
+            "title": "Latestcreatedat",
+            "type": "string"
+          },
+          "latestModel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestmodel"
+          },
+          "latestReasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestreasoningeffort"
+          },
+          "outputTokens": {
+            "title": "Outputtokens",
+            "type": "integer"
+          },
+          "reasoningOutputTokens": {
+            "title": "Reasoningoutputtokens",
+            "type": "integer"
+          },
+          "runCount": {
+            "title": "Runcount",
+            "type": "integer"
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjectid"
+          },
+          "subjectType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjecttype"
+          },
+          "totalTokens": {
+            "title": "Totaltokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "jobId",
+          "jobStep",
+          "jobStatus",
+          "subjectType",
+          "subjectId",
+          "externalKey",
+          "latestModel",
+          "latestReasoningEffort",
+          "runCount",
+          "inputTokens",
+          "outputTokens",
+          "totalTokens",
+          "cachedInputTokens",
+          "reasoningOutputTokens",
+          "latestCreatedAt"
+        ],
+        "title": "CodexUsageJobSummaryResponse",
         "type": "object"
       },
       "CodexUsageListResponse": {
@@ -1068,6 +1228,894 @@
           "success"
         ],
         "title": "DeleteResponse",
+        "type": "object"
+      },
+      "DomainEntryAliasCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "aliasKind": {
+            "default": "ALIAS",
+            "enum": [
+              "ALIAS",
+              "ASR_ERROR",
+              "SEARCH_ALIAS",
+              "NICKNAME",
+              "WORDPLAY",
+              "MISSPELLING"
+            ],
+            "title": "Aliaskind",
+            "type": "string"
+          },
+          "applyScope": {
+            "default": "SEARCH_ONLY",
+            "enum": [
+              "NONE",
+              "SEARCH_ONLY",
+              "SEARCH_AND_SUMMARY",
+              "DISPLAY_ALLOWED"
+            ],
+            "title": "Applyscope",
+            "type": "string"
+          },
+          "certainty": {
+            "default": "MEDIUM",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Certainty",
+            "type": "string"
+          },
+          "languageCode": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Languagecode"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "surfaceForm": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Surfaceform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "surfaceForm"
+        ],
+        "title": "DomainEntryAliasCreateRequest",
+        "type": "object"
+      },
+      "DomainEntryAliasResponse": {
+        "properties": {
+          "aliasId": {
+            "title": "Aliasid",
+            "type": "integer"
+          },
+          "aliasKind": {
+            "enum": [
+              "ALIAS",
+              "ASR_ERROR",
+              "SEARCH_ALIAS",
+              "NICKNAME",
+              "WORDPLAY",
+              "MISSPELLING"
+            ],
+            "title": "Aliaskind",
+            "type": "string"
+          },
+          "applyScope": {
+            "enum": [
+              "NONE",
+              "SEARCH_ONLY",
+              "SEARCH_AND_SUMMARY",
+              "DISPLAY_ALLOWED"
+            ],
+            "title": "Applyscope",
+            "type": "string"
+          },
+          "certainty": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Certainty",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "entryId": {
+            "title": "Entryid",
+            "type": "integer"
+          },
+          "languageCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Languagecode"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "surfaceForm": {
+            "title": "Surfaceform",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "aliasId",
+          "entryId",
+          "surfaceForm",
+          "aliasKind",
+          "certainty",
+          "applyScope",
+          "languageCode",
+          "note",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "DomainEntryAliasResponse",
+        "type": "object"
+      },
+      "DomainEntryAliasUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "aliasKind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ALIAS",
+                  "ASR_ERROR",
+                  "SEARCH_ALIAS",
+                  "NICKNAME",
+                  "WORDPLAY",
+                  "MISSPELLING"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aliaskind"
+          },
+          "applyScope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "NONE",
+                  "SEARCH_ONLY",
+                  "SEARCH_AND_SUMMARY",
+                  "DISPLAY_ALLOWED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applyscope"
+          },
+          "certainty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certainty"
+          },
+          "languageCode": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Languagecode"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "surfaceForm": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surfaceform"
+          }
+        },
+        "title": "DomainEntryAliasUpdateRequest",
+        "type": "object"
+      },
+      "DomainEntryCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "$ref": "#/components/schemas/DomainEntryAliasCreateRequest"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "canonicalName": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Canonicalname",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "disambiguation": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disambiguation"
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayname"
+          },
+          "isActive": {
+            "default": true,
+            "title": "Isactive",
+            "type": "boolean"
+          },
+          "priority": {
+            "default": 50,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "promptPolicy": {
+            "default": "AUTO_ON_MATCH",
+            "enum": [
+              "AUTO_ON_MATCH",
+              "ALWAYS_FOR_SCOPED_STREAMER",
+              "DISABLED"
+            ],
+            "title": "Promptpolicy",
+            "type": "string"
+          },
+          "sourceNote": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenote"
+          },
+          "streamerIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Streamerids",
+            "type": "array"
+          },
+          "typeId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typeid"
+          },
+          "typeKey": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typekey"
+          },
+          "typeLabel": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typelabel"
+          }
+        },
+        "required": [
+          "canonicalName"
+        ],
+        "title": "DomainEntryCreateRequest",
+        "type": "object"
+      },
+      "DomainEntryListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DomainEntryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DomainEntryListResponse",
+        "type": "object"
+      },
+      "DomainEntryResponse": {
+        "properties": {
+          "aliases": {
+            "items": {
+              "$ref": "#/components/schemas/DomainEntryAliasResponse"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "canonicalName": {
+            "title": "Canonicalname",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "disambiguation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disambiguation"
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayname"
+          },
+          "entryId": {
+            "title": "Entryid",
+            "type": "integer"
+          },
+          "isActive": {
+            "title": "Isactive",
+            "type": "boolean"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "promptPolicy": {
+            "enum": [
+              "AUTO_ON_MATCH",
+              "ALWAYS_FOR_SCOPED_STREAMER",
+              "DISABLED"
+            ],
+            "title": "Promptpolicy",
+            "type": "string"
+          },
+          "sourceNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenote"
+          },
+          "streamers": {
+            "items": {
+              "$ref": "#/components/schemas/DomainEntryStreamerResponse"
+            },
+            "title": "Streamers",
+            "type": "array"
+          },
+          "typeId": {
+            "title": "Typeid",
+            "type": "integer"
+          },
+          "typeKey": {
+            "title": "Typekey",
+            "type": "string"
+          },
+          "typeLabel": {
+            "title": "Typelabel",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entryId",
+          "typeId",
+          "typeKey",
+          "typeLabel",
+          "canonicalName",
+          "displayName",
+          "disambiguation",
+          "detail",
+          "promptPolicy",
+          "priority",
+          "isActive",
+          "sourceNote",
+          "streamers",
+          "aliases",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "DomainEntryResponse",
+        "type": "object"
+      },
+      "DomainEntryStreamerLinkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "relevance": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance"
+          },
+          "streamerId": {
+            "minimum": 1.0,
+            "title": "Streamerid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "streamerId"
+        ],
+        "title": "DomainEntryStreamerLinkRequest",
+        "type": "object"
+      },
+      "DomainEntryStreamerResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "relevance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance"
+          },
+          "streamerId": {
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "streamerName": {
+            "title": "Streamername",
+            "type": "string"
+          }
+        },
+        "required": [
+          "streamerId",
+          "streamerName",
+          "relevance",
+          "note",
+          "createdAt"
+        ],
+        "title": "DomainEntryStreamerResponse",
+        "type": "object"
+      },
+      "DomainEntryTypeCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "isSystem": {
+            "default": false,
+            "title": "Issystem",
+            "type": "boolean"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "sortOrder": {
+            "default": 100,
+            "minimum": 0.0,
+            "title": "Sortorder",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "DomainEntryTypeCreateRequest",
+        "type": "object"
+      },
+      "DomainEntryTypeResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "isSystem": {
+            "title": "Issystem",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sortOrder": {
+            "title": "Sortorder",
+            "type": "integer"
+          },
+          "typeId": {
+            "title": "Typeid",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "typeId",
+          "key",
+          "label",
+          "description",
+          "sortOrder",
+          "isSystem",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "DomainEntryTypeResponse",
+        "type": "object"
+      },
+      "DomainEntryUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "canonicalName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonicalname"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "disambiguation": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disambiguation"
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayname"
+          },
+          "isActive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isactive"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "promptPolicy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "AUTO_ON_MATCH",
+                  "ALWAYS_FOR_SCOPED_STREAMER",
+                  "DISABLED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptpolicy"
+          },
+          "sourceNote": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenote"
+          },
+          "typeId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typeid"
+          },
+          "typeKey": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typekey"
+          },
+          "typeLabel": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typelabel"
+          }
+        },
+        "title": "DomainEntryUpdateRequest",
         "type": "object"
       },
       "ExternalApiCallSummaryResponse": {
@@ -6418,6 +7466,610 @@
         ]
       }
     },
+    "/domain-entries": {
+      "get": {
+        "operationId": "list_domain_entries_domain_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "streamerId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Streamerid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "typeId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Typeid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Domain Entries",
+        "tags": [
+          "domain-knowledge"
+        ]
+      },
+      "post": {
+        "operationId": "create_domain_entry_domain_entries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainEntryCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Domain Entry",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
+    "/domain-entries/{entry_id}": {
+      "delete": {
+        "operationId": "archive_domain_entry_domain_entries__entry_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Domain Entry",
+        "tags": [
+          "domain-knowledge"
+        ]
+      },
+      "get": {
+        "operationId": "get_domain_entry_domain_entries__entry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Domain Entry",
+        "tags": [
+          "domain-knowledge"
+        ]
+      },
+      "patch": {
+        "operationId": "update_domain_entry_domain_entries__entry_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainEntryUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Domain Entry",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
+    "/domain-entries/{entry_id}/aliases": {
+      "post": {
+        "operationId": "add_domain_entry_alias_domain_entries__entry_id__aliases_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainEntryAliasCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Domain Entry Alias",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
+    "/domain-entries/{entry_id}/streamers": {
+      "post": {
+        "operationId": "add_domain_entry_streamer_domain_entries__entry_id__streamers_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainEntryStreamerLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Domain Entry Streamer",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
+    "/domain-entries/{entry_id}/streamers/{streamer_id}": {
+      "delete": {
+        "operationId": "remove_domain_entry_streamer_domain_entries__entry_id__streamers__streamer_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "streamer_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Streamer Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Domain Entry Streamer",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
+    "/domain-entry-aliases/{alias_id}": {
+      "delete": {
+        "operationId": "delete_domain_entry_alias_domain_entry_aliases__alias_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Alias Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Domain Entry Alias",
+        "tags": [
+          "domain-knowledge"
+        ]
+      },
+      "patch": {
+        "operationId": "update_domain_entry_alias_domain_entry_aliases__alias_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Alias Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainEntryAliasUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryAliasResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Domain Entry Alias",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
+    "/domain-entry-types": {
+      "get": {
+        "operationId": "list_domain_entry_types_domain_entry_types_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DomainEntryTypeResponse"
+                  },
+                  "title": "Response List Domain Entry Types Domain Entry Types Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Domain Entry Types",
+        "tags": [
+          "domain-knowledge"
+        ]
+      },
+      "post": {
+        "operationId": "create_domain_entry_type_domain_entry_types_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainEntryTypeCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainEntryTypeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Domain Entry Type",
+        "tags": [
+          "domain-knowledge"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health_health_get",
@@ -6667,6 +8319,174 @@
           }
         },
         "summary": "List Codex Usage",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/codex-usage/by-job": {
+      "get": {
+        "operationId": "list_codex_usage_by_job_ops_codex_usage_by_job_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reasoningEffort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reasoningeffort"
+            }
+          },
+          {
+            "in": "query",
+            "name": "videoId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Videoid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "videoTaskId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Videotaskid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "jobId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Jobid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodexUsageByJobResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Codex Usage By Job",
         "tags": [
           "ops"
         ]

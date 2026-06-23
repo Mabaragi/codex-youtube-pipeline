@@ -9,6 +9,12 @@ from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
+from codex_sdk_cli.domains.domain_knowledge.ports import (
+    DomainKnowledgePromptAliasRecord,
+    DomainKnowledgePromptEntryRecord,
+    DomainKnowledgeRepositoryPort,
+)
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventActorType,
     OperationEventCreate,
@@ -305,6 +311,7 @@ event는 한 문장으로 구체적으로 작성한다.
 
 
 MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT = 1
+DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT = 80
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,6 +332,8 @@ class _ExtractionExecutionInput:
     model: CodexModelChoice
     reasoning_effort: ReasoningEffortChoice
     actor_type: OperationEventActorType
+    domain_knowledge_entries: list[DomainKnowledgePromptEntryRecord]
+    domain_knowledge_fingerprint: str
 
 
 class _MicroEventWindowValidationFailure(Exception):
@@ -346,6 +355,8 @@ class ExtractVideoMicroEventsUseCase:
         video_tasks: VideoTaskRepositoryPort,
         transcripts: YouTubeTranscriptRepositoryPort,
         transcript_cues: TranscriptCueRepositoryPort,
+        channels: ChannelRepositoryPort,
+        domain_knowledge: DomainKnowledgeRepositoryPort,
         pipeline_jobs: PipelineJobRepositoryPort,
         micro_events: MicroEventExtractionRepositoryPort,
         extractor: MicroEventExtractorPort,
@@ -359,6 +370,8 @@ class ExtractVideoMicroEventsUseCase:
         self._video_tasks = video_tasks
         self._transcripts = transcripts
         self._transcript_cues = transcript_cues
+        self._channels = channels
+        self._domain_knowledge = domain_knowledge
         self._pipeline_jobs = pipeline_jobs
         self._micro_events = micro_events
         self._extractor = extractor
@@ -374,6 +387,10 @@ class ExtractVideoMicroEventsUseCase:
         request: MicroEventExtractRequest,
     ) -> MicroEventExtractResponse:
         video, metadata, cues = await self._load_inputs(video_id)
+        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_fingerprint = _domain_knowledge_fingerprint(
+            domain_knowledge_entries
+        )
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or self._reasoning_effort
         input_hash = _task_input_hash(
@@ -383,6 +400,7 @@ class ExtractVideoMicroEventsUseCase:
             overlap_minutes=request.overlap_minutes,
             model=model,
             reasoning_effort=reasoning_effort,
+            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
         )
         task = await self._video_tasks.get_or_create_task(
             VideoTaskCreate(
@@ -402,6 +420,8 @@ class ExtractVideoMicroEventsUseCase:
             model=model,
             reasoning_effort=reasoning_effort,
             actor_type="manual_api",
+            domain_knowledge_entries=domain_knowledge_entries,
+            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
         )
         await self._record_task_event(
             "micro_event_extract.task_selected",
@@ -415,6 +435,8 @@ class ExtractVideoMicroEventsUseCase:
                 "regenerateSucceeded": request.regenerate_succeeded,
                 "model": model,
                 "reasoningEffort": reasoning_effort,
+                "domainKnowledgeEntryCount": len(domain_knowledge_entries),
+                "domainKnowledgeFingerprint": domain_knowledge_fingerprint,
             },
         )
         return await self._process_task(
@@ -469,7 +491,14 @@ class ExtractVideoMicroEventsUseCase:
         ) >= MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT:
             raise VideoTaskRetryNotAllowed("Micro-event extraction is already running.")
 
-        video, metadata, cues = await self._load_inputs(_required_int(job.input_json, "videoId"))
+        video, metadata, cues = await self._load_inputs(
+            _required_int(job.input_json, "videoId")
+        )
+        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_fingerprint = _str_output(
+            job.input_json,
+            "domainKnowledgeFingerprint",
+        ) or _domain_knowledge_fingerprint(domain_knowledge_entries)
         timeout_seconds = _required_int(job.input_json, "timeoutSeconds")
         task = await self._video_tasks.mark_task_running(
             task.id,
@@ -489,6 +518,8 @@ class ExtractVideoMicroEventsUseCase:
                 _reasoning_effort_output(job.input_json) or self._reasoning_effort
             ),
             actor_type="retry_executor",
+            domain_knowledge_entries=domain_knowledge_entries,
+            domain_knowledge_fingerprint=domain_knowledge_fingerprint,
         )
         await self._record_task_event(
             "micro_event_extract.task_running",
@@ -531,6 +562,14 @@ class ExtractVideoMicroEventsUseCase:
         if not cues:
             raise MicroEventExtractionPreconditionFailed("Transcript cues are required.")
         return video, metadata, cues
+
+    async def _load_domain_knowledge_entries(
+        self,
+        video: VideoRecord,
+    ) -> list[DomainKnowledgePromptEntryRecord]:
+        channel = await self._channels.get_channel(video.channel_id)
+        streamer_id = channel.streamer_id if channel is not None else None
+        return await self._domain_knowledge.list_prompt_entries_for_streamer(streamer_id)
 
     async def _process_task(
         self,
@@ -619,6 +658,8 @@ class ExtractVideoMicroEventsUseCase:
             "overlapMinutes": execution_input.overlap_minutes,
             "model": execution_input.model,
             "reasoningEffort": execution_input.reasoning_effort,
+            "domainKnowledgeEntryCount": len(execution_input.domain_knowledge_entries),
+            "domainKnowledgeFingerprint": execution_input.domain_knowledge_fingerprint,
             "timeoutSeconds": self._timeout_seconds,
         }
         job = await self._pipeline_jobs.create_job(
@@ -905,6 +946,12 @@ class ExtractVideoMicroEventsUseCase:
         metadata["transcriptId"] = execution_input.metadata.id
         metadata["model"] = execution_input.model
         metadata["reasoningEffort"] = execution_input.reasoning_effort
+        metadata["domainKnowledgeEntryCount"] = len(
+            execution_input.domain_knowledge_entries
+        )
+        metadata["domainKnowledgeFingerprint"] = (
+            execution_input.domain_knowledge_fingerprint
+        )
         await record_operation_event(
             self._events,
             OperationEventCreate(
@@ -1021,6 +1068,7 @@ def _window_prompt(
     execution_input: _ExtractionExecutionInput,
     cue_window: _CueWindow,
 ) -> str:
+    term_annotations = _window_term_annotations(execution_input, cue_window)
     video_metadata: JsonObject = {
         "videoId": execution_input.video.id,
         "youtubeVideoId": execution_input.video.youtube_video_id,
@@ -1037,7 +1085,7 @@ def _window_prompt(
             "# 입력 메타데이터",
             json.dumps(video_metadata, ensure_ascii=False),
             "# 사전 판정된 용어 annotation",
-            "[]",
+            json.dumps(term_annotations, ensure_ascii=False),
             "# 처리 범위",
             "\n".join(
                 [
@@ -1053,6 +1101,74 @@ def _window_prompt(
             _format_cue_block(cue_window.context_after),
         ]
     )
+
+
+def _window_term_annotations(
+    execution_input: _ExtractionExecutionInput,
+    cue_window: _CueWindow,
+) -> list[JsonObject]:
+    cue_text = " ".join(
+        cue.text
+        for cue in [
+            *cue_window.context_before,
+            *cue_window.owned_cues,
+            *cue_window.context_after,
+        ]
+    ).casefold()
+    selected: list[DomainKnowledgePromptEntryRecord] = []
+    for entry in execution_input.domain_knowledge_entries:
+        if entry.prompt_policy == "ALWAYS_FOR_SCOPED_STREAMER":
+            selected.append(entry)
+            continue
+        if entry.prompt_policy == "AUTO_ON_MATCH" and _domain_entry_matches_text(
+            entry,
+            cue_text,
+        ):
+            selected.append(entry)
+    selected.sort(key=lambda entry: (-entry.priority, entry.entry_id))
+    return [
+        _domain_prompt_entry_json(entry)
+        for entry in selected[:DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT]
+    ]
+
+
+def _domain_entry_matches_text(
+    entry: DomainKnowledgePromptEntryRecord,
+    cue_text: str,
+) -> bool:
+    values = [entry.canonical_name, entry.display_name]
+    values.extend(alias.surface_form for alias in entry.aliases)
+    return any(value.strip().casefold() in cue_text for value in values if value)
+
+
+def _domain_prompt_entry_json(
+    entry: DomainKnowledgePromptEntryRecord,
+) -> JsonObject:
+    return {
+        "entryId": entry.entry_id,
+        "typeKey": entry.type_key,
+        "typeLabel": entry.type_label,
+        "canonicalForm": entry.canonical_name,
+        "displayName": entry.display_name,
+        "disambiguation": entry.disambiguation,
+        "detail": entry.detail,
+        "promptPolicy": entry.prompt_policy,
+        "priority": entry.priority,
+        "aliases": [_domain_prompt_alias_json(alias) for alias in entry.aliases],
+    }
+
+
+def _domain_prompt_alias_json(
+    alias: DomainKnowledgePromptAliasRecord,
+) -> JsonObject:
+    return {
+        "surfaceForm": alias.surface_form,
+        "relation": alias.alias_kind,
+        "certainty": alias.certainty,
+        "applyScope": alias.apply_scope,
+        "languageCode": alias.language_code,
+        "note": alias.note,
+    }
 
 
 def _validated_window(
@@ -1376,6 +1492,23 @@ def _format_cue_block(cues: list[TranscriptCueRecord]) -> str:
     )
 
 
+def _domain_knowledge_fingerprint(
+    entries: list[DomainKnowledgePromptEntryRecord],
+) -> str:
+    payload = [
+        _domain_prompt_entry_json(entry)
+        for entry in sorted(entries, key=lambda item: item.entry_id)
+    ]
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _task_input_hash(
     *,
     video: VideoRecord,
@@ -1384,8 +1517,10 @@ def _task_input_hash(
     overlap_minutes: int,
     model: CodexModelChoice,
     reasoning_effort: ReasoningEffortChoice,
+    domain_knowledge_fingerprint: str,
 ) -> str:
     payload = {
+        "domainKnowledgeFingerprint": domain_knowledge_fingerprint,
         "model": model,
         "overlapMinutes": overlap_minutes,
         "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
@@ -1414,6 +1549,8 @@ def _attempt_output_json(
         "transcriptId": execution_input.metadata.id,
         "model": execution_input.model,
         "reasoningEffort": execution_input.reasoning_effort,
+        "domainKnowledgeEntryCount": len(execution_input.domain_knowledge_entries),
+        "domainKnowledgeFingerprint": execution_input.domain_knowledge_fingerprint,
         "jobId": job.id,
         "jobAttemptId": attempt.id,
     }
@@ -1432,6 +1569,8 @@ def _output_json(
         "transcriptId": execution_input.metadata.id,
         "model": execution_input.model,
         "reasoningEffort": execution_input.reasoning_effort,
+        "domainKnowledgeEntryCount": len(execution_input.domain_knowledge_entries),
+        "domainKnowledgeFingerprint": execution_input.domain_knowledge_fingerprint,
         "windowCount": _window_count(detail),
         "microEventCount": _micro_event_count(detail),
         "excludedRangeCount": _excluded_range_count(detail),

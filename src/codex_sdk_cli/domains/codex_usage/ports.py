@@ -102,6 +102,25 @@ class CodexUsageVideoSummaryRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class CodexUsageJobSummaryRecord:
+    job_id: int | None
+    job_step: str | None
+    job_status: str | None
+    subject_type: str | None
+    subject_id: int | None
+    external_key: str | None
+    latest_model: str | None
+    latest_reasoning_effort: str | None
+    run_count: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cached_input_tokens: int
+    reasoning_output_tokens: int
+    latest_created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class CodexUsageListResult:
     items: list[CodexUsageRecord]
     next_cursor: int | None
@@ -120,6 +139,12 @@ class CodexUsageRepositoryPort(Protocol):
         query: CodexUsageListQuery,
     ) -> list[CodexUsageVideoSummaryRecord]:
         """List Codex usage summarized by video for the current filters."""
+
+    async def list_usage_by_job(
+        self,
+        query: CodexUsageListQuery,
+    ) -> list[CodexUsageJobSummaryRecord]:
+        """List Codex usage summarized by job for the current filters."""
 
 
 class CodexUsageRecorderPort(Protocol):

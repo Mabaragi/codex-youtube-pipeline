@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BookOpenText,
   Boxes,
   Cable,
   Database,
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/jobs", label: "Jobs", icon: PlaySquare },
   { href: "/logs", label: "Logs", icon: ScrollText },
   { href: "/usage", label: "Usage", icon: Gauge },
+  { href: "/domain-knowledge", label: "Domain", icon: BookOpenText },
   { href: "/erd", label: "ERD", icon: Database },
 ];
 

@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 
 from codex_sdk_cli.api.dependencies import (
     ChannelRepositoryDep,
+    DomainKnowledgeRepositoryDep,
     MicroEventExtractionRepositoryDep,
     MicroEventExtractorDep,
     OperationEventRecorderDep,
@@ -24,6 +25,7 @@ from codex_sdk_cli.api.dependencies import (
 )
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
+from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
 from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRepositoryPort,
@@ -139,6 +141,7 @@ def get_retry_pipeline_job_use_case(
     videos: VideoRepositoryDep,
     video_tasks: VideoTaskRepositoryDep,
     micro_events: MicroEventExtractionRepositoryDep,
+    domain_knowledge: DomainKnowledgeRepositoryDep,
     micro_event_extractor: MicroEventExtractorDep,
     transcript_cues: TranscriptCueRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
@@ -189,6 +192,8 @@ def get_retry_pipeline_job_use_case(
                 pipeline_jobs=pipeline_jobs,
                 transcripts=transcripts,
                 transcript_cues=transcript_cues,
+                channels=channels,
+                domain_knowledge=domain_knowledge,
                 micro_events=micro_events,
                 extractor=micro_event_extractor,
                 settings=settings,
@@ -309,6 +314,8 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         pipeline_jobs: PipelineJobRepositoryPort,
         transcripts: YouTubeTranscriptRepositoryPort,
         transcript_cues: TranscriptCueRepositoryPort,
+        channels: ChannelRepositoryPort,
+        domain_knowledge: DomainKnowledgeRepositoryPort,
         micro_events: MicroEventExtractionRepositoryPort,
         extractor: MicroEventExtractorPort,
         settings: CliSettings,
@@ -319,6 +326,8 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         self._pipeline_jobs = pipeline_jobs
         self._transcripts = transcripts
         self._transcript_cues = transcript_cues
+        self._channels = channels
+        self._domain_knowledge = domain_knowledge
         self._micro_events = micro_events
         self._extractor = extractor
         self._settings = settings
@@ -334,6 +343,8 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
             video_tasks=self._video_tasks,
             transcripts=self._transcripts,
             transcript_cues=self._transcript_cues,
+            channels=self._channels,
+            domain_knowledge=self._domain_knowledge,
             pipeline_jobs=self._pipeline_jobs,
             micro_events=self._micro_events,
             extractor=self._extractor,
