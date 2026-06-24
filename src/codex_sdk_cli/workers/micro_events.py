@@ -36,6 +36,7 @@ from codex_sdk_cli.infra.operation_events.repository import (
     SQLAlchemyOperationEventRepository,
 )
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
+from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.transcript_cues.repository import (
     SqlAlchemyTranscriptCueRepository,
 )
@@ -139,6 +140,7 @@ def _use_case(
         transcripts=SqlAlchemyYouTubeTranscriptRepository(session),
         transcript_cues=SqlAlchemyTranscriptCueRepository(session),
         channels=SqlAlchemyChannelRepository(session),
+        streamers=SqlAlchemyStreamerRepository(session),
         domain_knowledge=SqlAlchemyDomainKnowledgeRepository(session),
         pipeline_jobs=SqlAlchemyPipelineJobRepository(session),
         micro_events=SqlAlchemyMicroEventExtractionRepository(session),

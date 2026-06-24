@@ -33,6 +33,7 @@ from codex_sdk_cli.domains.micro_events.ports import (
 )
 from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 from codex_sdk_cli.domains.operation_events.ports import OperationEventRecorderPort
+from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.use_cases import (
     TRANSCRIPT_CUE_GENERATE_STEP,
@@ -193,6 +194,7 @@ def get_retry_pipeline_job_use_case(
                 transcripts=transcripts,
                 transcript_cues=transcript_cues,
                 channels=channels,
+                streamers=streamers,
                 domain_knowledge=domain_knowledge,
                 micro_events=micro_events,
                 extractor=micro_event_extractor,
@@ -315,6 +317,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         transcripts: YouTubeTranscriptRepositoryPort,
         transcript_cues: TranscriptCueRepositoryPort,
         channels: ChannelRepositoryPort,
+        streamers: StreamerRepositoryPort,
         domain_knowledge: DomainKnowledgeRepositoryPort,
         micro_events: MicroEventExtractionRepositoryPort,
         extractor: MicroEventExtractorPort,
@@ -327,6 +330,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         self._transcripts = transcripts
         self._transcript_cues = transcript_cues
         self._channels = channels
+        self._streamers = streamers
         self._domain_knowledge = domain_knowledge
         self._micro_events = micro_events
         self._extractor = extractor
@@ -344,6 +348,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
             transcripts=self._transcripts,
             transcript_cues=self._transcript_cues,
             channels=self._channels,
+            streamers=self._streamers,
             domain_knowledge=self._domain_knowledge,
             pipeline_jobs=self._pipeline_jobs,
             micro_events=self._micro_events,

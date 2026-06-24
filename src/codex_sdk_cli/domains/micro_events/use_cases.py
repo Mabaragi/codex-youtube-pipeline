@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.domain_knowledge.ports import (
@@ -29,6 +29,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
+from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.ports import (
     TranscriptCueRecord,
     TranscriptCueRepositoryPort,
@@ -341,6 +342,7 @@ class _ExtractionExecutionInput:
     actor_type: OperationEventActorType
     domain_knowledge_entries: list[DomainKnowledgePromptEntryRecord]
     domain_knowledge_fingerprint: str
+    streamer_name: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -381,6 +383,7 @@ class ExtractVideoMicroEventsUseCase:
         transcripts: YouTubeTranscriptRepositoryPort,
         transcript_cues: TranscriptCueRepositoryPort,
         channels: ChannelRepositoryPort,
+        streamers: StreamerRepositoryPort,
         domain_knowledge: DomainKnowledgeRepositoryPort,
         pipeline_jobs: PipelineJobRepositoryPort,
         micro_events: MicroEventExtractionRepositoryPort,
@@ -396,6 +399,7 @@ class ExtractVideoMicroEventsUseCase:
         self._transcripts = transcripts
         self._transcript_cues = transcript_cues
         self._channels = channels
+        self._streamers = streamers
         self._domain_knowledge = domain_knowledge
         self._pipeline_jobs = pipeline_jobs
         self._micro_events = micro_events
@@ -583,7 +587,7 @@ class ExtractVideoMicroEventsUseCase:
         video, metadata, cues = await self._load_inputs(
             _required_int(job.input_json, "videoId")
         )
-        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_entries, streamer_name = await self._load_prompt_context(video)
         domain_knowledge_fingerprint = _str_output(
             job.input_json,
             "domainKnowledgeFingerprint",
@@ -609,6 +613,7 @@ class ExtractVideoMicroEventsUseCase:
             actor_type="retry_executor",
             domain_knowledge_entries=domain_knowledge_entries,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+            streamer_name=streamer_name,
         )
         await self._record_task_event(
             "micro_event_extract.task_running",
@@ -918,7 +923,7 @@ class ExtractVideoMicroEventsUseCase:
         actor_type: OperationEventActorType,
     ) -> _PreparedExtraction:
         video, metadata, cues = await self._load_inputs(video_id)
-        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_entries, streamer_name = await self._load_prompt_context(video)
         domain_knowledge_fingerprint = _domain_knowledge_fingerprint(
             domain_knowledge_entries
         )
@@ -944,6 +949,7 @@ class ExtractVideoMicroEventsUseCase:
             actor_type=actor_type,
             domain_knowledge_entries=domain_knowledge_entries,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+            streamer_name=streamer_name,
         )
         return _PreparedExtraction(
             execution_input=execution_input,
@@ -973,7 +979,7 @@ class ExtractVideoMicroEventsUseCase:
         cues = await self._transcript_cues.list_cues(metadata.id)
         if not cues:
             raise MicroEventExtractionPreconditionFailed("Transcript cues are required.")
-        domain_knowledge_entries = await self._load_domain_knowledge_entries(video)
+        domain_knowledge_entries, streamer_name = await self._load_prompt_context(video)
         domain_knowledge_fingerprint = (
             _str_output(input_json, "domainKnowledgeFingerprint")
             or _domain_knowledge_fingerprint(domain_knowledge_entries)
@@ -990,6 +996,7 @@ class ExtractVideoMicroEventsUseCase:
             actor_type=actor_type,
             domain_knowledge_entries=domain_knowledge_entries,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+            streamer_name=streamer_name,
         )
 
     async def _batch_candidate_action(
@@ -1079,6 +1086,21 @@ class ExtractVideoMicroEventsUseCase:
         channel = await self._channels.get_channel(video.channel_id)
         streamer_id = channel.streamer_id if channel is not None else None
         return await self._domain_knowledge.list_prompt_entries_for_streamer(streamer_id)
+
+    async def _load_prompt_context(
+        self,
+        video: VideoRecord,
+    ) -> tuple[list[DomainKnowledgePromptEntryRecord], str | None]:
+        channel = await self._channels.get_channel(video.channel_id)
+        streamer_id = channel.streamer_id if channel is not None else None
+        streamer_name = None
+        if streamer_id is not None:
+            streamer = await self._streamers.get_streamer(streamer_id)
+            streamer_name = streamer.name if streamer is not None else None
+        entries = await self._domain_knowledge.list_prompt_entries_for_streamer(
+            streamer_id
+        )
+        return entries, streamer_name
 
     async def _process_task(
         self,
@@ -1483,6 +1505,185 @@ class ExtractVideoMicroEventsUseCase:
         )
 
 
+def _normalized_token(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    token = value.strip()
+    if not token:
+        return None
+    return token.upper().replace("-", "_").replace(" ", "_")
+
+
+def _normalize_program_mode(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {
+        "OPENING",
+        "JUST_CHATTING",
+        "GAME_SETUP",
+        "GAMEPLAY",
+        "BREAK",
+        "POST_GAME",
+        "CLOSING",
+        "UNKNOWN",
+    }
+    if token in allowed:
+        return token
+    aliases = {
+        "CHAT": "JUST_CHATTING",
+        "TALK": "JUST_CHATTING",
+        "TALKING": "JUST_CHATTING",
+        "FREE_TALK": "JUST_CHATTING",
+        "GAME": "GAMEPLAY",
+        "PLAYING_GAME": "GAMEPLAY",
+        "ENDING": "CLOSING",
+    }
+    return aliases.get(token or "", "UNKNOWN")
+
+
+def _normalize_content_kind(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {
+        "ANNOUNCEMENT",
+        "PERSONAL_STORY",
+        "OPINION",
+        "QNA",
+        "REACTION",
+        "TECHNICAL_SETUP",
+        "GAME_PROGRESS",
+        "GAME_DISCUSSION",
+        "COMMUNITY_REVIEW",
+        "MEDIA_REVIEW",
+        "META_CHAT",
+        "OTHER",
+    }
+    if token in allowed:
+        return token
+    aliases = {
+        "QUESTION_AND_ANSWER": "QNA",
+        "QA": "QNA",
+        "GAME_TALK": "GAME_DISCUSSION",
+        "GAMEPLAY": "GAME_PROGRESS",
+        "SETUP": "TECHNICAL_SETUP",
+        "TECHNICAL": "TECHNICAL_SETUP",
+        "CHAT": "META_CHAT",
+        "JUST_CHATTING": "META_CHAT",
+    }
+    return aliases.get(token or "", "OTHER")
+
+
+def _normalize_relation_to_previous(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {"NEW_TOPIC", "CONTINUATION", "ASIDE", "RETURN"}
+    if token in allowed:
+        return token
+    aliases = {
+        "NEW": "NEW_TOPIC",
+        "TOPIC_CHANGE": "NEW_TOPIC",
+        "CONTINUE": "CONTINUATION",
+        "FOLLOW_UP": "CONTINUATION",
+        "SIDE_TOPIC": "ASIDE",
+        "BACK": "RETURN",
+        "RETURN_TO_TOPIC": "RETURN",
+    }
+    return aliases.get(token or "", "NEW_TOPIC")
+
+
+def _normalize_support_level(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {"DIRECT", "CONTEXTUAL", "AMBIGUOUS"}
+    if token in allowed:
+        return token
+    aliases = {
+        "EXPLICIT": "DIRECT",
+        "CLEAR": "DIRECT",
+        "INFERRED": "CONTEXTUAL",
+        "INDIRECT": "CONTEXTUAL",
+        "UNCERTAIN": "AMBIGUOUS",
+        "UNKNOWN": "AMBIGUOUS",
+    }
+    return aliases.get(token or "", "AMBIGUOUS")
+
+
+def _normalize_excluded_range_reason(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {
+        "MUSIC_ONLY",
+        "SILENCE_OR_GAP",
+        "UNINTELLIGIBLE",
+        "LOW_INFORMATION",
+        "TECHNICAL_NOISE",
+    }
+    if token in allowed:
+        return token
+    aliases = {
+        "SILENCE": "SILENCE_OR_GAP",
+        "GAP": "SILENCE_OR_GAP",
+        "NO_SPEECH": "SILENCE_OR_GAP",
+        "INAUDIBLE": "UNINTELLIGIBLE",
+        "NOISE": "TECHNICAL_NOISE",
+        "TECHNICAL": "TECHNICAL_NOISE",
+        "LOW_INFO": "LOW_INFORMATION",
+        "NO_INFORMATION": "LOW_INFORMATION",
+    }
+    return aliases.get(token or "", "LOW_INFORMATION")
+
+
+def _normalize_correction_type(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {
+        "PROPER_NOUN",
+        "GAME_TITLE",
+        "CONTENT_TITLE",
+        "COMMON_WORD",
+        "FOOD",
+        "PLACE",
+        "STREAM_TERM",
+        "CONTEXTUAL_TERM",
+        "UNCERTAIN",
+    }
+    if token in allowed:
+        return token
+    aliases = {
+        "PERSON_NAME": "PROPER_NOUN",
+        "PERSON": "PROPER_NOUN",
+        "PEOPLE": "PROPER_NOUN",
+        "CHARACTER_NAME": "PROPER_NOUN",
+        "NICKNAME": "PROPER_NOUN",
+        "ORGANIZATION": "PROPER_NOUN",
+        "ORG_NAME": "PROPER_NOUN",
+        "TITLE": "CONTENT_TITLE",
+        "VIDEO_TITLE": "CONTENT_TITLE",
+        "MEDIA_TITLE": "CONTENT_TITLE",
+        "GAME": "GAME_TITLE",
+        "GAME_NAME": "GAME_TITLE",
+        "LOCATION": "PLACE",
+        "TERM": "CONTEXTUAL_TERM",
+        "SLANG": "STREAM_TERM",
+        "STREAMING_TERM": "STREAM_TERM",
+        "UNKNOWN": "UNCERTAIN",
+        "OTHER": "UNCERTAIN",
+    }
+    return aliases.get(token or "", "UNCERTAIN")
+
+
+def _normalize_apply_scope(value: object) -> object:
+    token = _normalized_token(value)
+    allowed = {"NONE", "SEARCH_ONLY", "SEARCH_AND_SUMMARY", "DISPLAY_ALLOWED"}
+    if token in allowed:
+        return token
+    aliases = {
+        "SEARCH": "SEARCH_ONLY",
+        "SUMMARY": "SEARCH_AND_SUMMARY",
+        "SEARCH_SUMMARY": "SEARCH_AND_SUMMARY",
+        "BOTH": "SEARCH_AND_SUMMARY",
+        "DISPLAY": "DISPLAY_ALLOWED",
+        "VISIBLE": "DISPLAY_ALLOWED",
+        "UNKNOWN": "NONE",
+        "OTHER": "NONE",
+    }
+    return aliases.get(token or "", "NONE")
+
+
 class _MicroEventOutput(BaseModel):
     start_cue_id: str
     end_cue_id: str
@@ -1497,6 +1698,26 @@ class _MicroEventOutput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator(
+        "program_mode",
+        "content_kind",
+        "relation_to_previous",
+        "support_level",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_enum_fields(cls, value: object, info: object) -> object:
+        field_name = getattr(info, "field_name", "")
+        if field_name == "program_mode":
+            return _normalize_program_mode(value)
+        if field_name == "content_kind":
+            return _normalize_content_kind(value)
+        if field_name == "relation_to_previous":
+            return _normalize_relation_to_previous(value)
+        if field_name == "support_level":
+            return _normalize_support_level(value)
+        return value
+
 
 class _ExcludedRangeOutput(BaseModel):
     start_cue_id: str
@@ -1504,6 +1725,11 @@ class _ExcludedRangeOutput(BaseModel):
     reason: ExcludedRangeReason
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _normalize_reason(cls, value: object) -> object:
+        return _normalize_excluded_range_reason(value)
 
 
 class _AsrCorrectionOutput(BaseModel):
@@ -1515,6 +1741,16 @@ class _AsrCorrectionOutput(BaseModel):
     confidence: float = Field(ge=0, le=1)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("correction_type", mode="before")
+    @classmethod
+    def _normalize_correction_type(cls, value: object) -> object:
+        return _normalize_correction_type(value)
+
+    @field_validator("apply_scope", mode="before")
+    @classmethod
+    def _normalize_apply_scope(cls, value: object) -> object:
+        return _normalize_apply_scope(value)
 
 
 class _ExtractorOutput(BaseModel):
@@ -1579,14 +1815,16 @@ def _window_prompt(
 ) -> str:
     term_annotations = _window_term_annotations(execution_input, cue_window)
     video_metadata: JsonObject = {
-        "videoId": execution_input.video.id,
-        "youtubeVideoId": execution_input.video.youtube_video_id,
-        "title": execution_input.video.title,
-        "transcriptId": execution_input.metadata.id,
-        "languageCode": execution_input.metadata.language_code,
-        "isGenerated": execution_input.metadata.is_generated,
+        "videoTitle": execution_input.video.title,
+        "videoDescription": _compact_prompt_text(execution_input.video.description),
+        "publishedAt": execution_input.video.published_at.isoformat(),
+        "streamerName": execution_input.streamer_name,
+        "transcriptLanguage": execution_input.metadata.language,
+        "transcriptLanguageCode": execution_input.metadata.language_code,
+        "transcriptSource": (
+            "generated" if execution_input.metadata.is_generated else "manual"
+        ),
         "windowIndex": cue_window.window_index,
-        "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
     }
     return "\n\n".join(
         [
@@ -1603,11 +1841,11 @@ def _window_prompt(
                 ]
             ),
             "# CONTEXT_BEFORE",
-            _format_cue_block(cue_window.context_before),
+            _format_cue_block(cue_window.context_before, execution_input.cues),
             "# OWNED_RANGE",
-            _format_cue_block(cue_window.owned_cues),
+            _format_cue_block(cue_window.owned_cues, execution_input.cues),
             "# CONTEXT_AFTER",
-            _format_cue_block(cue_window.context_after),
+            _format_cue_block(cue_window.context_after, execution_input.cues),
         ]
     )
 
@@ -1992,13 +2230,52 @@ def _normalized_topics(topics: list[str]) -> list[str]:
     return normalized or ["UNKNOWN"]
 
 
-def _format_cue_block(cues: list[TranscriptCueRecord]) -> str:
+def _compact_prompt_text(text: str, *, limit: int = 1500) -> str | None:
+    compacted = " ".join(text.split())
+    if not compacted:
+        return None
+    if len(compacted) <= limit:
+        return compacted
+    return f"{compacted[: limit - 3]}..."
+
+
+def _format_cue_block(
+    cues: list[TranscriptCueRecord],
+    all_cues: list[TranscriptCueRecord],
+) -> str:
     if not cues:
         return "(none)"
+    cue_gaps = _cue_gap_lookup(all_cues)
     return "\n".join(
-        json.dumps({"cue_id": cue.cue_id, "text": cue.text}, ensure_ascii=False)
+        json.dumps(
+            {
+                "cue_id": cue.cue_id,
+                "text": cue.text,
+                "start_ms": cue.start_ms,
+                "end_ms": cue.end_ms,
+                "duration_ms": cue.duration_ms,
+                "gap_from_previous_ms": cue_gaps.get(cue.cue_id, (None, None))[0],
+                "gap_to_next_ms": cue_gaps.get(cue.cue_id, (None, None))[1],
+            },
+            ensure_ascii=False,
+        )
         for cue in cues
     )
+
+
+def _cue_gap_lookup(
+    cues: list[TranscriptCueRecord],
+) -> dict[str, tuple[int | None, int | None]]:
+    gaps: dict[str, tuple[int | None, int | None]] = {}
+    for index, cue in enumerate(cues):
+        previous_gap = None
+        next_gap = None
+        if index > 0:
+            previous_gap = max(0, cue.start_ms - cues[index - 1].end_ms)
+        if index + 1 < len(cues):
+            next_gap = max(0, cues[index + 1].start_ms - cue.end_ms)
+        gaps[cue.cue_id] = (previous_gap, next_gap)
+    return gaps
 
 
 def _domain_knowledge_fingerprint(

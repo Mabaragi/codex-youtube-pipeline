@@ -16,6 +16,7 @@ from codex_sdk_cli.api.dependencies import (
     get_operation_event_recorder,
     get_pipeline_job_repository,
     get_settings,
+    get_streamer_repository,
     get_transcript_cue_repository,
     get_video_repository,
     get_video_task_repository,
@@ -72,6 +73,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobStatus,
     PipelineJobSummaryRecord,
 )
+from codex_sdk_cli.domains.streamers.ports import StreamerRecord, StreamerRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.ports import (
     TranscriptCueCreate,
     TranscriptCueRecord,
@@ -700,6 +702,33 @@ class FakeChannelRepository(ChannelRepositoryPort):
         raise NotImplementedError
 
 
+class FakeStreamerRepository(StreamerRepositoryPort):
+    def __init__(self) -> None:
+        self.streamers: dict[int, StreamerRecord] = {
+            1: StreamerRecord(id=1, name="Choseungdal")
+        }
+
+    async def create_streamer(self, *, name: str) -> StreamerRecord:
+        raise NotImplementedError
+
+    async def list_streamers(self) -> list[StreamerRecord]:
+        return list(self.streamers.values())
+
+    async def get_streamer(self, streamer_id: int) -> StreamerRecord | None:
+        return self.streamers.get(streamer_id)
+
+    async def update_streamer(
+        self,
+        streamer_id: int,
+        *,
+        name: str,
+    ) -> StreamerRecord | None:
+        raise NotImplementedError
+
+    async def delete_streamer(self, streamer_id: int) -> bool:
+        raise NotImplementedError
+
+
 class FakeDomainKnowledgeRepository(DomainKnowledgeRepositoryPort):
     def __init__(self) -> None:
         self.prompt_entries: list[DomainKnowledgePromptEntryRecord] = []
@@ -1004,6 +1033,7 @@ class _Fakes:
         self.transcripts = FakeTranscriptRepository()
         self.cues = FakeTranscriptCueRepository()
         self.channels = FakeChannelRepository()
+        self.streamers = FakeStreamerRepository()
         self.domain_knowledge = FakeDomainKnowledgeRepository()
         self.micro_events = FakeMicroEventExtractionRepository(
             self.videos,
@@ -1102,6 +1132,73 @@ def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
     assert fakes.pipeline_jobs.jobs[1].input_json["promptVersion"] == (
         "micro-event-extract-v3"
     )
+
+
+def test_micro_event_extract_prompt_includes_semantic_video_context() -> None:
+    fakes = _seed_ready_fakes()
+
+    asyncio.run(_extract(fakes))
+
+    prompt = fakes.extractor.prompts[0]
+    metadata = _prompt_metadata(prompt)
+
+    assert metadata == {
+        "videoTitle": "Live VOD 1",
+        "videoDescription": "Description",
+        "publishedAt": NOW.isoformat(),
+        "streamerName": "Choseungdal",
+        "transcriptLanguage": "Korean",
+        "transcriptLanguageCode": "ko",
+        "transcriptSource": "generated",
+        "windowIndex": 1,
+    }
+    assert "videoId" not in metadata
+    assert "youtubeVideoId" not in metadata
+    assert "transcriptId" not in metadata
+    assert "promptVersion" not in metadata
+
+
+def test_micro_event_extract_prompt_includes_cue_timing_gaps() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[0, 15_000, 24_000])
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000003")
+    }
+
+    asyncio.run(_extract(fakes))
+
+    prompt = fakes.extractor.prompts[0]
+    cue_rows = _prompt_cue_rows(prompt)
+
+    assert cue_rows == [
+        {
+            "cue_id": "tr1-c000001",
+            "text": "cue 1",
+            "start_ms": 0,
+            "end_ms": 10_000,
+            "duration_ms": 10_000,
+            "gap_from_previous_ms": None,
+            "gap_to_next_ms": 5_000,
+        },
+        {
+            "cue_id": "tr1-c000002",
+            "text": "cue 2",
+            "start_ms": 15_000,
+            "end_ms": 25_000,
+            "duration_ms": 10_000,
+            "gap_from_previous_ms": 5_000,
+            "gap_to_next_ms": 0,
+        },
+        {
+            "cue_id": "tr1-c000003",
+            "text": "cue 3",
+            "start_ms": 24_000,
+            "end_ms": 34_000,
+            "duration_ms": 10_000,
+            "gap_from_previous_ms": 0,
+            "gap_to_next_ms": None,
+        },
+    ]
 
 
 def test_micro_event_extract_injects_matching_domain_knowledge_terms() -> None:
@@ -1447,6 +1544,66 @@ def test_micro_event_extract_filters_event_evidence_outside_event_range() -> Non
     ]
 
 
+def test_micro_event_extract_normalizes_loose_enum_values() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "스트리머가 방송 주제를 설명한다.",
+                        "program_mode": "talk",
+                        "content_kind": "clip_review",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "follow_up",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "uncertain",
+                    }
+                ],
+                "excluded_ranges": [
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "reason": "no_speech",
+                    }
+                ],
+                "asr_correction_candidates": [
+                    {
+                        "original": "대장님",
+                        "suggested": "초승달",
+                        "correction_type": "PERSON_NAME",
+                        "apply_scope": "search",
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "confidence": 0.8,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert detail["windows"][0]["microEvents"][0]["programMode"] == "JUST_CHATTING"
+    assert detail["windows"][0]["microEvents"][0]["contentKind"] == "OTHER"
+    assert detail["windows"][0]["microEvents"][0]["relationToPrevious"] == (
+        "CONTINUATION"
+    )
+    assert detail["windows"][0]["microEvents"][0]["supportLevel"] == "AMBIGUOUS"
+    assert detail["windows"][0]["excludedRanges"][0]["reason"] == "SILENCE_OR_GAP"
+    assert detail["windows"][0]["asrCorrectionCandidates"][0]["correctionType"] == (
+        "PROPER_NOUN"
+    )
+    assert detail["windows"][0]["asrCorrectionCandidates"][0]["applyScope"] == (
+        "SEARCH_ONLY"
+    )
+
+
 def test_micro_event_extract_truncates_too_many_topics() -> None:
     fakes = _seed_ready_fakes()
     fakes.extractor.responses = [
@@ -1757,6 +1914,7 @@ async def _get_detail(
 def _app(fakes: _Fakes) -> Any:
     app = create_app()
     app.dependency_overrides[get_channel_repository] = lambda: fakes.channels
+    app.dependency_overrides[get_streamer_repository] = lambda: fakes.streamers
     app.dependency_overrides[get_domain_knowledge_repository] = (
         lambda: fakes.domain_knowledge
     )
@@ -1781,6 +1939,7 @@ def _use_case(fakes: _Fakes) -> ExtractVideoMicroEventsUseCase:
         transcripts=fakes.transcripts,
         transcript_cues=fakes.cues,
         channels=fakes.channels,
+        streamers=fakes.streamers,
         domain_knowledge=fakes.domain_knowledge,
         pipeline_jobs=fakes.pipeline_jobs,
         micro_events=fakes.micro_events,
@@ -1970,3 +2129,31 @@ def _extractor_json(
         },
         ensure_ascii=False,
     )
+
+
+def _prompt_metadata(prompt: str) -> dict[str, Any]:
+    for line in prompt.splitlines():
+        payload = _json_line(line)
+        if payload is not None and "videoTitle" in payload:
+            return payload
+    raise AssertionError("Missing prompt metadata.")
+
+
+def _prompt_cue_rows(prompt: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in prompt.splitlines():
+        payload = _json_line(line)
+        if payload is not None and "cue_id" in payload:
+            rows.append(payload)
+    return rows
+
+
+def _json_line(line: str) -> dict[str, Any] | None:
+    stripped = line.strip()
+    if not stripped.startswith("{"):
+        return None
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
