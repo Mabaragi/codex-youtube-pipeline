@@ -1,9 +1,7 @@
-name: Docker Publish
+name: Legacy Docker Publish
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,7 +9,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish release images to GHCR
+    name: Publish legacy images to GHCR
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,11 +26,7 @@ jobs:
           short_sha="${GITHUB_SHA::12}"
           {
             echo "api_sha_tag=${api_image}:sha-${short_sha}"
-            echo "api_latest_tag=${api_image}:latest"
-            echo "api_version_tag=${api_image}:${GITHUB_REF_NAME}"
             echo "ops_ui_sha_tag=${ops_ui_image}:sha-${short_sha}"
-            echo "ops_ui_latest_tag=${ops_ui_image}:latest"
-            echo "ops_ui_version_tag=${ops_ui_image}:${GITHUB_REF_NAME}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Show Docker version
@@ -54,10 +48,7 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: |
-            ${{ steps.image.outputs.api_sha_tag }}
-            ${{ steps.image.outputs.api_latest_tag }}
-            ${{ steps.image.outputs.api_version_tag }}
+          tags: ${{ steps.image.outputs.api_sha_tag }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
           provenance: false
@@ -68,36 +59,7 @@ jobs:
           context: .
           file: ops-ui/Dockerfile
           push: true
-          tags: |
-            ${{ steps.image.outputs.ops_ui_sha_tag }}
-            ${{ steps.image.outputs.ops_ui_latest_tag }}
-            ${{ steps.image.outputs.ops_ui_version_tag }}
+          tags: ${{ steps.image.outputs.ops_ui_sha_tag }}
           cache-from: type=gha,scope=ops-ui
           cache-to: type=gha,mode=max,scope=ops-ui
           provenance: false
-
-      - name: Smoke test API image
-        shell: bash
-        run: |
-          set -euo pipefail
-          api_image="${{ steps.image.outputs.api_sha_tag }}"
-          docker pull "$api_image"
-          docker run --rm "$api_image" --help
-          docker run --rm --entrypoint python "$api_image" -c "from codex_sdk_cli.api.main import app; print(app.title)"
-
-      - name: Smoke test ops UI image
-        shell: bash
-        run: |
-          set -euo pipefail
-          ops_ui_image="${{ steps.image.outputs.ops_ui_sha_tag }}"
-          docker pull "$ops_ui_image"
-          container_id="$(docker run -d --rm -e CODEX_OPS_BACKEND_BASE_URL=http://127.0.0.1:8000 -p 3000:3000 "$ops_ui_image")"
-          trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
-          for _ in {1..30}; do
-            if curl -fsS --max-time 5 http://127.0.0.1:3000/ops >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs "$container_id" 2>&1 || true
-          exit 1

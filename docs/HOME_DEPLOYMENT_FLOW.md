@@ -1,4 +1,10 @@
-# Home Deployment Flow
+# Legacy Home Deployment Flow
+
+This document is retained for historical reference. The current Home PC runtime
+is local native and does not use GHCR image pulls, Nginx, ngrok, or GitHub
+Actions deploy jobs. Use `docs/LOCAL_NATIVE_DEPLOYMENT.md` instead.
+
+---
 
 This document records the current Home PC deployment flow and the concrete
 change from local Docker builds to GHCR image pulls.

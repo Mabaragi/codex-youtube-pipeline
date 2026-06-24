@@ -524,11 +524,53 @@ describe("VideoDetailPage", () => {
     render(<VideoDetailPage videoId={42} />);
 
     expect(screen.getAllByText("Timeline").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Timeline JSON/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Timeline MD/i })).toBeTruthy();
     expect(screen.getByText("Opening chat")).toBeTruthy();
     expect(screen.getByText("Opening chat block")).toBeTruthy();
     expect(screen.getByText("Opening chat topic")).toBeTruthy();
     expect(screen.getByText("coverage gap repaired")).toBeTruthy();
     expect(queryMocks.timelineComposition).toHaveBeenLastCalledWith(42, true);
+  });
+
+  it("downloads the latest timeline composition as JSON and Markdown", async () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Timeline JSON/i }));
+
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(1));
+    expect(downloadedFileName).toBe("abc123DEF45-timeline-task-18.json");
+    expect(downloadedBlob?.type).toBe("application/json;charset=utf-8");
+    const payload = JSON.parse((await downloadedBlob?.text()) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(payload.videoTaskId).toBe(18);
+    expect(payload.youtubeVideoId).toBe("abc123DEF45");
+    expect(JSON.stringify(payload)).toContain("Opening chat topic");
+    expect(JSON.stringify(payload)).toContain("coverage gap repaired");
+
+    fireEvent.click(screen.getByRole("button", { name: /Timeline MD/i }));
+
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledTimes(2));
+    expect(downloadedFileName).toBe("abc123DEF45-timeline-task-18.md");
+    expect(downloadedBlob?.type).toBe("text/markdown;charset=utf-8");
+    const markdown = (await downloadedBlob?.text()) ?? "";
+    expect(markdown).toContain("# Opening chat");
+    expect(markdown).toContain("## Metadata");
+    expect(markdown).toContain("### block_001. Opening chat block");
+    expect(markdown).toContain("#### episode_001. Opening chat topic");
+    expect(markdown).toContain("## Validation Warnings");
+  });
+
+  it("hides timeline download buttons when no composition exists", () => {
+    queryMocks.contentState.timeline = null;
+
+    render(<VideoDetailPage videoId={42} />);
+
+    expect(screen.getByText("No composed timeline yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Timeline JSON/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Timeline MD/i })).toBeNull();
   });
 
   it("renders latest micro-event extraction candidates", () => {

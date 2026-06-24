@@ -1,3 +1,6 @@
+# Legacy Docker/ngrok home stack.
+# Current runtime uses compose.local-infra.yaml for MinIO only and starts the
+# API, workers, and Ops UI as local Windows processes.
 services:
   api:
     image: ${CODEX_API_IMAGE:-codex-sdk-cli:home}

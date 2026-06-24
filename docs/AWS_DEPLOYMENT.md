@@ -146,10 +146,10 @@ curl -sS -X POST http://localhost:8000/codex/runs \
 
 ## GitHub Actions 자동 배포
 
-참고: 현재 `main` push 자동 배포 대상은 Windows home PC self-hosted runner다. AWS
-EC2 배포 workflow는 비활성화되었고, 이 문서는 Terraform/SSM 기반 AWS 배포를 다시
-사용하거나 참고할 때의 절차로 남긴다. 현재 운영 배포 절차는
-`docs/HOME_PC_DEPLOYMENT.md`를 본다.
+참고: 현재 운영 방식은 Windows Home PC local native runtime이다. AWS EC2 배포와
+GitHub Actions 기반 Home PC 배포는 모두 일반 운영 경로가 아니다. 이 문서는
+Terraform/SSM 기반 AWS 배포를 다시 사용하거나 참고할 때의 절차로 남긴다. 현재
+운영 배포 절차는 `docs/LOCAL_NATIVE_DEPLOYMENT.md`를 본다.
 
 Terraform은 GitHub Actions가 AWS OIDC로 assume할 IAM role과 ECR repository를 만든다.
 AWS EC2 자동 배포를 다시 켜는 경우 workflow가 다음 순서로 배포한다.

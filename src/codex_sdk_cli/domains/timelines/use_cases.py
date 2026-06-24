@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from typing import cast, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.domain_knowledge.ports import (
@@ -801,11 +801,20 @@ class _TimelineEpisodeOutput(BaseModel):
 
 
 class _TimelineTopicClusterOutput(BaseModel):
-    topic_id: str = ""
-    label: str = ""
+    topic_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("topic_id", "topicId", "cluster_id", "clusterId"),
+    )
+    label: str = Field(default="", validation_alias=AliasChoices("label", "title"))
     summary: str = ""
-    display_label: str = ""
-    episode_ids: list[str] = Field(default_factory=list)
+    display_label: str = Field(
+        default="",
+        validation_alias=AliasChoices("display_label", "displayLabel", "title"),
+    )
+    episode_ids: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("episode_ids", "episodeIds"),
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -887,6 +896,28 @@ GAME_STORY, GAME_DISCUSSION, COMMUNITY, MEDIA, ANNOUNCEMENT, META 중에서 고�
 visibility는 DEFAULT, COLLAPSED, HIDDEN 중 하나다. 의미 있는 이야기와 게임 진행은
 HIDDEN으로 두지 않는다. BREAK는 보통 COLLAPSED로 둔다.
 
+episode 작성 규칙:
+- 서로 다른 탐색 가치가 있는 주제가 한 episode에 과하게 섞이면 분리한다.
+- 단순한 곁가지, 짧은 농담, 짧은 채팅 답변만으로는 새 episode를 만들지 않는다.
+- topics는 episode마다 검색에 유용한 구체적 명사구 2~6개만 넣는다.
+- highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개 넣는다.
+
+block 작성 규칙:
+- MIXED는 지배적인 흐름을 고르기 어려울 때만 사용한다.
+- 게임 중 짧은 자리 비움은 별도 최상위 BREAK block보다
+  주변 흐름 안의 COLLAPSED BREAK episode로 둔다.
+- 게임 후 개인 잡담은 GAMEPLAY가 아니라 POST_GAME 또는 JUST_CHATTING으로 분류한다.
+
+review_flags 작성 규칙:
+- 해결하기 어려운 과도한 episode 범위는 OVERBROAD_MICRO_EVENT 또는 BOUNDARY_AMBIGUOUS로 표시한다.
+- 방송 후반에 "방송 시작/방송 예정"처럼 방종과 혼동될 수 있는 표현은 ASR_SEMANTIC_RISK로 표시한다.
+- 짧은 BREAK 경계가 애매하면 BOUNDARY_AMBIGUOUS로 표시한다.
+
+topic_clusters 작성 규칙:
+- 하나의 episode만 포함하는 topic_cluster는 만들지 않는다.
+- 너무 일반적인 "잡담", "게임" 같은 cluster는 만들지 않는다.
+- 반드시 topic_id, label, summary, display_label, episode_ids 키를 사용한다.
+
 출력은 지정된 JSON 구조만 반환한다.
 
 {
@@ -926,7 +957,15 @@ HIDDEN으로 두지 않는다. BREAK는 보통 COLLAPSED로 둔다.
       "visibility": "DEFAULT"
     }
   ],
-  "topic_clusters": [],
+  "topic_clusters": [
+    {
+      "topic_id": "topic_001",
+      "label": "string",
+      "summary": "string",
+      "display_label": "string",
+      "episode_ids": ["episode_001", "episode_003"]
+    }
+  ],
   "review_flags": []
 }
 """
@@ -936,6 +975,11 @@ _TIMELINE_BLOCK_TYPES = frozenset(get_args(TimelineBlockType))
 _TIMELINE_CONTENT_KINDS = frozenset(get_args(TimelineContentKind))
 _TIMELINE_VISIBILITIES = frozenset(get_args(TimelineVisibility))
 _TIMELINE_REVIEW_FLAG_TYPES = frozenset(get_args(TimelineReviewFlagType))
+_MAX_EPISODE_TOPICS = 6
+_MAX_EPISODE_HIGHLIGHTS = 3
+_OVERBROAD_MICRO_EVENT_COUNT = 9
+_OVERBROAD_LARGE_MICRO_EVENT_COUNT = 12
+_SHORT_BREAK_EPISODE_COUNT = 2
 
 
 def _composition_create(
@@ -963,6 +1007,13 @@ def _composition_create(
     blocks = _sanitize_block_episode_ids(blocks, episode_ids, warnings)
     topics = _normalized_topics(parsed.topic_clusters, episode_ids, warnings)
     flags = _normalized_flags(parsed.review_flags, composer_input, warnings)
+    flags = _soft_verifier_flags(
+        episodes=episodes,
+        blocks=blocks,
+        composer_input=composer_input,
+        existing_flags=flags,
+        warnings=warnings,
+    )
     summary = parsed.video_summary
     return TimelineCompositionCreate(
         video_task_id=task.id,
@@ -1044,9 +1095,18 @@ def _normalized_episodes(
         end_id = composer_input.candidate_id_by_synthetic_id.get(episode.end_micro_event_id)
         if start_id is None or end_id is None:
             warnings.append(f"episode has invalid micro-event range: {episode_id}")
+        if len(episode.highlight_micro_event_ids) > _MAX_EPISODE_HIGHLIGHTS:
+            warnings.append(
+                f"episode {episode_id} highlight_micro_event_ids truncated "
+                f"to {_MAX_EPISODE_HIGHLIGHTS}"
+            )
+        if len(episode.topics) > _MAX_EPISODE_TOPICS:
+            warnings.append(
+                f"episode {episode_id} topics truncated to {_MAX_EPISODE_TOPICS}"
+            )
         highlights = [
             candidate_id
-            for value in episode.highlight_micro_event_ids[:3]
+            for value in episode.highlight_micro_event_ids[:_MAX_EPISODE_HIGHLIGHTS]
             if (candidate_id := composer_input.candidate_id_by_synthetic_id.get(value))
             is not None
         ]
@@ -1071,7 +1131,7 @@ def _normalized_episodes(
                 summary=episode.summary,
                 display_title=episode.display_title or episode.title,
                 display_summary=episode.display_summary or episode.summary,
-                topics=episode.topics[:6],
+                topics=episode.topics[:_MAX_EPISODE_TOPICS],
                 viewer_tags=episode.viewer_tags,
                 highlight_micro_event_candidate_ids=highlights,
                 visibility=_timeline_visibility(
@@ -1121,13 +1181,18 @@ def _normalized_topics(
         if len(ids) < 2:
             warnings.append(f"topic cluster removed because it has fewer than two refs: {index}")
             continue
+        topic_id = cluster.topic_id or f"topic_{index:03d}"
+        label = cluster.label or cluster.display_label or topic_id
+        display_label = cluster.display_label or label
+        if not cluster.label:
+            warnings.append(f"topic cluster label filled from fallback: {topic_id}")
         normalized.append(
             TimelineTopicClusterCreate(
-                topic_id=cluster.topic_id or f"topic_{index:03d}",
+                topic_id=topic_id,
                 topic_index=len(normalized) + 1,
-                label=cluster.label,
+                label=label,
                 summary=cluster.summary,
-                display_label=cluster.display_label or cluster.label,
+                display_label=display_label,
                 episode_ids=ids,
             )
         )
@@ -1160,6 +1225,189 @@ def _normalized_flags(
             )
         )
     return normalized
+
+
+def _soft_verifier_flags(
+    *,
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    composer_input: _ComposerInput,
+    existing_flags: list[TimelineReviewFlagCreate],
+    warnings: list[str],
+) -> list[TimelineReviewFlagCreate]:
+    normalized = list(existing_flags)
+    existing_keys = {
+        (flag.start_micro_event_candidate_id, flag.end_micro_event_candidate_id, flag.type)
+        for flag in normalized
+    }
+    episode_by_id = {episode.episode_id: episode for episode in episodes}
+    candidate_by_id = {candidate.id: candidate for candidate in composer_input.micro_events}
+    candidate_ids = [candidate.id for candidate in composer_input.micro_events]
+    candidate_index_by_id = {
+        candidate_id: index for index, candidate_id in enumerate(candidate_ids)
+    }
+
+    def append_flag(
+        *,
+        start_id: int | None,
+        end_id: int | None,
+        flag_type: TimelineReviewFlagType,
+        reason: str,
+    ) -> None:
+        if start_id is None or end_id is None:
+            return
+        key = (start_id, end_id, flag_type)
+        if key in existing_keys:
+            return
+        existing_keys.add(key)
+        normalized.append(
+            TimelineReviewFlagCreate(
+                flag_index=len(normalized) + 1,
+                start_micro_event_candidate_id=start_id,
+                end_micro_event_candidate_id=end_id,
+                type=flag_type,
+                reason=reason,
+            )
+        )
+
+    mixed_count = sum(1 for block in blocks if block.block_type == "MIXED")
+    if len(blocks) >= 4 and mixed_count / len(blocks) >= 0.3:
+        warnings.append(f"timeline has many MIXED blocks: {mixed_count}/{len(blocks)}")
+
+    for episode in episodes:
+        range_info = _episode_candidate_range(
+            episode,
+            candidate_ids,
+            candidate_index_by_id,
+            candidate_by_id,
+        )
+        if range_info is None:
+            continue
+        candidates, start_index, _end_index = range_info
+        program_modes = {
+            candidate.program_mode for candidate in candidates if candidate.program_mode
+        }
+        content_kinds = {
+            candidate.content_kind for candidate in candidates if candidate.content_kind
+        }
+        is_overbroad = (
+            len(candidates) >= _OVERBROAD_MICRO_EVENT_COUNT
+            and (
+                len(episode.topics) >= _MAX_EPISODE_TOPICS
+                or len(program_modes) >= 3
+                or len(content_kinds) >= 3
+            )
+        ) or (
+            len(candidates) >= _OVERBROAD_LARGE_MICRO_EVENT_COUNT
+            and len(content_kinds) >= 2
+        )
+        if is_overbroad:
+            append_flag(
+                start_id=episode.start_micro_event_candidate_id,
+                end_id=episode.end_micro_event_candidate_id,
+                flag_type="OVERBROAD_MICRO_EVENT",
+                reason=(
+                    "Episode spans many micro-events with mixed subjects; "
+                    "consider splitting if separate user-searchable topics are present."
+                ),
+            )
+        if _is_late_broadcast_start_risk(
+            episode,
+            candidates,
+            start_index=start_index,
+            total_count=len(candidate_ids),
+        ):
+            append_flag(
+                start_id=episode.start_micro_event_candidate_id,
+                end_id=episode.end_micro_event_candidate_id,
+                flag_type="ASR_SEMANTIC_RISK",
+                reason=(
+                    "Late-stream wording mentions starting or scheduling a broadcast; "
+                    "verify whether this is an ASR confusion with ending the broadcast."
+                ),
+            )
+
+    for index, block in enumerate(blocks):
+        if (
+            block.block_type != "BREAK"
+            or len(block.episode_ids) > _SHORT_BREAK_EPISODE_COUNT
+            or index == 0
+            or index == len(blocks) - 1
+        ):
+            continue
+        block_episodes = [
+            episode
+            for episode_id in block.episode_ids
+            if (episode := episode_by_id.get(episode_id)) is not None
+        ]
+        if not block_episodes:
+            continue
+        append_flag(
+            start_id=block_episodes[0].start_micro_event_candidate_id,
+            end_id=block_episodes[-1].end_micro_event_candidate_id,
+            flag_type="BOUNDARY_AMBIGUOUS",
+            reason=(
+                "Short BREAK appears as a separate top-level block; "
+                "consider keeping it as a collapsed episode inside the neighboring flow."
+            ),
+        )
+    return normalized
+
+
+def _episode_candidate_range(
+    episode: TimelineEpisodeCreate,
+    candidate_ids: list[int],
+    candidate_index_by_id: dict[int, int],
+    candidate_by_id: dict[int, MicroEventCandidateRecord],
+) -> tuple[list[MicroEventCandidateRecord], int, int] | None:
+    if (
+        episode.start_micro_event_candidate_id is None
+        or episode.end_micro_event_candidate_id is None
+    ):
+        return None
+    start_index = candidate_index_by_id.get(episode.start_micro_event_candidate_id)
+    end_index = candidate_index_by_id.get(episode.end_micro_event_candidate_id)
+    if start_index is None or end_index is None or end_index < start_index:
+        return None
+    candidate_range = [
+        candidate_by_id[candidate_id]
+        for candidate_id in candidate_ids[start_index : end_index + 1]
+        if candidate_id in candidate_by_id
+    ]
+    return candidate_range, start_index, end_index
+
+
+def _is_late_broadcast_start_risk(
+    episode: TimelineEpisodeCreate,
+    candidates: list[MicroEventCandidateRecord],
+    *,
+    start_index: int,
+    total_count: int,
+) -> bool:
+    if total_count <= 0 or start_index < int(total_count * 0.65):
+        return False
+    text = " ".join(
+        [
+            episode.title,
+            episode.summary,
+            episode.display_title,
+            episode.display_summary,
+            *(candidate.event for candidate in candidates),
+        ]
+    )
+    if "방종" in text:
+        return False
+    return any(
+        phrase in text
+        for phrase in (
+            "방송할 예정",
+            "방송 예정",
+            "방송 시작",
+            "방송을 시작",
+            "방송하면",
+            "방송한다",
+        )
+    )
 
 
 def _timeline_block_type(

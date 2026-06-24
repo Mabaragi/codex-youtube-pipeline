@@ -50,6 +50,7 @@ import type {
 type TranscriptMetadata = OpsVideoDetail["transcripts"][number];
 type TranscriptSegment = TranscriptContent["segments"][number];
 type TranscriptDownloadFormat = "srt" | "txt" | "json";
+type TimelineDownloadFormat = "json" | "md";
 type MicroEventExcludedRange =
   MicroEventExtractionWindow["excludedRanges"][number];
 
@@ -58,6 +59,7 @@ const TRANSCRIPT_DOWNLOAD_FORMATS: readonly TranscriptDownloadFormat[] = [
   "txt",
   "json",
 ];
+const TIMELINE_DOWNLOAD_FORMATS: readonly TimelineDownloadFormat[] = ["json", "md"];
 
 export function VideoDetailPage({ videoId }: { videoId: number }) {
   const { data, isLoading, error } = useOpsVideoDetail(videoId);
@@ -503,11 +505,41 @@ function TimelineCompositionView({
 }: {
   composition: TimelineComposition;
 }) {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const episodesById = new Map(
     composition.episodes.map((episode) => [episode.episodeId, episode]),
   );
+
+  function handleDownload(format: TimelineDownloadFormat) {
+    setDownloadError(null);
+    try {
+      const file = buildTimelineDownload(composition, format);
+      downloadTextFile(file.fileName, file.content, file.contentType);
+    } catch (downloadFailure) {
+      setDownloadError(formatDownloadError(downloadFailure));
+    }
+  }
+
   return (
     <div className="grid gap-3">
+      <div className="flex flex-wrap justify-end gap-2">
+        {TIMELINE_DOWNLOAD_FORMATS.map((format) => (
+          <button
+            className="ops-button"
+            key={format}
+            onClick={() => handleDownload(format)}
+            title={`Download timeline ${format.toUpperCase()}`}
+            type="button"
+          >
+            <Download size={14} />
+            Timeline {format.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      {downloadError ? (
+        <div className="text-xs text-red-700">{downloadError}</div>
+      ) : null}
+
       <div className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
         <SummaryCell label="Status" status={composition.status} value={composition.status} />
         <SummaryCell label="Task" value={`#${composition.videoTaskId}`} />
@@ -1190,6 +1222,127 @@ function buildMicroEventDownload(extraction: MicroEventExtractionDetail): {
     contentType: "application/json;charset=utf-8",
     fileName: `${baseName}.json`,
   };
+}
+
+function buildTimelineDownload(
+  composition: TimelineComposition,
+  format: TimelineDownloadFormat,
+): {
+  content: string;
+  contentType: string;
+  fileName: string;
+} {
+  const baseName = sanitizeFileName(
+    `${composition.youtubeVideoId}-timeline-task-${composition.videoTaskId}`,
+  );
+  if (format === "md") {
+    return {
+      content: formatTimelineMarkdown(composition),
+      contentType: "text/markdown;charset=utf-8",
+      fileName: `${baseName}.md`,
+    };
+  }
+  return {
+    content: JSON.stringify(composition, null, 2),
+    contentType: "application/json;charset=utf-8",
+    fileName: `${baseName}.json`,
+  };
+}
+
+function formatTimelineMarkdown(composition: TimelineComposition): string {
+  const episodesById = new Map(
+    composition.episodes.map((episode) => [episode.episodeId, episode]),
+  );
+  const lines: string[] = [
+    `# ${composition.displayTitle || composition.title}`,
+    "",
+    composition.displaySummary || composition.summary,
+    "",
+    "## Metadata",
+    "",
+    `- YouTube video: ${composition.youtubeVideoId}`,
+    `- Local video: #${composition.videoId}`,
+    `- Timeline task: #${composition.videoTaskId}`,
+    `- Source micro-event task: #${composition.sourceMicroEventTaskId}`,
+    `- Model: ${composition.model ?? "-"}`,
+    `- Reasoning: ${composition.reasoningEffort ?? "-"}`,
+    `- Copy style: ${composition.copyStyle}`,
+    "",
+  ];
+
+  if (composition.mainTopics.length > 0) {
+    lines.push("## Main Topics", "", ...composition.mainTopics.map((topic) => `- ${topic}`), "");
+  }
+
+  lines.push("## Blocks", "");
+  for (const block of composition.blocks) {
+    lines.push(`### ${block.blockId}. ${block.displayTitle || block.title}`, "");
+    lines.push(`- Type: ${block.blockType}`);
+    lines.push(`- Summary: ${block.displaySummary || block.summary}`);
+    lines.push("");
+
+    for (const episodeId of block.episodeIds) {
+      const episode = episodesById.get(episodeId);
+      if (!episode) {
+        continue;
+      }
+      lines.push(`#### ${episode.episodeId}. ${episode.displayTitle || episode.title}`);
+      lines.push("");
+      lines.push(episode.displaySummary || episode.summary);
+      lines.push("");
+      lines.push(`- Program mode: ${episode.programMode}`);
+      lines.push(`- Content kind: ${episode.primaryContentKind}`);
+      lines.push(`- Visibility: ${episode.visibility}`);
+      lines.push(
+        `- Micro events: ${idValue(episode.startMicroEventCandidateId)}-${idValue(
+          episode.endMicroEventCandidateId,
+        )}`,
+      );
+      if (episode.topics.length > 0) {
+        lines.push(`- Topics: ${episode.topics.join(", ")}`);
+      }
+      if (episode.viewerTags.length > 0) {
+        lines.push(`- Viewer tags: ${episode.viewerTags.join(", ")}`);
+      }
+      if (episode.highlightMicroEventCandidateIds.length > 0) {
+        lines.push(
+          `- Highlights: ${episode.highlightMicroEventCandidateIds
+            .map((candidateId) => idValue(candidateId))
+            .join(", ")}`,
+        );
+      }
+      lines.push("");
+    }
+  }
+
+  if (composition.topicClusters.length > 0) {
+    lines.push("## Topic Clusters", "");
+    for (const topic of composition.topicClusters) {
+      lines.push(`- ${topic.displayLabel}: ${topic.summary}`);
+      lines.push(`  - Episodes: ${topic.episodeIds.join(", ")}`);
+    }
+    lines.push("");
+  }
+
+  if (composition.reviewFlags.length > 0) {
+    lines.push("## Review Flags", "");
+    for (const flag of composition.reviewFlags) {
+      lines.push(`- ${flag.type}: ${flag.reason}`);
+      lines.push(
+        `  - Micro events: ${idValue(flag.startMicroEventCandidateId)}-${idValue(
+          flag.endMicroEventCandidateId,
+        )}`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (composition.validationWarnings.length > 0) {
+    lines.push("## Validation Warnings", "");
+    lines.push(...composition.validationWarnings.map((warning) => `- ${warning}`), "");
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`;
 }
 
 function formatSrt(segments: TranscriptSegment[]): string {

@@ -108,16 +108,15 @@ FastAPI 앱을 로컬에서 import 확인한다.
 uv run python -c "from codex_sdk_cli.api.main import app; print(app.title)"
 ```
 
-Docker Compose로 REST API를 실행한다.
+로컬 네이티브 API를 실행한다.
 
 ```powershell
-docker compose up api
+uv run uvicorn codex_sdk_cli.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Home PC deployment uses a Windows self-hosted runner, Docker Compose, Nginx
-Basic Auth, and an ngrok dev domain tunnel. The deploy job records the public
-URL in the GitHub Actions summary and `.home-deploy/latest-tunnel-url.txt`. See
-`docs/HOME_PC_DEPLOYMENT.md`.
+Home PC deployment is local native. MinIO runs in Docker, while the API,
+workers, and optional Ops UI run as Windows processes. There is no public ngrok
+URL or GitHub-driven deploy. See `docs/LOCAL_NATIVE_DEPLOYMENT.md`.
 
 YouTube 자막 조회 API는 URL과 raw video ID를 모두 받는다.
 
@@ -222,11 +221,10 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS`: manual `transcript_collect` task timeout. 기본값은 `600`.
 - `CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT`: manual `transcript_collect` 동시 실행 제한. 기본값은 `1`.
 - `CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS`: manual `transcript_collect` 실제 fetch 사이 대기 시간. 기본값은 `300`.
-- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`: `micro_event_extract` 한 영상 작업 안에서 동시에 처리할 window worker 수. 앱 기본값은 `3`, Home Compose 배포 기본값은 `6`.
+- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`: `micro_event_extract` 한 영상 작업 안에서 동시에 처리할 window worker 수. 앱 기본값은 `3`, local native env 예시는 `6`.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.
-- `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 앱 기본값은
-  `sqlite+aiosqlite:///./data/app.db`이고, Docker Compose 기본값은
-  `sqlite+aiosqlite:////data/db/app.db`다.
+- `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 앱 기본값과 local native 기본값은
+  `sqlite+aiosqlite:///./data/app.db`다.
 - `CODEX_CLI_DATABASE_ECHO`: SQLAlchemy SQL echo 여부. 기본값은 `false`.
 
 ## 중요한 구현 선택
