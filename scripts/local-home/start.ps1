@@ -41,5 +41,11 @@ if (-not (Test-Path -LiteralPath $nextBuildDir)) {
 if (Test-LocalHttp "http://127.0.0.1:3000/ops") {
     Write-Host "ops-ui already reachable on http://127.0.0.1:3000/ops."
 } else {
-    Start-LoggedProcess "ops-ui" "pnpm" @("-C", "ops-ui", "start")
+    Start-LoggedProcess "ops-ui" "powershell.exe" @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "pnpm -C ops-ui start"
+    )
 }

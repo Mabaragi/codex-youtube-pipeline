@@ -186,16 +186,23 @@ function Stop-LegacyHomeContainers {
 
     Push-Location $script:RepoRoot
     try {
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
         & docker compose `
             --project-name $script:ComposeProjectName `
             -f $legacyCompose `
-            stop api micro-event-worker timeline-compose-worker ops-ui nginx ngrok *> $null
-        if ($LASTEXITCODE -eq 0) {
+            stop api micro-event-worker timeline-compose-worker ops-ui nginx ngrok 2>&1 | Out-Null
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($exitCode -eq 0) {
             Write-Host "Stopped legacy Docker app/proxy/tunnel containers."
         } else {
             Write-Host "Legacy Docker app/proxy/tunnel containers were not running."
         }
     } finally {
+        if ($previousErrorActionPreference) {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
         Pop-Location
     }
 }
