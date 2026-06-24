@@ -27,9 +27,9 @@ flowchart TD
     FrontendMain --> Preflight
     PublishMain --> Preflight
     Preflight --> HomeRunner["Windows self-hosted runner: codex-home"]
-    HomeRunner --> PullImages["docker compose pull api micro-event-worker codex ops-ui"]
+    HomeRunner --> PullImages["docker compose pull api micro-event-worker timeline-compose-worker codex ops-ui"]
     PullImages --> Migration["docker compose run api alembic upgrade head"]
-    Migration --> ComposeDeploy["docker compose up -d --no-build api micro-event-worker ops-ui nginx ngrok minio"]
+    Migration --> ComposeDeploy["docker compose up -d --no-build api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio"]
     ComposeDeploy --> LocalHealth["local Basic Auth /health, /ops, BFF summary checks with retry"]
     LocalHealth --> CaptureUrl["record configured ngrok dev domain URL"]
     CaptureUrl --> PublicHealth["GitHub-hosted public Basic Auth health check"]
@@ -98,9 +98,9 @@ sequenceDiagram
     Runner->>Docker: docker version and compose version
     Runner->>Docker: generate .home-deploy/nginx.htpasswd
     Runner->>Docker: docker compose config
-    Runner->>Docker: docker compose pull api micro-event-worker codex ops-ui
+    Runner->>Docker: docker compose pull api micro-event-worker timeline-compose-worker codex ops-ui
     Runner->>Docker: docker compose run api alembic upgrade head
-    Runner->>Docker: docker compose up -d --no-build api micro-event-worker ops-ui nginx ngrok minio
+    Runner->>Docker: docker compose up -d --no-build api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
     Runner->>Nginx: Retry GET /health, /ops, /ops/api/backend/ops/summary with Basic Auth
     Nginx->>API: proxy /health
     API-->>Nginx: {"status":"ok"}
@@ -121,8 +121,8 @@ Home deploy job의 주요 단계:
 4. `docker compose --project-name codex-sdk-home -f compose.home.yaml config`로
    stack 설정을 검증한다.
 5. `db-data` volume이 비어 있으면 legacy DB 백업을 `/data/db/app.db`로 옮긴다.
-6. `api`, `micro-event-worker`, `codex`, `ops-ui` image를 GHCR에서 pull하고 같은 compose env로 `alembic upgrade head`를 실행한다.
-7. `api`, `micro-event-worker`, `ops-ui`, `nginx`, `ngrok`, `minio`를 `up -d --no-build --remove-orphans`로 배포한다.
+6. `api`, `micro-event-worker`, `timeline-compose-worker`, `codex`, `ops-ui` image를 GHCR에서 pull하고 같은 compose env로 `alembic upgrade head`를 실행한다.
+7. `api`, `micro-event-worker`, `timeline-compose-worker`, `ops-ui`, `nginx`, `ngrok`, `minio`를 `up -d --no-build --remove-orphans`로 배포한다.
 8. 로컬 Nginx `/health`, `/ops`, `/ops/api/backend/ops/summary`를 Basic Auth로 확인한다.
 9. `NGROK_DOMAIN`으로 만든 `https://<domain>` URL을
    `.home-deploy/latest-tunnel-url.txt`와 Actions summary에 기록한다.
@@ -156,6 +156,8 @@ flowchart LR
   `8000`을 expose한다.
 - `micro-event-worker`: 같은 API image에서 `codex-micro-event-worker`를
   실행해 pending `micro_event_extract` video task를 DB polling으로 처리한다.
+- `timeline-compose-worker`: 같은 API image에서 `codex-timeline-compose-worker`를
+  실행해 pending `timeline_compose` video task를 DB polling으로 처리한다.
 - `ops-ui`: Next.js 운영 콘솔을 실행한다. `/ops` 아래에 mount되며 BFF가
   `CODEX_OPS_BACKEND_BASE_URL`로 FastAPI를 호출한다.
 - `nginx`: 모든 endpoint에 Basic Auth를 적용하고 `/ops`는 `ops-ui:3000`,
@@ -308,7 +310,7 @@ Home stack 확인:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api micro-event-worker ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 수동 재배포:

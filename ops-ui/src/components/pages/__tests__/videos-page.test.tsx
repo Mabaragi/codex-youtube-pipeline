@@ -7,6 +7,7 @@ import type {
   OpsChannel,
   OpsVideoFilters,
   OpsVideoList,
+  TimelineComposeEnqueueResult,
 } from "@/lib/types";
 
 const routerPush = vi.hoisted(() => vi.fn());
@@ -33,11 +34,18 @@ const queryMocks = vi.hoisted(() => ({
     data: undefined as MicroEventEnqueueResult | undefined,
     error: null as Error | null,
   },
+  enqueueTimelineCompose: {
+    mutate: vi.fn(),
+    isPending: false,
+    data: undefined as TimelineComposeEnqueueResult | undefined,
+    error: null as Error | null,
+  },
   videoFilters: undefined as OpsVideoFilters | undefined,
 }));
 
 vi.mock("@/lib/queries", () => ({
   useEnqueueMicroEventsMutation: () => queryMocks.enqueueMicroEvents,
+  useEnqueueTimelineComposeMutation: () => queryMocks.enqueueTimelineCompose,
   useExtractAllMicroEventsMutation: () => queryMocks.extractAllMicroEvents,
   useOpsChannels: () => queryMocks.channels,
   useOpsVideos: (filters: OpsVideoFilters) => {
@@ -105,6 +113,10 @@ describe("VideosPage", () => {
     queryMocks.enqueueMicroEvents.isPending = false;
     queryMocks.enqueueMicroEvents.data = undefined;
     queryMocks.enqueueMicroEvents.error = null;
+    queryMocks.enqueueTimelineCompose.mutate.mockReset();
+    queryMocks.enqueueTimelineCompose.isPending = false;
+    queryMocks.enqueueTimelineCompose.data = undefined;
+    queryMocks.enqueueTimelineCompose.error = null;
     queryMocks.videoFilters = undefined;
   });
 
@@ -187,12 +199,14 @@ describe("VideosPage", () => {
     render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Select video 42/i }));
-    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "gpt-5.4" } });
-    fireEvent.change(screen.getByLabelText("Reasoning"), {
+    fireEvent.change(screen.getAllByLabelText("Model")[0], {
+      target: { value: "gpt-5.4" },
+    });
+    fireEvent.change(screen.getAllByLabelText("Reasoning")[0], {
       target: { value: "high" },
     });
-    fireEvent.click(screen.getByLabelText("Retry failed"));
-    fireEvent.click(screen.getByRole("button", { name: /Queue selected/i }));
+    fireEvent.click(screen.getAllByLabelText("Retry failed")[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Queue selected/i })[0]);
 
     expect(queryMocks.enqueueMicroEvents.mutate).toHaveBeenCalledWith({
       target: "selected_videos",
@@ -210,12 +224,16 @@ describe("VideosPage", () => {
   it("runs a micro-event batch now with selected options", () => {
     render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
 
-    fireEvent.change(screen.getByLabelText("Batch size"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "gpt-5.4" } });
-    fireEvent.change(screen.getByLabelText("Reasoning"), {
+    fireEvent.change(screen.getAllByLabelText("Batch size")[0], {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getAllByLabelText("Model")[0], {
+      target: { value: "gpt-5.4" },
+    });
+    fireEvent.change(screen.getAllByLabelText("Reasoning")[0], {
       target: { value: "high" },
     });
-    fireEvent.click(screen.getByLabelText("Retry failed"));
+    fireEvent.click(screen.getAllByLabelText("Retry failed")[0]);
     fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
 
     expect(queryMocks.extractAllMicroEvents.mutate).toHaveBeenCalledWith({
@@ -242,7 +260,7 @@ describe("VideosPage", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Queue current filters/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Queue current filters/i })[0]);
 
     expect(queryMocks.enqueueMicroEvents.mutate).toHaveBeenCalledWith({
       target: "current_filters",
@@ -256,6 +274,34 @@ describe("VideosPage", () => {
       regenerateSucceeded: false,
       windowMinutes: 30,
       overlapMinutes: 5,
+    });
+  });
+
+  it("queues timeline compose for selected videos", () => {
+    render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Select video 42/i }));
+    fireEvent.change(screen.getAllByLabelText("Batch size")[1], {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getAllByLabelText("Model")[1], {
+      target: { value: "gpt-5.4-mini" },
+    });
+    fireEvent.change(screen.getAllByLabelText("Reasoning")[1], {
+      target: { value: "low" },
+    });
+    fireEvent.click(screen.getAllByLabelText("Retry failed")[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Queue selected/i })[1]);
+
+    expect(queryMocks.enqueueTimelineCompose.mutate).toHaveBeenCalledWith({
+      target: "selected_videos",
+      videoIds: [42],
+      limit: 1,
+      model: "gpt-5.4-mini",
+      reasoningEffort: "low",
+      retryFailed: true,
+      regenerateSucceeded: false,
+      copyStyle: "LIGHT_FANDOM_V1",
     });
   });
 
@@ -298,7 +344,7 @@ describe("VideosPage", () => {
     expect(screen.getByText("Processed")).toBeTruthy();
     expect(screen.getByText("Satisfied")).toBeTruthy();
     expect(screen.getByText("extracted")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Tasks/i }).getAttribute("href")).toBe(
+    expect(screen.getAllByRole("link", { name: /Tasks/i })[0].getAttribute("href")).toBe(
       "/tasks?taskName=micro_event_extract&limit=100",
     );
   });

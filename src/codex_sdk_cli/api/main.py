@@ -19,6 +19,7 @@ from codex_sdk_cli.domains.operation_events.router import router as operation_ev
 from codex_sdk_cli.domains.ops.router import router as ops_router
 from codex_sdk_cli.domains.pipeline_jobs.router import router as pipeline_jobs_router
 from codex_sdk_cli.domains.streamers.router import router as streamers_router
+from codex_sdk_cli.domains.timelines.router import router as timelines_router
 from codex_sdk_cli.domains.video_tasks.router import router as video_tasks_router
 from codex_sdk_cli.domains.videos.router import router as videos_router
 from codex_sdk_cli.domains.youtube_transcripts.router import router as youtube_transcripts_router
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(videos_router, tags=["videos"])
     app.include_router(video_tasks_router, tags=["video-tasks"])
     app.include_router(micro_events_router, tags=["micro-events"])
+    app.include_router(timelines_router, tags=["timelines"])
     app.include_router(
         youtube_transcripts_router,
         prefix="/youtube-transcripts",

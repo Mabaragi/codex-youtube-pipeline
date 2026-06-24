@@ -33,6 +33,9 @@ on the home PC.
 - `micro-event-worker`: runs `codex-micro-event-worker` from the same
   `CODEX_API_IMAGE`, polls pending `micro_event_extract` video tasks from the
   SQLite database, and executes them outside the API process.
+- `timeline-compose-worker`: runs `codex-timeline-compose-worker` from the
+  same `CODEX_API_IMAGE`, polls pending `timeline_compose` video tasks from the
+  SQLite database, and executes them outside the API process.
 - `ops-ui`: runs the Next.js operational console from `CODEX_OPS_UI_IMAGE` and
   exposes port `3000` only inside Docker. Browser-visible backend calls go
   through `/ops/api/backend/*`.
@@ -135,9 +138,9 @@ images, set `CODEX_API_IMAGE` and `CODEX_OPS_UI_IMAGE`, then run:
 
 ```powershell
 docker login ghcr.io
-docker compose --project-name codex-sdk-home -f compose.home.yaml pull api micro-event-worker codex ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml pull api micro-event-worker timeline-compose-worker codex ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api micro-event-worker ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 If you intentionally need to rebuild images on the home PC, add the build
@@ -146,14 +149,14 @@ override:
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml build api ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml up -d --no-build --remove-orphans api micro-event-worker ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml up -d --no-build --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 On the home PC, inspect the stack:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api micro-event-worker ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 100 api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 Check the local Nginx endpoint with Basic Auth:

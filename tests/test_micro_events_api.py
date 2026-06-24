@@ -293,6 +293,39 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             completed_at=None,
         )
 
+    async def claim_next_pending_task_excluding_running_video(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        running_video_ids = {
+            task.video_id
+            for task in self.tasks.values()
+            if task.task_name == task_name and task.status == "running"
+        }
+        candidates = sorted(
+            (
+                task
+                for task in self.tasks.values()
+                if task.task_name == task_name
+                and task.status == "pending"
+                and task.video_id not in running_video_ids
+            ),
+            key=lambda task: task.id,
+        )
+        if not candidates:
+            return None
+        return self._update(
+            candidates[0].id,
+            status="running",
+            worker_id=worker_id,
+            error_type=None,
+            error_message=None,
+            started_at=NOW,
+            completed_at=None,
+        )
+
     async def reset_task_to_pending(
         self,
         task_id: int,

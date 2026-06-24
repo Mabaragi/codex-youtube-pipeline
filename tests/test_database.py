@@ -33,6 +33,11 @@ def test_database_base_registers_app_tables() -> None:
         "pipeline_jobs",
         "streamers",
         "transcript_cues",
+        "timeline_blocks",
+        "timeline_compositions",
+        "timeline_episodes",
+        "timeline_review_flags",
+        "timeline_topic_clusters",
         "video_tasks",
         "videos",
         "youtube_transcripts",
@@ -226,6 +231,28 @@ def test_alembic_upgrade_creates_app_tables(
         micro_event_excluded_range_foreign_keys = inspector.get_foreign_keys(
             "micro_event_excluded_ranges"
         )
+        timeline_composition_columns = {
+            column["name"] for column in inspector.get_columns("timeline_compositions")
+        }
+        timeline_composition_foreign_keys = inspector.get_foreign_keys(
+            "timeline_compositions"
+        )
+        timeline_composition_indexes = {
+            index["name"]: index["column_names"]
+            for index in inspector.get_indexes("timeline_compositions")
+        }
+        timeline_block_columns = {
+            column["name"] for column in inspector.get_columns("timeline_blocks")
+        }
+        timeline_episode_columns = {
+            column["name"] for column in inspector.get_columns("timeline_episodes")
+        }
+        timeline_topic_cluster_columns = {
+            column["name"] for column in inspector.get_columns("timeline_topic_clusters")
+        }
+        timeline_review_flag_columns = {
+            column["name"] for column in inspector.get_columns("timeline_review_flags")
+        }
     finally:
         engine.dispose()
 
@@ -246,6 +273,11 @@ def test_alembic_upgrade_creates_app_tables(
         "pipeline_jobs",
         "streamers",
         "transcript_cues",
+        "timeline_blocks",
+        "timeline_compositions",
+        "timeline_episodes",
+        "timeline_review_flags",
+        "timeline_topic_clusters",
         "video_tasks",
         "videos",
         "youtube_transcripts",
@@ -514,6 +546,73 @@ def test_alembic_upgrade_creates_app_tables(
         and foreign_key["constrained_columns"] == ["output_transcript_id"]
         for foreign_key in video_task_foreign_keys
     )
+    assert {
+        "id",
+        "video_task_id",
+        "video_id",
+        "source_micro_event_task_id",
+        "source_micro_event_fingerprint",
+        "copy_style",
+        "model",
+        "reasoning_effort",
+        "title",
+        "summary",
+        "display_title",
+        "display_summary",
+        "main_topics",
+        "output_json",
+        "validation_warnings",
+        "source_job_id",
+        "source_job_attempt_id",
+        "codex_thread_id",
+        "codex_turn_id",
+        "raw_response_text",
+    }.issubset(timeline_composition_columns)
+    assert any(
+        foreign_key["referred_table"] == "video_tasks"
+        and foreign_key["constrained_columns"] == ["video_task_id"]
+        for foreign_key in timeline_composition_foreign_keys
+    )
+    assert any(
+        foreign_key["referred_table"] == "videos"
+        and foreign_key["constrained_columns"] == ["video_id"]
+        for foreign_key in timeline_composition_foreign_keys
+    )
+    assert timeline_composition_indexes["ix_timeline_compositions_video_id"] == [
+        "video_id"
+    ]
+    assert {
+        "composition_id",
+        "block_id",
+        "block_index",
+        "block_type",
+        "episode_ids",
+    }.issubset(timeline_block_columns)
+    assert {
+        "composition_id",
+        "episode_id",
+        "episode_index",
+        "parent_block_id",
+        "start_micro_event_candidate_id",
+        "end_micro_event_candidate_id",
+        "program_mode",
+        "primary_content_kind",
+        "topics",
+        "viewer_tags",
+        "highlight_micro_event_candidate_ids",
+        "visibility",
+    }.issubset(timeline_episode_columns)
+    assert {"composition_id", "topic_id", "topic_index", "episode_ids"}.issubset(
+        timeline_topic_cluster_columns
+    )
+    assert {
+        "composition_id",
+        "flag_index",
+        "start_micro_event_candidate_id",
+        "end_micro_event_candidate_id",
+        "type",
+        "reason",
+    }.issubset(timeline_review_flag_columns)
     assert {
         "id",
         "occurred_at",

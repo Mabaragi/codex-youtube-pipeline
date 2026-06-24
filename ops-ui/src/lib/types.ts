@@ -31,6 +31,14 @@ export type MicroEventCandidate =
   components["schemas"]["MicroEventCandidateResponse"];
 export type AsrCorrectionCandidate =
   components["schemas"]["AsrCorrectionCandidateResponse"];
+export type TimelineComposeEnqueueRequest =
+  components["schemas"]["TimelineComposeEnqueueRequest"];
+export type TimelineComposeEnqueueResult =
+  components["schemas"]["TimelineComposeEnqueueResponse"];
+export type TimelineComposition =
+  components["schemas"]["TimelineCompositionResponse"];
+export type TimelineEpisode = components["schemas"]["TimelineEpisodeResponse"];
+export type TimelineBlock = components["schemas"]["TimelineBlockResponse"];
 export type OperationEventList = components["schemas"]["OperationEventListResponse"];
 export type OperationEvent = components["schemas"]["OperationEventResponse"];
 export type CodexUsageList = components["schemas"]["CodexUsageListResponse"];

@@ -12,7 +12,7 @@ Before the optimization, a `main` push used two separate image paths:
 | Main CI image publish | `Docker Publish` workflow also ran on `main` and pushed the API image. | `CI` workflow owns deploy images for `main`; `Docker Publish` is tag-only. |
 | API image | Home PC rebuilt `codex-sdk-cli:home` from the checkout. | CI publishes `ghcr.io/mabaragi/codex-sdk:sha-<short-sha>` and Home PC pulls it. |
 | Ops UI image | Home PC rebuilt `codex-sdk-ops-ui:home` from the checkout. | CI publishes `ghcr.io/mabaragi/codex-sdk-ops-ui:sha-<short-sha>` and Home PC pulls it. |
-| Home deploy command | `docker compose build api ops-ui`, then `up -d --build --force-recreate ...`. | `docker compose pull api codex ops-ui`, then `up -d --no-build --remove-orphans ...`. |
+| Home deploy command | `docker compose build api ops-ui`, then `up -d --build --force-recreate ...`. | `docker compose pull api micro-event-worker timeline-compose-worker codex ops-ui`, then `up -d --no-build --remove-orphans ...`. |
 | Recreate policy | Every deploy forced service recreation. | Compose updates services whose image/config changed; infra containers are not forced. |
 | Local fallback | Normal deploy and local rebuild used the same compose file. | `compose.home.yaml` is image-based; `compose.home.build.yaml` is the explicit local-build fallback. |
 
@@ -45,9 +45,9 @@ The Home PC runner receives the exact image tags from `publish_images` outputs:
 The deploy job then runs:
 
 ```powershell
-docker compose --project-name codex-sdk-home -f compose.home.yaml pull api codex ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml pull api micro-event-worker timeline-compose-worker codex ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 docker compose --project-name codex-sdk-home -f compose.home.yaml restart nginx
 docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 ```
@@ -86,7 +86,7 @@ ops-ui:
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml build api ops-ui
 docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml -f compose.home.build.yaml up -d --no-build --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 Use this fallback only when GHCR pull is unavailable or when intentionally
@@ -127,14 +127,14 @@ The old deploy job log showed:
 
 ```powershell
 docker compose --project-name codex-sdk-home -f compose.home.yaml build api ops-ui
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --build --force-recreate --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 The GHCR pull deploy job log showed:
 
 ```powershell
-docker compose --project-name codex-sdk-home -f compose.home.yaml pull api codex ops-ui
-docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api ops-ui nginx ngrok minio
+docker compose --project-name codex-sdk-home -f compose.home.yaml pull api micro-event-worker timeline-compose-worker codex ops-ui
+docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 ```
 
 The first verified GHCR run was not faster by total workflow wall time:
@@ -169,7 +169,7 @@ For a successful deploy, confirm:
 - `CI` run succeeds.
 - No `Docker Publish` run is created for a normal `main` push.
 - `Publish deploy images` publishes both SHA images.
-- Home deploy logs show `docker compose pull api codex ops-ui`.
+- Home deploy logs show `docker compose pull api micro-event-worker timeline-compose-worker codex ops-ui`.
 - Home deploy logs do not show `docker compose build api ops-ui`.
 - Home deploy logs show `up -d --no-build --remove-orphans`.
 - Home deploy logs show `restart nginx` before the local Nginx health check.

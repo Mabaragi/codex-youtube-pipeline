@@ -5,6 +5,7 @@ import type {
   MicroEventExtractResult,
   MicroEventExtractionDetail,
   OpsVideoDetail,
+  TimelineComposition,
   TranscriptContent,
   TranscriptCueList,
 } from "@/lib/types";
@@ -15,6 +16,8 @@ const queryMocks = vi.hoisted(() => {
     cues: undefined as TranscriptCueList | undefined,
     microEvents: undefined as MicroEventExtractionDetail | null | undefined,
     microEventError: null as Error | null,
+    timeline: undefined as TimelineComposition | null | undefined,
+    timelineError: null as Error | null,
   };
   const mutation = {
     data: undefined as MicroEventExtractResult | undefined,
@@ -44,6 +47,18 @@ const queryMocks = vi.hoisted(() => {
           error: state.microEventError,
         }) as {
           data: MicroEventExtractionDetail | null | undefined;
+          isLoading: boolean;
+          error: Error | null;
+        },
+    ),
+    timelineComposition: vi.fn(
+      (_videoId: number, enabled: boolean) =>
+        ({
+          data: enabled ? state.timeline : undefined,
+          isLoading: false,
+          error: state.timelineError,
+        }) as {
+          data: TimelineComposition | null | undefined;
           isLoading: boolean;
           error: Error | null;
         },
@@ -80,6 +95,8 @@ vi.mock("@/lib/queries", () => ({
   useExtractMicroEventsMutation: () => queryMocks.extractMicroEventsMutation(),
   useMicroEventExtraction: (videoId: number, enabled: boolean) =>
     queryMocks.microEventExtraction(videoId, enabled),
+  useTimelineComposition: (videoId: number, enabled: boolean) =>
+    queryMocks.timelineComposition(videoId, enabled),
   fetchTranscriptContent: (transcriptId: number) =>
     queryMocks.fetchTranscriptContent(transcriptId),
   useOpsVideoDetail: () => queryMocks.detail,
@@ -158,6 +175,31 @@ const videoDetail: OpsVideoDetail = {
       completedAt: "2026-06-18T00:59:00Z",
       createdAt: "2026-06-18T00:58:00Z",
       updatedAt: "2026-06-18T00:59:00Z",
+    },
+    {
+      videoTaskId: 18,
+      videoId: 42,
+      channelId: 7,
+      channelName: "Channel",
+      youtubeVideoId: "abc123DEF45",
+      taskName: "timeline_compose",
+      taskVersion: "v1",
+      status: "succeeded",
+      workerId: "timeline-compose-worker",
+      timeoutSeconds: 3600,
+      jobId: 18,
+      jobAttemptId: 19,
+      outputTranscriptId: null,
+      outputJson: {
+        episodeCount: 1,
+        blockCount: 1,
+      },
+      errorType: null,
+      errorMessage: null,
+      startedAt: "2026-06-18T01:00:00Z",
+      completedAt: "2026-06-18T01:02:00Z",
+      createdAt: "2026-06-18T01:00:00Z",
+      updatedAt: "2026-06-18T01:02:00Z",
     },
     {
       videoTaskId: 9,
@@ -358,6 +400,58 @@ const microEventExtraction: MicroEventExtractionDetail = {
   ],
 };
 
+const timelineComposition: TimelineComposition = {
+  videoTaskId: 18,
+  videoId: 42,
+  youtubeVideoId: "abc123DEF45",
+  sourceMicroEventTaskId: 16,
+  sourceMicroEventFingerprint: "b".repeat(64),
+  copyStyle: "LIGHT_FANDOM_V1",
+  status: "succeeded",
+  model: "gpt-5.4",
+  reasoningEffort: "high",
+  title: "Opening chat timeline",
+  summary: "The stream opens with a short chat topic.",
+  displayTitle: "Opening chat",
+  displaySummary: "A short opening section turns into the first chat topic.",
+  mainTopics: ["opening chat"],
+  validationWarnings: ["coverage gap repaired"],
+  outputJson: { episodeCount: 1, blockCount: 1 },
+  blocks: [
+    {
+      blockId: "block_001",
+      blockIndex: 1,
+      blockType: "JUST_CHATTING",
+      title: "Opening chat",
+      summary: "The opening chat block.",
+      displayTitle: "Opening chat block",
+      displaySummary: "The first block groups the opening chat episode.",
+      episodeIds: ["episode_001"],
+    },
+  ],
+  episodes: [
+    {
+      episodeId: "episode_001",
+      episodeIndex: 1,
+      parentBlockId: "block_001",
+      startMicroEventCandidateId: 301,
+      endMicroEventCandidateId: 301,
+      programMode: "JUST_CHATTING",
+      primaryContentKind: "META_CHAT",
+      title: "Opening chat topic",
+      summary: "The streamer reacts to the opening chat topic.",
+      displayTitle: "Opening chat topic",
+      displaySummary: "The opening chat becomes the first searchable timeline episode.",
+      topics: ["opening chat"],
+      viewerTags: ["META"],
+      highlightMicroEventCandidateIds: [301],
+      visibility: "DEFAULT",
+    },
+  ],
+  topicClusters: [],
+  reviewFlags: [],
+};
+
 let downloadedBlob: Blob | null = null;
 let downloadedFileName = "";
 let anchorClick: ReturnType<typeof vi.fn>;
@@ -395,6 +489,8 @@ describe("VideoDetailPage", () => {
     queryMocks.cueState.cues = transcriptCues;
     queryMocks.microEventState.microEvents = microEventExtraction;
     queryMocks.microEventState.microEventError = null;
+    queryMocks.contentState.timeline = timelineComposition;
+    queryMocks.contentState.timelineError = null;
     queryMocks.mutation.data = undefined;
     queryMocks.mutation.error = null;
     queryMocks.mutation.isPending = false;
@@ -402,6 +498,7 @@ describe("VideoDetailPage", () => {
     queryMocks.extractMicroEventsMutation.mockClear();
     queryMocks.fetchTranscriptContent.mockClear();
     queryMocks.microEventExtraction.mockClear();
+    queryMocks.timelineComposition.mockClear();
     queryMocks.transcriptContent.mockClear();
     queryMocks.transcriptCues.mockClear();
     downloadedBlob = null;
@@ -417,9 +514,21 @@ describe("VideoDetailPage", () => {
     expect(screen.getAllByText("transcript_collect").length).toBeGreaterThan(0);
     expect(screen.getAllByText("transcript_cue_generate").length).toBeGreaterThan(0);
     expect(screen.getAllByText("micro_event_extract").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("timeline_compose").length).toBeGreaterThan(0);
     expect(screen.getAllByText("#10").length).toBeGreaterThan(0);
     expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("Korean · ko")).toBeTruthy();
+  });
+
+  it("renders the latest composed timeline", () => {
+    render(<VideoDetailPage videoId={42} />);
+
+    expect(screen.getAllByText("Timeline").length).toBeGreaterThan(0);
+    expect(screen.getByText("Opening chat")).toBeTruthy();
+    expect(screen.getByText("Opening chat block")).toBeTruthy();
+    expect(screen.getByText("Opening chat topic")).toBeTruthy();
+    expect(screen.getByText("coverage gap repaired")).toBeTruthy();
+    expect(queryMocks.timelineComposition).toHaveBeenLastCalledWith(42, true);
   });
 
   it("renders latest micro-event extraction candidates", () => {
@@ -429,10 +538,10 @@ describe("VideoDetailPage", () => {
     expect(screen.getByRole("button", { name: /Download JSON/i })).toBeTruthy();
     expect(screen.getByText("Window #1")).toBeTruthy();
     expect(screen.getByText("Streamer reacts to the opening chat topic.")).toBeTruthy();
-    expect(screen.getByText("META_CHAT")).toBeTruthy();
-    expect(screen.getByText("opening chat")).toBeTruthy();
-    expect(screen.getByText("gpt-5.4")).toBeTruthy();
-    expect(screen.getByText("high")).toBeTruthy();
+    expect(screen.getAllByText("META_CHAT").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("opening chat").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("gpt-5.4").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("high").length).toBeGreaterThan(0);
     expect(screen.getByText("Excluded Ranges")).toBeTruthy();
     expect(screen.getByText("LOW_INFORMATION")).toBeTruthy();
     expect(screen.getByText("recoding -> recording")).toBeTruthy();

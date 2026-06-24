@@ -415,9 +415,9 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          docker compose --project-name codex-sdk-home -f compose.home.yaml pull api micro-event-worker codex ops-ui
+          docker compose --project-name codex-sdk-home -f compose.home.yaml pull api micro-event-worker timeline-compose-worker codex ops-ui
           docker compose --project-name codex-sdk-home -f compose.home.yaml run --rm --no-deps --entrypoint alembic api upgrade head
-          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api micro-event-worker ops-ui nginx ngrok minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml up -d --no-build --remove-orphans api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
           docker compose --project-name codex-sdk-home -f compose.home.yaml restart nginx
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
 
@@ -497,7 +497,7 @@ jobs:
         shell: powershell
         run: |
           docker compose --project-name codex-sdk-home -f compose.home.yaml ps
-          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api micro-event-worker ops-ui nginx ngrok minio
+          docker compose --project-name codex-sdk-home -f compose.home.yaml logs --tail 200 api micro-event-worker timeline-compose-worker ops-ui nginx ngrok minio
 
   public_tunnel_health:
     name: Verify public ngrok health

@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, aliased, mapped_column
 from sqlalchemy.sql import select
 from typing_extensions import override
 
@@ -313,6 +313,60 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
                 .where(
                     VideoTaskModel.task_name == task_name,
                     VideoTaskModel.status == "pending",
+                )
+                .order_by(VideoTaskModel.id.asc())
+                .limit(1)
+            )
+            if task_id is None:
+                return None
+            now = datetime.now(UTC)
+            claimed_id = await self._session.scalar(
+                update(VideoTaskModel)
+                .where(
+                    VideoTaskModel.id == task_id,
+                    VideoTaskModel.status == "pending",
+                )
+                .values(
+                    status="running",
+                    worker_id=worker_id,
+                    error_type=None,
+                    error_message=None,
+                    started_at=now,
+                    completed_at=None,
+                )
+                .returning(VideoTaskModel.id)
+            )
+            if claimed_id is None:
+                await self._session.rollback()
+                return None
+            await self._session.commit()
+            model = await self._get_task_model_or_raise(claimed_id)
+            return _task_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
+    async def claim_next_pending_task_excluding_running_video(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        running_task = aliased(VideoTaskModel)
+        try:
+            task_id = await self._session.scalar(
+                select(VideoTaskModel.id)
+                .where(
+                    VideoTaskModel.task_name == task_name,
+                    VideoTaskModel.status == "pending",
+                    ~select(running_task.id)
+                    .where(
+                        running_task.task_name == task_name,
+                        running_task.video_id == VideoTaskModel.video_id,
+                        running_task.status == "running",
+                    )
+                    .exists(),
                 )
                 .order_by(VideoTaskModel.id.asc())
                 .limit(1)

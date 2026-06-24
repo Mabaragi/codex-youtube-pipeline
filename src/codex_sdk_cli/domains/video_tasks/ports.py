@@ -125,6 +125,14 @@ class VideoTaskRepositoryPort(Protocol):
     ) -> VideoTaskRecord | None:
         """Atomically claim one pending task and mark it running."""
 
+    async def claim_next_pending_task_excluding_running_video(
+        self,
+        *,
+        task_name: str,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        """Claim one pending task, skipping videos with the same task already running."""
+
     async def reset_task_to_pending(
         self,
         task_id: int,

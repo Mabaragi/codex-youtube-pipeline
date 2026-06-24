@@ -6151,6 +6151,779 @@
         "title": "StreamerUpdateRequest",
         "type": "object"
       },
+      "TimelineBlockResponse": {
+        "properties": {
+          "blockId": {
+            "title": "Blockid",
+            "type": "string"
+          },
+          "blockIndex": {
+            "title": "Blockindex",
+            "type": "integer"
+          },
+          "blockType": {
+            "enum": [
+              "PRE_ROLL",
+              "OPENING",
+              "JUST_CHATTING",
+              "COMMUNITY_REVIEW",
+              "MEDIA_REVIEW",
+              "GAME_SETUP",
+              "GAMEPLAY",
+              "BREAK",
+              "POST_GAME",
+              "CLOSING",
+              "MIXED"
+            ],
+            "title": "Blocktype",
+            "type": "string"
+          },
+          "displaySummary": {
+            "title": "Displaysummary",
+            "type": "string"
+          },
+          "displayTitle": {
+            "title": "Displaytitle",
+            "type": "string"
+          },
+          "episodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Episodeids",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "blockId",
+          "blockIndex",
+          "blockType",
+          "title",
+          "summary",
+          "displayTitle",
+          "displaySummary",
+          "episodeIds"
+        ],
+        "title": "TimelineBlockResponse",
+        "type": "object"
+      },
+      "TimelineComposeEnqueueItemResponse": {
+        "properties": {
+          "copyStyle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copystyle"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
+          },
+          "sourceMicroEventTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcemicroeventtaskid"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          },
+          "youtubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubevideoid"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "status",
+          "reason",
+          "sourceMicroEventTaskId",
+          "model",
+          "reasoningEffort",
+          "copyStyle",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "TimelineComposeEnqueueItemResponse",
+        "type": "object"
+      },
+      "TimelineComposeEnqueueRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "copyStyle": "LIGHT_FANDOM_V1",
+            "limit": 5,
+            "model": "gpt-5.5",
+            "reasoningEffort": "medium",
+            "regenerateSucceeded": false,
+            "retryFailed": false,
+            "target": "next_eligible"
+          }
+        ],
+        "properties": {
+          "channelId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channelid"
+          },
+          "copyStyle": {
+            "const": "LIGHT_FANDOM_V1",
+            "default": "LIGHT_FANDOM_V1",
+            "title": "Copystyle",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gpt-5.5",
+                  "gpt-5.4",
+                  "gpt-5.4-mini"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
+          },
+          "regenerateSucceeded": {
+            "default": false,
+            "title": "Regeneratesucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search"
+          },
+          "target": {
+            "default": "next_eligible",
+            "enum": [
+              "selected_videos",
+              "current_filters",
+              "next_eligible"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "taskStatus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pending",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "timed_out",
+                  "no_transcript",
+                  "skipped",
+                  "canceled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskstatus"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "title": "Videoids",
+            "type": "array"
+          }
+        },
+        "title": "TimelineComposeEnqueueRequest",
+        "type": "object"
+      },
+      "TimelineComposeEnqueueResponse": {
+        "properties": {
+          "alreadyPendingCount": {
+            "title": "Alreadypendingcount",
+            "type": "integer"
+          },
+          "alreadyRunningCount": {
+            "title": "Alreadyrunningcount",
+            "type": "integer"
+          },
+          "alreadySucceededCount": {
+            "title": "Alreadysucceededcount",
+            "type": "integer"
+          },
+          "enqueuedCount": {
+            "title": "Enqueuedcount",
+            "type": "integer"
+          },
+          "failedSkippedCount": {
+            "title": "Failedskippedcount",
+            "type": "integer"
+          },
+          "ineligibleCount": {
+            "title": "Ineligiblecount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineComposeEnqueueItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "regeneratedCount": {
+            "title": "Regeneratedcount",
+            "type": "integer"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "retryQueuedCount": {
+            "title": "Retryqueuedcount",
+            "type": "integer"
+          },
+          "scannedCount": {
+            "title": "Scannedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "scannedCount",
+          "enqueuedCount",
+          "alreadyPendingCount",
+          "alreadyRunningCount",
+          "alreadySucceededCount",
+          "retryQueuedCount",
+          "regeneratedCount",
+          "failedSkippedCount",
+          "ineligibleCount",
+          "items"
+        ],
+        "title": "TimelineComposeEnqueueResponse",
+        "type": "object"
+      },
+      "TimelineCompositionResponse": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineBlockResponse"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "copyStyle": {
+            "const": "LIGHT_FANDOM_V1",
+            "title": "Copystyle",
+            "type": "string"
+          },
+          "displaySummary": {
+            "title": "Displaysummary",
+            "type": "string"
+          },
+          "displayTitle": {
+            "title": "Displaytitle",
+            "type": "string"
+          },
+          "episodes": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEpisodeResponse"
+            },
+            "title": "Episodes",
+            "type": "array"
+          },
+          "mainTopics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Maintopics",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "outputJson": {
+            "additionalProperties": true,
+            "title": "Outputjson",
+            "type": "object"
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoningeffort"
+          },
+          "reviewFlags": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineReviewFlagResponse"
+            },
+            "title": "Reviewflags",
+            "type": "array"
+          },
+          "sourceMicroEventFingerprint": {
+            "title": "Sourcemicroeventfingerprint",
+            "type": "string"
+          },
+          "sourceMicroEventTaskId": {
+            "title": "Sourcemicroeventtaskid",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "timed_out",
+              "no_transcript",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "topicClusters": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineTopicClusterResponse"
+            },
+            "title": "Topicclusters",
+            "type": "array"
+          },
+          "validationWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validationwarnings",
+            "type": "array"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "videoId",
+          "youtubeVideoId",
+          "sourceMicroEventTaskId",
+          "sourceMicroEventFingerprint",
+          "copyStyle",
+          "status",
+          "model",
+          "reasoningEffort",
+          "title",
+          "summary",
+          "displayTitle",
+          "displaySummary",
+          "mainTopics",
+          "validationWarnings",
+          "outputJson",
+          "blocks",
+          "episodes",
+          "topicClusters",
+          "reviewFlags"
+        ],
+        "title": "TimelineCompositionResponse",
+        "type": "object"
+      },
+      "TimelineEpisodeResponse": {
+        "properties": {
+          "displaySummary": {
+            "title": "Displaysummary",
+            "type": "string"
+          },
+          "displayTitle": {
+            "title": "Displaytitle",
+            "type": "string"
+          },
+          "endMicroEventCandidateId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endmicroeventcandidateid"
+          },
+          "episodeId": {
+            "title": "Episodeid",
+            "type": "string"
+          },
+          "episodeIndex": {
+            "title": "Episodeindex",
+            "type": "integer"
+          },
+          "highlightMicroEventCandidateIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Highlightmicroeventcandidateids",
+            "type": "array"
+          },
+          "parentBlockId": {
+            "title": "Parentblockid",
+            "type": "string"
+          },
+          "primaryContentKind": {
+            "enum": [
+              "ANNOUNCEMENT",
+              "PERSONAL_STORY",
+              "OPINION",
+              "QNA",
+              "REACTION",
+              "TECHNICAL_SETUP",
+              "GAME_PROGRESS",
+              "GAME_DISCUSSION",
+              "COMMUNITY_REVIEW",
+              "MEDIA_REVIEW",
+              "META_CHAT",
+              "BREAK_TIME",
+              "OTHER"
+            ],
+            "title": "Primarycontentkind",
+            "type": "string"
+          },
+          "programMode": {
+            "enum": [
+              "PRE_ROLL",
+              "OPENING",
+              "JUST_CHATTING",
+              "COMMUNITY_REVIEW",
+              "MEDIA_REVIEW",
+              "GAME_SETUP",
+              "GAMEPLAY",
+              "BREAK",
+              "POST_GAME",
+              "CLOSING",
+              "MIXED"
+            ],
+            "title": "Programmode",
+            "type": "string"
+          },
+          "startMicroEventCandidateId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startmicroeventcandidateid"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "array"
+          },
+          "viewerTags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Viewertags",
+            "type": "array"
+          },
+          "visibility": {
+            "enum": [
+              "DEFAULT",
+              "COLLAPSED",
+              "HIDDEN"
+            ],
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episodeId",
+          "episodeIndex",
+          "parentBlockId",
+          "startMicroEventCandidateId",
+          "endMicroEventCandidateId",
+          "programMode",
+          "primaryContentKind",
+          "title",
+          "summary",
+          "displayTitle",
+          "displaySummary",
+          "topics",
+          "viewerTags",
+          "highlightMicroEventCandidateIds",
+          "visibility"
+        ],
+        "title": "TimelineEpisodeResponse",
+        "type": "object"
+      },
+      "TimelineReviewFlagResponse": {
+        "properties": {
+          "endMicroEventCandidateId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endmicroeventcandidateid"
+          },
+          "flagIndex": {
+            "title": "Flagindex",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "startMicroEventCandidateId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startmicroeventcandidateid"
+          },
+          "type": {
+            "enum": [
+              "MODE_CONFLICT",
+              "BOUNDARY_AMBIGUOUS",
+              "ASR_SEMANTIC_RISK",
+              "OVERBROAD_MICRO_EVENT",
+              "POSSIBLE_DUPLICATE"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flagIndex",
+          "startMicroEventCandidateId",
+          "endMicroEventCandidateId",
+          "type",
+          "reason"
+        ],
+        "title": "TimelineReviewFlagResponse",
+        "type": "object"
+      },
+      "TimelineTopicClusterResponse": {
+        "properties": {
+          "displayLabel": {
+            "title": "Displaylabel",
+            "type": "string"
+          },
+          "episodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Episodeids",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "topicId": {
+            "title": "Topicid",
+            "type": "string"
+          },
+          "topicIndex": {
+            "title": "Topicindex",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "topicId",
+          "topicIndex",
+          "label",
+          "summary",
+          "displayLabel",
+          "episodeIds"
+        ],
+        "title": "TimelineTopicClusterResponse",
+        "type": "object"
+      },
       "TranscriptCollectItemResponse": {
         "properties": {
           "cueCount": {
@@ -10318,6 +11091,54 @@
         ]
       }
     },
+    "/video-tasks/timeline-compose/enqueue": {
+      "post": {
+        "operationId": "enqueue_timeline_compose_video_tasks_timeline_compose_enqueue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TimelineComposeEnqueueRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineComposeEnqueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enqueue Timeline Compose",
+        "tags": [
+          "timelines"
+        ]
+      }
+    },
     "/video-tasks/transcript-collect": {
       "post": {
         "operationId": "collect_all_transcript_tasks_video_tasks_transcript_collect_post",
@@ -10507,6 +11328,102 @@
         "summary": "Get Video Micro Event Extraction",
         "tags": [
           "micro-events"
+        ]
+      }
+    },
+    "/videos/{video_id}/timelines/latest": {
+      "get": {
+        "operationId": "get_latest_video_timeline_videos__video_id__timelines_latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineCompositionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Latest Video Timeline",
+        "tags": [
+          "timelines"
+        ]
+      }
+    },
+    "/videos/{video_id}/timelines/{video_task_id}": {
+      "get": {
+        "operationId": "get_video_timeline_videos__video_id__timelines__video_task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "video_task_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Video Task Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineCompositionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Video Timeline",
+        "tags": [
+          "timelines"
         ]
       }
     },

@@ -29,6 +29,10 @@ from codex_sdk_cli.domains.operation_events.recorder import BestEffortOperationE
 from codex_sdk_cli.domains.ops.ports import OpsRepositoryPort
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
+from codex_sdk_cli.domains.timelines.ports import (
+    TimelineComposerPort,
+    TimelineCompositionRepositoryPort,
+)
 from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueRepositoryPort
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.domains.videos.ports import VideoRepositoryPort
@@ -65,6 +69,10 @@ from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationE
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
+from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
+from codex_sdk_cli.infra.timelines.repository import (
+    SqlAlchemyTimelineCompositionRepository,
+)
 from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
 from codex_sdk_cli.infra.video_tasks.repository import SqlAlchemyVideoTaskRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
@@ -196,10 +204,27 @@ async def get_micro_event_extractor(
     )
 
 
+async def get_timeline_composer(
+    runtime: CodexRuntimeDep,
+    settings: Annotated[CliSettings, Depends(get_settings)],
+) -> TimelineComposerPort:
+    return CodexTimelineComposer(
+        runtime,
+        model=settings.model,
+        reasoning_effort=settings.reasoning_effort,
+    )
+
+
 async def get_transcript_cue_repository(
     session: DatabaseSessionDep,
 ) -> TranscriptCueRepositoryPort:
     return SqlAlchemyTranscriptCueRepository(session)
+
+
+async def get_timeline_composition_repository(
+    session: DatabaseSessionDep,
+) -> TimelineCompositionRepositoryPort:
+    return SqlAlchemyTimelineCompositionRepository(session)
 
 
 async def get_ops_repository(
@@ -313,9 +338,17 @@ MicroEventExtractorDep = Annotated[
     MicroEventExtractorPort,
     Depends(get_micro_event_extractor),
 ]
+TimelineComposerDep = Annotated[
+    TimelineComposerPort,
+    Depends(get_timeline_composer),
+]
 TranscriptCueRepositoryDep = Annotated[
     TranscriptCueRepositoryPort,
     Depends(get_transcript_cue_repository),
+]
+TimelineCompositionRepositoryDep = Annotated[
+    TimelineCompositionRepositoryPort,
+    Depends(get_timeline_composition_repository),
 ]
 OpsRepositoryDep = Annotated[
     OpsRepositoryPort,

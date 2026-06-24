@@ -47,6 +47,7 @@ def test_video_task_repository_lifecycle(
     assert result["failed_status"] == "failed"
     assert result["timed_out_status"] == "timed_out"
     assert result["no_transcript_status"] == "no_transcript"
+    assert result["exclusive_claim_video_id"] == 2
 
 
 async def _exercise_repository(database_url: str) -> dict[str, object]:
@@ -98,6 +99,24 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                             title="Video",
                             description="Description",
                             published_at=datetime(2026, 6, 16, tzinfo=UTC),
+                            duration="PT1M",
+                            thumbnail_url=None,
+                            source_listing_api_call_id=listing_call.id,
+                            source_details_api_call_id=details_call.id,
+                            source_job_id=collect_job.id,
+                        )
+                    ]
+                )
+            )[0]
+            video_two = (
+                await videos.create_videos(
+                    [
+                        VideoCreate(
+                            channel_id=channel.id,
+                            youtube_video_id="def456GHI78",
+                            title="Second video",
+                            description="Description",
+                            published_at=datetime(2026, 6, 17, tzinfo=UTC),
                             duration="PT1M",
                             thumbnail_url=None,
                             source_listing_api_call_id=listing_call.id,
@@ -201,6 +220,60 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 task.id,
                 error_message="No transcript.",
             )
+            timeline_job = await pipeline_jobs.create_job(
+                PipelineJobCreate(
+                    step="timeline_compose",
+                    status="running",
+                    subject_type="video",
+                    subject_id=video.id,
+                    external_key=video.youtube_video_id,
+                    input_json={"videoId": video.id},
+                    input_hash="c" * 64,
+                )
+            )
+            timeline_attempt = await pipeline_jobs.create_attempt(job_id=timeline_job.id)
+            running_timeline = await video_tasks.get_or_create_task(
+                VideoTaskCreate(
+                    video_id=video.id,
+                    task_name="timeline_compose",
+                    task_version="v1",
+                    input_hash="c" * 64,
+                    timeout_seconds=3600,
+                    input_json={"videoId": video.id},
+                )
+            )
+            await video_tasks.mark_task_running(
+                running_timeline.id,
+                worker_id="timeline-worker-1",
+                timeout_seconds=3600,
+                job_id=timeline_job.id,
+                job_attempt_id=timeline_attempt.id,
+            )
+            await video_tasks.get_or_create_task(
+                VideoTaskCreate(
+                    video_id=video.id,
+                    task_name="timeline_compose",
+                    task_version="v1",
+                    input_hash="d" * 64,
+                    timeout_seconds=3600,
+                    input_json={"videoId": video.id},
+                )
+            )
+            await video_tasks.get_or_create_task(
+                VideoTaskCreate(
+                    video_id=video_two.id,
+                    task_name="timeline_compose",
+                    task_version="v1",
+                    input_hash="e" * 64,
+                    timeout_seconds=3600,
+                    input_json={"videoId": video_two.id},
+                )
+            )
+            exclusive_claim = await video_tasks.claim_next_pending_task_excluding_running_video(
+                task_name="timeline_compose",
+                worker_id="timeline-worker-2",
+            )
+            assert exclusive_claim is not None
 
             return {
                 "same_task_id": task.id == same_task.id,
@@ -216,6 +289,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "failed_status": failed.status,
                 "timed_out_status": timed_out.status,
                 "no_transcript_status": no_transcript.status,
+                "exclusive_claim_video_id": exclusive_claim.video_id,
             }
     finally:
         await engine.dispose()

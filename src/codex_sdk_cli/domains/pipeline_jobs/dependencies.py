@@ -15,6 +15,8 @@ from codex_sdk_cli.api.dependencies import (
     PipelineJobRepositoryDep,
     SettingsDep,
     StreamerRepositoryDep,
+    TimelineComposerDep,
+    TimelineCompositionRepositoryDep,
     TranscriptCueRepositoryDep,
     VideoRepositoryDep,
     VideoTaskRepositoryDep,
@@ -34,11 +36,17 @@ from codex_sdk_cli.domains.micro_events.ports import (
 from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 from codex_sdk_cli.domains.operation_events.ports import OperationEventRecorderPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
+from codex_sdk_cli.domains.timelines.ports import (
+    TimelineComposerPort,
+    TimelineCompositionRepositoryPort,
+)
+from codex_sdk_cli.domains.timelines.use_cases import ComposeTimelineUseCase
 from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.use_cases import (
     TRANSCRIPT_CUE_GENERATE_STEP,
     GenerateTranscriptCuesUseCase,
 )
+from codex_sdk_cli.domains.video_tasks.constants import TIMELINE_COMPOSE_TASK_NAME
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.domains.video_tasks.transcript_cue_tasks import (
     GenerateTranscriptCueTasksUseCase,
@@ -142,8 +150,10 @@ def get_retry_pipeline_job_use_case(
     videos: VideoRepositoryDep,
     video_tasks: VideoTaskRepositoryDep,
     micro_events: MicroEventExtractionRepositoryDep,
+    timelines: TimelineCompositionRepositoryDep,
     domain_knowledge: DomainKnowledgeRepositoryDep,
     micro_event_extractor: MicroEventExtractorDep,
+    timeline_composer: TimelineComposerDep,
     transcript_cues: TranscriptCueRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
     fetch_transcript_factory: Annotated[
@@ -198,6 +208,19 @@ def get_retry_pipeline_job_use_case(
                 domain_knowledge=domain_knowledge,
                 micro_events=micro_events,
                 extractor=micro_event_extractor,
+                settings=settings,
+                events=events,
+            ),
+            TIMELINE_COMPOSE_TASK_NAME: _LazyTimelineComposeRetryExecutor(
+                videos=videos,
+                video_tasks=video_tasks,
+                channels=channels,
+                streamers=streamers,
+                domain_knowledge=domain_knowledge,
+                micro_events=micro_events,
+                timelines=timelines,
+                pipeline_jobs=pipeline_jobs,
+                composer=timeline_composer,
                 settings=settings,
                 events=events,
             ),
@@ -355,6 +378,57 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
             extractor=self._extractor,
             timeout_seconds=self._settings.micro_event_extract_timeout_seconds,
             concurrency_limit=self._settings.micro_event_extract_concurrency_limit,
+            model=self._settings.model,
+            reasoning_effort=self._settings.reasoning_effort,
+            events=self._events,
+        )
+        return await use_case.execute_retry_job_attempt(job, attempt)
+
+
+class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
+    def __init__(
+        self,
+        *,
+        videos: VideoRepositoryPort,
+        video_tasks: VideoTaskRepositoryPort,
+        channels: ChannelRepositoryPort,
+        streamers: StreamerRepositoryPort,
+        domain_knowledge: DomainKnowledgeRepositoryPort,
+        micro_events: MicroEventExtractionRepositoryPort,
+        timelines: TimelineCompositionRepositoryPort,
+        pipeline_jobs: PipelineJobRepositoryPort,
+        composer: TimelineComposerPort,
+        settings: CliSettings,
+        events: OperationEventRecorderPort,
+    ) -> None:
+        self._videos = videos
+        self._video_tasks = video_tasks
+        self._channels = channels
+        self._streamers = streamers
+        self._domain_knowledge = domain_knowledge
+        self._micro_events = micro_events
+        self._timelines = timelines
+        self._pipeline_jobs = pipeline_jobs
+        self._composer = composer
+        self._settings = settings
+        self._events = events
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        use_case = ComposeTimelineUseCase(
+            videos=self._videos,
+            video_tasks=self._video_tasks,
+            channels=self._channels,
+            streamers=self._streamers,
+            domain_knowledge=self._domain_knowledge,
+            micro_events=self._micro_events,
+            timelines=self._timelines,
+            pipeline_jobs=self._pipeline_jobs,
+            composer=self._composer,
+            timeout_seconds=self._settings.timeline_compose_timeout_seconds,
             model=self._settings.model,
             reasoning_effort=self._settings.reasoning_effort,
             events=self._events,

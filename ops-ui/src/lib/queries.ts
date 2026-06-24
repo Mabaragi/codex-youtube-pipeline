@@ -50,6 +50,9 @@ import type {
   ResolveYouTubeChannelResult,
   RetryPipelineJobResult,
   Streamer,
+  TimelineComposeEnqueueRequest,
+  TimelineComposeEnqueueResult,
+  TimelineComposition,
   TranscriptContent,
   TranscriptCueList,
 } from "@/lib/types";
@@ -80,6 +83,8 @@ export const queryKeys = {
     ["youtube-transcripts", transcriptId, "cues"] as const,
   microEventExtraction: (videoId: number) =>
     ["micro-event-extractions", videoId, "latest"] as const,
+  timelineComposition: (videoId: number) =>
+    ["timeline-compositions", videoId, "latest"] as const,
 };
 
 export function useOpsSummary() {
@@ -152,6 +157,15 @@ export function useMicroEventExtraction(videoId: number, enabled: boolean) {
   });
 }
 
+export function useTimelineComposition(videoId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.timelineComposition(videoId),
+    queryFn: () => fetchLatestTimelineComposition(videoId),
+    enabled: enabled && Number.isFinite(videoId) && videoId > 0,
+    staleTime: 30_000,
+  });
+}
+
 export async function fetchLatestMicroEventExtraction(
   videoId: number,
 ): Promise<MicroEventExtractionDetail | null> {
@@ -159,6 +173,19 @@ export async function fetchLatestMicroEventExtraction(
     return await requestJson<MicroEventExtractionDetail>(
       `/videos/${videoId}/micro-event-extractions/latest`,
     );
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function fetchLatestTimelineComposition(
+  videoId: number,
+): Promise<TimelineComposition | null> {
+  try {
+    return await requestJson<TimelineComposition>(`/videos/${videoId}/timelines/latest`);
   } catch (error) {
     if (error instanceof ApiClientError && error.status === 404) {
       return null;
@@ -703,6 +730,27 @@ export function useEnqueueMicroEventsMutation() {
         queryClient.invalidateQueries({ queryKey: ["ops"] }),
         queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
         queryClient.invalidateQueries({ queryKey: ["micro-event-extractions"] }),
+      ]);
+    },
+  });
+}
+
+export function useEnqueueTimelineComposeMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TimelineComposeEnqueueRequest) =>
+      requestJson<TimelineComposeEnqueueResult>(
+        "/video-tasks/timeline-compose/enqueue",
+        {
+          method: "POST",
+          body,
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+        queryClient.invalidateQueries({ queryKey: ["timeline-compositions"] }),
       ]);
     },
   });

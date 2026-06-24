@@ -2,7 +2,15 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { ArrowLeft, Captions, Download, ExternalLink, ListTree, Play } from "lucide-react";
+import {
+  ArrowLeft,
+  Captions,
+  Download,
+  ExternalLink,
+  ListTree,
+  Play,
+  ScrollText,
+} from "lucide-react";
 import { useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
@@ -20,6 +28,7 @@ import {
   useExtractMicroEventsMutation,
   useMicroEventExtraction,
   useOpsVideoDetail,
+  useTimelineComposition,
   useTranscriptContent,
   useTranscriptCues,
 } from "@/lib/queries";
@@ -31,6 +40,9 @@ import type {
   MicroEventExtractionWindow,
   OpsVideoDetail,
   OpsVideoTask,
+  TimelineBlock,
+  TimelineComposition,
+  TimelineEpisode,
   TranscriptContent,
   TranscriptCue,
 } from "@/lib/types";
@@ -55,11 +67,19 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
   const latestMicroEventTask = data?.tasks.find(
     (task) => task.taskName === "micro_event_extract",
   );
+  const latestTimelineTask = data?.tasks.find(
+    (task) => task.taskName === "timeline_compose",
+  );
   const {
     data: microEventExtraction,
     isLoading: microEventLoading,
     error: microEventError,
   } = useMicroEventExtraction(videoId, Boolean(data));
+  const {
+    data: timelineComposition,
+    isLoading: timelineLoading,
+    error: timelineError,
+  } = useTimelineComposition(videoId, Boolean(data));
   const extractMicroEvents = useExtractMicroEventsMutation();
 
   const taskColumns: ColumnDef<OpsVideoTask>[] = [
@@ -170,6 +190,15 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
                     }
                     status={latestMicroEventTask?.status}
                   />
+                  <DetailRow
+                    label="Timeline"
+                    value={
+                      latestTimelineTask
+                        ? `#${latestTimelineTask.videoTaskId}`
+                        : "-"
+                    }
+                    status={latestTimelineTask?.status}
+                  />
                   <DetailRow label="Listing API" value={idValue(data.sourceListingApiCallId)} />
                   <DetailRow label="Details API" value={idValue(data.sourceDetailsApiCallId)} />
                   <DetailRow label="Source job" value={idValue(data.sourceJobId)} />
@@ -201,6 +230,13 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
             latestCueTask={latestCueTask}
             latestMicroEventTask={latestMicroEventTask}
             videoId={videoId}
+          />
+
+          <TimelineCompositionPanel
+            composition={timelineComposition}
+            compositionError={timelineError}
+            compositionLoading={timelineLoading}
+            latestTimelineTask={latestTimelineTask}
           />
 
           <section className="ops-panel p-4">
@@ -411,6 +447,199 @@ function MicroEventExtractionPanel({
       ) : null}
       {extraction ? <MicroEventExtractionView extraction={extraction} /> : null}
     </section>
+  );
+}
+
+function TimelineCompositionPanel({
+  latestTimelineTask,
+  composition,
+  compositionLoading,
+  compositionError,
+}: {
+  latestTimelineTask: OpsVideoTask | undefined;
+  composition: TimelineComposition | null | undefined;
+  compositionLoading: boolean;
+  compositionError: Error | null;
+}) {
+  return (
+    <section className="ops-panel p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ListTree size={16} />
+          <h2 className="text-sm font-semibold">Timeline</h2>
+        </div>
+        <Link
+          className="ops-button"
+          href="/tasks?taskName=timeline_compose&limit=100"
+        >
+          <ScrollText size={14} />
+          Tasks
+        </Link>
+      </div>
+
+      {latestTimelineTask && latestTimelineTask.status !== "succeeded" ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <span>Latest task</span>
+          <StatusBadge status={latestTimelineTask.status} />
+          <span>#{latestTimelineTask.videoTaskId}</span>
+        </div>
+      ) : null}
+      {compositionLoading ? (
+        <div className="text-sm text-slate-600">Loading...</div>
+      ) : null}
+      {compositionError ? (
+        <div className="text-sm text-red-700">{String(compositionError)}</div>
+      ) : null}
+      {!compositionLoading && !compositionError && composition === null ? (
+        <div className="text-sm text-slate-500">No composed timeline yet.</div>
+      ) : null}
+      {composition ? <TimelineCompositionView composition={composition} /> : null}
+    </section>
+  );
+}
+
+function TimelineCompositionView({
+  composition,
+}: {
+  composition: TimelineComposition;
+}) {
+  const episodesById = new Map(
+    composition.episodes.map((episode) => [episode.episodeId, episode]),
+  );
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCell label="Status" status={composition.status} value={composition.status} />
+        <SummaryCell label="Task" value={`#${composition.videoTaskId}`} />
+        <SummaryCell label="Model" value={composition.model ?? "-"} />
+        <SummaryCell label="Reasoning" value={composition.reasoningEffort ?? "-"} />
+        <SummaryCell label="Blocks" value={String(composition.blocks.length)} />
+        <SummaryCell label="Episodes" value={String(composition.episodes.length)} />
+        <SummaryCell
+          label="Topic clusters"
+          value={String(composition.topicClusters.length)}
+        />
+        <SummaryCell label="Review flags" value={String(composition.reviewFlags.length)} />
+      </div>
+
+      <div className="rounded border border-slate-200 p-3">
+        <div className="text-base font-semibold">{composition.displayTitle}</div>
+        <div className="mt-1 text-sm text-slate-700">{composition.displaySummary}</div>
+        {composition.mainTopics.length ? (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {composition.mainTopics.map((topic) => (
+              <span
+                className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-500"
+                key={topic}
+              >
+                {topic}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {composition.validationWarnings.length > 0 ? (
+        <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <div className="mb-1 font-semibold">Validation warnings</div>
+          <ul className="list-disc pl-4">
+            {composition.validationWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3">
+        {composition.blocks.map((block) => (
+          <TimelineBlockItem
+            block={block}
+            episodes={block.episodeIds
+              .map((episodeId) => episodesById.get(episodeId))
+              .filter((episode): episode is TimelineEpisode => Boolean(episode))}
+            key={block.blockId}
+          />
+        ))}
+      </div>
+
+      {composition.topicClusters.length > 0 ? (
+        <div className="rounded border border-slate-200 p-3">
+          <div className="mb-2 text-xs font-semibold uppercase text-slate-500">
+            Topic clusters
+          </div>
+          <div className="grid gap-2">
+            {composition.topicClusters.map((topic) => (
+              <div className="text-sm" key={topic.topicId}>
+                <span className="font-semibold">{topic.displayLabel}</span>
+                <span className="text-slate-500"> · {topic.episodeIds.join(", ")}</span>
+                <div className="text-xs text-slate-600">{topic.summary}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TimelineBlockItem({
+  block,
+  episodes,
+}: {
+  block: TimelineBlock;
+  episodes: TimelineEpisode[];
+}) {
+  return (
+    <details className="rounded border border-slate-200" open>
+      <summary className="cursor-pointer px-3 py-2">
+        <div className="inline-flex flex-wrap items-center gap-2">
+          <StatusBadge status={block.blockType} />
+          <span className="font-semibold">{block.displayTitle}</span>
+          <span className="text-xs text-slate-500">{episodes.length} episodes</span>
+        </div>
+      </summary>
+      <div className="border-t border-slate-200 p-3">
+        <div className="mb-3 text-sm text-slate-700">{block.displaySummary}</div>
+        <div className="grid gap-2">
+          {episodes.map((episode) => (
+            <TimelineEpisodeItem episode={episode} key={episode.episodeId} />
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function TimelineEpisodeItem({ episode }: { episode: TimelineEpisode }) {
+  return (
+    <div className="grid gap-2 rounded border border-slate-100 bg-slate-50 p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">{episode.displayTitle}</span>
+        <StatusBadge status={episode.programMode} />
+        <StatusBadge status={episode.primaryContentKind} />
+        {episode.visibility !== "DEFAULT" ? (
+          <StatusBadge status={episode.visibility} />
+        ) : null}
+      </div>
+      <div className="text-slate-700">{episode.displaySummary}</div>
+      {episode.topics.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {episode.topics.map((topic) => (
+            <span
+              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-500"
+              key={topic}
+            >
+              {topic}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="text-xs text-slate-500">
+        {episode.episodeId} · micro event candidates{" "}
+        {idValue(episode.startMicroEventCandidateId)}-
+        {idValue(episode.endMicroEventCandidateId)}
+      </div>
+    </div>
   );
 }
 

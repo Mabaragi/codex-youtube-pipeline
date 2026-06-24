@@ -42,6 +42,7 @@ const STATUS_OPTIONS = [
 const SOURCE_OPTIONS = [
   { value: "", label: "All sources" },
   { value: "micro_event_extract", label: "micro_event_extract" },
+  { value: "timeline_compose", label: "timeline_compose" },
   { value: "codex_runs", label: "codex_runs" },
   { value: "codex_runtime", label: "codex_runtime" },
 ];

@@ -21,6 +21,13 @@ from codex_sdk_cli.infra.pipeline_jobs.repository import (
     PipelineJobModel,
 )
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
+from codex_sdk_cli.infra.timelines.repository import (
+    TimelineBlockModel,
+    TimelineCompositionModel,
+    TimelineEpisodeModel,
+    TimelineReviewFlagModel,
+    TimelineTopicClusterModel,
+)
 from codex_sdk_cli.infra.transcript_cues.repository import TranscriptCueModel
 from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
@@ -42,6 +49,11 @@ __all__ = [
     "PipelineJobAttemptModel",
     "PipelineJobModel",
     "StreamerModel",
+    "TimelineBlockModel",
+    "TimelineCompositionModel",
+    "TimelineEpisodeModel",
+    "TimelineReviewFlagModel",
+    "TimelineTopicClusterModel",
     "TranscriptCueModel",
     "VideoTaskModel",
     "VideoModel",

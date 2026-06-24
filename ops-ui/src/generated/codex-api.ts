@@ -695,6 +695,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/timeline-compose/enqueue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enqueue Timeline Compose */
+        post: operations["enqueue_timeline_compose_video_tasks_timeline_compose_enqueue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/video-tasks/transcript-collect": {
         parameters: {
             query?: never;
@@ -755,6 +772,40 @@ export interface paths {
         };
         /** Get Video Micro Event Extraction */
         get: operations["get_video_micro_event_extraction_videos__video_id__micro_event_extractions__video_task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/timelines/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Latest Video Timeline */
+        get: operations["get_latest_video_timeline_videos__video_id__timelines_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/timelines/{video_task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Video Timeline */
+        get: operations["get_video_timeline_videos__video_id__timelines__video_task_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2910,6 +2961,255 @@ export interface components {
              */
             name?: string | null;
         };
+        /** TimelineBlockResponse */
+        TimelineBlockResponse: {
+            /** Blockid */
+            blockId: string;
+            /** Blockindex */
+            blockIndex: number;
+            /**
+             * Blocktype
+             * @enum {string}
+             */
+            blockType: "PRE_ROLL" | "OPENING" | "JUST_CHATTING" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "GAME_SETUP" | "GAMEPLAY" | "BREAK" | "POST_GAME" | "CLOSING" | "MIXED";
+            /** Displaysummary */
+            displaySummary: string;
+            /** Displaytitle */
+            displayTitle: string;
+            /** Episodeids */
+            episodeIds: string[];
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+        };
+        /** TimelineComposeEnqueueItemResponse */
+        TimelineComposeEnqueueItemResponse: {
+            /** Copystyle */
+            copyStyle: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Model */
+            model: string | null;
+            /** Reason */
+            reason: string;
+            /** Reasoningeffort */
+            reasoningEffort: string | null;
+            /** Sourcemicroeventtaskid */
+            sourceMicroEventTaskId: number | null;
+            /** Status */
+            status: string;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Youtubevideoid */
+            youtubeVideoId: string | null;
+        };
+        /**
+         * TimelineComposeEnqueueRequest
+         * @example {
+         *       "copyStyle": "LIGHT_FANDOM_V1",
+         *       "limit": 5,
+         *       "model": "gpt-5.5",
+         *       "reasoningEffort": "medium",
+         *       "regenerateSucceeded": false,
+         *       "retryFailed": false,
+         *       "target": "next_eligible"
+         *     }
+         */
+        TimelineComposeEnqueueRequest: {
+            /** Channelid */
+            channelId?: number | null;
+            /**
+             * Copystyle
+             * @default LIGHT_FANDOM_V1
+             * @constant
+             */
+            copyStyle: "LIGHT_FANDOM_V1";
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /** Model */
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            /** Reasoningeffort */
+            reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
+            /**
+             * Regeneratesucceeded
+             * @default false
+             */
+            regenerateSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /** Search */
+            search?: string | null;
+            /**
+             * Target
+             * @default next_eligible
+             * @enum {string}
+             */
+            target: "selected_videos" | "current_filters" | "next_eligible";
+            /** Taskstatus */
+            taskStatus?: ("pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled") | null;
+            /** Videoids */
+            videoIds?: number[];
+        };
+        /** TimelineComposeEnqueueResponse */
+        TimelineComposeEnqueueResponse: {
+            /** Alreadypendingcount */
+            alreadyPendingCount: number;
+            /** Alreadyrunningcount */
+            alreadyRunningCount: number;
+            /** Alreadysucceededcount */
+            alreadySucceededCount: number;
+            /** Enqueuedcount */
+            enqueuedCount: number;
+            /** Failedskippedcount */
+            failedSkippedCount: number;
+            /** Ineligiblecount */
+            ineligibleCount: number;
+            /** Items */
+            items: components["schemas"]["TimelineComposeEnqueueItemResponse"][];
+            /** Regeneratedcount */
+            regeneratedCount: number;
+            /** Requestedcount */
+            requestedCount: number;
+            /** Retryqueuedcount */
+            retryQueuedCount: number;
+            /** Scannedcount */
+            scannedCount: number;
+        };
+        /** TimelineCompositionResponse */
+        TimelineCompositionResponse: {
+            /** Blocks */
+            blocks: components["schemas"]["TimelineBlockResponse"][];
+            /**
+             * Copystyle
+             * @constant
+             */
+            copyStyle: "LIGHT_FANDOM_V1";
+            /** Displaysummary */
+            displaySummary: string;
+            /** Displaytitle */
+            displayTitle: string;
+            /** Episodes */
+            episodes: components["schemas"]["TimelineEpisodeResponse"][];
+            /** Maintopics */
+            mainTopics: string[];
+            /** Model */
+            model: string | null;
+            /** Outputjson */
+            outputJson: {
+                [key: string]: unknown;
+            };
+            /** Reasoningeffort */
+            reasoningEffort: string | null;
+            /** Reviewflags */
+            reviewFlags: components["schemas"]["TimelineReviewFlagResponse"][];
+            /** Sourcemicroeventfingerprint */
+            sourceMicroEventFingerprint: string;
+            /** Sourcemicroeventtaskid */
+            sourceMicroEventTaskId: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled";
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+            /** Topicclusters */
+            topicClusters: components["schemas"]["TimelineTopicClusterResponse"][];
+            /** Validationwarnings */
+            validationWarnings: string[];
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
+        /** TimelineEpisodeResponse */
+        TimelineEpisodeResponse: {
+            /** Displaysummary */
+            displaySummary: string;
+            /** Displaytitle */
+            displayTitle: string;
+            /** Endmicroeventcandidateid */
+            endMicroEventCandidateId: number | null;
+            /** Episodeid */
+            episodeId: string;
+            /** Episodeindex */
+            episodeIndex: number;
+            /** Highlightmicroeventcandidateids */
+            highlightMicroEventCandidateIds: number[];
+            /** Parentblockid */
+            parentBlockId: string;
+            /**
+             * Primarycontentkind
+             * @enum {string}
+             */
+            primaryContentKind: "ANNOUNCEMENT" | "PERSONAL_STORY" | "OPINION" | "QNA" | "REACTION" | "TECHNICAL_SETUP" | "GAME_PROGRESS" | "GAME_DISCUSSION" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "META_CHAT" | "BREAK_TIME" | "OTHER";
+            /**
+             * Programmode
+             * @enum {string}
+             */
+            programMode: "PRE_ROLL" | "OPENING" | "JUST_CHATTING" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "GAME_SETUP" | "GAMEPLAY" | "BREAK" | "POST_GAME" | "CLOSING" | "MIXED";
+            /** Startmicroeventcandidateid */
+            startMicroEventCandidateId: number | null;
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+            /** Topics */
+            topics: string[];
+            /** Viewertags */
+            viewerTags: string[];
+            /**
+             * Visibility
+             * @enum {string}
+             */
+            visibility: "DEFAULT" | "COLLAPSED" | "HIDDEN";
+        };
+        /** TimelineReviewFlagResponse */
+        TimelineReviewFlagResponse: {
+            /** Endmicroeventcandidateid */
+            endMicroEventCandidateId: number | null;
+            /** Flagindex */
+            flagIndex: number;
+            /** Reason */
+            reason: string;
+            /** Startmicroeventcandidateid */
+            startMicroEventCandidateId: number | null;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "MODE_CONFLICT" | "BOUNDARY_AMBIGUOUS" | "ASR_SEMANTIC_RISK" | "OVERBROAD_MICRO_EVENT" | "POSSIBLE_DUPLICATE";
+        };
+        /** TimelineTopicClusterResponse */
+        TimelineTopicClusterResponse: {
+            /** Displaylabel */
+            displayLabel: string;
+            /** Episodeids */
+            episodeIds: string[];
+            /** Label */
+            label: string;
+            /** Summary */
+            summary: string;
+            /** Topicid */
+            topicId: string;
+            /** Topicindex */
+            topicIndex: number;
+        };
         /** TranscriptCollectItemResponse */
         TranscriptCollectItemResponse: {
             /** Cuecount */
@@ -4868,6 +5168,39 @@ export interface operations {
             };
         };
     };
+    enqueue_timeline_compose_video_tasks_timeline_compose_enqueue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TimelineComposeEnqueueRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineComposeEnqueueResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     collect_all_transcript_tasks_video_tasks_transcript_collect_post: {
         parameters: {
             query?: never;
@@ -4984,6 +5317,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MicroEventExtractionDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_video_timeline_videos__video_id__timelines_latest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineCompositionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_timeline_videos__video_id__timelines__video_task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: number;
+                video_task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineCompositionResponse"];
                 };
             };
             /** @description Validation Error */

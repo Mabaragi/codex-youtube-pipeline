@@ -38,6 +38,12 @@ from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerNotFound,
     StreamerPersistenceError,
 )
+from codex_sdk_cli.domains.timelines.exceptions import (
+    TimelineCompositionNotFound,
+    TimelineCompositionPersistenceError,
+    TimelineCompositionPreconditionFailed,
+    TimelineDomainError,
+)
 from codex_sdk_cli.domains.transcript_cues.exceptions import (
     TranscriptCueDomainError,
     TranscriptCuePersistenceError,
@@ -192,6 +198,20 @@ def add_exception_handlers(app: FastAPI) -> None:
         elif isinstance(exc, MicroEventExtractionPreconditionFailed):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, MicroEventExtractionPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(TimelineDomainError)
+    async def timeline_domain_error_handler(
+        _request: Request,
+        exc: TimelineDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, TimelineCompositionNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, TimelineCompositionPreconditionFailed):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, TimelineCompositionPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 

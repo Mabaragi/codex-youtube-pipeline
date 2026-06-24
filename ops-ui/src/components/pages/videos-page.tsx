@@ -3,7 +3,16 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckSquare, Eye, ListPlus, Play, ScrollText, Square, X } from "lucide-react";
+import {
+  CheckSquare,
+  Eye,
+  ListPlus,
+  ListTree,
+  Play,
+  ScrollText,
+  Square,
+  X,
+} from "lucide-react";
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
@@ -17,6 +26,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
   useEnqueueMicroEventsMutation,
+  useEnqueueTimelineComposeMutation,
   useExtractAllMicroEventsMutation,
   useOpsChannels,
   useOpsVideos,
@@ -33,6 +43,7 @@ import type {
   MicroEventEnqueueRequest,
   OpsVideo,
   OpsVideoFilters,
+  TimelineComposeEnqueueRequest,
 } from "@/lib/types";
 import {
   hrefWithQuery,
@@ -54,6 +65,15 @@ type MicroEventDefaults = {
   overlapMinutes: number;
 };
 
+type TimelineComposeDefaults = {
+  limit: number;
+  model: NonNullable<TimelineComposeEnqueueRequest["model"]>;
+  reasoningEffort: NonNullable<TimelineComposeEnqueueRequest["reasoningEffort"]>;
+  retryFailed: boolean;
+  regenerateSucceeded: boolean;
+  copyStyle: NonNullable<TimelineComposeEnqueueRequest["copyStyle"]>;
+};
+
 const VIDEO_TASK_STATUS_OPTIONS = [
   { value: "", label: "All task states" },
   { value: "succeeded", label: "Succeeded" },
@@ -71,6 +91,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const { data, isLoading, error } = useOpsVideos(initialFilters);
   const extractAllMicroEvents = useExtractAllMicroEventsMutation();
   const enqueueMicroEvents = useEnqueueMicroEventsMutation();
+  const enqueueTimelineCompose = useEnqueueTimelineComposeMutation();
   const videos = useMemo(() => data?.items ?? [], [data?.items]);
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
     () => new Set(),
@@ -83,6 +104,14 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     regenerateSucceeded: false,
     windowMinutes: 30,
     overlapMinutes: 5,
+  });
+  const [timelineDefaults, setTimelineDefaults] = useState<TimelineComposeDefaults>({
+    limit: 20,
+    model: DEFAULT_CODEX_MODEL,
+    reasoningEffort: DEFAULT_CODEX_REASONING_EFFORT,
+    retryFailed: false,
+    regenerateSucceeded: false,
+    copyStyle: "LIGHT_FANDOM_V1",
   });
   const visibleVideoIds = videos.map((video) => video.videoId);
   const selectedVisibleCount = visibleVideoIds.filter((videoId) =>
@@ -140,6 +169,23 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const queueCurrentFilters = () => {
     enqueueMicroEvents.mutate(
       enqueueCurrentFiltersRequest(initialFilters, microEventDefaults),
+    );
+  };
+  const queueSelectedTimelines = () => {
+    const videoIds = [...selectedVideoIds];
+    if (!videoIds.length) {
+      return;
+    }
+    enqueueTimelineCompose.mutate(
+      timelineSelectedRequest(videoIds, timelineDefaults),
+    );
+  };
+  const queueOneTimeline = (videoId: number) => {
+    enqueueTimelineCompose.mutate(timelineSelectedRequest([videoId], timelineDefaults));
+  };
+  const queueTimelineCurrentFilters = () => {
+    enqueueTimelineCompose.mutate(
+      timelineCurrentFiltersRequest(initialFilters, timelineDefaults),
     );
   };
   const runNow = () => {
@@ -232,6 +278,20 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             <Eye size={15} />
             Details
           </Link>
+          <button
+            className="ops-button"
+            disabled={enqueueTimelineCompose.isPending}
+            onClick={() => queueOneTimeline(row.original.videoId)}
+            title={
+              enqueueTimelineCompose.isPending
+                ? "Timeline queue request is running"
+                : "Queue timeline compose for this video"
+            }
+            type="button"
+          >
+            <ListTree size={15} />
+            Timeline
+          </button>
         </div>
       ),
     },
@@ -252,6 +312,18 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
         onToggleVisibleSelection={toggleVisibleSelection}
         selectedCount={selectedVideoIds.size}
         setDefaults={setMicroEventDefaults}
+        visibleCount={visibleVideoIds.length}
+      />
+      <TimelineComposePanel
+        allVisibleSelected={allVisibleSelected}
+        defaults={timelineDefaults}
+        enqueueTimelineCompose={enqueueTimelineCompose}
+        onClearSelection={clearSelection}
+        onQueueCurrentFilters={queueTimelineCurrentFilters}
+        onQueueSelected={queueSelectedTimelines}
+        onToggleVisibleSelection={toggleVisibleSelection}
+        selectedCount={selectedVideoIds.size}
+        setDefaults={setTimelineDefaults}
         visibleCount={visibleVideoIds.length}
       />
       <form
@@ -295,6 +367,9 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
 
 type ExtractAllMicroEventsMutation = ReturnType<typeof useExtractAllMicroEventsMutation>;
 type EnqueueMicroEventsMutation = ReturnType<typeof useEnqueueMicroEventsMutation>;
+type EnqueueTimelineComposeMutation = ReturnType<
+  typeof useEnqueueTimelineComposeMutation
+>;
 
 function MicroEventBatchPanel({
   allVisibleSelected,
@@ -526,6 +601,242 @@ function MicroEventBatchPanel({
   );
 }
 
+function TimelineComposePanel({
+  allVisibleSelected,
+  defaults,
+  enqueueTimelineCompose,
+  onClearSelection,
+  onQueueCurrentFilters,
+  onQueueSelected,
+  onToggleVisibleSelection,
+  selectedCount,
+  setDefaults,
+  visibleCount,
+}: {
+  allVisibleSelected: boolean;
+  defaults: TimelineComposeDefaults;
+  enqueueTimelineCompose: EnqueueTimelineComposeMutation;
+  onClearSelection: () => void;
+  onQueueCurrentFilters: () => void;
+  onQueueSelected: () => void;
+  onToggleVisibleSelection: () => void;
+  selectedCount: number;
+  setDefaults: Dispatch<SetStateAction<TimelineComposeDefaults>>;
+  visibleCount: number;
+}) {
+  const result = enqueueTimelineCompose.data;
+  const queueSelectedTitle =
+    selectedCount === 0 ? "Select at least one video first" : "Queue selected videos";
+  const visibleToggleLabel = allVisibleSelected ? "Clear visible" : "Select visible";
+
+  const setNumberDefault =
+    (key: "limit") =>
+    (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const value = Number(event.currentTarget.value);
+      setDefaults((current) => ({
+        ...current,
+        [key]: Number.isFinite(value) ? value : current[key],
+      }));
+    };
+  const setStringDefault =
+    (key: "model" | "reasoningEffort" | "copyStyle") =>
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const value = event.currentTarget.value;
+      setDefaults((current) => ({
+        ...current,
+        [key]: value,
+      }));
+    };
+  const setBooleanDefault =
+    (key: "retryFailed" | "regenerateSucceeded") =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const checked = event.currentTarget.checked;
+      setDefaults((current) => ({
+        ...current,
+        [key]: checked,
+      }));
+    };
+
+  return (
+    <section className="ops-panel mb-4 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Timeline compose</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Queue videos with completed micro-events for the timeline worker.
+          </p>
+        </div>
+        <Link
+          className="ops-button"
+          href="/tasks?taskName=timeline_compose&limit=100"
+        >
+          <ScrollText size={15} />
+          Tasks
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Batch size
+          <select
+            className="ops-input"
+            onChange={setNumberDefault("limit")}
+            value={defaults.limit}
+          >
+            <option value="1">1 video</option>
+            <option value="3">3 videos</option>
+            <option value="5">5 videos</option>
+            <option value="20">20 queued</option>
+            <option value="50">50 queued</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Model
+          <select
+            className="ops-input"
+            onChange={setStringDefault("model")}
+            value={defaults.model}
+          >
+            {CODEX_MODEL_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Reasoning
+          <select
+            className="ops-input"
+            onChange={setStringDefault("reasoningEffort")}
+            value={defaults.reasoningEffort}
+          >
+            {CODEX_REASONING_EFFORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-slate-600">
+          Copy style
+          <select
+            className="ops-input"
+            onChange={setStringDefault("copyStyle")}
+            value={defaults.copyStyle}
+          >
+            <option value="LIGHT_FANDOM_V1">LIGHT_FANDOM_V1</option>
+          </select>
+        </label>
+        <div className="grid gap-2 text-xs font-medium text-slate-600">
+          <label className="flex items-center gap-2">
+            <input
+              checked={defaults.retryFailed}
+              className="h-4 w-4"
+              onChange={setBooleanDefault("retryFailed")}
+              type="checkbox"
+            />
+            Retry failed
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              checked={defaults.regenerateSucceeded}
+              className="h-4 w-4"
+              onChange={setBooleanDefault("regenerateSucceeded")}
+              type="checkbox"
+            />
+            Regenerate succeeded
+          </label>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          className="ops-button ops-button-primary"
+          disabled={enqueueTimelineCompose.isPending || selectedCount === 0}
+          onClick={onQueueSelected}
+          title={queueSelectedTitle}
+          type="button"
+        >
+          <ListPlus size={15} />
+          Queue selected ({selectedCount})
+        </button>
+        <button
+          className="ops-button"
+          disabled={enqueueTimelineCompose.isPending}
+          onClick={onQueueCurrentFilters}
+          type="button"
+        >
+          <ListPlus size={15} />
+          Queue current filters
+        </button>
+        <button
+          className="ops-button"
+          disabled={visibleCount === 0}
+          onClick={onToggleVisibleSelection}
+          type="button"
+        >
+          {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          {visibleToggleLabel}
+        </button>
+        <button
+          className="ops-button"
+          disabled={selectedCount === 0}
+          onClick={onClearSelection}
+          type="button"
+        >
+          <X size={15} />
+          Clear
+        </button>
+        {enqueueTimelineCompose.error ? (
+          <span className="text-xs text-red-700">
+            {formatUnknownError(enqueueTimelineCompose.error)}
+          </span>
+        ) : null}
+      </div>
+      {result ? <TimelineComposeEnqueueResult result={result} /> : null}
+    </section>
+  );
+}
+
+function TimelineComposeEnqueueResult({
+  result,
+}: {
+  result: NonNullable<EnqueueTimelineComposeMutation["data"]>;
+}) {
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
+        <Metric label="Queued" value={result.enqueuedCount} />
+        <Metric label="Pending" value={result.alreadyPendingCount} />
+        <Metric label="Running" value={result.alreadyRunningCount} />
+        <Metric label="Succeeded" value={result.alreadySucceededCount} />
+        <Metric label="Retry queued" value={result.retryQueuedCount} />
+        <Metric label="Regenerated" value={result.regeneratedCount} />
+        <Metric label="Failed skipped" value={result.failedSkippedCount} />
+        <Metric label="Scanned" value={result.scannedCount} />
+      </div>
+      {result.items.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {result.items.slice(0, 8).map((item) => (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
+              key={`${item.videoId}-${item.videoTaskId ?? item.reason}`}
+            >
+              <Link className="font-semibold" href={`/videos/${item.videoId}`}>
+                #{item.videoId}
+              </Link>
+              <StatusBadge status={item.status} />
+              <span>{item.reason}</span>
+              {item.youtubeVideoId ? (
+                <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MicroEventEnqueueResult({
   result,
 }: {
@@ -652,6 +963,31 @@ function enqueueCurrentFiltersRequest(
   };
 }
 
+function timelineSelectedRequest(
+  videoIds: number[],
+  defaults: TimelineComposeDefaults,
+): TimelineComposeEnqueueRequest {
+  return {
+    ...timelineRequestDefaults(defaults),
+    target: "selected_videos",
+    videoIds,
+    limit: Math.min(videoIds.length, 200),
+  };
+}
+
+function timelineCurrentFiltersRequest(
+  filters: OpsVideoFilters,
+  defaults: TimelineComposeDefaults,
+): TimelineComposeEnqueueRequest {
+  return {
+    ...timelineRequestDefaults(defaults),
+    target: "current_filters",
+    channelId: filters.channelId,
+    taskStatus: videoTaskStatusValue(filters.taskStatus),
+    search: filters.search || undefined,
+  };
+}
+
 function microEventRequestDefaults(
   defaults: MicroEventDefaults,
 ): Pick<
@@ -672,6 +1008,27 @@ function microEventRequestDefaults(
     regenerateSucceeded: defaults.regenerateSucceeded,
     windowMinutes: defaults.windowMinutes,
     overlapMinutes: defaults.overlapMinutes,
+  };
+}
+
+function timelineRequestDefaults(
+  defaults: TimelineComposeDefaults,
+): Pick<
+  TimelineComposeEnqueueRequest,
+  | "copyStyle"
+  | "limit"
+  | "model"
+  | "reasoningEffort"
+  | "regenerateSucceeded"
+  | "retryFailed"
+> {
+  return {
+    limit: Math.min(Math.max(defaults.limit, 1), 200),
+    model: defaults.model,
+    reasoningEffort: defaults.reasoningEffort,
+    retryFailed: defaults.retryFailed,
+    regenerateSucceeded: defaults.regenerateSucceeded,
+    copyStyle: defaults.copyStyle,
   };
 }
 
