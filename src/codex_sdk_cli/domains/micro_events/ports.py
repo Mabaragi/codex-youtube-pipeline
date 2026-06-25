@@ -130,7 +130,6 @@ class AsrCorrectionCandidateCreate:
     suggested: str
     correction_type: CorrectionType
     apply_scope: ApplyScope
-    evidence_cue_ids: list[str]
     confidence: float
 
 
@@ -203,7 +202,6 @@ class AsrCorrectionCandidateRecord:
     suggested: str
     correction_type: CorrectionType
     apply_scope: ApplyScope
-    evidence_cue_ids: list[str]
     confidence: float
     created_at: datetime
     updated_at: datetime

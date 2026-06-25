@@ -289,7 +289,6 @@ def _window(
                 suggested="Codex",
                 correction_type="PROPER_NOUN",
                 apply_scope="SEARCH_ONLY",
-                evidence_cue_ids=[f"tr{transcript_id}-c000001"],
                 confidence=0.8,
             )
         ]

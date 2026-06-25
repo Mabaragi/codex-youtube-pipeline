@@ -218,7 +218,6 @@ class AsrCorrectionCandidateResponse(BaseModel):
     suggested: str
     correction_type: CorrectionType = Field(alias="correctionType")
     apply_scope: ApplyScope = Field(alias="applyScope")
-    evidence_cue_ids: list[str] = Field(alias="evidenceCueIds")
     confidence: float
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

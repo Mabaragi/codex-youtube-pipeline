@@ -581,7 +581,7 @@ def _asr_correction_model(
         suggested=candidate.suggested,
         correction_type=candidate.correction_type,
         apply_scope=candidate.apply_scope,
-        evidence_cue_ids=candidate.evidence_cue_ids,
+        evidence_cue_ids=[],
         confidence=candidate.confidence,
     )
 
@@ -697,7 +697,6 @@ def _asr_record(model: AsrCorrectionCandidateModel) -> AsrCorrectionCandidateRec
         suggested=model.suggested,
         correction_type=_correction_type(model.correction_type),
         apply_scope=_apply_scope(model.apply_scope),
-        evidence_cue_ids=model.evidence_cue_ids,
         confidence=model.confidence,
         created_at=model.created_at,
         updated_at=model.updated_at,

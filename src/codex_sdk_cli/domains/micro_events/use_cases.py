@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import cast
 
@@ -109,7 +109,7 @@ PROMPT_HEADER = """# 역할
 - CONTEXT_AFTER: 이후 문맥을 이해하기 위한 참고 자료
 
 events와 excluded_ranges는 반드시 OWNED_RANGE 안에서만 생성한다.
-asr_correction_candidates도 반드시 OWNED_RANGE 안의 cue만 evidence로 사용한다.
+asr_correction_candidates에는 cue_id를 출력하지 않는다.
 
 # 가장 중요한 제약
 
@@ -180,6 +180,7 @@ term_annotations는 참고 자료다.
 
 문맥상 명백히 잘못 인식된 단어가 있으면 asr_correction_candidates에 기록한다.
 단, 원문 자막을 고쳐 쓰지 않는다.
+ASR 보정 후보에는 evidence_cue_ids를 넣지 않는다.
 
 ASR 보정 후보는 다음 경우에만 제안한다.
 
@@ -259,6 +260,8 @@ event는 한 문장으로 구체적으로 작성한다.
 
 # evidence_cue_ids
 
+Hard limit: evidence_cue_ids must contain at most 6 cue ids. Never output 7 or more.
+
 각 event의 핵심 내용을 직접 뒷받침하는 cue_id를 2~6개 선택한다.
 
 - 반드시 해당 event의 start_cue_id와 end_cue_id 사이에 있어야 한다.
@@ -297,7 +300,6 @@ event는 한 문장으로 구체적으로 작성한다.
       "suggested": "교정 후보",
       "correction_type": "COMMON_WORD",
       "apply_scope": "SEARCH_ONLY",
-      "evidence_cue_ids": ["tr1-c000002"],
       "confidence": 0.8
     }
   ]
@@ -310,7 +312,7 @@ event는 한 문장으로 구체적으로 작성한다.
 - OWNED_RANGE의 모든 cue가 정확히 한 번 처리됐는가?
 - event와 excluded_range 사이에 빈 cue가 없는가?
 - 서로 겹치는 범위가 없는가?
-- 모든 evidence_cue_id가 해당 event 범위 안에 있는가?
+- 모든 event evidence_cue_id가 해당 event 범위 안에 있는가?
 - CONTEXT 영역의 cue를 출력 범위나 evidence로 사용하지 않았는가?
 
 검사를 마친 뒤 지정된 JSON 구조만 반환한다.
@@ -1737,10 +1739,9 @@ class _AsrCorrectionOutput(BaseModel):
     suggested: str = Field(min_length=1)
     correction_type: CorrectionType
     apply_scope: ApplyScope
-    evidence_cue_ids: list[str]
     confidence: float = Field(ge=0, le=1)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     @field_validator("correction_type", mode="before")
     @classmethod
@@ -1759,6 +1760,9 @@ class _ExtractorOutput(BaseModel):
     asr_correction_candidates: list[_AsrCorrectionOutput] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid")
+
+
+MicroEventOutputWarning = JsonObject
 
 
 def _cue_windows(
@@ -1928,7 +1932,7 @@ def _validated_window(
     result: MicroEventExtractionResult,
 ) -> MicroEventExtractionWindowCreate:
     parsed = _parse_extractor_output(result.final_response)
-    output = _validate_extractor_output(parsed)
+    output, warnings = _validate_extractor_output(parsed)
     cue_id_to_position = {
         cue.cue_id: position for position, cue in enumerate(cue_window.owned_cues)
     }
@@ -1944,6 +1948,8 @@ def _validated_window(
         ) = _validate_event_cue_refs(
             event,
             cue_id_to_position,
+            warnings=warnings,
+            event_index=index - 1,
         )
         ranges.append(("event", start_position, end_position))
         event_creates.append(
@@ -1989,10 +1995,6 @@ def _validated_window(
     _validate_owned_range_coverage(ranges, owned_cue_count=len(cue_window.owned_cues))
     asr_creates: list[AsrCorrectionCandidateCreate] = []
     for index, candidate in enumerate(output.asr_correction_candidates, start=1):
-        evidence_cue_ids = _validate_evidence_cue_ids(
-            candidate.evidence_cue_ids,
-            cue_id_to_position,
-        )
         asr_creates.append(
             AsrCorrectionCandidateCreate(
                 candidate_index=index,
@@ -2000,7 +2002,6 @@ def _validated_window(
                 suggested=candidate.suggested,
                 correction_type=candidate.correction_type,
                 apply_scope=candidate.apply_scope,
-                evidence_cue_ids=evidence_cue_ids,
                 confidence=candidate.confidence,
             )
         )
@@ -2018,7 +2019,7 @@ def _validated_window(
         codex_turn_id=result.turn_id,
         raw_response_text=result.final_response,
         parsed_response_json=cast(JsonObject, output.model_dump(mode="json")),
-        validation_error=None,
+        validation_error=_warnings_json(warnings),
         source_job_id=job.id,
         source_job_attempt_id=attempt.id,
         micro_events=event_creates,
@@ -2070,6 +2071,12 @@ def _sorted_windows(
     return sorted(windows, key=lambda window: window.window_index)
 
 
+def _warnings_json(warnings: list[MicroEventOutputWarning]) -> str | None:
+    if not warnings:
+        return None
+    return json.dumps(warnings, ensure_ascii=False)
+
+
 def _parse_extractor_output(raw_response: str) -> JsonObject:
     try:
         parsed = json.loads(raw_response)
@@ -2080,28 +2087,283 @@ def _parse_extractor_output(raw_response: str) -> JsonObject:
     return cast(JsonObject, parsed)
 
 
-def _validate_extractor_output(parsed: JsonObject) -> _ExtractorOutput:
+def _validate_extractor_output(
+    parsed: JsonObject,
+) -> tuple[_ExtractorOutput, list[MicroEventOutputWarning]]:
+    normalized, warnings = _normalize_extractor_output(parsed)
     try:
-        return _ExtractorOutput.model_validate(parsed)
+        return _ExtractorOutput.model_validate(normalized), warnings
     except ValidationError as exc:
         message = json.dumps(exc.errors(include_url=False), ensure_ascii=False)
         raise MicroEventExtractionOutputInvalid(message) from exc
 
 
+def _normalize_extractor_output(
+    parsed: JsonObject,
+) -> tuple[JsonObject, list[MicroEventOutputWarning]]:
+    normalized: JsonObject = dict(parsed)
+    warnings: list[MicroEventOutputWarning] = []
+    events = normalized.get("events")
+    excluded_ranges = normalized.get("excluded_ranges")
+    existing_excluded_ranges = excluded_ranges if isinstance(excluded_ranges, list) else []
+    moved_excluded_ranges: list[object] = []
+    if isinstance(events, list):
+        normalized_events: list[object] = []
+        for index, event in enumerate(events):
+            if _is_misplaced_excluded_range_event(event):
+                target_index = len(existing_excluded_ranges) + len(moved_excluded_ranges)
+                moved_excluded_ranges.append(
+                    _normalize_misplaced_excluded_range_event(
+                        event,
+                        from_index=index,
+                        to_index=target_index,
+                        warnings=warnings,
+                    )
+                )
+                continue
+            normalized_events.append(_normalize_event_output(event, index, warnings))
+        normalized["events"] = normalized_events
+    if isinstance(excluded_ranges, list):
+        normalized["excluded_ranges"] = [
+            _normalize_excluded_range_output(excluded_range, index, warnings)
+            for index, excluded_range in enumerate(excluded_ranges)
+        ]
+    if moved_excluded_ranges:
+        normalized["excluded_ranges"] = [
+            *(
+                normalized["excluded_ranges"]
+                if isinstance(normalized.get("excluded_ranges"), list)
+                else []
+            ),
+            *moved_excluded_ranges,
+        ]
+    asr_candidates = normalized.get("asr_correction_candidates")
+    if isinstance(asr_candidates, list):
+        normalized["asr_correction_candidates"] = [
+            _normalize_asr_correction_output(candidate, index, warnings)
+            for index, candidate in enumerate(asr_candidates)
+        ]
+    return normalized, warnings
+
+
+def _is_misplaced_excluded_range_event(event: object) -> bool:
+    return (
+        isinstance(event, dict)
+        and "event" not in event
+        and "start_cue_id" in event
+        and "end_cue_id" in event
+        and "reason" in event
+    )
+
+
+def _normalize_misplaced_excluded_range_event(
+    event: object,
+    *,
+    from_index: int,
+    to_index: int,
+    warnings: list[MicroEventOutputWarning],
+) -> object:
+    if not isinstance(event, dict):
+        return event
+    misplaced_range: JsonObject = {
+        "start_cue_id": event["start_cue_id"],
+        "end_cue_id": event["end_cue_id"],
+        "reason": event["reason"],
+    }
+    normalized = _normalize_excluded_range_output(
+        misplaced_range,
+        to_index,
+        warnings,
+    )
+    warnings.append(
+        {
+            "type": "moved_event_to_excluded_range",
+            "fromPath": f"events[{from_index}]",
+            "toPath": f"excluded_ranges[{to_index}]",
+            "reason": event["reason"],
+        }
+    )
+    return normalized
+
+
+def _normalize_event_output(
+    event: object,
+    index: int,
+    warnings: list[MicroEventOutputWarning],
+) -> object:
+    if not isinstance(event, dict):
+        return event
+    normalized: JsonObject = dict(event)
+    if "event" in normalized and "reason" in normalized:
+        normalized.pop("reason", None)
+        warnings.append(
+            {
+                "type": "removed_event_reason_field",
+                "path": f"events[{index}].reason",
+            }
+        )
+    _normalize_enum_value(
+        normalized,
+        "program_mode",
+        f"events[{index}].program_mode",
+        _normalize_program_mode,
+        warnings,
+    )
+    _normalize_enum_value(
+        normalized,
+        "content_kind",
+        f"events[{index}].content_kind",
+        _normalize_content_kind,
+        warnings,
+    )
+    _normalize_enum_value(
+        normalized,
+        "relation_to_previous",
+        f"events[{index}].relation_to_previous",
+        _normalize_relation_to_previous,
+        warnings,
+    )
+    _normalize_enum_value(
+        normalized,
+        "support_level",
+        f"events[{index}].support_level",
+        _normalize_support_level,
+        warnings,
+    )
+    topics = normalized.get("topics")
+    if isinstance(topics, list) and len(topics) > 6:
+        normalized["topics"] = topics[:6]
+        warnings.append(
+            {
+                "type": "truncated_topics",
+                "path": f"events[{index}].topics",
+                "originalCount": len(topics),
+                "keptCount": 6,
+            }
+        )
+    evidence_cue_ids = normalized.get("evidence_cue_ids")
+    if isinstance(evidence_cue_ids, list) and len(evidence_cue_ids) > 6:
+        normalized["evidence_cue_ids"] = evidence_cue_ids[:6]
+        warnings.append(
+            {
+                "type": "truncated_evidence_cue_ids",
+                "path": f"events[{index}].evidence_cue_ids",
+                "originalCount": len(evidence_cue_ids),
+                "keptCount": 6,
+            }
+        )
+    return normalized
+
+
+def _normalize_excluded_range_output(
+    excluded_range: object,
+    index: int,
+    warnings: list[MicroEventOutputWarning],
+) -> object:
+    if not isinstance(excluded_range, dict):
+        return excluded_range
+    normalized: JsonObject = dict(excluded_range)
+    _normalize_enum_value(
+        normalized,
+        "reason",
+        f"excluded_ranges[{index}].reason",
+        _normalize_excluded_range_reason,
+        warnings,
+    )
+    return normalized
+
+
+def _normalize_asr_correction_output(
+    candidate: object,
+    index: int,
+    warnings: list[MicroEventOutputWarning],
+) -> object:
+    if not isinstance(candidate, dict):
+        return candidate
+    normalized: JsonObject = dict(candidate)
+    if "evidence_cue_ids" in normalized:
+        normalized.pop("evidence_cue_ids", None)
+        warnings.append(
+            {
+                "type": "ignored_asr_evidence_cue_ids",
+                "path": f"asr_correction_candidates[{index}].evidence_cue_ids",
+            }
+        )
+    _normalize_enum_value(
+        normalized,
+        "correction_type",
+        f"asr_correction_candidates[{index}].correction_type",
+        _normalize_correction_type,
+        warnings,
+    )
+    _normalize_enum_value(
+        normalized,
+        "apply_scope",
+        f"asr_correction_candidates[{index}].apply_scope",
+        _normalize_apply_scope,
+        warnings,
+    )
+    return normalized
+
+
+def _normalize_enum_value(
+    values: JsonObject,
+    key: str,
+    path: str,
+    normalize: Callable[[object], object],
+    warnings: list[MicroEventOutputWarning],
+) -> None:
+    if key not in values:
+        return
+    original = values[key]
+    normalized = normalize(original)
+    values[key] = normalized
+    if original != normalized:
+        warnings.append(
+            {
+                "type": "normalized_enum",
+                "path": path,
+                "original": original,
+                "normalized": normalized,
+            }
+        )
+
+
 def _validate_event_cue_refs(
     event: _MicroEventOutput,
     cue_id_to_position: dict[str, int],
+    *,
+    warnings: list[MicroEventOutputWarning],
+    event_index: int,
 ) -> tuple[str, str, int, int, list[str]]:
     start_cue_id, end_cue_id, start_position, end_position = _validate_range_cue_refs(
         event.start_cue_id,
         event.end_cue_id,
         cue_id_to_position,
+        warnings=warnings,
+        path_prefix=f"events[{event_index}]",
     )
     valid_evidence_cue_ids: list[str] = []
+    removed_evidence_cue_ids: list[str] = []
     for cue_id in event.evidence_cue_ids:
-        resolved_cue_id = _resolve_cue_id(cue_id, cue_id_to_position)
+        resolved_cue_id = _resolve_cue_id(
+            cue_id,
+            cue_id_to_position,
+            warnings=warnings,
+            path=f"events[{event_index}].evidence_cue_ids",
+        )
         if start_position <= cue_id_to_position[resolved_cue_id] <= end_position:
             valid_evidence_cue_ids.append(resolved_cue_id)
+        else:
+            removed_evidence_cue_ids.append(resolved_cue_id)
+    if removed_evidence_cue_ids:
+        warnings.append(
+            {
+                "type": "removed_out_of_event_range_evidence_cue_ids",
+                "path": f"events[{event_index}].evidence_cue_ids",
+                "removedCueIds": removed_evidence_cue_ids,
+            }
+        )
     if not valid_evidence_cue_ids:
         raise MicroEventExtractionOutputInvalid(
             "event must have at least one evidence_cue_id inside its cue range."
@@ -2113,9 +2375,22 @@ def _validate_range_cue_refs(
     start_cue_id: str,
     end_cue_id: str,
     cue_id_to_position: dict[str, int],
+    *,
+    warnings: list[MicroEventOutputWarning] | None = None,
+    path_prefix: str | None = None,
 ) -> tuple[str, str, int, int]:
-    resolved_start_cue_id = _resolve_cue_id(start_cue_id, cue_id_to_position)
-    resolved_end_cue_id = _resolve_cue_id(end_cue_id, cue_id_to_position)
+    resolved_start_cue_id = _resolve_cue_id(
+        start_cue_id,
+        cue_id_to_position,
+        warnings=warnings,
+        path=f"{path_prefix}.start_cue_id" if path_prefix else None,
+    )
+    resolved_end_cue_id = _resolve_cue_id(
+        end_cue_id,
+        cue_id_to_position,
+        warnings=warnings,
+        path=f"{path_prefix}.end_cue_id" if path_prefix else None,
+    )
     start_position = cue_id_to_position[resolved_start_cue_id]
     end_position = cue_id_to_position[resolved_end_cue_id]
     if start_position > end_position:
@@ -2132,10 +2407,25 @@ def _validate_evidence_cue_ids(
     return [_resolve_cue_id(cue_id, cue_id_to_position) for cue_id in evidence_cue_ids]
 
 
-def _resolve_cue_id(cue_id: str, cue_id_to_position: dict[str, int]) -> str:
+def _resolve_cue_id(
+    cue_id: str,
+    cue_id_to_position: dict[str, int],
+    *,
+    warnings: list[MicroEventOutputWarning] | None = None,
+    path: str | None = None,
+) -> str:
     if cue_id not in cue_id_to_position:
         resolved_cue_id = _unique_nearby_cue_id(cue_id, cue_id_to_position)
         if resolved_cue_id is not None:
+            if warnings is not None:
+                warnings.append(
+                    {
+                        "type": "repaired_cue_id",
+                        "path": path or "cue_id",
+                        "originalCueId": cue_id,
+                        "repairedCueId": resolved_cue_id,
+                    }
+                )
             return resolved_cue_id
         raise MicroEventExtractionOutputInvalid(
             f"Extractor referenced cue_id outside OWNED_RANGE: {cue_id}"
@@ -2618,7 +2908,6 @@ def _detail_response(
                         "suggested": candidate.suggested,
                         "correctionType": candidate.correction_type,
                         "applyScope": candidate.apply_scope,
-                        "evidenceCueIds": candidate.evidence_cue_ids,
                         "confidence": candidate.confidence,
                         "createdAt": candidate.created_at,
                         "updatedAt": candidate.updated_at,

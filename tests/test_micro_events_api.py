@@ -919,7 +919,6 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
                         suggested=candidate.suggested,
                         correction_type=candidate.correction_type,
                         apply_scope=candidate.apply_scope,
-                        evidence_cue_ids=candidate.evidence_cue_ids,
                         confidence=candidate.confidence,
                         created_at=NOW,
                         updated_at=NOW,
@@ -1536,6 +1535,131 @@ def test_micro_event_extract_accepts_excluded_ranges_for_owned_coverage() -> Non
     assert latest["windows"][0]["excludedRanges"][0]["reason"] == "LOW_INFORMATION"
 
 
+def test_micro_event_extract_moves_excluded_range_shape_from_events() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "스트리머가 방송 주제를 설명한다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                    },
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "reason": "MUSIC_ONLY",
+                    },
+                ],
+                "excluded_ranges": [],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert len(detail["windows"][0]["microEvents"]) == 1
+    assert detail["windows"][0]["excludedRanges"][0]["startCueId"] == "tr1-c000002"
+    assert detail["windows"][0]["excludedRanges"][0]["reason"] == "MUSIC_ONLY"
+    assert "moved_event_to_excluded_range" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
+
+
+def test_micro_event_extract_removes_stray_reason_from_valid_event() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "스트리머가 방송 주제를 설명한다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                        "reason": "MUSIC_ONLY",
+                    }
+                ],
+                "excluded_ranges": [
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "reason": "LOW_INFORMATION",
+                    }
+                ],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert "removed_event_reason_field" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
+
+
+def test_micro_event_extract_misplaced_excluded_range_still_fails_on_coverage_gap() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[0, 1_000, 2_000])
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "스트리머가 방송 주제를 설명한다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                    },
+                    {
+                        "start_cue_id": "tr1-c000003",
+                        "end_cue_id": "tr1-c000003",
+                        "reason": "MUSIC_ONLY",
+                    },
+                ],
+                "excluded_ranges": [],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "failed"
+    assert detail["windows"][0]["status"] == "failed"
+    assert "gap in OWNED_RANGE coverage" in detail["windows"][0]["validationError"]
+
+
 def test_micro_event_extract_filters_event_evidence_outside_event_range() -> None:
     fakes = _seed_ready_fakes()
     fakes.extractor.responses = [
@@ -1575,6 +1699,9 @@ def test_micro_event_extract_filters_event_evidence_outside_event_range() -> Non
     assert detail["windows"][0]["microEvents"][0]["evidenceCueIds"] == [
         "tr1-c000001"
     ]
+    assert "removed_out_of_event_range_evidence_cue_ids" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
 
 
 def test_micro_event_extract_normalizes_loose_enum_values() -> None:
@@ -1609,7 +1736,6 @@ def test_micro_event_extract_normalizes_loose_enum_values() -> None:
                         "suggested": "초승달",
                         "correction_type": "PERSON_NAME",
                         "apply_scope": "search",
-                        "evidence_cue_ids": ["tr1-c000001"],
                         "confidence": 0.8,
                     }
                 ],
@@ -1635,6 +1761,8 @@ def test_micro_event_extract_normalizes_loose_enum_values() -> None:
     assert detail["windows"][0]["asrCorrectionCandidates"][0]["applyScope"] == (
         "SEARCH_ONLY"
     )
+    warning_types = _warning_types(detail["windows"][0]["validationError"])
+    assert "normalized_enum" in warning_types
 
 
 def test_micro_event_extract_truncates_too_many_topics() -> None:
@@ -1689,6 +1817,74 @@ def test_micro_event_extract_truncates_too_many_topics() -> None:
         "topic-5",
         "topic-6",
     ]
+    assert "truncated_topics" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
+
+
+def test_micro_event_extract_truncates_too_many_event_evidence_ids() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000])
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000006",
+                        "event": "스트리머가 게임 선택지를 차례로 확인한다.",
+                        "program_mode": "GAMEPLAY",
+                        "content_kind": "GAME_PROGRESS",
+                        "topics": ["게임 선택지"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": [
+                            "tr1-c000001",
+                            "tr1-c000002",
+                            "tr1-c000003",
+                            "tr1-c000004",
+                            "tr1-c000005",
+                            "tr1-c000006",
+                            "tr1-c000007",
+                        ],
+                        "support_level": "DIRECT",
+                    },
+                    {
+                        "start_cue_id": "tr1-c000007",
+                        "end_cue_id": "tr1-c000007",
+                        "event": "스트리머가 다음 구간으로 넘어간다.",
+                        "program_mode": "GAMEPLAY",
+                        "content_kind": "GAME_PROGRESS",
+                        "topics": ["다음 구간"],
+                        "relation_to_previous": "CONTINUATION",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000007"],
+                        "support_level": "DIRECT",
+                    },
+                ],
+                "excluded_ranges": [],
+                "asr_correction_candidates": [],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert detail["windows"][0]["status"] == "succeeded"
+    assert detail["windows"][0]["microEvents"][0]["evidenceCueIds"] == [
+        "tr1-c000001",
+        "tr1-c000002",
+        "tr1-c000003",
+        "tr1-c000004",
+        "tr1-c000005",
+        "tr1-c000006",
+    ]
+    assert "truncated_evidence_cue_ids" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
 
 
 def test_micro_event_extract_repairs_unique_nearby_cue_id_typo() -> None:
@@ -1718,7 +1914,6 @@ def test_micro_event_extract_repairs_unique_nearby_cue_id_typo() -> None:
                         "suggested": "Codex",
                         "correction_type": "PROPER_NOUN",
                         "apply_scope": "SEARCH_ONLY",
-                        "evidence_cue_ids": ["tr1-c00003"],
                         "confidence": 0.8,
                     }
                 ],
@@ -1736,9 +1931,10 @@ def test_micro_event_extract_repairs_unique_nearby_cue_id_typo() -> None:
         "tr1-c000001",
         "tr1-c000003",
     ]
-    assert detail["windows"][0]["asrCorrectionCandidates"][0]["evidenceCueIds"] == [
-        "tr1-c000003"
-    ]
+    assert "repaired_cue_id" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
+    assert "evidenceCueIds" not in detail["windows"][0]["asrCorrectionCandidates"][0]
 
 
 def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap() -> None:
@@ -1942,6 +2138,18 @@ async def _get_detail(
 
     assert response.status_code == expected_status, response.text
     return response.json()
+
+
+def _warning_types(validation_error: str | None) -> set[str]:
+    if validation_error is None:
+        return set()
+    warnings = json.loads(validation_error)
+    assert isinstance(warnings, list)
+    return {
+        str(warning.get("type"))
+        for warning in warnings
+        if isinstance(warning, dict)
+    }
 
 
 def _app(fakes: _Fakes) -> Any:
@@ -2155,7 +2363,6 @@ def _extractor_json(
                     "suggested": "Codex",
                     "correction_type": "PROPER_NOUN",
                     "apply_scope": "SEARCH_ONLY",
-                    "evidence_cue_ids": [start_cue_id],
                     "confidence": 0.8,
                 }
             ],
