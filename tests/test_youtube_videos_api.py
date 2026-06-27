@@ -378,11 +378,12 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         *,
         error_type: str,
         error_message: str,
+        output_json: JsonObject | None = None,
     ) -> PipelineJobAttemptRecord:
         return self._update_attempt(
             attempt_id,
             status="failed",
-            output_json=None,
+            output_json=output_json,
             error_type=error_type,
             error_message=error_message,
         )

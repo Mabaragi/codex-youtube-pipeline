@@ -11,6 +11,7 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsSchemaRelationRecord,
     OpsSchemaTableRecord,
     OpsSchemaUniqueConstraintRecord,
+    OpsVideoGenerationRecord,
     OpsVideoListQuery,
     OpsVideoTaskListQuery,
     OpsVideoTaskRecord,
@@ -29,11 +30,15 @@ from codex_sdk_cli.domains.ops.schemas import (
     OpsStatusCountResponse,
     OpsSummaryCountsResponse,
     OpsSummaryResponse,
+    OpsVideoCueGenerationResponse,
     OpsVideoDetailResponse,
+    OpsVideoGenerationResponse,
     OpsVideoListResponse,
+    OpsVideoMicroEventGenerationResponse,
     OpsVideoResponse,
     OpsVideoTaskListResponse,
     OpsVideoTaskResponse,
+    OpsVideoTimelineGenerationResponse,
 )
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
@@ -158,6 +163,7 @@ class ListOpsVideosUseCase:
                     latestTaskStatus=record.latest_task_status,
                     latestTaskUpdatedAt=record.latest_task_updated_at,
                     transcriptId=record.transcript_id,
+                    generation=_video_generation_response(record.generation),
                 )
                 for record in result.items
             ],
@@ -344,6 +350,39 @@ def _video_task_response(record: OpsVideoTaskRecord) -> OpsVideoTaskResponse:
         completedAt=record.completed_at,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
+    )
+
+
+def _video_generation_response(
+    record: OpsVideoGenerationRecord,
+) -> OpsVideoGenerationResponse:
+    return OpsVideoGenerationResponse(
+        cues=OpsVideoCueGenerationResponse(
+            generated=record.cues.generated,
+            transcriptId=record.cues.transcript_id,
+            cueCount=record.cues.cue_count,
+            latestTaskId=record.cues.latest_task_id,
+            latestTaskStatus=record.cues.latest_task_status,
+            latestTaskUpdatedAt=record.cues.latest_task_updated_at,
+        ),
+        microEvents=OpsVideoMicroEventGenerationResponse(
+            generated=record.micro_events.generated,
+            videoTaskId=record.micro_events.video_task_id,
+            windowCount=record.micro_events.window_count,
+            microEventCount=record.micro_events.micro_event_count,
+            latestTaskId=record.micro_events.latest_task_id,
+            latestTaskStatus=record.micro_events.latest_task_status,
+            latestTaskUpdatedAt=record.micro_events.latest_task_updated_at,
+        ),
+        timeline=OpsVideoTimelineGenerationResponse(
+            generated=record.timeline.generated,
+            compositionId=record.timeline.composition_id,
+            videoTaskId=record.timeline.video_task_id,
+            episodeCount=record.timeline.episode_count,
+            latestTaskId=record.timeline.latest_task_id,
+            latestTaskStatus=record.timeline.latest_task_status,
+            latestTaskUpdatedAt=record.timeline.latest_task_updated_at,
+        ),
     )
 
 

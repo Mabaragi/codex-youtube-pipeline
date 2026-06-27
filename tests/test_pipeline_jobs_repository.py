@@ -78,6 +78,14 @@ async def _exercise_repository(database_url: str) -> None:
                 first_attempt.id,
                 error_type="YouTubeDataUpstreamError",
                 error_message="upstream failed",
+                output_json={
+                    "failure": {
+                        "errorType": "YouTubeDataUpstreamError",
+                        "errorMessage": "upstream failed",
+                        "stage": "test",
+                    },
+                    "rawResponses": [],
+                },
             )
             succeeded_attempt = await repository.mark_attempt_succeeded(
                 second_attempt.id,
@@ -187,6 +195,14 @@ async def _exercise_repository(database_url: str) -> None:
             assert second_attempt.worker_id == "worker-1"
             assert failed_attempt.status == "failed"
             assert failed_attempt.error_type == "YouTubeDataUpstreamError"
+            assert failed_attempt.output_json == {
+                "failure": {
+                    "errorType": "YouTubeDataUpstreamError",
+                    "errorMessage": "upstream failed",
+                    "stage": "test",
+                },
+                "rawResponses": [],
+            }
             assert failed_attempt.finished_at is not None
             assert succeeded_attempt.status == "succeeded"
             assert succeeded_attempt.output_json == {"channelId": 1, "jobId": job.id}
@@ -207,6 +223,7 @@ async def _exercise_repository(database_url: str) -> None:
                 first_attempt.id,
                 second_attempt.id,
             ]
+            assert detail.attempts[0].output_json == failed_attempt.output_json
             assert detail.external_api_calls[0].id == 1
             assert detail.external_api_calls[0].pipeline_job_attempt_id == second_attempt.id
             assert detail.channels[0].source_job_id == job.id

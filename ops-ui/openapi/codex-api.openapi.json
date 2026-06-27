@@ -102,6 +102,137 @@
         "title": "AsrCorrectionCandidateResponse",
         "type": "object"
       },
+      "CancelVideoTaskItemResponse": {
+        "properties": {
+          "finalStatus": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "timed_out",
+              "no_transcript",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Finalstatus",
+            "type": "string"
+          },
+          "previousStatus": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "timed_out",
+              "no_transcript",
+              "skipped",
+              "canceled"
+            ],
+            "title": "Previousstatus",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "taskName": {
+            "title": "Taskname",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "videoId",
+          "taskName",
+          "previousStatus",
+          "finalStatus",
+          "reason"
+        ],
+        "title": "CancelVideoTaskItemResponse",
+        "type": "object"
+      },
+      "CancelVideoTasksRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "reason": "Accidental broad queue enqueue.",
+            "videoTaskIds": [
+              304,
+              305
+            ]
+          }
+        ],
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "videoTaskIds": {
+            "items": {
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Videotaskids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "videoTaskIds"
+        ],
+        "title": "CancelVideoTasksRequest",
+        "type": "object"
+      },
+      "CancelVideoTasksResponse": {
+        "properties": {
+          "alreadyCanceledCount": {
+            "title": "Alreadycanceledcount",
+            "type": "integer"
+          },
+          "canceledCount": {
+            "title": "Canceledcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CancelVideoTaskItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "canceledCount",
+          "alreadyCanceledCount",
+          "items"
+        ],
+        "title": "CancelVideoTasksResponse",
+        "type": "object"
+      },
       "ChannelCreateRequest": {
         "additionalProperties": false,
         "examples": [
@@ -4558,6 +4689,73 @@
         "title": "OpsSummaryResponse",
         "type": "object"
       },
+      "OpsVideoCueGenerationResponse": {
+        "properties": {
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "generated": {
+            "title": "Generated",
+            "type": "boolean"
+          },
+          "latestTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskid"
+          },
+          "latestTaskStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskstatus"
+          },
+          "latestTaskUpdatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskupdatedat"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          }
+        },
+        "required": [
+          "generated",
+          "transcriptId",
+          "cueCount",
+          "latestTaskId",
+          "latestTaskStatus",
+          "latestTaskUpdatedAt"
+        ],
+        "title": "OpsVideoCueGenerationResponse",
+        "type": "object"
+      },
       "OpsVideoDetailResponse": {
         "properties": {
           "channelId": {
@@ -4751,6 +4949,26 @@
         "title": "OpsVideoDetailResponse",
         "type": "object"
       },
+      "OpsVideoGenerationResponse": {
+        "properties": {
+          "cues": {
+            "$ref": "#/components/schemas/OpsVideoCueGenerationResponse"
+          },
+          "microEvents": {
+            "$ref": "#/components/schemas/OpsVideoMicroEventGenerationResponse"
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/OpsVideoTimelineGenerationResponse"
+          }
+        },
+        "required": [
+          "cues",
+          "microEvents",
+          "timeline"
+        ],
+        "title": "OpsVideoGenerationResponse",
+        "type": "object"
+      },
       "OpsVideoListResponse": {
         "properties": {
           "items": {
@@ -4782,6 +5000,78 @@
         "title": "OpsVideoListResponse",
         "type": "object"
       },
+      "OpsVideoMicroEventGenerationResponse": {
+        "properties": {
+          "generated": {
+            "title": "Generated",
+            "type": "boolean"
+          },
+          "latestTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskid"
+          },
+          "latestTaskStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskstatus"
+          },
+          "latestTaskUpdatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskupdatedat"
+          },
+          "microEventCount": {
+            "title": "Microeventcount",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          },
+          "windowCount": {
+            "title": "Windowcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generated",
+          "videoTaskId",
+          "windowCount",
+          "microEventCount",
+          "latestTaskId",
+          "latestTaskStatus",
+          "latestTaskUpdatedAt"
+        ],
+        "title": "OpsVideoMicroEventGenerationResponse",
+        "type": "object"
+      },
       "OpsVideoResponse": {
         "properties": {
           "channelId": {
@@ -4802,6 +5092,9 @@
               }
             ],
             "title": "Duration"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/OpsVideoGenerationResponse"
           },
           "latestTaskId": {
             "anyOf": [
@@ -4901,7 +5194,8 @@
           "latestTaskName",
           "latestTaskStatus",
           "latestTaskUpdatedAt",
-          "transcriptId"
+          "transcriptId",
+          "generation"
         ],
         "title": "OpsVideoResponse",
         "type": "object"
@@ -5111,6 +5405,85 @@
           "updatedAt"
         ],
         "title": "OpsVideoTaskResponse",
+        "type": "object"
+      },
+      "OpsVideoTimelineGenerationResponse": {
+        "properties": {
+          "compositionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compositionid"
+          },
+          "episodeCount": {
+            "title": "Episodecount",
+            "type": "integer"
+          },
+          "generated": {
+            "title": "Generated",
+            "type": "boolean"
+          },
+          "latestTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskid"
+          },
+          "latestTaskStatus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskstatus"
+          },
+          "latestTaskUpdatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latesttaskupdatedat"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          }
+        },
+        "required": [
+          "generated",
+          "compositionId",
+          "videoTaskId",
+          "episodeCount",
+          "latestTaskId",
+          "latestTaskStatus",
+          "latestTaskUpdatedAt"
+        ],
+        "title": "OpsVideoTimelineGenerationResponse",
         "type": "object"
       },
       "PipelineChannelOutputResponse": {
@@ -11719,6 +12092,47 @@
         "summary": "Resolve Streamer Channel",
         "tags": [
           "channels"
+        ]
+      }
+    },
+    "/video-tasks/cancel": {
+      "post": {
+        "operationId": "cancel_video_tasks_video_tasks_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelVideoTasksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelVideoTasksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Video Tasks",
+        "tags": [
+          "video-tasks"
         ]
       }
     },

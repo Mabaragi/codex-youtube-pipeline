@@ -48,6 +48,7 @@ from .constants import (
 )
 from .exceptions import (
     TranscriptCollectAlreadyRunning,
+    VideoTaskCancelNotAllowed,
     VideoTaskNotFound,
     VideoTaskRetryNotAllowed,
 )
@@ -61,6 +62,9 @@ from .ports import (
     VideoTaskStatus,
 )
 from .schemas import (
+    CancelVideoTaskItemResponse,
+    CancelVideoTasksRequest,
+    CancelVideoTasksResponse,
     CollectAllTranscriptTasksRequest,
     CollectAllTranscriptTasksResponse,
     CollectChannelTranscriptTasksRequest,
@@ -1067,6 +1071,107 @@ class ListChannelVideoTasksUseCase:
         return [_task_response(record) for record in records]
 
 
+class CancelVideoTasksUseCase:
+    def __init__(
+        self,
+        *,
+        video_tasks: VideoTaskRepositoryPort,
+        events: OperationEventRecorderPort,
+    ) -> None:
+        self._video_tasks = video_tasks
+        self._events = events
+
+    async def execute(
+        self,
+        request: CancelVideoTasksRequest,
+    ) -> CancelVideoTasksResponse:
+        tasks = await self._get_tasks_or_raise(request.video_task_ids)
+        reason = request.reason or "Pending queued task canceled by operator request."
+
+        if all(task.status == "canceled" for task in tasks):
+            return CancelVideoTasksResponse(
+                requestedCount=len(tasks),
+                canceledCount=0,
+                alreadyCanceledCount=len(tasks),
+                items=[
+                    _cancel_item_response(
+                        task=task,
+                        previous_status="canceled",
+                        final_status="canceled",
+                        reason="already_canceled",
+                    )
+                    for task in tasks
+                ],
+            )
+
+        not_pending = [task for task in tasks if task.status != "pending"]
+        if not_pending:
+            ids = ", ".join(str(task.id) for task in not_pending)
+            raise VideoTaskCancelNotAllowed(
+                f"Only pending video tasks can be canceled. Non-pending task IDs: {ids}."
+            )
+
+        canceled = await self._video_tasks.cancel_pending_tasks(
+            request.video_task_ids,
+            error_type="ManualQueueCancel",
+            error_message=reason,
+        )
+        if len(canceled) != len(tasks):
+            raise VideoTaskCancelNotAllowed(
+                "One or more video tasks were claimed before cancellation."
+            )
+        canceled_by_id = {task.id: task for task in canceled}
+        for task in tasks:
+            await self._record_canceled(task, reason)
+        return CancelVideoTasksResponse(
+            requestedCount=len(tasks),
+            canceledCount=len(tasks),
+            alreadyCanceledCount=0,
+            items=[
+                _cancel_item_response(
+                    task=canceled_by_id[task.id],
+                    previous_status="pending",
+                    final_status="canceled",
+                    reason=reason,
+                )
+                for task in tasks
+            ],
+        )
+
+    async def _get_tasks_or_raise(self, task_ids: list[int]) -> list[VideoTaskRecord]:
+        tasks: list[VideoTaskRecord] = []
+        for task_id in task_ids:
+            task = await self._video_tasks.get_task(task_id)
+            if task is None:
+                raise VideoTaskNotFound(f"Video task not found: {task_id}.")
+            tasks.append(task)
+        return tasks
+
+    async def _record_canceled(self, task: VideoTaskRecord, reason: str) -> None:
+        await record_operation_event(
+            self._events,
+            OperationEventCreate(
+                event_type="video_task.canceled",
+                severity="info",
+                message="Video task canceled.",
+                actor_type="manual_api",
+                source="video_tasks.cancel",
+                video_task_id=task.id,
+                video_id=task.video_id,
+                subject_type="video_task",
+                subject_id=task.id,
+                metadata_json={
+                    "videoTaskId": task.id,
+                    "videoId": task.video_id,
+                    "taskName": task.task_name,
+                    "previousStatus": task.status,
+                    "finalStatus": "canceled",
+                    "reason": reason,
+                },
+            ),
+        )
+
+
 async def _get_channel_or_raise(
     repository: ChannelRepositoryPort,
     channel_id: int,
@@ -1214,6 +1319,23 @@ def _task_response(record: VideoTaskListRecord) -> VideoTaskResponse:
         completedAt=task.completed_at,
         createdAt=task.created_at,
         updatedAt=task.updated_at,
+    )
+
+
+def _cancel_item_response(
+    *,
+    task: VideoTaskRecord,
+    previous_status: VideoTaskStatus,
+    final_status: VideoTaskStatus,
+    reason: str,
+) -> CancelVideoTaskItemResponse:
+    return CancelVideoTaskItemResponse(
+        videoTaskId=task.id,
+        videoId=task.video_id,
+        taskName=task.task_name,
+        previousStatus=previous_status,
+        finalStatus=final_status,
+        reason=reason,
     )
 
 

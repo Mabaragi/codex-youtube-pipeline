@@ -100,6 +100,34 @@ const videoList: OpsVideoList = {
       latestTaskStatus: "succeeded",
       latestTaskUpdatedAt: "2026-06-18T01:00:00Z",
       transcriptId: 11,
+      generation: {
+        cues: {
+          generated: true,
+          transcriptId: 11,
+          cueCount: 24,
+          latestTaskId: 10,
+          latestTaskStatus: "succeeded",
+          latestTaskUpdatedAt: "2026-06-18T01:05:00Z",
+        },
+        microEvents: {
+          generated: true,
+          videoTaskId: 12,
+          windowCount: 3,
+          microEventCount: 8,
+          latestTaskId: 12,
+          latestTaskStatus: "succeeded",
+          latestTaskUpdatedAt: "2026-06-18T01:15:00Z",
+        },
+        timeline: {
+          generated: false,
+          compositionId: null,
+          videoTaskId: null,
+          episodeCount: 0,
+          latestTaskId: 13,
+          latestTaskStatus: "running",
+          latestTaskUpdatedAt: "2026-06-18T01:20:00Z",
+        },
+      },
     },
   ],
 };
@@ -224,6 +252,19 @@ describe("VideosPage", () => {
     const link = screen.getByRole("link", { name: /Details/i });
 
     expect(link.getAttribute("href")).toBe("/videos/42");
+  });
+
+  it("shows generation status for cues, micro-events, and timeline", () => {
+    render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
+
+    expect(screen.getByText("Cues")).toBeTruthy();
+    expect(screen.getByText("24 cues, transcript #11")).toBeTruthy();
+    expect(screen.getByText("Micro")).toBeTruthy();
+    expect(screen.getByText("8 events, 3 windows")).toBeTruthy();
+    expect(screen.getByText("task #13")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Timeline generation running"),
+    ).toBeTruthy();
   });
 
   it("passes initial URL filters to the videos query", () => {

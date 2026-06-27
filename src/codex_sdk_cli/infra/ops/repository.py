@@ -5,8 +5,10 @@ from typing import Any
 from sqlalchemy import Column, Table, UniqueConstraint, case, distinct, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from typing_extensions import override
 
+from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from codex_sdk_cli.domains.ops.exceptions import OpsPersistenceError
 from codex_sdk_cli.domains.ops.ports import (
     OpsChannelRecord,
@@ -22,26 +24,43 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsSchemaUniqueConstraintRecord,
     OpsStatusCountRecord,
     OpsSummaryCountsRecord,
+    OpsVideoCueGenerationRecord,
     OpsVideoDetailRecord,
+    OpsVideoGenerationRecord,
     OpsVideoListQuery,
     OpsVideoListResult,
+    OpsVideoMicroEventGenerationRecord,
     OpsVideoRecord,
     OpsVideoTaskListQuery,
     OpsVideoTaskListResult,
     OpsVideoTaskRecord,
+    OpsVideoTimelineGenerationRecord,
 )
-from codex_sdk_cli.domains.video_tasks.constants import TRANSCRIPT_COLLECT_TASK_NAME
+from codex_sdk_cli.domains.video_tasks.constants import (
+    TIMELINE_COMPOSE_TASK_NAME,
+    TRANSCRIPT_COLLECT_TASK_NAME,
+    TRANSCRIPT_CUE_GENERATE_TASK_NAME,
+)
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
 )
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.database import models as database_models
 from codex_sdk_cli.infra.database.base import Base
+from codex_sdk_cli.infra.micro_events.repository import (
+    MicroEventCandidateModel,
+    MicroEventExtractionWindowModel,
+)
 from codex_sdk_cli.infra.pipeline_jobs.repository import (
     PipelineJobAttemptModel,
     PipelineJobModel,
 )
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
+from codex_sdk_cli.infra.timelines.repository import (
+    TimelineCompositionModel,
+    TimelineEpisodeModel,
+)
+from codex_sdk_cli.infra.transcript_cues.repository import TranscriptCueModel
 from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
 from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscriptRecordModel
@@ -239,7 +258,23 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
     @override
     async def list_videos(self, query: OpsVideoListQuery) -> OpsVideoListResult:
         latest_task = self._latest_task_subquery()
-        task_alias = VideoTaskModel
+        latest_transcript = self._latest_transcript_subquery()
+        cue_summary = self._cue_summary_subquery()
+        latest_cue_task = self._latest_task_subquery(
+            task_name=TRANSCRIPT_CUE_GENERATE_TASK_NAME
+        )
+        latest_micro_task = self._latest_task_subquery(
+            task_name=MICRO_EVENT_EXTRACT_TASK_NAME
+        )
+        latest_timeline_task = self._latest_task_subquery(
+            task_name=TIMELINE_COMPOSE_TASK_NAME
+        )
+        micro_summary = self._micro_event_summary_subquery()
+        timeline_summary = self._timeline_summary_subquery()
+        task_alias = aliased(VideoTaskModel)
+        cue_task_alias = aliased(VideoTaskModel)
+        micro_task_alias = aliased(VideoTaskModel)
+        timeline_task_alias = aliased(VideoTaskModel)
         conditions = []
         if query.channel_id is not None:
             conditions.append(VideoModel.channel_id == query.channel_id)
@@ -267,10 +302,67 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             total = await self._session.scalar(select(func.count()).select_from(base.subquery()))
             rows = (
                 await self._session.execute(
-                    select(VideoModel, ChannelModel.name, task_alias)
+                    select(
+                        VideoModel,
+                        ChannelModel.name,
+                        task_alias,
+                        latest_transcript.c.transcript_id,
+                        cue_summary.c.cue_count,
+                        cue_task_alias,
+                        micro_task_alias,
+                        micro_summary.c.video_task_id,
+                        micro_summary.c.window_count,
+                        micro_summary.c.micro_event_count,
+                        timeline_task_alias,
+                        timeline_summary.c.composition_id,
+                        timeline_summary.c.video_task_id,
+                        timeline_summary.c.episode_count,
+                    )
                     .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
                     .outerjoin(latest_task, latest_task.c.video_id == VideoModel.id)
                     .outerjoin(task_alias, task_alias.id == latest_task.c.task_id)
+                    .outerjoin(
+                        latest_transcript,
+                        latest_transcript.c.youtube_video_id
+                        == VideoModel.youtube_video_id,
+                    )
+                    .outerjoin(
+                        cue_summary,
+                        cue_summary.c.transcript_id
+                        == latest_transcript.c.transcript_id,
+                    )
+                    .outerjoin(
+                        latest_cue_task,
+                        latest_cue_task.c.video_id == VideoModel.id,
+                    )
+                    .outerjoin(
+                        cue_task_alias,
+                        cue_task_alias.id == latest_cue_task.c.task_id,
+                    )
+                    .outerjoin(
+                        latest_micro_task,
+                        latest_micro_task.c.video_id == VideoModel.id,
+                    )
+                    .outerjoin(
+                        micro_task_alias,
+                        micro_task_alias.id == latest_micro_task.c.task_id,
+                    )
+                    .outerjoin(
+                        micro_summary,
+                        micro_summary.c.video_id == VideoModel.id,
+                    )
+                    .outerjoin(
+                        latest_timeline_task,
+                        latest_timeline_task.c.video_id == VideoModel.id,
+                    )
+                    .outerjoin(
+                        timeline_task_alias,
+                        timeline_task_alias.id == latest_timeline_task.c.task_id,
+                    )
+                    .outerjoin(
+                        timeline_summary,
+                        timeline_summary.c.video_id == VideoModel.id,
+                    )
                     .where(*conditions)
                     .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
                     .limit(query.limit)
@@ -295,11 +387,37 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                     latest_task_name=task.task_name if task is not None else None,
                     latest_task_status=task.status if task is not None else None,
                     latest_task_updated_at=task.updated_at if task is not None else None,
-                    transcript_id=(
-                        task.output_transcript_id if task is not None else None
+                    transcript_id=transcript_id,
+                    generation=_ops_video_generation_record(
+                        transcript_id=transcript_id,
+                        cue_count=cue_count,
+                        cue_task=cue_task,
+                        micro_task=micro_task,
+                        micro_video_task_id=micro_video_task_id,
+                        window_count=window_count,
+                        micro_event_count=micro_event_count,
+                        timeline_task=timeline_task,
+                        composition_id=composition_id,
+                        timeline_video_task_id=timeline_video_task_id,
+                        episode_count=episode_count,
                     ),
                 )
-                for video, channel_name, task in rows
+                for (
+                    video,
+                    channel_name,
+                    task,
+                    transcript_id,
+                    cue_count,
+                    cue_task,
+                    micro_task,
+                    micro_video_task_id,
+                    window_count,
+                    micro_event_count,
+                    timeline_task,
+                    composition_id,
+                    timeline_video_task_id,
+                    episode_count,
+                ) in rows
             ),
             total=total or 0,
         )
@@ -515,13 +633,99 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
         ).all()
         return [OpsStatusCountRecord(status=status, count=count) for status, count in rows]
 
-    def _latest_task_subquery(self):
+    def _latest_task_subquery(
+        self,
+        *,
+        task_name: str | None = None,
+        status: str | None = None,
+    ):
+        statement = select(
+            VideoTaskModel.video_id.label("video_id"),
+            func.max(VideoTaskModel.id).label("task_id"),
+        )
+        if task_name is not None:
+            statement = statement.where(VideoTaskModel.task_name == task_name)
+        if status is not None:
+            statement = statement.where(VideoTaskModel.status == status)
+        return statement.group_by(VideoTaskModel.video_id).subquery()
+
+    def _latest_transcript_subquery(self):
         return (
             select(
-                VideoTaskModel.video_id.label("video_id"),
-                func.max(VideoTaskModel.id).label("task_id"),
+                YouTubeTranscriptRecordModel.video_id.label("youtube_video_id"),
+                func.max(YouTubeTranscriptRecordModel.id).label("transcript_id"),
             )
-            .group_by(VideoTaskModel.video_id)
+            .group_by(YouTubeTranscriptRecordModel.video_id)
+            .subquery()
+        )
+
+    def _cue_summary_subquery(self):
+        return (
+            select(
+                TranscriptCueModel.transcript_id.label("transcript_id"),
+                func.count(TranscriptCueModel.id).label("cue_count"),
+            )
+            .group_by(TranscriptCueModel.transcript_id)
+            .subquery()
+        )
+
+    def _micro_event_summary_subquery(self):
+        latest_micro_task = self._latest_task_subquery(
+            task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
+            status="succeeded",
+        )
+        return (
+            select(
+                latest_micro_task.c.video_id.label("video_id"),
+                latest_micro_task.c.task_id.label("video_task_id"),
+                func.count(
+                    distinct(MicroEventExtractionWindowModel.id)
+                ).label("window_count"),
+                func.count(distinct(MicroEventCandidateModel.id)).label(
+                    "micro_event_count"
+                ),
+            )
+            .select_from(latest_micro_task)
+            .outerjoin(
+                MicroEventExtractionWindowModel,
+                MicroEventExtractionWindowModel.video_task_id
+                == latest_micro_task.c.task_id,
+            )
+            .outerjoin(
+                MicroEventCandidateModel,
+                MicroEventCandidateModel.video_task_id == latest_micro_task.c.task_id,
+            )
+            .group_by(latest_micro_task.c.video_id, latest_micro_task.c.task_id)
+            .subquery()
+        )
+
+    def _timeline_summary_subquery(self):
+        latest_timeline_task = self._latest_task_subquery(
+            task_name=TIMELINE_COMPOSE_TASK_NAME,
+            status="succeeded",
+        )
+        return (
+            select(
+                latest_timeline_task.c.video_id.label("video_id"),
+                TimelineCompositionModel.id.label("composition_id"),
+                TimelineCompositionModel.video_task_id.label("video_task_id"),
+                func.count(TimelineEpisodeModel.id).label("episode_count"),
+            )
+            .select_from(latest_timeline_task)
+            .join(
+                TimelineCompositionModel,
+                TimelineCompositionModel.video_task_id
+                == latest_timeline_task.c.task_id,
+            )
+            .outerjoin(
+                TimelineEpisodeModel,
+                TimelineEpisodeModel.composition_id == TimelineCompositionModel.id,
+            )
+            .group_by(
+                latest_timeline_task.c.video_id,
+                TimelineCompositionModel.id,
+                TimelineCompositionModel.video_task_id,
+            )
             .subquery()
         )
 
@@ -673,6 +877,56 @@ def _ops_video_task_record(
         completed_at=task.completed_at,
         created_at=task.created_at,
         updated_at=task.updated_at,
+    )
+
+
+def _ops_video_generation_record(
+    *,
+    transcript_id: int | None,
+    cue_count: int | None,
+    cue_task: VideoTaskModel | None,
+    micro_task: VideoTaskModel | None,
+    micro_video_task_id: int | None,
+    window_count: int | None,
+    micro_event_count: int | None,
+    timeline_task: VideoTaskModel | None,
+    composition_id: int | None,
+    timeline_video_task_id: int | None,
+    episode_count: int | None,
+) -> OpsVideoGenerationRecord:
+    cue_total = int(cue_count or 0)
+    window_total = int(window_count or 0)
+    micro_event_total = int(micro_event_count or 0)
+    episode_total = int(episode_count or 0)
+    return OpsVideoGenerationRecord(
+        cues=OpsVideoCueGenerationRecord(
+            generated=cue_total > 0,
+            transcript_id=transcript_id,
+            cue_count=cue_total,
+            latest_task_id=cue_task.id if cue_task is not None else None,
+            latest_task_status=cue_task.status if cue_task is not None else None,
+            latest_task_updated_at=cue_task.updated_at if cue_task is not None else None,
+        ),
+        micro_events=OpsVideoMicroEventGenerationRecord(
+            generated=micro_event_total > 0,
+            video_task_id=micro_video_task_id,
+            window_count=window_total,
+            micro_event_count=micro_event_total,
+            latest_task_id=micro_task.id if micro_task is not None else None,
+            latest_task_status=micro_task.status if micro_task is not None else None,
+            latest_task_updated_at=micro_task.updated_at if micro_task is not None else None,
+        ),
+        timeline=OpsVideoTimelineGenerationRecord(
+            generated=composition_id is not None,
+            composition_id=composition_id,
+            video_task_id=timeline_video_task_id,
+            episode_count=episode_total,
+            latest_task_id=timeline_task.id if timeline_task is not None else None,
+            latest_task_status=timeline_task.status if timeline_task is not None else None,
+            latest_task_updated_at=timeline_task.updated_at
+            if timeline_task is not None
+            else None,
+        ),
     )
 
 

@@ -86,6 +86,10 @@ Last updated: 2026-06-25
   review flags, validation warnings, raw model text, and normalized output JSON.
   복구 가능한 LLM 출력 흔들림은 실패 대신 warning으로 남기고, micro-event coverage나
   block membership 같은 hard invariant가 깨질 때만 실패한다.
+  Failed timeline attempts store raw Codex diagnostics in
+  `pipeline_job_attempts.output_json.rawResponses[*].rawResponseText`; video task
+  output and operation events keep only response count, length, hash, and storage
+  pointer fields.
 
 API 응답에는 사용자가 다음 상태를 추적할 수 있도록 필요한 local identifiers를 포함할 수 있다. pipeline step을 실행하는 endpoint는 가능하면 `jobId`, `jobAttemptId`, 그리고 raw metadata id를 응답에 포함한다.
 
@@ -243,6 +247,10 @@ Prompt version과 input hash가 task idempotency를 결정하며, `validation_wa
 topics/highlight truncation, enum/content-kind alias 보정, block semantic repair처럼
 저장 가능한 흔들림을 기록한다. JSON 파싱 실패, micro-event coverage 파괴, block membership
 불일치 같은 hard invariant는 계속 failed로 처리한다.
+실패한 timeline attempt의 원문 Codex 응답은 해당 `pipeline_job_attempts.output_json`의
+`rawResponses` 배열에 남긴다. `/ops/video-tasks`와 operation events에는
+`rawResponseCount`, `rawResponseSha256s`, `rawResponseLengths`, `rawResponseStoredIn`
+요약만 남기고 full raw text는 복제하지 않는다.
 
 ## Implementation Rules
 

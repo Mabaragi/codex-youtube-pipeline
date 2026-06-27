@@ -70,6 +70,49 @@ class OpsChannelListResponse(BaseModel):
     items: list[OpsChannelResponse]
 
 
+class OpsVideoCueGenerationResponse(BaseModel):
+    generated: bool
+    transcript_id: int | None = Field(alias="transcriptId")
+    cue_count: int = Field(alias="cueCount")
+    latest_task_id: int | None = Field(alias="latestTaskId")
+    latest_task_status: str | None = Field(alias="latestTaskStatus")
+    latest_task_updated_at: datetime | None = Field(alias="latestTaskUpdatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsVideoMicroEventGenerationResponse(BaseModel):
+    generated: bool
+    video_task_id: int | None = Field(alias="videoTaskId")
+    window_count: int = Field(alias="windowCount")
+    micro_event_count: int = Field(alias="microEventCount")
+    latest_task_id: int | None = Field(alias="latestTaskId")
+    latest_task_status: str | None = Field(alias="latestTaskStatus")
+    latest_task_updated_at: datetime | None = Field(alias="latestTaskUpdatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsVideoTimelineGenerationResponse(BaseModel):
+    generated: bool
+    composition_id: int | None = Field(alias="compositionId")
+    video_task_id: int | None = Field(alias="videoTaskId")
+    episode_count: int = Field(alias="episodeCount")
+    latest_task_id: int | None = Field(alias="latestTaskId")
+    latest_task_status: str | None = Field(alias="latestTaskStatus")
+    latest_task_updated_at: datetime | None = Field(alias="latestTaskUpdatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsVideoGenerationResponse(BaseModel):
+    cues: OpsVideoCueGenerationResponse
+    micro_events: OpsVideoMicroEventGenerationResponse = Field(alias="microEvents")
+    timeline: OpsVideoTimelineGenerationResponse
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class OpsVideoResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     channel_id: int = Field(alias="channelId")
@@ -84,6 +127,7 @@ class OpsVideoResponse(BaseModel):
     latest_task_status: str | None = Field(alias="latestTaskStatus")
     latest_task_updated_at: datetime | None = Field(alias="latestTaskUpdatedAt")
     transcript_id: int | None = Field(alias="transcriptId")
+    generation: OpsVideoGenerationResponse
 
     model_config = ConfigDict(populate_by_name=True)
 

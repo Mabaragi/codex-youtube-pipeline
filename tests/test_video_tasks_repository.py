@@ -48,6 +48,9 @@ def test_video_task_repository_lifecycle(
     assert result["timed_out_status"] == "timed_out"
     assert result["no_transcript_status"] == "no_transcript"
     assert result["exclusive_claim_video_id"] == 2
+    assert result["canceled_status"] == "canceled"
+    assert result["canceled_error_type"] == "ManualQueueCancel"
+    assert result["canceled_completed"] is True
 
 
 async def _exercise_repository(database_url: str) -> dict[str, object]:
@@ -249,7 +252,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 job_id=timeline_job.id,
                 job_attempt_id=timeline_attempt.id,
             )
-            await video_tasks.get_or_create_task(
+            cancel_candidate = await video_tasks.get_or_create_task(
                 VideoTaskCreate(
                     video_id=video.id,
                     task_name="timeline_compose",
@@ -274,6 +277,12 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 worker_id="timeline-worker-2",
             )
             assert exclusive_claim is not None
+            canceled = await video_tasks.cancel_pending_tasks(
+                [cancel_candidate.id],
+                error_type="ManualQueueCancel",
+                error_message="Accidental broad queue enqueue.",
+            )
+            assert len(canceled) == 1
 
             return {
                 "same_task_id": task.id == same_task.id,
@@ -290,6 +299,9 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "timed_out_status": timed_out.status,
                 "no_transcript_status": no_transcript.status,
                 "exclusive_claim_video_id": exclusive_claim.video_id,
+                "canceled_status": canceled[0].status,
+                "canceled_error_type": canceled[0].error_type,
+                "canceled_completed": canceled[0].completed_at is not None,
             }
     finally:
         await engine.dispose()

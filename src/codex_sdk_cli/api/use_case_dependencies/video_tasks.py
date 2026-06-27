@@ -19,6 +19,7 @@ from codex_sdk_cli.api.use_case_dependencies.youtube_transcripts import (
 )
 from codex_sdk_cli.domains.video_tasks.transcript_cue_tasks import GenerateTranscriptCueTasksUseCase
 from codex_sdk_cli.domains.video_tasks.use_cases import (
+    CancelVideoTasksUseCase,
     CollectChannelTranscriptTasksUseCase,
     ListChannelVideoTasksUseCase,
 )
@@ -83,6 +84,13 @@ def get_list_channel_video_tasks_use_case(
     return ListChannelVideoTasksUseCase(channels=channels, video_tasks=video_tasks)
 
 
+def get_cancel_video_tasks_use_case(
+    video_tasks: VideoTaskRepositoryDep,
+    events: OperationEventRecorderDep,
+) -> CancelVideoTasksUseCase:
+    return CancelVideoTasksUseCase(video_tasks=video_tasks, events=events)
+
+
 CollectChannelTranscriptTasksUseCaseDep = Annotated[
     CollectChannelTranscriptTasksUseCase,
     Depends(get_collect_channel_transcript_tasks_use_case),
@@ -94,4 +102,8 @@ GenerateTranscriptCueTasksUseCaseDep = Annotated[
 ListChannelVideoTasksUseCaseDep = Annotated[
     ListChannelVideoTasksUseCase,
     Depends(get_list_channel_video_tasks_use_case),
+]
+CancelVideoTasksUseCaseDep = Annotated[
+    CancelVideoTasksUseCase,
+    Depends(get_cancel_video_tasks_use_case),
 ]

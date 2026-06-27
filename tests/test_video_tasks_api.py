@@ -464,6 +464,27 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             completed_at=NOW,
         )
 
+    async def cancel_pending_tasks(
+        self,
+        task_ids: list[int],
+        *,
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        tasks = [self.tasks[task_id] for task_id in task_ids]
+        if any(task.status != "pending" for task in tasks):
+            return []
+        return [
+            self._update(
+                task.id,
+                status="canceled",
+                error_type=error_type,
+                error_message=error_message,
+                completed_at=NOW,
+            )
+            for task in tasks
+        ]
+
     def _find(
         self,
         video_id: int,
@@ -610,11 +631,12 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         *,
         error_type: str,
         error_message: str,
+        output_json: JsonObject | None = None,
     ) -> PipelineJobAttemptRecord:
         return self._update_attempt(
             attempt_id,
             status="failed",
-            output_json=None,
+            output_json=output_json,
             error_type=error_type,
             error_message=error_message,
         )
@@ -1386,6 +1408,99 @@ def test_channel_video_tasks_list_and_openapi() -> None:
     ]["application/json"]["schema"]["$ref"].endswith(
         "/CollectAllTranscriptTasksResponse"
     )
+    assert schema["paths"]["/video-tasks/cancel"]["post"]["tags"] == ["video-tasks"]
+
+
+def test_cancel_video_tasks_cancels_pending_tasks() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    first = _seed_task(fakes.video_tasks, video_id=1, status="pending")
+    second = _seed_task(
+        fakes.video_tasks,
+        video_id=1,
+        status="pending",
+        task_name="timeline_compose",
+    )
+
+    response = asyncio.run(
+        _cancel_tasks(
+            fakes,
+            json={
+                "videoTaskIds": [first.id, second.id],
+                "reason": "Accidental broad queue enqueue.",
+            },
+        )
+    )
+
+    assert response["requestedCount"] == 2
+    assert response["canceledCount"] == 2
+    assert response["alreadyCanceledCount"] == 0
+    assert [item["previousStatus"] for item in response["items"]] == [
+        "pending",
+        "pending",
+    ]
+    canceled_statuses = {
+        fakes.video_tasks.tasks[first.id].status,
+        fakes.video_tasks.tasks[second.id].status,
+    }
+    assert canceled_statuses == {"canceled"}
+    assert fakes.video_tasks.tasks[first.id].error_type == "ManualQueueCancel"
+    assert [event.event_type for event in fakes.events.events[-2:]] == [
+        "video_task.canceled",
+        "video_task.canceled",
+    ]
+
+
+def test_cancel_video_tasks_missing_task_returns_not_found() -> None:
+    response = asyncio.run(
+        _cancel_tasks(
+            _fakes(),
+            json={"videoTaskIds": [404]},
+            expected_status=404,
+        )
+    )
+
+    assert response == {"detail": "Video task not found: 404."}
+
+
+def test_cancel_video_tasks_rejects_non_pending_without_changes() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos)
+    pending = _seed_task(fakes.video_tasks, video_id=1, status="pending")
+    running = _seed_task(
+        fakes.video_tasks,
+        video_id=1,
+        status="running",
+        task_name="timeline_compose",
+    )
+
+    response = asyncio.run(
+        _cancel_tasks(
+            fakes,
+            json={"videoTaskIds": [pending.id, running.id]},
+            expected_status=409,
+        )
+    )
+
+    assert response["detail"] == (
+        f"Only pending video tasks can be canceled. Non-pending task IDs: {running.id}."
+    )
+    assert fakes.video_tasks.tasks[pending.id].status == "pending"
+    assert fakes.video_tasks.tasks[running.id].status == "running"
+
+
+def test_cancel_video_tasks_duplicate_ids_fail_validation() -> None:
+    response = asyncio.run(
+        _cancel_tasks(
+            _fakes(),
+            json={"videoTaskIds": [1, 1]},
+            expected_status=422,
+        )
+    )
+
+    assert response["detail"][0]["loc"] == ["body", "videoTaskIds"]
 
 
 def test_transcript_collect_accepts_limit_above_twenty() -> None:
@@ -1551,6 +1666,23 @@ async def _list_tasks(fakes: _Fakes, *, expected_status: int = 200) -> Any:
         base_url="http://testserver",
     ) as client:
         response = await client.get("/channels/1/video-tasks")
+
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+async def _cancel_tasks(
+    fakes: _Fakes,
+    *,
+    json: dict[str, Any],
+    expected_status: int = 200,
+) -> Any:
+    app = _app(fakes)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.post("/video-tasks/cancel", json=json)
 
     assert response.status_code == expected_status, response.text
     return response.json()

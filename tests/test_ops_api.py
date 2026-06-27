@@ -35,13 +35,17 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsSchemaGraphRecord,
     OpsStatusCountRecord,
     OpsSummaryCountsRecord,
+    OpsVideoCueGenerationRecord,
     OpsVideoDetailRecord,
+    OpsVideoGenerationRecord,
     OpsVideoListQuery,
     OpsVideoListResult,
+    OpsVideoMicroEventGenerationRecord,
     OpsVideoRecord,
     OpsVideoTaskListQuery,
     OpsVideoTaskListResult,
     OpsVideoTaskRecord,
+    OpsVideoTimelineGenerationRecord,
 )
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
@@ -153,6 +157,7 @@ class FakeOpsRepository(OpsRepositoryPort):
                     latest_task_status="succeeded",
                     latest_task_updated_at=now,
                     transcript_id=3,
+                    generation=_video_generation_record(now),
                 ),
             ),
         )
@@ -384,7 +389,14 @@ async def _test_ops_summary_and_lists_are_available() -> None:
     assert summary.json()["counts"]["channels"] == 2
     assert channels.json()["items"][0]["uploadsPlaylistId"] == "UU123"
     assert channels.json()["items"][0]["taskNoTranscriptCount"] == 1
-    assert videos.json()["items"][0]["latestTaskStatus"] == "succeeded"
+    video_payload = videos.json()["items"][0]
+    assert video_payload["latestTaskStatus"] == "succeeded"
+    assert video_payload["generation"]["cues"]["generated"] is True
+    assert video_payload["generation"]["cues"]["transcriptId"] == 3
+    assert video_payload["generation"]["cues"]["cueCount"] == 2
+    assert video_payload["generation"]["cues"]["latestTaskStatus"] == "succeeded"
+    assert video_payload["generation"]["microEvents"]["microEventCount"] == 5
+    assert video_payload["generation"]["timeline"]["compositionId"] == 8
     assert video_detail.status_code == 200, video_detail.text
     assert video_detail.json()["description"] == "Stored video description"
     assert video_detail.json()["tasks"][0]["jobId"] == 1
@@ -669,3 +681,34 @@ def test_ops_routes_are_in_openapi() -> None:
     assert "CodexUsageListResponse" in schema["components"]["schemas"]
     assert "OperationEventListResponse" in schema["components"]["schemas"]
     assert "OpsSchemaGraphResponse" in schema["components"]["schemas"]
+
+
+def _video_generation_record(now: datetime) -> OpsVideoGenerationRecord:
+    return OpsVideoGenerationRecord(
+        cues=OpsVideoCueGenerationRecord(
+            generated=True,
+            transcript_id=3,
+            cue_count=2,
+            latest_task_id=4,
+            latest_task_status="succeeded",
+            latest_task_updated_at=now,
+        ),
+        micro_events=OpsVideoMicroEventGenerationRecord(
+            generated=True,
+            video_task_id=5,
+            window_count=2,
+            micro_event_count=5,
+            latest_task_id=6,
+            latest_task_status="succeeded",
+            latest_task_updated_at=now,
+        ),
+        timeline=OpsVideoTimelineGenerationRecord(
+            generated=True,
+            composition_id=8,
+            video_task_id=7,
+            episode_count=3,
+            latest_task_id=7,
+            latest_task_status="succeeded",
+            latest_task_updated_at=now,
+        ),
+    )

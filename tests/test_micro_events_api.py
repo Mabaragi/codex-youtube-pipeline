@@ -458,6 +458,27 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             completed_at=NOW,
         )
 
+    async def cancel_pending_tasks(
+        self,
+        task_ids: list[int],
+        *,
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        tasks = [self.tasks[task_id] for task_id in task_ids]
+        if any(task.status != "pending" for task in tasks):
+            return []
+        return [
+            self._update(
+                task.id,
+                status="canceled",
+                error_type=error_type,
+                error_message=error_message,
+                completed_at=NOW,
+            )
+            for task in tasks
+        ]
+
     def _find(
         self,
         video_id: int,
@@ -630,11 +651,12 @@ class FakePipelineJobRepository(PipelineJobRepositoryPort):
         *,
         error_type: str,
         error_message: str,
+        output_json: JsonObject | None = None,
     ) -> PipelineJobAttemptRecord:
         return self._update_attempt(
             attempt_id,
             status="failed",
-            output_json=None,
+            output_json=output_json,
             error_type=error_type,
             error_message=error_message,
         )

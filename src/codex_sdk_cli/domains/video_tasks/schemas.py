@@ -1,9 +1,9 @@
 ﻿from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .ports import JsonObject, VideoTaskStatus
 
@@ -205,5 +205,56 @@ class VideoTaskResponse(BaseModel):
     completed_at: datetime | None = Field(alias="completedAt")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CancelVideoTasksRequest(BaseModel):
+    video_task_ids: list[Annotated[int, Field(ge=1)]] = Field(
+        min_length=1,
+        max_length=500,
+        alias="videoTaskIds",
+    )
+    reason: str | None = Field(default=None, min_length=1, max_length=500)
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "videoTaskIds": [304, 305],
+                    "reason": "Accidental broad queue enqueue.",
+                }
+            ]
+        },
+    )
+
+    @field_validator("video_task_ids")
+    @classmethod
+    def _ids_must_be_positive_and_unique(cls, value: list[int]) -> list[int]:
+        if any(item < 1 for item in value):
+            raise ValueError("videoTaskIds must contain only positive IDs.")
+        if len(set(value)) != len(value):
+            raise ValueError("videoTaskIds must not contain duplicate IDs.")
+        return value
+
+
+class CancelVideoTaskItemResponse(BaseModel):
+    video_task_id: int = Field(alias="videoTaskId")
+    video_id: int = Field(alias="videoId")
+    task_name: str = Field(alias="taskName")
+    previous_status: VideoTaskStatus = Field(alias="previousStatus")
+    final_status: VideoTaskStatus = Field(alias="finalStatus")
+    reason: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CancelVideoTasksResponse(BaseModel):
+    requested_count: int = Field(alias="requestedCount")
+    canceled_count: int = Field(alias="canceledCount")
+    already_canceled_count: int = Field(alias="alreadyCanceledCount")
+    items: list[CancelVideoTaskItemResponse]
 
     model_config = ConfigDict(populate_by_name=True)

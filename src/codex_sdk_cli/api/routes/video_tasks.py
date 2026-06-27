@@ -5,12 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Path, Query, status
 
 from codex_sdk_cli.api.use_case_dependencies.video_tasks import (
+    CancelVideoTasksUseCaseDep,
     CollectChannelTranscriptTasksUseCaseDep,
     GenerateTranscriptCueTasksUseCaseDep,
     ListChannelVideoTasksUseCaseDep,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
 from codex_sdk_cli.domains.video_tasks.schemas import (
+    CancelVideoTasksRequest,
+    CancelVideoTasksResponse,
     CollectAllTranscriptTasksRequest,
     CollectAllTranscriptTasksResponse,
     CollectChannelTranscriptTasksRequest,
@@ -22,6 +25,14 @@ from codex_sdk_cli.domains.video_tasks.schemas import (
 )
 
 router = APIRouter()
+
+
+@router.post("/video-tasks/cancel", response_model=CancelVideoTasksResponse)
+async def cancel_video_tasks(
+    use_case: CancelVideoTasksUseCaseDep,
+    request: CancelVideoTasksRequest,
+) -> CancelVideoTasksResponse:
+    return await use_case.execute(request)
 
 
 @router.post(

@@ -780,6 +780,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Video Tasks */
+        post: operations["cancel_video_tasks_video_tasks_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/video-tasks/micro-event-extract": {
         parameters: {
             query?: never;
@@ -1108,6 +1125,54 @@ export interface components {
              * Format: date-time
              */
             updatedAt: string;
+        };
+        /** CancelVideoTaskItemResponse */
+        CancelVideoTaskItemResponse: {
+            /**
+             * Finalstatus
+             * @enum {string}
+             */
+            finalStatus: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled";
+            /**
+             * Previousstatus
+             * @enum {string}
+             */
+            previousStatus: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled";
+            /** Reason */
+            reason: string;
+            /** Taskname */
+            taskName: string;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number;
+        };
+        /**
+         * CancelVideoTasksRequest
+         * @example {
+         *       "reason": "Accidental broad queue enqueue.",
+         *       "videoTaskIds": [
+         *         304,
+         *         305
+         *       ]
+         *     }
+         */
+        CancelVideoTasksRequest: {
+            /** Reason */
+            reason?: string | null;
+            /** Videotaskids */
+            videoTaskIds: number[];
+        };
+        /** CancelVideoTasksResponse */
+        CancelVideoTasksResponse: {
+            /** Alreadycanceledcount */
+            alreadyCanceledCount: number;
+            /** Canceledcount */
+            canceledCount: number;
+            /** Items */
+            items: components["schemas"]["CancelVideoTaskItemResponse"][];
+            /** Requestedcount */
+            requestedCount: number;
         };
         /**
          * ChannelCreateRequest
@@ -2564,6 +2629,21 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** OpsVideoCueGenerationResponse */
+        OpsVideoCueGenerationResponse: {
+            /** Cuecount */
+            cueCount: number;
+            /** Generated */
+            generated: boolean;
+            /** Latesttaskid */
+            latestTaskId: number | null;
+            /** Latesttaskstatus */
+            latestTaskStatus: string | null;
+            /** Latesttaskupdatedat */
+            latestTaskUpdatedAt: string | null;
+            /** Transcriptid */
+            transcriptId: number | null;
+        };
         /** OpsVideoDetailResponse */
         OpsVideoDetailResponse: {
             /** Channelid */
@@ -2618,6 +2698,12 @@ export interface components {
             /** Youtubevideoid */
             youtubeVideoId: string;
         };
+        /** OpsVideoGenerationResponse */
+        OpsVideoGenerationResponse: {
+            cues: components["schemas"]["OpsVideoCueGenerationResponse"];
+            microEvents: components["schemas"]["OpsVideoMicroEventGenerationResponse"];
+            timeline: components["schemas"]["OpsVideoTimelineGenerationResponse"];
+        };
         /** OpsVideoListResponse */
         OpsVideoListResponse: {
             /** Items */
@@ -2629,6 +2715,23 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** OpsVideoMicroEventGenerationResponse */
+        OpsVideoMicroEventGenerationResponse: {
+            /** Generated */
+            generated: boolean;
+            /** Latesttaskid */
+            latestTaskId: number | null;
+            /** Latesttaskstatus */
+            latestTaskStatus: string | null;
+            /** Latesttaskupdatedat */
+            latestTaskUpdatedAt: string | null;
+            /** Microeventcount */
+            microEventCount: number;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Windowcount */
+            windowCount: number;
+        };
         /** OpsVideoResponse */
         OpsVideoResponse: {
             /** Channelid */
@@ -2637,6 +2740,7 @@ export interface components {
             channelName: string;
             /** Duration */
             duration: string | null;
+            generation: components["schemas"]["OpsVideoGenerationResponse"];
             /** Latesttaskid */
             latestTaskId: number | null;
             /** Latesttaskname */
@@ -2722,6 +2826,23 @@ export interface components {
             workerId: string | null;
             /** Youtubevideoid */
             youtubeVideoId: string;
+        };
+        /** OpsVideoTimelineGenerationResponse */
+        OpsVideoTimelineGenerationResponse: {
+            /** Compositionid */
+            compositionId: number | null;
+            /** Episodecount */
+            episodeCount: number;
+            /** Generated */
+            generated: boolean;
+            /** Latesttaskid */
+            latestTaskId: number | null;
+            /** Latesttaskstatus */
+            latestTaskStatus: string | null;
+            /** Latesttaskupdatedat */
+            latestTaskUpdatedAt: string | null;
+            /** Videotaskid */
+            videoTaskId: number | null;
         };
         /** PipelineChannelOutputResponse */
         PipelineChannelOutputResponse: {
@@ -5542,6 +5663,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveYouTubeChannelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_video_tasks_video_tasks_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelVideoTasksRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelVideoTasksResponse"];
                 };
             };
             /** @description Validation Error */

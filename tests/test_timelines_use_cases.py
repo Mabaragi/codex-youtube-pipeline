@@ -19,7 +19,9 @@ from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionWindowRecord,
     ProgramMode,
 )
+from codex_sdk_cli.domains.operation_events.ports import OperationEventCreate
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
+    JsonObject,
     PipelineJobAttemptRecord,
     PipelineJobRecord,
 )
@@ -33,6 +35,7 @@ from codex_sdk_cli.domains.prompts.fallbacks import (
     fallback_prompt_text,
 )
 from codex_sdk_cli.domains.prompts.ports import ResolvedPrompt
+from codex_sdk_cli.domains.timelines.exceptions import TimelineCompositionOutputInvalid
 from codex_sdk_cli.domains.timelines.ports import (
     TimelineComposeRequest,
     TimelineComposeResult,
@@ -620,6 +623,118 @@ async def test_timeline_partial_repair_keep_preserves_episode_and_flags() -> Non
     assert {flag.type for flag in create.review_flags} == {"OVERBROAD_EPISODE"}
 
 
+@pytest.mark.anyio
+async def test_timeline_failure_stores_raw_response_only_on_failed_attempt() -> None:
+    composer_input = _composer_input(_candidates(3))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
+        episodes=[_episode_output("episode_001", "me_0002", "me_0003")],
+    )
+    composer = _ComposeAndRepairComposer(compose_output=output_json)
+    pipeline_jobs = _TimelinePipelineJobsForFailure()
+    video_tasks = _TimelineVideoTasksForFailure()
+    events = _TimelineEvents()
+    use_case = _timeline_failure_use_case(
+        composer=composer,
+        pipeline_jobs=pipeline_jobs,
+        video_tasks=video_tasks,
+        events=events,
+    )
+
+    with pytest.raises(TimelineCompositionOutputInvalid):
+        await use_case._execute_job_attempt(
+            _job(),
+            _attempt(),
+            task=_video_task(),
+            composer_input=composer_input,
+            timeout_seconds=30,
+        )
+
+    assert pipeline_jobs.failed_attempt_output_json is not None
+    assert video_tasks.failed_task_output_json is not None
+    raw_responses = pipeline_jobs.failed_attempt_output_json["rawResponses"]
+    assert isinstance(raw_responses, list)
+    assert len(raw_responses) == 1
+    raw_response = raw_responses[0]
+    assert isinstance(raw_response, dict)
+    assert raw_response["operation"] == "compose_video"
+    assert raw_response["threadId"] == "compose-thread"
+    assert raw_response["turnId"] == "compose-turn"
+    assert raw_response["rawResponseText"] == composer.compose_response_text
+    assert raw_response["rawResponseLength"] == len(composer.compose_response_text)
+    assert len(str(raw_response["rawResponseSha256"])) == 64
+    assert pipeline_jobs.failed_attempt_output_json["failure"] == {
+        "errorType": "TimelineCompositionOutputInvalid",
+        "errorMessage": "Timeline episodes must cover every micro-event exactly once in order.",
+        "stage": "compose_output_validation",
+    }
+    assert video_tasks.failed_task_output_json["rawResponseCount"] == 1
+    assert "rawResponses" not in video_tasks.failed_task_output_json
+    assert composer.compose_response_text not in json.dumps(video_tasks.failed_task_output_json)
+    assert events.items[0].metadata_json["rawResponseCount"] == 1
+    assert "rawResponses" not in events.items[0].metadata_json
+    assert composer.compose_response_text not in json.dumps(events.items[0].metadata_json)
+
+
+@pytest.mark.anyio
+async def test_timeline_failure_stores_compose_and_repair_raw_responses() -> None:
+    composer_input = _composer_input(_candidates(14))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001", "episode_002"])],
+        episodes=[
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0012",
+                topics=[f"topic-{i}" for i in range(1, 7)],
+            ),
+            _episode_output("episode_002", "me_0014", "me_0014"),
+        ],
+    )
+    repair_output: dict[str, object] = {
+        "target_episode_id": "episode_001",
+        "action": "SPLIT",
+        "replacement_episodes": [
+            _repair_episode_output("me_0001", "me_0004", "topic A"),
+            _repair_episode_output("me_0005", "me_0008", "topic B"),
+            _repair_episode_output("me_0009", "me_0012", "topic C"),
+        ],
+        "reason": "separate topics",
+    }
+    composer = _ComposeAndRepairComposer(
+        compose_output=output_json,
+        repair_outputs=[repair_output],
+    )
+    pipeline_jobs = _TimelinePipelineJobsForFailure()
+    use_case = _timeline_failure_use_case(
+        composer=composer,
+        pipeline_jobs=pipeline_jobs,
+        video_tasks=_TimelineVideoTasksForFailure(),
+        events=_TimelineEvents(),
+    )
+
+    with pytest.raises(TimelineCompositionOutputInvalid):
+        await use_case._execute_job_attempt(
+            _job(),
+            _attempt(),
+            task=_video_task(),
+            composer_input=composer_input,
+            timeout_seconds=30,
+        )
+
+    assert pipeline_jobs.failed_attempt_output_json is not None
+    raw_responses = pipeline_jobs.failed_attempt_output_json["rawResponses"]
+    assert isinstance(raw_responses, list)
+    assert [item["operation"] for item in raw_responses if isinstance(item, dict)] == [
+        "compose_video",
+        "repair_episode",
+    ]
+    repair_response = raw_responses[1]
+    assert isinstance(repair_response, dict)
+    assert repair_response["targetEpisodeId"] == "episode_001"
+    assert repair_response["rawResponseText"] == composer.repair_response_texts[0]
+
+
 def _composer_input(
     candidates: list[MicroEventCandidateRecord],
     *,
@@ -877,6 +992,134 @@ class _RepairComposer:
             status="completed",
             final_response=json.dumps(output),
         )
+
+
+class _ComposeAndRepairComposer:
+    def __init__(
+        self,
+        *,
+        compose_output: dict[str, object],
+        repair_outputs: list[dict[str, object]] | None = None,
+    ) -> None:
+        self.compose_response_text = json.dumps(compose_output)
+        self.repair_response_texts = [
+            json.dumps(output) for output in repair_outputs or []
+        ]
+        self.repair_requests: list[TimelineEpisodeRepairRequest] = []
+
+    async def compose(self, request: TimelineComposeRequest) -> TimelineComposeResult:
+        return TimelineComposeResult(
+            thread_id="compose-thread",
+            turn_id="compose-turn",
+            status="completed",
+            final_response=self.compose_response_text,
+        )
+
+    async def repair_episode(
+        self,
+        request: TimelineEpisodeRepairRequest,
+    ) -> TimelineEpisodeRepairResult:
+        self.repair_requests.append(request)
+        return TimelineEpisodeRepairResult(
+            thread_id="repair-thread",
+            turn_id="repair-turn",
+            status="completed",
+            final_response=self.repair_response_texts[len(self.repair_requests) - 1],
+        )
+
+
+class _TimelinePipelineJobsForFailure:
+    def __init__(self) -> None:
+        self.failed_attempt_output_json: JsonObject | None = None
+
+    async def mark_attempt_failed(
+        self,
+        attempt_id: int,
+        *,
+        error_type: str,
+        error_message: str,
+        output_json: JsonObject | None = None,
+    ) -> PipelineJobAttemptRecord:
+        self.failed_attempt_output_json = output_json
+        return PipelineJobAttemptRecord(
+            id=attempt_id,
+            job_id=12,
+            attempt_no=1,
+            status="failed",
+            started_at=NOW,
+            finished_at=NOW,
+            worker_id="timeline-worker",
+            error_type=error_type,
+            error_message=error_message,
+            output_json=output_json,
+        )
+
+    async def mark_job_failed(self, job_id: int) -> PipelineJobRecord:
+        return _job()
+
+
+class _TimelineVideoTasksForFailure:
+    def __init__(self) -> None:
+        self.failed_task_output_json: JsonObject | None = None
+
+    async def mark_task_failed(
+        self,
+        task_id: int,
+        *,
+        error_type: str,
+        error_message: str,
+        output_json: JsonObject | None = None,
+    ) -> VideoTaskRecord:
+        self.failed_task_output_json = output_json
+        return _video_task(task_id)
+
+    async def mark_task_timed_out(
+        self,
+        task_id: int,
+        *,
+        error_message: str,
+        output_json: JsonObject | None = None,
+    ) -> VideoTaskRecord:
+        self.failed_task_output_json = output_json
+        return _video_task(task_id)
+
+
+class _TimelineStoreForFailure:
+    async def delete_composition(self, video_task_id: int) -> None:
+        return None
+
+
+class _TimelineEvents:
+    def __init__(self) -> None:
+        self.items: list[OperationEventCreate] = []
+
+    async def record_event(self, event: OperationEventCreate) -> None:
+        self.items.append(event)
+
+
+def _timeline_failure_use_case(
+    *,
+    composer: _ComposeAndRepairComposer,
+    pipeline_jobs: _TimelinePipelineJobsForFailure,
+    video_tasks: _TimelineVideoTasksForFailure,
+    events: _TimelineEvents,
+) -> ComposeTimelineUseCase:
+    return ComposeTimelineUseCase(
+        videos=cast(Any, _Noop()),
+        video_tasks=cast(Any, video_tasks),
+        channels=cast(Any, _Noop()),
+        streamers=cast(Any, _Noop()),
+        domain_knowledge=cast(Any, _Noop()),
+        micro_events=cast(Any, _Noop()),
+        timelines=cast(Any, _TimelineStoreForFailure()),
+        pipeline_jobs=cast(Any, pipeline_jobs),
+        composer=cast(Any, composer),
+        prompt_resolver=cast(Any, _Noop()),
+        timeout_seconds=1200,
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        events=events,
+    )
 
 
 class _Noop:

@@ -74,6 +74,45 @@ class OpsVideoListQuery:
 
 
 @dataclass(frozen=True)
+class OpsVideoCueGenerationRecord:
+    generated: bool
+    transcript_id: int | None
+    cue_count: int
+    latest_task_id: int | None
+    latest_task_status: str | None
+    latest_task_updated_at: datetime | None
+
+
+@dataclass(frozen=True)
+class OpsVideoMicroEventGenerationRecord:
+    generated: bool
+    video_task_id: int | None
+    window_count: int
+    micro_event_count: int
+    latest_task_id: int | None
+    latest_task_status: str | None
+    latest_task_updated_at: datetime | None
+
+
+@dataclass(frozen=True)
+class OpsVideoTimelineGenerationRecord:
+    generated: bool
+    composition_id: int | None
+    video_task_id: int | None
+    episode_count: int
+    latest_task_id: int | None
+    latest_task_status: str | None
+    latest_task_updated_at: datetime | None
+
+
+@dataclass(frozen=True)
+class OpsVideoGenerationRecord:
+    cues: OpsVideoCueGenerationRecord
+    micro_events: OpsVideoMicroEventGenerationRecord
+    timeline: OpsVideoTimelineGenerationRecord
+
+
+@dataclass(frozen=True)
 class OpsVideoRecord:
     video_id: int
     channel_id: int
@@ -88,6 +127,7 @@ class OpsVideoRecord:
     latest_task_status: str | None
     latest_task_updated_at: datetime | None
     transcript_id: int | None
+    generation: OpsVideoGenerationRecord
 
 
 @dataclass(frozen=True)

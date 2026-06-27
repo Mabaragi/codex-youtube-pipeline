@@ -200,6 +200,7 @@ class PipelineJobRepositoryPort(Protocol):
         *,
         error_type: str,
         error_message: str,
+        output_json: JsonObject | None = None,
     ) -> PipelineJobAttemptRecord:
         """Mark one attempt as failed."""
 

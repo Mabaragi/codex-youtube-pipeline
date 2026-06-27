@@ -554,6 +554,47 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             error_message=error_message,
         )
 
+    @override
+    async def cancel_pending_tasks(
+        self,
+        task_ids: list[int],
+        *,
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        try:
+            now = datetime.now(UTC)
+            updated_ids = list(
+                await self._session.scalars(
+                    update(VideoTaskModel)
+                    .where(
+                        VideoTaskModel.id.in_(task_ids),
+                        VideoTaskModel.status == "pending",
+                    )
+                    .values(
+                        status="canceled",
+                        error_type=error_type,
+                        error_message=error_message,
+                        completed_at=now,
+                        updated_at=now,
+                    )
+                    .returning(VideoTaskModel.id)
+                )
+            )
+            if len(updated_ids) != len(task_ids):
+                await self._session.rollback()
+                return []
+            await self._session.commit()
+            models = (
+                await self._session.scalars(
+                    select(VideoTaskModel).where(VideoTaskModel.id.in_(updated_ids))
+                )
+            ).all()
+            return [_task_record(model) for model in models]
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
     async def _get_task_model_for_input(
         self,
         *,

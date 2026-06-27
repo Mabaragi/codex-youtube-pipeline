@@ -56,6 +56,7 @@ from codex_sdk_cli.domains.transcript_cues.exceptions import (
 )
 from codex_sdk_cli.domains.video_tasks.exceptions import (
     TranscriptCollectAlreadyRunning,
+    VideoTaskCancelNotAllowed,
     VideoTaskDomainError,
     VideoTaskNotFound,
     VideoTaskPersistenceError,
@@ -243,7 +244,14 @@ def add_exception_handlers(app: FastAPI) -> None:
         status_code = status.HTTP_400_BAD_REQUEST
         if isinstance(exc, VideoTaskNotFound):
             status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, (VideoTaskRetryNotAllowed, TranscriptCollectAlreadyRunning)):
+        elif isinstance(
+            exc,
+            (
+                VideoTaskRetryNotAllowed,
+                TranscriptCollectAlreadyRunning,
+                VideoTaskCancelNotAllowed,
+            ),
+        ):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, VideoTaskPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE

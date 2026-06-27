@@ -198,3 +198,12 @@ class VideoTaskRepositoryPort(Protocol):
         output_json: JsonObject | None = None,
     ) -> VideoTaskRecord:
         """Mark a task as completed with no retrievable transcript."""
+
+    async def cancel_pending_tasks(
+        self,
+        task_ids: list[int],
+        *,
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        """Cancel pending tasks atomically and return updated records."""

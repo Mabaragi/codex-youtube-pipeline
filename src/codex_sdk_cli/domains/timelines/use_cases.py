@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from typing import cast, get_args
 
@@ -78,6 +79,7 @@ from .ports import (
     TimelineContentKind,
     TimelineEpisodeCreate,
     TimelineEpisodeRepairRequest,
+    TimelineEpisodeRepairResult,
     TimelineReviewFlagCreate,
     TimelineReviewFlagType,
     TimelineTopicClusterCreate,
@@ -97,6 +99,8 @@ from .schemas import (
 
 TIMELINE_COMPOSE_WORKER_ID_PREFIX = "timeline-compose-worker:"
 TIMELINE_DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT = 80
+_TIMELINE_RAW_RESPONSE_STORED_IN = "pipelineJobAttempt.outputJson.rawResponses"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +146,16 @@ class _ComposerInput:
     copy_style: CopyStyle
     compose_prompt: ResolvedPrompt
     repair_prompt: ResolvedPrompt
+
+
+@dataclass(frozen=True, slots=True)
+class _TimelineRawResponse:
+    operation: str
+    thread_id: str | None
+    turn_id: str | None
+    status: str
+    raw_response_text: str
+    target_episode_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -649,6 +663,8 @@ class ComposeTimelineUseCase:
         composer_input: _ComposerInput,
         timeout_seconds: int,
     ) -> TimelineCompositionResponse:
+        raw_responses: list[_TimelineRawResponse] = []
+        failure_stage = "compose"
         try:
             await self._timelines.delete_composition(task.id)
             prompt = _timeline_prompt(composer_input)
@@ -667,6 +683,8 @@ class ComposeTimelineUseCase:
                 ),
                 timeout=timeout_seconds,
             )
+            raw_responses.append(_raw_response("compose_video", result))
+            failure_stage = "compose_output_validation"
             create = await _composition_create_with_repairs(
                 composer_input,
                 result,
@@ -675,19 +693,42 @@ class ComposeTimelineUseCase:
                 attempt=attempt,
                 composer=self._composer,
                 timeout_seconds=timeout_seconds,
+                raw_responses=raw_responses,
             )
         except TimeoutError:
             message = f"Timeline compose exceeded {timeout_seconds} seconds."
+            attempt_output_json = _failed_attempt_output_json(
+                composer_input,
+                job=job,
+                attempt=attempt,
+                error_type="TimeoutError",
+                error_message=message,
+                stage=failure_stage,
+                raw_responses=raw_responses,
+            )
+            task_output_json = _attempt_output_json(
+                composer_input,
+                job=job,
+                attempt=attempt,
+                raw_responses=raw_responses,
+            )
             await self._pipeline_jobs.mark_attempt_failed(
                 attempt.id,
                 error_type="TimeoutError",
                 error_message=message,
+                output_json=attempt_output_json,
             )
             await self._pipeline_jobs.mark_job_failed(job.id)
             updated = await self._video_tasks.mark_task_timed_out(
                 task.id,
                 error_message=message,
-                output_json=_attempt_output_json(composer_input, job=job, attempt=attempt),
+                output_json=task_output_json,
+            )
+            _log_timeline_failure(
+                task=updated,
+                job=job,
+                attempt=attempt,
+                raw_responses=raw_responses,
             )
             await self._record_task_event(
                 "timeline_compose.task_timed_out",
@@ -698,22 +739,45 @@ class ComposeTimelineUseCase:
                 reason="timeout",
                 error_type="TimeoutError",
                 error_message=message,
+                metadata_json=task_output_json,
             )
             raise
         except Exception as exc:
             error_type = exc.__class__.__name__
             error_message = str(exc) or error_type
+            attempt_output_json = _failed_attempt_output_json(
+                composer_input,
+                job=job,
+                attempt=attempt,
+                error_type=error_type,
+                error_message=error_message,
+                stage=failure_stage,
+                raw_responses=raw_responses,
+            )
+            task_output_json = _attempt_output_json(
+                composer_input,
+                job=job,
+                attempt=attempt,
+                raw_responses=raw_responses,
+            )
             await self._pipeline_jobs.mark_attempt_failed(
                 attempt.id,
                 error_type=error_type,
                 error_message=error_message,
+                output_json=attempt_output_json,
             )
             await self._pipeline_jobs.mark_job_failed(job.id)
             updated = await self._video_tasks.mark_task_failed(
                 task.id,
                 error_type=error_type,
                 error_message=error_message,
-                output_json=_attempt_output_json(composer_input, job=job, attempt=attempt),
+                output_json=task_output_json,
+            )
+            _log_timeline_failure(
+                task=updated,
+                job=job,
+                attempt=attempt,
+                raw_responses=raw_responses,
             )
             await self._record_task_event(
                 "timeline_compose.task_failed",
@@ -724,6 +788,7 @@ class ComposeTimelineUseCase:
                 reason="error",
                 error_type=error_type,
                 error_message=error_message,
+                metadata_json=task_output_json,
             )
             raise
 
@@ -1036,6 +1101,7 @@ async def _composition_create_with_repairs(
     attempt: PipelineJobAttemptRecord,
     composer: TimelineComposerPort,
     timeout_seconds: int,
+    raw_responses: list[_TimelineRawResponse] | None = None,
 ) -> TimelineCompositionCreate:
     output_json, summary, blocks, episodes, topics, flags, warnings = (
         _normalized_timeline_parts(composer_input, result)
@@ -1052,6 +1118,7 @@ async def _composition_create_with_repairs(
         composer=composer,
         timeout_seconds=timeout_seconds,
         warnings=warnings,
+        raw_responses=raw_responses,
     )
     blocks, episodes = _repair_block_semantics(episodes, blocks, composer_input, warnings)
     flags = _soft_verifier_flags(
@@ -1392,6 +1459,7 @@ async def _repair_overbroad_episodes(
     composer: TimelineComposerPort,
     timeout_seconds: int,
     warnings: list[str],
+    raw_responses: list[_TimelineRawResponse] | None = None,
 ) -> tuple[
     list[TimelineEpisodeCreate],
     list[TimelineBlockCreate],
@@ -1446,6 +1514,14 @@ async def _repair_overbroad_episodes(
                 ),
                 timeout=timeout_seconds,
             )
+            if raw_responses is not None:
+                raw_responses.append(
+                    _raw_response(
+                        "repair_episode",
+                        result,
+                        target_episode_id=episode.episode_id,
+                    )
+                )
             repair = _parse_episode_repair(result.final_response)
             replacement = _validated_repair_replacement(
                 repair,
@@ -2871,8 +2947,9 @@ def _attempt_output_json(
     *,
     job: PipelineJobRecord,
     attempt: PipelineJobAttemptRecord,
+    raw_responses: list[_TimelineRawResponse] | None = None,
 ) -> JsonObject:
-    return {
+    output: JsonObject = {
         "videoId": composer_input.video.id,
         "youtubeVideoId": composer_input.video.youtube_video_id,
         "sourceMicroEventTaskId": composer_input.source_task.id,
@@ -2882,6 +2959,104 @@ def _attempt_output_json(
         "jobId": job.id,
         "jobAttemptId": attempt.id,
     }
+    if raw_responses is not None:
+        output.update(_raw_response_summary(raw_responses))
+    return output
+
+
+def _failed_attempt_output_json(
+    composer_input: _ComposerInput,
+    *,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+    error_type: str,
+    error_message: str,
+    stage: str,
+    raw_responses: list[_TimelineRawResponse],
+) -> JsonObject:
+    output = _attempt_output_json(
+        composer_input,
+        job=job,
+        attempt=attempt,
+        raw_responses=raw_responses,
+    )
+    output["failure"] = {
+        "errorType": error_type,
+        "errorMessage": error_message,
+        "stage": stage,
+    }
+    output["rawResponses"] = [_raw_response_json(item) for item in raw_responses]
+    return output
+
+
+def _raw_response(
+    operation: str,
+    result: TimelineComposeResult | TimelineEpisodeRepairResult,
+    *,
+    target_episode_id: str | None = None,
+) -> _TimelineRawResponse:
+    return _TimelineRawResponse(
+        operation=operation,
+        thread_id=result.thread_id,
+        turn_id=result.turn_id,
+        status=result.status,
+        raw_response_text=result.final_response,
+        target_episode_id=target_episode_id,
+    )
+
+
+def _raw_response_json(response: _TimelineRawResponse) -> JsonObject:
+    payload: JsonObject = {
+        "operation": response.operation,
+        "threadId": response.thread_id,
+        "turnId": response.turn_id,
+        "status": response.status,
+        "rawResponseText": response.raw_response_text,
+        "rawResponseLength": len(response.raw_response_text),
+        "rawResponseSha256": _raw_response_sha256(response.raw_response_text),
+    }
+    if response.target_episode_id is not None:
+        payload["targetEpisodeId"] = response.target_episode_id
+    return payload
+
+
+def _raw_response_summary(
+    raw_responses: list[_TimelineRawResponse],
+) -> JsonObject:
+    return {
+        "rawResponseCount": len(raw_responses),
+        "rawResponseSha256s": [
+            _raw_response_sha256(response.raw_response_text) for response in raw_responses
+        ],
+        "rawResponseLengths": [
+            len(response.raw_response_text) for response in raw_responses
+        ],
+        "rawResponseStoredIn": _TIMELINE_RAW_RESPONSE_STORED_IN,
+    }
+
+
+def _raw_response_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _log_timeline_failure(
+    *,
+    task: VideoTaskRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+    raw_responses: list[_TimelineRawResponse],
+) -> None:
+    summary = _raw_response_summary(raw_responses)
+    logger.error(
+        "Timeline compose failed task_id=%s video_id=%s job_id=%s "
+        "job_attempt_id=%s raw_response_count=%s raw_response_sha256s=%s",
+        task.id,
+        task.video_id,
+        job.id,
+        attempt.id,
+        summary["rawResponseCount"],
+        summary["rawResponseSha256s"],
+    )
 
 
 def _duration_seconds(duration: str | None) -> int | None:

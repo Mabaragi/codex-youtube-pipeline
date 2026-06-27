@@ -279,8 +279,8 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       ),
     },
     {
-      header: "Transcript",
-      cell: ({ row }) => row.original.transcriptId ?? "-",
+      header: "Pipeline",
+      cell: ({ row }) => <PipelineStatus generation={row.original.generation} />,
     },
     {
       header: "Action",
@@ -997,6 +997,101 @@ function Metric({ label, value }: { label: string; value: number }) {
       <div>{label}</div>
     </div>
   );
+}
+
+function PipelineStatus({ generation }: { generation: OpsVideo["generation"] }) {
+  return (
+    <div className="grid min-w-[230px] gap-1.5">
+      <PipelineStage
+        label="Cues"
+        meta={cueGenerationMeta(generation.cues)}
+        status={generationStatus(
+          generation.cues.generated,
+          generation.cues.latestTaskStatus,
+        )}
+      />
+      <PipelineStage
+        label="Micro"
+        meta={microEventGenerationMeta(generation.microEvents)}
+        status={generationStatus(
+          generation.microEvents.generated,
+          generation.microEvents.latestTaskStatus,
+        )}
+      />
+      <PipelineStage
+        label="Timeline"
+        meta={timelineGenerationMeta(generation.timeline)}
+        status={generationStatus(
+          generation.timeline.generated,
+          generation.timeline.latestTaskStatus,
+        )}
+      />
+    </div>
+  );
+}
+
+function PipelineStage({
+  label,
+  meta,
+  status,
+}: {
+  label: string;
+  meta: string;
+  status: string;
+}) {
+  return (
+    <div
+      aria-label={`${label} generation ${status}`}
+      className="flex min-w-0 items-center gap-2 text-xs"
+    >
+      <span className="w-14 shrink-0 font-medium text-slate-700">{label}</span>
+      <StatusBadge status={status} />
+      <span className="min-w-0 truncate text-slate-500">{meta}</span>
+    </div>
+  );
+}
+
+function generationStatus(
+  generated: boolean,
+  latestTaskStatus: string | null | undefined,
+) {
+  return generated ? "ready" : latestTaskStatus ?? "none";
+}
+
+function cueGenerationMeta(generation: OpsVideo["generation"]["cues"]) {
+  if (generation.generated) {
+    return `${formatCount(generation.cueCount, "cue")}, transcript #${generation.transcriptId ?? "-"}`;
+  }
+  if (generation.transcriptId) {
+    return `0 cues, transcript #${generation.transcriptId}`;
+  }
+  return "No transcript";
+}
+
+function microEventGenerationMeta(
+  generation: OpsVideo["generation"]["microEvents"],
+) {
+  if (generation.generated) {
+    return `${formatCount(generation.microEventCount, "event")}, ${formatCount(generation.windowCount, "window")}`;
+  }
+  if (generation.latestTaskId) {
+    return `task #${generation.latestTaskId}`;
+  }
+  return "No extraction";
+}
+
+function timelineGenerationMeta(generation: OpsVideo["generation"]["timeline"]) {
+  if (generation.generated) {
+    return `${formatCount(generation.episodeCount, "episode")}, composition #${generation.compositionId}`;
+  }
+  if (generation.latestTaskId) {
+    return `task #${generation.latestTaskId}`;
+  }
+  return "No composition";
+}
+
+function formatCount(value: number, label: string) {
+  return `${value} ${label}${value === 1 ? "" : "s"}`;
 }
 
 function formFilters(formElement: HTMLFormElement): OpsVideoFilters {
