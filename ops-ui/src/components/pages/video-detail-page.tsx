@@ -15,6 +15,7 @@ import { useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { ErrorState, LoadingState } from "@/components/ui-primitives";
 import {
   CODEX_MODEL_OPTIONS,
   CODEX_REASONING_EFFORT_OPTIONS,
@@ -125,15 +126,16 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
     <>
       <PageHeader
         title="Video Detail"
+        description="Inspect source metadata, task history, transcripts, micro-events, and composed timeline output."
         actions={
           <Link className="ops-button" href="/videos">
-            <ArrowLeft size={15} />
+            <ArrowLeft aria-hidden="true" size={15} />
             Videos
           </Link>
         }
       />
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
       {data ? (
         <div className="grid gap-4">
           <section className="ops-panel p-4">
@@ -164,7 +166,7 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
                     rel="noreferrer"
                     target="_blank"
                   >
-                    <ExternalLink size={15} />
+                    <ExternalLink aria-hidden="true" size={15} />
                     YouTube
                   </a>
                 </div>
@@ -220,7 +222,12 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
 
           <section className="grid gap-2">
             <h2 className="text-sm font-semibold">Task History</h2>
-            <DataTable columns={taskColumns} data={data.tasks} emptyLabel="No tasks." />
+            <DataTable
+              ariaLabel="Task history"
+              columns={taskColumns}
+              data={data.tasks}
+              emptyLabel="No tasks."
+            />
           </section>
 
           <MicroEventExtractionPanel
@@ -243,7 +250,7 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
 
           <section className="ops-panel p-4">
             <div className="mb-3 flex items-center gap-2">
-              <Captions size={16} />
+              <Captions aria-hidden="true" size={16} />
               <h2 className="text-sm font-semibold">Transcripts</h2>
             </div>
             {data.transcripts.length === 0 ? (
@@ -353,7 +360,7 @@ function MicroEventExtractionPanel({
     <section className="ops-panel p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ListTree size={16} />
+          <ListTree aria-hidden="true" size={16} />
           <h2 className="text-sm font-semibold">Micro Events</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -364,7 +371,7 @@ function MicroEventExtractionPanel({
               title="Download micro-event extraction JSON"
               type="button"
             >
-              <Download size={14} />
+              <Download aria-hidden="true" size={14} />
               Download JSON
             </button>
           ) : null}
@@ -375,8 +382,8 @@ function MicroEventExtractionPanel({
             title={actionTitle}
             type="button"
           >
-            <Play size={14} />
-            {extractMicroEvents.isPending ? "Running..." : actionLabel}
+            <Play aria-hidden="true" size={14} />
+            {extractMicroEvents.isPending ? "Running…" : actionLabel}
           </button>
         </div>
       </div>
@@ -439,7 +446,7 @@ function MicroEventExtractionPanel({
         </div>
       ) : null}
       {extractionLoading ? (
-        <div className="text-sm text-slate-600">Loading...</div>
+        <div className="text-sm text-slate-600">Loading…</div>
       ) : null}
       {extractionError ? (
         <div className="text-sm text-red-700">{String(extractionError)}</div>
@@ -467,14 +474,14 @@ function TimelineCompositionPanel({
     <section className="ops-panel p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ListTree size={16} />
+          <ListTree aria-hidden="true" size={16} />
           <h2 className="text-sm font-semibold">Timeline</h2>
         </div>
         <Link
           className="ops-button"
           href="/tasks?taskName=timeline_compose&limit=100"
         >
-          <ScrollText size={14} />
+          <ScrollText aria-hidden="true" size={14} />
           Tasks
         </Link>
       </div>
@@ -487,7 +494,7 @@ function TimelineCompositionPanel({
         </div>
       ) : null}
       {compositionLoading ? (
-        <div className="text-sm text-slate-600">Loading...</div>
+        <div className="text-sm text-slate-600">Loading…</div>
       ) : null}
       {compositionError ? (
         <div className="text-sm text-red-700">{String(compositionError)}</div>
@@ -531,7 +538,7 @@ function TimelineCompositionView({
             title={`Download timeline ${format.toUpperCase()}`}
             type="button"
           >
-            <Download size={14} />
+            <Download aria-hidden="true" size={14} />
             Timeline {format.toUpperCase()}
           </button>
         ))}
@@ -1028,8 +1035,8 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
                   }
                   type="button"
                 >
-                  <Download size={14} />
-                  {isDownloading ? "..." : format.toUpperCase()}
+                  <Download aria-hidden="true" size={14} />
+                  {isDownloading ? "…" : format.toUpperCase()}
                 </button>
               );
             })}
@@ -1042,7 +1049,7 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
       {expanded ? (
         <div className="mt-3 border-t border-slate-200 pt-3">
           {isLoading ? (
-            <div className="text-sm text-slate-600">Loading...</div>
+            <div className="text-sm text-slate-600">Loading…</div>
           ) : null}
           {error ? <div className="text-sm text-red-700">{String(error)}</div> : null}
           {data ? <TranscriptTimeline segments={data.segments} fallbackText={data.text} /> : null}
@@ -1051,7 +1058,7 @@ function TranscriptItem({ transcript }: { transcript: TranscriptMetadata }) {
       {cuesExpanded ? (
         <div className="mt-3 border-t border-slate-200 pt-3">
           {cuesLoading ? (
-            <div className="text-sm text-slate-600">Loading...</div>
+            <div className="text-sm text-slate-600">Loading…</div>
           ) : null}
           {cuesError ? <div className="text-sm text-red-700">{String(cuesError)}</div> : null}
           {cues ? <TranscriptCueTable cues={cues.items} cueCount={cues.cueCount} /> : null}

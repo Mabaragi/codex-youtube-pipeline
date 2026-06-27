@@ -66,6 +66,19 @@ export type DomainEntryAliasUpdateRequest =
   components["schemas"]["DomainEntryAliasUpdateRequest"];
 export type DomainEntryStreamerLinkRequest =
   components["schemas"]["DomainEntryStreamerLinkRequest"];
+export type PromptBody = components["schemas"]["PromptBodyResponse"];
+export type PromptSummary = components["schemas"]["PromptSummaryResponse"];
+export type PromptDetail = components["schemas"]["PromptDetailResponse"];
+export type PromptVersion = components["schemas"]["PromptVersionResponse"];
+export type PromptVersionCreateRequest =
+  components["schemas"]["PromptVersionCreateRequest"];
+export type PromptVersionUpdateRequest =
+  components["schemas"]["PromptVersionUpdateRequest"];
+export type PromptCacheInvalidateRequest =
+  components["schemas"]["PromptCacheInvalidateRequest"];
+export type PromptCacheInvalidateResponse =
+  components["schemas"]["PromptCacheInvalidateResponse"];
+export type PromptKey = PromptSummary["key"];
 export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
 export type OpsSchemaTable = components["schemas"]["OpsSchemaTableResponse"];
 export type Streamer = components["schemas"]["StreamerResponse"];

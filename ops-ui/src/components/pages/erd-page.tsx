@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ErdGraph } from "@/components/schema/erd-graph";
 import { getRelationCardinality } from "@/components/schema/schema-display";
+import { ErrorState, LoadingState } from "@/components/ui-primitives";
 import { useSchemaGraph } from "@/lib/queries";
 import type { OpsSchemaGraph, OpsSchemaTable } from "@/lib/types";
 import { useOpsStore } from "@/store/use-ops-store";
@@ -41,9 +42,12 @@ export function ErdPage() {
 
   return (
     <>
-      <PageHeader title="ERD" />
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      <PageHeader
+        title="ERD"
+        description="Explore schema tables, column constraints, and relationship metadata."
+      />
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
       {data ? (
         <div className="grid min-h-[720px] gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <ErdGraph
@@ -75,7 +79,7 @@ function SchemaInspector({
   outgoingRelations: SchemaRelation[];
 }) {
   return (
-    <aside className="ops-panel overflow-hidden">
+    <aside className="ops-panel overflow-hidden 2xl:sticky 2xl:top-4 2xl:self-start">
       <div className="border-b border-slate-200 p-4">
         <h2 className="text-sm font-semibold">Schema Inspector</h2>
         <div className="mt-1 text-xs text-slate-500">

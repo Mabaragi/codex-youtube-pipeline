@@ -20,6 +20,10 @@ from codex_sdk_cli.infra.pipeline_jobs.repository import (
     PipelineJobAttemptModel,
     PipelineJobModel,
 )
+from codex_sdk_cli.infra.prompts.repository import (
+    PromptActiveVersionModel,
+    PromptVersionModel,
+)
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
 from codex_sdk_cli.infra.timelines.repository import (
     TimelineBlockModel,
@@ -48,6 +52,8 @@ __all__ = [
     "OperationEventModel",
     "PipelineJobAttemptModel",
     "PipelineJobModel",
+    "PromptActiveVersionModel",
+    "PromptVersionModel",
     "StreamerModel",
     "TimelineBlockModel",
     "TimelineCompositionModel",

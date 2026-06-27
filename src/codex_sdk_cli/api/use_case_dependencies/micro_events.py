@@ -18,6 +18,7 @@ from codex_sdk_cli.api.dependencies import (
     VideoTaskRepositoryDep,
     YouTubeTranscriptRepositoryDep,
 )
+from codex_sdk_cli.api.use_case_dependencies.prompts import PromptResolverDep
 from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 
 
@@ -32,6 +33,7 @@ def get_extract_video_micro_events_use_case(
     pipeline_jobs: PipelineJobRepositoryDep,
     micro_events: MicroEventExtractionRepositoryDep,
     extractor: MicroEventExtractorDep,
+    prompt_resolver: PromptResolverDep,
     settings: SettingsDep,
     events: OperationEventRecorderDep,
 ) -> ExtractVideoMicroEventsUseCase:
@@ -46,6 +48,7 @@ def get_extract_video_micro_events_use_case(
         pipeline_jobs=pipeline_jobs,
         micro_events=micro_events,
         extractor=extractor,
+        prompt_resolver=prompt_resolver,
         timeout_seconds=settings.micro_event_extract_timeout_seconds,
         concurrency_limit=settings.micro_event_extract_concurrency_limit,
         model=settings.model,

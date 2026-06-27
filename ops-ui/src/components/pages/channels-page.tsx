@@ -8,6 +8,13 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
 import {
+  ActionPanel,
+  ErrorState,
+  InlineNotice,
+  LoadingState,
+  MetricStrip,
+} from "@/components/ui-primitives";
+import {
   useCollectAllTranscriptsMutation,
   useCollectTranscriptsMutation,
   useCollectVideosMutation,
@@ -222,11 +229,11 @@ export function ChannelsPage() {
             onClick={() => collectVideos.mutate(row.original.channelId)}
             title="Collect latest videos"
           >
-            <Download size={15} />
+            <Download aria-hidden="true" size={15} />
             Videos
           </button>
           <button
-            className="ops-button ops-button-primary"
+            className="ops-button"
             disabled={isTranscriptCollectionDisabled || row.original.videoCount < 1}
             onClick={() =>
               collectTranscripts.mutate({
@@ -240,7 +247,7 @@ export function ChannelsPage() {
                 : transcriptButtonTitle
             }
           >
-            <Captions size={15} />
+            <Captions aria-hidden="true" size={15} />
             {transcriptButtonLabel}
           </button>
           <button
@@ -260,7 +267,7 @@ export function ChannelsPage() {
               taskFailedCount: row.original.taskFailedCount,
             })}
           >
-            <RotateCw size={15} />
+            <RotateCw aria-hidden="true" size={15} />
             Retry failed
           </button>
           <button
@@ -282,7 +289,7 @@ export function ChannelsPage() {
               taskNoTranscriptCount: row.original.taskNoTranscriptCount,
             })}
           >
-            <RotateCw size={15} />
+            <RotateCw aria-hidden="true" size={15} />
             Recheck no transcript
           </button>
           <button
@@ -302,7 +309,7 @@ export function ChannelsPage() {
               isPending: generateTranscriptCues.isPending,
             })}
           >
-            <ListChecks size={15} />
+            <ListChecks aria-hidden="true" size={15} />
             Cues
           </button>
         </div>
@@ -321,7 +328,7 @@ export function ChannelsPage() {
               onClick={() => collectAllTranscripts.mutate({})}
               title={allTranscriptButtonTitle}
             >
-              <Captions size={15} />
+              <Captions aria-hidden="true" size={15} />
               All transcripts
             </button>
             <button
@@ -334,7 +341,7 @@ export function ChannelsPage() {
               }
               title={allCueButtonTitle}
             >
-              <ListChecks size={15} />
+              <ListChecks aria-hidden="true" size={15} />
               All cues
             </button>
             <button
@@ -349,7 +356,7 @@ export function ChannelsPage() {
               }
               title={allRetryFailedButtonTitle}
             >
-              <RotateCw size={15} />
+              <RotateCw aria-hidden="true" size={15} />
               Retry failed
             </button>
             <button
@@ -364,90 +371,116 @@ export function ChannelsPage() {
               }
               title={allRecheckNoTranscriptButtonTitle}
             >
-              <RotateCw size={15} />
+              <RotateCw aria-hidden="true" size={15} />
               Recheck no transcript
             </button>
           </div>
         }
         title="Channels"
+        description="Manage streamer channels and run transcript or cue collection workflows."
       />
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
-      <div className="ops-panel mb-4 grid gap-4 p-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <form onSubmit={handleCreateStreamer}>
-          <div className="mb-2 text-sm font-semibold">Add streamer</div>
-          <div className="flex flex-wrap gap-2">
-            <input
-              aria-label="Streamer name"
-              className="ops-input min-w-0 flex-1"
-              maxLength={255}
-              onChange={(event) => setNewStreamerName(event.target.value)}
-              placeholder="Streamer name"
-              value={newStreamerName}
-            />
-            <button
-              className="ops-button"
-              disabled={isCreateDisabled}
-              title="Add streamer"
-              type="submit"
-            >
-              <Plus size={15} />
-              Add
-            </button>
-          </div>
-          <InlineFeedback feedback={createFeedback} />
-        </form>
-        <form onSubmit={handleResolveChannel}>
-          <div className="mb-2 text-sm font-semibold">Resolve channel</div>
-          <div className="flex flex-wrap gap-2">
-            <input
-              aria-label="Streamer for resolve"
-              className="ops-input min-w-[180px] flex-1"
-              list={STREAMER_OPTIONS_ID}
-              maxLength={255}
-              onChange={(event) => setResolveStreamerName(event.target.value)}
-              placeholder="Streamer"
-              value={resolveStreamerName}
-            />
-            <datalist data-testid="streamer-options" id={STREAMER_OPTIONS_ID}>
-              {streamerItems.map((streamer) => (
-                <option key={streamer.id} value={streamer.name}>
-                  {streamer.name}
-                </option>
-              ))}
-            </datalist>
-            <input
-              aria-label="YouTube handle"
-              className="ops-input min-w-[180px] flex-1"
-              maxLength={255}
-              onChange={(event) => setResolveHandle(event.target.value)}
-              placeholder="@youtube-handle"
-              value={resolveHandle}
-            />
-            <button
-              className="ops-button ops-button-primary"
-              disabled={isResolveDisabled}
-              title={resolveButtonTitle({
-                isStreamerListUnavailable,
-                isPending: createStreamer.isPending || resolveChannel.isPending,
-              })}
-              type="submit"
-            >
-              <Search size={15} />
-              Resolve
-            </button>
-          </div>
-          {streamers.isLoading ? (
-            <div className="mt-2 text-xs text-slate-600">Loading streamers...</div>
-          ) : null}
-          {streamers.error ? (
-            <div className="mt-2 text-xs text-red-700">
-              Cannot load streamers. Resolve is disabled.
+      {data ? (
+        <MetricStrip
+          ariaLabel="Channel summary"
+          className="mb-4"
+          items={[
+            { label: "Channels", value: data.items.length },
+            { label: "Stored videos", value: totalStoredVideoCount },
+            { label: "Transcript ok", value: totalTranscriptSucceededCount, status: "ok" },
+            {
+              label: "Failed tasks",
+              value: totalFailedTaskCount,
+              status: totalFailedTaskCount > 0 ? "failed" : "ok",
+            },
+          ]}
+        />
+      ) : null}
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
+      <ActionPanel
+        className="mb-4"
+        title="Channel Setup"
+        description="Add streamer records and resolve YouTube handles before collection."
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+          <form onSubmit={handleCreateStreamer}>
+            <div className="mb-2 text-sm font-semibold">Add streamer</div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                aria-label="Streamer name"
+                autoComplete="off"
+                className="ops-input min-w-0 flex-1"
+                maxLength={255}
+                onChange={(event) => setNewStreamerName(event.target.value)}
+                placeholder="Streamer name…"
+                value={newStreamerName}
+              />
+              <button
+                className="ops-button"
+                disabled={isCreateDisabled}
+                title="Add streamer"
+                type="submit"
+              >
+                <Plus aria-hidden="true" size={15} />
+                Add
+              </button>
             </div>
-          ) : null}
-          <InlineFeedback feedback={resolveFeedback} />
-        </form>
-      </div>
+            <InlineFeedback feedback={createFeedback} />
+          </form>
+          <form onSubmit={handleResolveChannel}>
+            <div className="mb-2 text-sm font-semibold">Resolve channel</div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                aria-label="Streamer for resolve"
+                autoComplete="off"
+                className="ops-input min-w-[180px] flex-1"
+                list={STREAMER_OPTIONS_ID}
+                maxLength={255}
+                onChange={(event) => setResolveStreamerName(event.target.value)}
+                placeholder="Streamer…"
+                value={resolveStreamerName}
+              />
+              <datalist data-testid="streamer-options" id={STREAMER_OPTIONS_ID}>
+                {streamerItems.map((streamer) => (
+                  <option key={streamer.id} value={streamer.name}>
+                    {streamer.name}
+                  </option>
+                ))}
+              </datalist>
+              <input
+                aria-label="YouTube handle"
+                autoComplete="off"
+                className="ops-input min-w-[180px] flex-1"
+                maxLength={255}
+                onChange={(event) => setResolveHandle(event.target.value)}
+                placeholder="@youtube-handle…"
+                value={resolveHandle}
+              />
+              <button
+                className="ops-button"
+                disabled={isResolveDisabled}
+                title={resolveButtonTitle({
+                  isStreamerListUnavailable,
+                  isPending: createStreamer.isPending || resolveChannel.isPending,
+                })}
+                type="submit"
+              >
+                <Search aria-hidden="true" size={15} />
+                Resolve
+              </button>
+            </div>
+            {streamers.isLoading ? (
+              <div className="mt-2 text-xs text-slate-600">Loading streamers…</div>
+            ) : null}
+            {streamers.error ? (
+              <div className="mt-2 text-xs text-red-700">
+                Cannot load streamers. Resolve is disabled.
+              </div>
+            ) : null}
+            <InlineFeedback feedback={resolveFeedback} />
+          </form>
+        </div>
+      </ActionPanel>
       <TranscriptCollectionStatus
         className="mb-3"
         showIdle
@@ -457,7 +490,11 @@ export function ChannelsPage() {
         <span className="text-xs text-slate-500">Video collect</span>
         <StatusBadge status={collectVideos.isPending ? "running" : "ready"} />
       </div>
-      <DataTable columns={columns} data={data?.items ?? []} />
+      <DataTable
+        ariaLabel="Channels"
+        columns={columns}
+        data={data?.items ?? []}
+      />
     </>
   );
 }
@@ -472,7 +509,14 @@ function InlineFeedback({ feedback }: { feedback: Feedback | null }) {
     return null;
   }
   const tone = feedback.tone === "success" ? "text-emerald-700" : "text-red-700";
-  return <div className={`mt-2 text-xs ${tone}`}>{feedback.message}</div>;
+  return (
+    <InlineNotice
+      className="mt-2"
+      tone={feedback.tone === "success" ? "success" : "danger"}
+    >
+      <span className={tone}>{feedback.message}</span>
+    </InlineNotice>
+  );
 }
 
 async function getOrCreateStreamer({

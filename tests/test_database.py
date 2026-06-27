@@ -31,6 +31,8 @@ def test_database_base_registers_app_tables() -> None:
         "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",
+        "prompt_active_versions",
+        "prompt_versions",
         "streamers",
         "transcript_cues",
         "timeline_blocks",
@@ -190,6 +192,18 @@ def test_alembic_upgrade_creates_app_tables(
             column["name"] for column in inspector.get_columns("pipeline_job_attempts")
         }
         pipeline_job_attempt_foreign_keys = inspector.get_foreign_keys("pipeline_job_attempts")
+        prompt_version_columns = {
+            column["name"] for column in inspector.get_columns("prompt_versions")
+        }
+        prompt_version_unique_constraints = inspector.get_unique_constraints(
+            "prompt_versions"
+        )
+        prompt_active_version_columns = {
+            column["name"] for column in inspector.get_columns("prompt_active_versions")
+        }
+        prompt_active_version_foreign_keys = inspector.get_foreign_keys(
+            "prompt_active_versions"
+        )
         video_columns = {column["name"] for column in inspector.get_columns("videos")}
         video_foreign_keys = inspector.get_foreign_keys("videos")
         video_unique_constraints = inspector.get_unique_constraints("videos")
@@ -271,6 +285,8 @@ def test_alembic_upgrade_creates_app_tables(
         "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",
+        "prompt_active_versions",
+        "prompt_versions",
         "streamers",
         "transcript_cues",
         "timeline_blocks",
@@ -344,6 +360,33 @@ def test_alembic_upgrade_creates_app_tables(
         "error_message",
         "output_json",
     }.issubset(pipeline_job_attempt_columns)
+    assert {
+        "id",
+        "prompt_key",
+        "version_label",
+        "body",
+        "body_sha256",
+        "status",
+        "source_note",
+        "created_at",
+        "updated_at",
+        "published_at",
+        "archived_at",
+    }.issubset(prompt_version_columns)
+    assert {
+        "prompt_key",
+        "version_id",
+        "updated_at",
+    }.issubset(prompt_active_version_columns)
+    assert any(
+        constraint["column_names"] == ["prompt_key", "version_label"]
+        for constraint in prompt_version_unique_constraints
+    )
+    assert any(
+        foreign_key["referred_table"] == "prompt_versions"
+        and foreign_key["constrained_columns"] == ["version_id"]
+        for foreign_key in prompt_active_version_foreign_keys
+    )
     assert any(
         foreign_key["referred_table"] == "streamers"
         and foreign_key["constrained_columns"] == ["streamer_id"]

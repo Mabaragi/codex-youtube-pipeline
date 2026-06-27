@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ScrollText } from "lucide-react";
+import { ScrollText } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  ActionPanel,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  MetricStrip,
+} from "@/components/ui-primitives";
 import { useOperationEvents, useOpsSummary } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
 import { eventLogLinkFilters, eventSubjectLabel, logsHref } from "@/lib/logs";
@@ -14,41 +21,44 @@ export function OverviewPage() {
 
   return (
     <>
-      <PageHeader title="Overview" />
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      <PageHeader
+        title="Overview"
+        description="API health, storage readiness, inventory counts, and the latest operational events."
+      />
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
       {data ? (
         <div className="grid gap-4">
-          <section className="ops-panel p-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <Metric label="API" value={data.apiStatus} status="ok" />
-              <Metric
-                label="S3 mounted"
-                value={String(data.s3.s3Mounted ?? "unknown")}
-                status={data.s3.s3Mounted ? "ok" : "none"}
-              />
-              <Metric label="Channels" value={String(data.counts.channels)} />
-              <Metric label="Videos" value={String(data.counts.videos)} />
-            </div>
-          </section>
+          <MetricStrip
+            ariaLabel="Ops summary"
+            items={[
+              { label: "API", value: data.apiStatus, status: "ok" },
+              {
+                label: "S3 mounted",
+                value: String(data.s3.s3Mounted ?? "unknown"),
+                status: data.s3.s3Mounted ? "ok" : "none",
+              },
+              { label: "Channels", value: data.counts.channels },
+              { label: "Videos", value: data.counts.videos },
+            ]}
+          />
           <section className="grid gap-4 lg:grid-cols-2">
-            <div className="ops-panel p-4">
+            <section className="ops-panel p-4">
               <h2 className="mb-3 text-sm font-semibold">Task Status</h2>
               <StatusList items={data.counts.videoTasks} />
-            </div>
-            <div className="ops-panel p-4">
+            </section>
+            <section className="ops-panel p-4">
               <h2 className="mb-3 text-sm font-semibold">Pipeline Status</h2>
               <StatusList items={data.counts.pipelineJobs} />
-            </div>
+            </section>
           </section>
-          <section className="ops-panel p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <AlertTriangle size={16} />
-              Recent Failures
-            </h2>
+          <ActionPanel
+            title="Recent Failures"
+            description="Failed jobs and tasks that need operator attention."
+          >
             <div className="grid gap-2">
               {data.recentFailures.length === 0 ? (
-                <div className="text-sm text-slate-500">No recent failures.</div>
+                <EmptyState label="No recent failures." />
               ) : (
                 data.recentFailures.map((failure) => (
                   <div
@@ -72,26 +82,26 @@ export function OverviewPage() {
                 ))
               )}
             </div>
-          </section>
-          <section className="ops-panel p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold">
-                <ScrollText size={16} />
-                Recent Events
-              </h2>
+          </ActionPanel>
+          <ActionPanel
+            title="Recent Events"
+            description="Latest operation timeline entries across jobs, tasks, channels, and videos."
+            actions={
               <Link className="ops-button" href="/logs">
+                <ScrollText aria-hidden="true" size={15} />
                 Logs
               </Link>
-            </div>
+            }
+          >
             <div className="grid gap-2">
               {recentEvents.isLoading ? (
-                <div className="text-sm text-slate-500">Loading...</div>
+                <EmptyState label="Loading…" />
               ) : null}
               {recentEvents.error ? (
                 <div className="text-sm text-red-700">{String(recentEvents.error)}</div>
               ) : null}
               {recentEvents.data?.items.length === 0 ? (
-                <div className="text-sm text-slate-500">No rows.</div>
+                <EmptyState label="No rows." />
               ) : (
                 recentEvents.data?.items.map((event) => (
                   <Link
@@ -119,30 +129,10 @@ export function OverviewPage() {
                 ))
               )}
             </div>
-          </section>
+          </ActionPanel>
         </div>
       ) : null}
     </>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  status,
-}: {
-  label: string;
-  value: string;
-  status?: string;
-}) {
-  return (
-    <div className="border-l-2 border-slate-200 pl-3">
-      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
-      <div className="mt-1 flex items-center gap-2 text-xl font-semibold">
-        {status === "ok" ? <CheckCircle2 size={18} color="var(--success)" /> : null}
-        {value}
-      </div>
-    </div>
   );
 }
 

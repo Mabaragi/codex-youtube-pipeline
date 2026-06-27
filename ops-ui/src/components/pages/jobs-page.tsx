@@ -14,6 +14,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
+import { ErrorState, LoadingState } from "@/components/ui-primitives";
 import {
   useOpsChannels,
   usePipelineJobs,
@@ -100,12 +101,12 @@ export function JobsPage({ initialFilters }: JobsPageProps) {
                     : "Retry job"
                 }
               >
-                <RotateCw size={15} />
+                <RotateCw aria-hidden="true" size={15} />
                 Retry
               </button>
             ) : null}
             <Link className="ops-button" href={logsHref({ jobId: row.original.jobId })}>
-              <ScrollText size={15} />
+              <ScrollText aria-hidden="true" size={15} />
               Logs
             </Link>
           </div>
@@ -116,7 +117,10 @@ export function JobsPage({ initialFilters }: JobsPageProps) {
 
   return (
     <>
-      <PageHeader title="Pipeline Jobs" />
+      <PageHeader
+        title="Pipeline Jobs"
+        description="Inspect pipeline steps, retry failed work, and jump to related event logs."
+      />
       <TranscriptCollectionStatus className="mb-4" state={transcriptLock} />
       <form
         key={JSON.stringify(initialFilters)}
@@ -156,9 +160,13 @@ export function JobsPage({ initialFilters }: JobsPageProps) {
         </div>
         <FilterActions resetHref="/jobs" />
       </form>
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
-      <DataTable columns={columns} data={data?.items ?? []} />
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
+      <DataTable
+        ariaLabel="Pipeline jobs"
+        columns={columns}
+        data={data?.items ?? []}
+      />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {data?.nextCursor ? (
           <Link

@@ -8,6 +8,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui-primitives";
 import { formatDateTime, compactId } from "@/lib/format";
 import { eventSubjectLabel, logsHref } from "@/lib/logs";
 import { useOperationEvents } from "@/lib/queries";
@@ -82,7 +83,7 @@ export function LogsPage({ initialFilters }: LogsPageProps) {
             type="button"
             onClick={() => setSelectedEventId(row.original.eventId)}
           >
-            <Eye size={15} />
+            <Eye aria-hidden="true" size={15} />
             Details
           </button>
         ),
@@ -99,7 +100,10 @@ export function LogsPage({ initialFilters }: LogsPageProps) {
 
   return (
     <>
-      <PageHeader title="Operation Logs" />
+      <PageHeader
+        title="Operation Logs"
+        description="Filter event history and inspect the selected event metadata."
+      />
       <form
         key={JSON.stringify(initialFilters)}
         className="ops-panel mb-4 p-4"
@@ -133,23 +137,27 @@ export function LogsPage({ initialFilters }: LogsPageProps) {
           <FilterInput label="Limit" name="limit" defaultValue={initialFilters.limit ?? 50} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className="ops-button ops-button-primary" type="submit">
-            <Filter size={15} />
+          <button className="ops-button" type="submit">
+            <Filter aria-hidden="true" size={15} />
             Apply
           </button>
           <Link className="ops-button" href="/logs">
-            <RotateCcw size={15} />
+            <RotateCcw aria-hidden="true" size={15} />
             Reset
           </Link>
         </div>
       </form>
 
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0">
-          <DataTable columns={columns} data={data?.items ?? []} />
+          <DataTable
+            ariaLabel="Operation events"
+            columns={columns}
+            data={data?.items ?? []}
+          />
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {data?.nextCursor ? (
               <Link
@@ -198,10 +206,18 @@ function FilterInput({
   name: string;
   defaultValue: number | string | null | undefined;
 }) {
+  const numeric = name.endsWith("Id") || name === "limit";
   return (
     <label className="grid gap-1 text-xs font-semibold text-slate-600">
       {label}
-      <input className="ops-input" name={name} defaultValue={defaultValue ?? ""} />
+      <input
+        autoComplete="off"
+        className="ops-input"
+        defaultValue={defaultValue ?? ""}
+        inputMode={numeric ? "numeric" : undefined}
+        name={name}
+        type={numeric ? "number" : "text"}
+      />
     </label>
   );
 }
@@ -219,14 +235,14 @@ function JobTaskCell({ event }: { event: OperationEvent }) {
 function EventDetail({ event }: { event: OperationEvent | null }) {
   if (!event) {
     return (
-      <aside className="ops-panel p-4 text-sm text-slate-500">
-        Select an event.
+      <aside className="ops-panel p-4 xl:sticky xl:top-4 xl:self-start">
+        <EmptyState label="Select an event." />
       </aside>
     );
   }
 
   return (
-    <aside className="ops-panel p-4">
+    <aside className="ops-panel p-4 xl:sticky xl:top-4 xl:self-start">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Event Detail</h2>
         <StatusBadge status={event.severity} />

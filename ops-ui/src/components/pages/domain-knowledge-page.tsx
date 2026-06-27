@@ -13,6 +13,7 @@ import { DataTable } from "@/components/data-table";
 import { FilterActions, FilterInput, FilterSelect } from "@/components/filter-controls";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { ErrorState, InlineNotice } from "@/components/ui-primitives";
 import { formatDateTime } from "@/lib/format";
 import {
   useAddDomainEntryAliasMutation,
@@ -215,7 +216,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             disabled={!row.original.isActive || archiveEntry.isPending}
             onClick={() => void archiveSelectedEntry(row.original)}
           >
-            <Archive size={15} />
+            <Archive aria-hidden="true" size={15} />
             Archive
           </button>
         </div>
@@ -374,7 +375,10 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
 
   return (
     <>
-      <PageHeader title="Domain Knowledge" />
+      <PageHeader
+        title="Domain Knowledge"
+        description="Edit canonical names, aliases, scopes, and prompt policy for extraction context."
+      />
       <form
         key={JSON.stringify(initialFilters)}
         className="ops-panel mb-4 p-4"
@@ -388,7 +392,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             label="Search"
             name="q"
             defaultValue={initialFilters.q}
-            placeholder="Name, alias, detail"
+            placeholder="Name, alias, detail…"
           />
           <FilterSelect
             label="Type"
@@ -430,26 +434,23 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
         <FilterActions resetHref="/domain-knowledge" />
       </form>
 
-      <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-        <div>
-          {entries.error ? (
-            <div className="ops-panel p-4 text-sm text-red-700">
-              Failed to load domain entries.
-            </div>
-          ) : null}
+      <div className="mb-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="min-w-0">
+          {entries.error ? <ErrorState message="Failed to load domain entries." /> : null}
           <DataTable
+            ariaLabel="Domain entries"
             columns={columns}
             data={entries.data?.items ?? []}
-            emptyLabel={entries.isLoading ? "Loading entries..." : "No entries."}
+            emptyLabel={entries.isLoading ? "Loading entries…" : "No entries."}
           />
         </div>
         <form
           key={editingEntry?.entryId ?? "new"}
-          className="ops-panel grid gap-4 p-4"
+          className="ops-panel grid min-w-0 gap-4 p-4 xl:sticky xl:top-4 xl:self-start"
           onSubmit={(event) => void handleSubmit(event)}
         >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="m-0 text-base font-semibold">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <h2 className="m-0 min-w-0 truncate text-base font-semibold">
               {editingEntry ? `Edit #${editingEntry.entryId}` : "New Entry"}
             </h2>
             {editingEntry ? (
@@ -460,7 +461,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
                   beginNewEntry();
                 }}
               >
-                <X size={15} />
+                <X aria-hidden="true" size={15} />
                 New
               </button>
             ) : null}
@@ -468,6 +469,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
             <FormField label="Canonical name">
               <input
+                autoComplete="off"
                 className="ops-input"
                 name="canonicalName"
                 required
@@ -476,6 +478,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             </FormField>
             <FormField label="Type">
               <input
+                autoComplete="off"
                 className="ops-input"
                 list="domain-entry-type-options"
                 required
@@ -490,6 +493,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             </FormField>
             <FormField label="Display name">
               <input
+                autoComplete="off"
                 className="ops-input"
                 name="displayName"
                 defaultValue={editingEntry?.displayName ?? ""}
@@ -497,6 +501,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             </FormField>
             <FormField label="Disambiguation">
               <input
+                autoComplete="off"
                 className="ops-input"
                 name="disambiguation"
                 defaultValue={editingEntry?.disambiguation ?? ""}
@@ -504,6 +509,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             </FormField>
             <FormField label="Detail">
               <textarea
+                autoComplete="off"
                 className="ops-input min-h-28 resize-y"
                 name="detail"
                 defaultValue={editingEntry?.detail ?? ""}
@@ -517,7 +523,6 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
                     className="flex items-center gap-2 text-xs font-medium text-slate-700"
                   >
                     <input
-                      type="checkbox"
                       checked={selectedStreamerIds.has(streamer.id)}
                       onChange={(event) => {
                         const checked = event.currentTarget.checked;
@@ -531,6 +536,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
                           return next;
                         });
                       }}
+                      type="checkbox"
                     />
                     {streamer.name}
                   </label>
@@ -556,7 +562,9 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
               </FormField>
               <FormField label="Priority">
                 <input
+                  autoComplete="off"
                   className="ops-input"
+                  inputMode="numeric"
                   name="priority"
                   type="number"
                   min="0"
@@ -577,6 +585,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             </div>
             <FormField label="Source note">
               <input
+                autoComplete="off"
                 className="ops-input"
                 name="sourceNote"
                 defaultValue={editingEntry?.sourceNote ?? ""}
@@ -590,9 +599,14 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
               <button
                 className="ops-button"
                 type="button"
-                onClick={() => setAliasRows((current) => [...current, emptyAliasDraft()])}
+                onClick={() =>
+                  setAliasRows((current) => [
+                    ...current,
+                    emptyAliasDraft(nextAliasDraftId(current)),
+                  ])
+                }
               >
-                <Plus size={15} />
+                <Plus aria-hidden="true" size={15} />
                 Add
               </button>
             </div>
@@ -622,14 +636,14 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
             </div>
           </div>
 
-          {message ? <div className="text-sm text-slate-600">{message}</div> : null}
+          {message ? <InlineNotice>{message}</InlineNotice> : null}
           <div className="flex flex-wrap gap-2">
             <button
               className="ops-button ops-button-primary"
               type="submit"
               disabled={busy}
             >
-              <Save size={15} />
+              <Save aria-hidden="true" size={15} />
               Save
             </button>
             {editingEntry ? (
@@ -639,7 +653,7 @@ export function DomainKnowledgePage({ initialFilters }: DomainKnowledgePageProps
                 onClick={() => void archiveSelectedEntry(editingEntry)}
                 disabled={!editingEntry.isActive || busy}
               >
-                <Archive size={15} />
+                <Archive aria-hidden="true" size={15} />
                 Archive
               </button>
             ) : null}
@@ -663,12 +677,15 @@ function AliasRow({
     <div className="grid gap-2 rounded border border-slate-200 p-2">
       <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_130px]">
         <input
+          aria-label="Alias surface form"
+          autoComplete="off"
           className="ops-input"
-          placeholder="Surface form"
+          placeholder="Surface form…"
           value={row.surfaceForm}
           onChange={(event) => onChange({ ...row, surfaceForm: event.target.value })}
         />
         <select
+          aria-label="Alias kind"
           className="ops-input"
           value={row.aliasKind}
           onChange={(event) =>
@@ -685,8 +702,9 @@ function AliasRow({
           ))}
         </select>
       </div>
-      <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
         <select
+          aria-label="Alias certainty"
           className="ops-input"
           value={row.certainty}
           onChange={(event) =>
@@ -703,6 +721,7 @@ function AliasRow({
           ))}
         </select>
         <select
+          aria-label="Alias apply scope"
           className="ops-input"
           value={row.applyScope}
           onChange={(event) =>
@@ -719,18 +738,27 @@ function AliasRow({
           ))}
         </select>
         <input
+          aria-label="Alias language"
+          autoComplete="off"
           className="ops-input"
-          placeholder="Language"
+          placeholder="Language…"
           value={row.languageCode}
           onChange={(event) => onChange({ ...row, languageCode: event.target.value })}
         />
-        <button className="ops-button" type="button" onClick={onRemove}>
-          <Trash2 size={15} />
+        <button
+          aria-label={`Remove alias ${row.surfaceForm || row.localId}`}
+          className="ops-button"
+          type="button"
+          onClick={onRemove}
+        >
+          <Trash2 aria-hidden="true" size={15} />
         </button>
       </div>
       <input
+        aria-label="Alias note"
+        autoComplete="off"
         className="ops-input"
-        placeholder="Note"
+        placeholder="Note…"
         value={row.note}
         onChange={(event) => onChange({ ...row, note: event.target.value })}
       />
@@ -746,16 +774,16 @@ function FormField({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-semibold text-slate-600">
+    <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
       {label}
       {children}
     </label>
   );
 }
 
-function emptyAliasDraft(): AliasDraft {
+function emptyAliasDraft(localId = "alias-new-0"): AliasDraft {
   return {
-    localId: `alias-${Math.random().toString(16).slice(2)}`,
+    localId,
     surfaceForm: "",
     aliasKind: "ALIAS",
     certainty: "MEDIUM",
@@ -763,6 +791,17 @@ function emptyAliasDraft(): AliasDraft {
     languageCode: "",
     note: "",
   };
+}
+
+function nextAliasDraftId(rows: AliasDraft[]) {
+  const usedIds = new Set(rows.map((row) => row.localId));
+  for (let index = 0; index < rows.length + 1; index += 1) {
+    const candidate = `alias-new-${index}`;
+    if (!usedIds.has(candidate)) {
+      return candidate;
+    }
+  }
+  return `alias-new-${rows.length + 1}`;
 }
 
 function typePayload(

@@ -12,6 +12,8 @@ from codex_sdk_cli.domains.codex_usage.recorder import BestEffortCodexUsageRecor
 from codex_sdk_cli.domains.operation_events.recorder import (
     BestEffortOperationEventRecorder,
 )
+from codex_sdk_cli.domains.prompts.cache import PromptCache
+from codex_sdk_cli.domains.prompts.use_cases import PromptResolver
 from codex_sdk_cli.domains.timelines.use_cases import ComposeTimelineUseCase
 from codex_sdk_cli.domains.video_tasks.constants import TIMELINE_COMPOSE_TASK_NAME
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
@@ -36,6 +38,7 @@ from codex_sdk_cli.infra.operation_events.repository import (
     SQLAlchemyOperationEventRepository,
 )
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
+from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
 from codex_sdk_cli.infra.timelines.repository import (
@@ -47,6 +50,7 @@ from codex_sdk_cli.settings import CliSettings
 
 logger = logging.getLogger(__name__)
 Sleep = Callable[[float], Awaitable[None]]
+_PROMPT_CACHE = PromptCache()
 
 
 def run() -> None:
@@ -142,6 +146,11 @@ def _use_case(
             runtime,
             model=settings.model,
             reasoning_effort=settings.reasoning_effort,
+        ),
+        prompt_resolver=PromptResolver(
+            SqlAlchemyPromptRepository(session),
+            cache=_PROMPT_CACHE,
+            ttl_seconds=settings.prompt_cache_ttl_seconds,
         ),
         timeout_seconds=settings.timeline_compose_timeout_seconds,
         model=settings.model,

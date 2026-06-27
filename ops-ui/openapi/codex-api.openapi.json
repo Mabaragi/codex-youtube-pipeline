@@ -5782,6 +5782,96 @@
         "title": "PipelineVideoOutputResponse",
         "type": "object"
       },
+      "PromptBodyResponse": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "bodySha256": {
+            "title": "Bodysha256",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "micro_event_extract",
+              "timeline_compose",
+              "timeline_episode_repair"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "database",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "versionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Versionid"
+          },
+          "versionLabel": {
+            "title": "Versionlabel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "versionId",
+          "versionLabel",
+          "body",
+          "bodySha256",
+          "source"
+        ],
+        "title": "PromptBodyResponse",
+        "type": "object"
+      },
+      "PromptCacheInvalidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "promptKey": {
+            "anyOf": [
+              {
+                "enum": [
+                  "micro_event_extract",
+                  "timeline_compose",
+                  "timeline_episode_repair"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptkey"
+          }
+        },
+        "title": "PromptCacheInvalidateRequest",
+        "type": "object"
+      },
+      "PromptCacheInvalidateResponse": {
+        "properties": {
+          "invalidatedCount": {
+            "title": "Invalidatedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invalidatedCount"
+        ],
+        "title": "PromptCacheInvalidateResponse",
+        "type": "object"
+      },
       "PromptCueResponse": {
         "properties": {
           "cueId": {
@@ -5803,6 +5893,226 @@
           "text"
         ],
         "title": "PromptCueResponse",
+        "type": "object"
+      },
+      "PromptDetailResponse": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/PromptBodyResponse"
+          },
+          "key": {
+            "enum": [
+              "micro_event_extract",
+              "timeline_compose",
+              "timeline_episode_repair"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/PromptVersionResponse"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "active",
+          "versions"
+        ],
+        "title": "PromptDetailResponse",
+        "type": "object"
+      },
+      "PromptSummaryResponse": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/PromptBodyResponse"
+          },
+          "key": {
+            "enum": [
+              "micro_event_extract",
+              "timeline_compose",
+              "timeline_episode_repair"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "versionCount": {
+            "title": "Versioncount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "active",
+          "versionCount"
+        ],
+        "title": "PromptSummaryResponse",
+        "type": "object"
+      },
+      "PromptVersionCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "sourceNote": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenote"
+          },
+          "versionLabel": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Versionlabel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionLabel",
+          "body"
+        ],
+        "title": "PromptVersionCreateRequest",
+        "type": "object"
+      },
+      "PromptVersionResponse": {
+        "properties": {
+          "archivedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archivedat"
+          },
+          "bodySha256": {
+            "title": "Bodysha256",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "isActive": {
+            "title": "Isactive",
+            "type": "boolean"
+          },
+          "promptKey": {
+            "enum": [
+              "micro_event_extract",
+              "timeline_compose",
+              "timeline_episode_repair"
+            ],
+            "title": "Promptkey",
+            "type": "string"
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishedat"
+          },
+          "sourceNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenote"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "ARCHIVED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "versionLabel": {
+            "title": "Versionlabel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "promptKey",
+          "versionLabel",
+          "bodySha256",
+          "status",
+          "sourceNote",
+          "createdAt",
+          "updatedAt",
+          "publishedAt",
+          "archivedAt",
+          "isActive"
+        ],
+        "title": "PromptVersionResponse",
+        "type": "object"
+      },
+      "PromptVersionUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "sourceNote": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcenote"
+          }
+        },
+        "title": "PromptVersionUpdateRequest",
         "type": "object"
       },
       "ResolveYouTubeChannelRequest": {
@@ -10650,6 +10960,364 @@
         "summary": "Retry Pipeline Job",
         "tags": [
           "pipeline-jobs"
+        ]
+      }
+    },
+    "/prompts": {
+      "get": {
+        "operationId": "list_prompts_prompts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PromptSummaryResponse"
+                  },
+                  "title": "Response List Prompts Prompts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Prompts",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/prompts/cache/invalidate": {
+      "post": {
+        "operationId": "invalidate_prompt_cache_prompts_cache_invalidate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PromptCacheInvalidateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptCacheInvalidateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invalidate Prompt Cache",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/prompts/{promptKey}": {
+      "get": {
+        "operationId": "get_prompt_prompts__promptKey__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promptKey",
+            "required": true,
+            "schema": {
+              "enum": [
+                "micro_event_extract",
+                "timeline_compose",
+                "timeline_episode_repair"
+              ],
+              "title": "Promptkey",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Prompt",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/prompts/{promptKey}/versions": {
+      "post": {
+        "operationId": "create_prompt_version_prompts__promptKey__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promptKey",
+            "required": true,
+            "schema": {
+              "enum": [
+                "micro_event_extract",
+                "timeline_compose",
+                "timeline_episode_repair"
+              ],
+              "title": "Promptkey",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptVersionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Prompt Version",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/prompts/{promptKey}/versions/{versionId}": {
+      "patch": {
+        "operationId": "update_prompt_version_prompts__promptKey__versions__versionId__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promptKey",
+            "required": true,
+            "schema": {
+              "enum": [
+                "micro_event_extract",
+                "timeline_compose",
+                "timeline_episode_repair"
+              ],
+              "title": "Promptkey",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Versionid",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptVersionUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Prompt Version",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/prompts/{promptKey}/versions/{versionId}/archive": {
+      "post": {
+        "operationId": "archive_prompt_version_prompts__promptKey__versions__versionId__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promptKey",
+            "required": true,
+            "schema": {
+              "enum": [
+                "micro_event_extract",
+                "timeline_compose",
+                "timeline_episode_repair"
+              ],
+              "title": "Promptkey",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Versionid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Prompt Version",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/prompts/{promptKey}/versions/{versionId}/publish": {
+      "post": {
+        "operationId": "publish_prompt_version_prompts__promptKey__versions__versionId__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promptKey",
+            "required": true,
+            "schema": {
+              "enum": [
+                "micro_event_extract",
+                "timeline_compose",
+                "timeline_episode_repair"
+              ],
+              "title": "Promptkey",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Versionid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Prompt Version",
+        "tags": [
+          "prompts"
         ]
       }
     },

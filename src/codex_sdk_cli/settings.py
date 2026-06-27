@@ -43,6 +43,7 @@ class CliSettings(BaseSettings):
     timeline_compose_timeout_seconds: int = 3600
     timeline_compose_worker_poll_interval_seconds: int = 5
     timeline_compose_worker_id: str | None = None
+    prompt_cache_ttl_seconds: int = 60
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
     transcript_minio_secret_key: SecretStr | None = None
@@ -110,6 +111,7 @@ class CliSettings(BaseSettings):
         "micro_event_worker_poll_interval_seconds",
         "timeline_compose_timeout_seconds",
         "timeline_compose_worker_poll_interval_seconds",
+        "prompt_cache_ttl_seconds",
     )
     @classmethod
     def _positive_int(cls, value: int) -> int:

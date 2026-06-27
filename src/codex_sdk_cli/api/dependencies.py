@@ -28,6 +28,8 @@ from codex_sdk_cli.domains.operation_events.ports import (
 from codex_sdk_cli.domains.operation_events.recorder import BestEffortOperationEventRecorder
 from codex_sdk_cli.domains.ops.ports import OpsRepositoryPort
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
+from codex_sdk_cli.domains.prompts.cache import PromptCache
+from codex_sdk_cli.domains.prompts.ports import PromptRepositoryPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.timelines.ports import (
     TimelineComposerPort,
@@ -68,6 +70,7 @@ from codex_sdk_cli.infra.micro_events.repository import (
 from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
+from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
 from codex_sdk_cli.infra.timelines.repository import (
@@ -83,6 +86,8 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import (
 )
 from codex_sdk_cli.infra.youtube_transcripts.storage import MinioTranscriptStorage
 from codex_sdk_cli.settings import CliSettings
+
+_PROMPT_CACHE = PromptCache()
 
 
 @lru_cache
@@ -180,6 +185,16 @@ async def get_domain_knowledge_repository(
     session: DatabaseSessionDep,
 ) -> DomainKnowledgeRepositoryPort:
     return SqlAlchemyDomainKnowledgeRepository(session)
+
+
+async def get_prompt_repository(
+    session: DatabaseSessionDep,
+) -> PromptRepositoryPort:
+    return SqlAlchemyPromptRepository(session)
+
+
+def get_prompt_cache() -> PromptCache:
+    return _PROMPT_CACHE
 
 
 async def get_codex_usage_recorder(
@@ -297,6 +312,14 @@ CodexUsageRepositoryDep = Annotated[
 DomainKnowledgeRepositoryDep = Annotated[
     DomainKnowledgeRepositoryPort,
     Depends(get_domain_knowledge_repository),
+]
+PromptRepositoryDep = Annotated[
+    PromptRepositoryPort,
+    Depends(get_prompt_repository),
+]
+PromptCacheDep = Annotated[
+    PromptCache,
+    Depends(get_prompt_cache),
 ]
 CodexUsageRecorderDep = Annotated[
     CodexUsageRecorderPort,

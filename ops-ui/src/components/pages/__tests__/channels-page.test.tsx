@@ -178,7 +178,7 @@ describe("ChannelsPage transcript collection state", () => {
 
     render(<ChannelsPage />);
 
-    expect(screen.getByText("Checking transcript collection state...")).toBeTruthy();
+    expect(screen.getByText("Checking transcript collection state…")).toBeTruthy();
     expect(transcriptButton().disabled).toBe(true);
     expect(allTranscriptButton().disabled).toBe(true);
   });
@@ -235,7 +235,7 @@ describe("ChannelsPage transcript collection state", () => {
   it("enables transcript collection when no transcript task is running", () => {
     render(<ChannelsPage />);
 
-    expect(screen.queryByText("Checking transcript collection state...")).toBeNull();
+    expect(screen.queryByText("Checking transcript collection state…")).toBeNull();
     expect(transcriptButton().disabled).toBe(false);
     expect(allTranscriptButton().disabled).toBe(false);
   });

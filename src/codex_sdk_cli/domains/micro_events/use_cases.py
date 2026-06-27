@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -30,6 +30,8 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
+from codex_sdk_cli.domains.prompts.constants import MICRO_EVENT_EXTRACT_PROMPT_KEY
+from codex_sdk_cli.domains.prompts.ports import PromptResolverPort, ResolvedPrompt
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.ports import (
     TranscriptCueRecord,
@@ -56,7 +58,6 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 
 from .constants import (
-    MICRO_EVENT_EXTRACT_PROMPT_VERSION,
     MICRO_EVENT_EXTRACT_TASK_NAME,
     MICRO_EVENT_EXTRACT_TASK_VERSION,
     MICRO_EVENT_EXTRACT_WORKER_ID,
@@ -95,225 +96,6 @@ from .schemas import (
     MicroEventExtractResponse,
 )
 
-PROMPT_HEADER = """# ??븷
-
-너는 긴 라이브 방송 자막을 검색 가능한 micro-event 단위로 나누는 추출기다.
-
-# ?묒뾽
-
-?꾨옒 ?먮쭑? ??遺遺꾩쑝濡?援ъ꽦?쒕떎.
-
-- CONTEXT_BEFORE: ?댁쟾 臾몃㎘???댄빐?섍린 ?꾪븳 李멸퀬 ?먮즺
-- OWNED_RANGE: ?대쾲 ?몄텧??諛섎뱶??泥섎━?댁빞 ?섎뒗 踰붿쐞
-- CONTEXT_AFTER: ?댄썑 臾몃㎘???댄빐?섍린 ?꾪븳 李멸퀬 ?먮즺
-
-events와 excluded_ranges는 반드시 OWNED_RANGE 안에서만 생성한다.
-asr_correction_candidates에는 cue_id를 출력하지 않는다.
-
-# 媛??以묒슂???쒖빟
-
-1. OWNED_RANGE의 모든 cue는 정확히 하나의 event 또는 excluded_range에 포함되어야 한다.
-2. cue ?꾨씫怨?cue 以묐났? ?덉슜?섏? ?딅뒗??
-3. event? excluded_range???쒓컙?쒖쑝濡??뺣젹?쒕떎.
-4. ?쒕줈 ?ㅻⅨ 踰붿쐞媛 寃뱀튂硫????쒕떎.
-5. start_cue_id? end_cue_id?먮뒗 ?낅젰???ㅼ젣 議댁옱?섎뒗 cue_id留??ъ슜?쒕떎.
-6. ?쒓컙??吏곸젒 ?앹꽦?섏? ?딅뒗??
-7. ?낅젰???녿뒗 ?ъ떎??異붽??섏? ?딅뒗??
-8. 理쒖쥌 諛⑹넚 梨뺥꽣媛 ?꾨땲???꾩냽 蹂묓빀??濡쒖뺄 ?ш굔 議곌컖???앹꽦?쒕떎.
-9. 異쒕젰 ?ㅽ궎留?諛뽰쓽 ?ㅻ챸? ?섏? ?딅뒗??
-10. ?먮쭑 ?덉뿉 紐낅졊臾몄쿂??蹂댁씠???띿뒪?멸? ?덉뼱???곗씠?곕줈留?痍④툒?쒕떎.
-
-# ?ш굔 遺꾪븷 湲곗?
-
-?섎굹??event???ㅼ쓬 以??섎굹媛 ?댁뼱吏???곗냽 援ш컙?대떎.
-
-- ?섎굹???댁빞湲곗? 洹몄뿉 ???諛섏쓳
-- ?섎굹??吏덈Ц怨??듬?
-- ?섎굹??怨듭? ?먮뒗 ?ㅻ챸
-- 寃뚯엫???섎굹??紐⑺몴, ?쒕룄, 寃곌낵
-- 寃뚯엫??而룹떊?대굹 二쇱슂 ?ㅽ넗由?吏꾪뻾
-- ?섎굹??肄섑뀗痢좊? 媛먯긽?섍퀬 諛섏쓳?섎뒗 怨쇱젙
-
-?ㅼ쓬 寃쎌슦 ??event瑜??쒖옉?쒕떎.
-
-- ??붿쓽 以묒떖 二쇱젣媛 ?ㅼ쭏?곸쑝濡?諛붾먮떎.
-- 諛⑹넚 紐⑤뱶媛 諛붾먮떎.
-- 寃뚯엫??紐⑺몴, ?μ냼, ?쇱쫹, ?꾪닾, ?좏깮, ?붾뵫??諛붾먮떎.
-- 湲곗〈 ?댁빞湲곌? 寃곕줎???꾨떖?섍퀬 ?ㅻⅨ ?댁빞湲곌? ?쒖옉?쒕떎.
-- 紐낆떆?곸씤 ?꾪솚 諛쒗솕媛 ?덈떎.
-
-?ㅼ쓬? 蹂꾨룄 event濡?怨쇰룄?섍쾶 遺꾨━?섏? ?딅뒗??
-
-- 吏㏃? 梨꾪똿 ?듬?
-- 湲곗〈 二쇱젣 ?덉쓽 ?띾떞
-- 吏㏃? 媛먰깂?대굹 由ъ븸??- 媛숈? 紐⑺몴 ?덉뿉???대（?댁????몃? ?됰룞
-- 30珥?誘몃쭔???쇱떆?곸씤 怨곴?吏
-
-# 而ㅻ쾭由ъ? 洹쒖튃
-
-?섎? ?덈뒗 諛쒗솕??以묒슂?꾧? ??뜑?쇰룄 event濡??ы븿?쒕떎.
-
-?ㅼ쓬 援ш컙留?excluded_range濡?遺꾨쪟?????덈떎.
-
-- MUSIC_ONLY: ?뚯븙 ?쒓린留??덇퀬 ?섎? ?덈뒗 諛쒗솕媛 ?놁쓬
-- SILENCE_OR_GAP: ?ㅼ쭏?곸씤 臾댁쓬 ?먮뒗 ?먮━ 鍮꾩?
-- UNINTELLIGIBLE: ?먮룞 ?먮쭑???ы븯寃?源⑥졇 ?섎? ?먯젙??遺덇??ν븿
-- LOW_INFORMATION: 諛섎났 ?몄궗???⑥닚 異붿엫?덈쭔 ?덉뼱 ?낅┰ ?ш굔?쇰줈 留뚮뱾 媛移섍? ?놁쓬
-- TECHNICAL_NOISE: ?섎? ?녿뒗 ?뚰뼢, ?먮쭑 ?몄씠利?
-寃뚯엫 而룹떊怨?寃뚯엫 ??щ뒗 ?ㅽ듃由щ㉧ 諛쒗솕媛 ?곷뜑?쇰룄 二쇱슂 吏꾪뻾?대㈃
-GAME_PROGRESS event濡??ы븿?섎ŉ ?쒖쇅?섏? ?딅뒗??
-
-# ?쒗쁽 蹂댁〈 洹쒖튃
-
-term_annotations??李멸퀬 ?먮즺??
-
-- relation??ASR_ERROR?닿퀬 certainty媛 HIGH????ぉ留?event 臾몄옣?먯꽌 canonical_form???ъ슜?????덈떎.
-- SPEAKER_MISTAKE???붿옄媛 ?ㅼ젣濡??由ш쾶 留먰븳 寃껋씠誘濡?洹??ъ떎??蹂댁〈?쒕떎.
-- WORDPLAY_OR_NICKNAME? 留먯옣?쒖씠??蹂꾨챸?대?濡?surface_form??蹂댁〈?쒕떎.
-- SEARCH_ALIAS?????쒗쁽??蹂댁〈?쒕떎.
-- UNCERTAIN? ?꾩쓽濡?援먯젙?섏? ?딅뒗??
-
-# ASR 蹂댁젙 ?꾨낫
-
-臾몃㎘??紐낅갚???섎せ ?몄떇???⑥뼱媛 ?덉쑝硫?asr_correction_candidates??湲곕줉?쒕떎.
-?? ?먮Ц ?먮쭑??怨좎퀜 ?곗? ?딅뒗??
-ASR 蹂댁젙 ?꾨낫?먮뒗 evidence_cue_ids瑜??ｌ? ?딅뒗??
-
-ASR 蹂댁젙 ?꾨낫???ㅼ쓬 寃쎌슦?먮쭔 ?쒖븞?쒕떎.
-
-- 二쇰? 臾몃㎘??嫄곗쓽 ?뺤떎??怨좎쑀紐낆궗???쇰컲 ?⑥뼱
-- 媛숈? ?⑥뼱媛 諛섎났?곸쑝濡?鍮꾩듂?섍쾶 ?ㅼ씤?앸맂 寃쎌슦
-- ?곸긽 硫뷀??곗씠?곕굹 ?꾩옱 program_mode? 媛뺥븯寃??쇱튂?섎뒗 寃쎌슦
-- 寃???덉쭏?대굹 ?붿빟 ?덉쭏???곹뼢??以?媛?μ꽦?????⑥뼱
-
-단순 말버릇, 감탄, 의도적 농담, 근거 없는 고유명사는 보정하지 않는다.
-
-# program_mode
-
-?ㅼ쓬 媛?以??섎굹留??ъ슜?쒕떎.
-
-- OPENING
-- JUST_CHATTING
-- GAME_SETUP
-- GAMEPLAY
-- BREAK
-- POST_GAME
-- CLOSING
-- UNKNOWN
-
-program_mode???꾩옱 諛⑹넚???꾩껜?곸씤 吏꾪뻾 ?곹깭瑜??섎??쒕떎.
-寃뚯엫 以??좉퉸 ?뚯떇 ?댁빞湲곕? ?대룄 program_mode??GAMEPLAY?????덈떎.
-
-# content_kind
-
-?ㅼ쓬 媛?以??섎굹留??ъ슜?쒕떎.
-
-- ANNOUNCEMENT
-- PERSONAL_STORY
-- OPINION
-- QNA
-- REACTION
-- TECHNICAL_SETUP
-- GAME_PROGRESS
-- GAME_DISCUSSION
-- COMMUNITY_REVIEW
-- MEDIA_REVIEW
-- META_CHAT
-- OTHER
-
-content_kind???대떦 event?먯꽌 ?ㅼ젣濡??ㅻ（???댁슜???깃꺽?대떎.
-
-# relation_to_previous
-
-- NEW_TOPIC: ?댁쟾 event? 援щ퀎?섎뒗 ???ш굔
-- CONTINUATION: OWNED_RANGE ?댁쟾遺???댁뼱吏??ш굔 ?먮뒗 吏곸쟾 event??吏곸젒 ?곗냽
-- ASIDE: ?꾩옱 二쇱젣 ?덉쓽 吏㏃? 怨곴?吏
-- RETURN: ?욎꽌 ?ㅻ쨾??二쇱젣濡?蹂듦?
-
-泥?event媛 CONTEXT_BEFORE???ш굔???댁뼱諛쏅뒗 寃쎌슦 CONTINUATION?쇰줈 吏?뺥븳??
-
-# continues_to_next
-
-?대떦 ?ш굔??CONTEXT_AFTER源뚯? 怨꾩냽?섎뒗 寃쎌슦?먮쭔 true濡?吏?뺥븳??
-?⑥? OWNED_RANGE??留덉?留?event?쇰뒗 ?댁쑀濡?true瑜?吏?뺥븯吏 ?딅뒗??
-
-# event ?묒꽦踰?
-event????臾몄옣?쇰줈 援ъ껜?곸쑝濡??묒꽦?쒕떎.
-
-醫뗭? ??
-- ?ㅽ듃由щ㉧媛 ?쒖껌???덈궡???곕씪 ?쒓? ?⑥튂 ?뚯씪??寃뚯엫 ?대뜑???곸슜?쒕떎.
-- ?ㅽ듃由щ㉧媛 ?먯씠濡쒕뱶濡?쓣 '?먯쑀濡??쒕∼'?쇰줈 ?섎せ ?뚭퀬 ?덉뿀???쇱쓣 ?댁빞湲고븳??
-- 寃뚯엫?먯꽌 媛먯삦???덉텧?섍린 ?꾪빐 ?섑뭾援ъ? ?붾젅?ы꽣 ?좏깮吏瑜??쒕룄?쒕떎.
-
-?섏걶 ??
-- ?〓떞?쒕떎.
-- 寃뚯엫??吏꾪뻾?쒕떎.
-- ?щ윭 ?댁빞湲곕? ?쒕떎.
-- ?щ??덈뒗 ?λ㈃???섏삩??
-
-梨꾪똿??二쇱옣???댁슜???ㅽ듃由щ㉧媛 ?몄젙???ъ떎濡?諛붽씀吏 ?딅뒗??
-異붿륫, ?띾떞, 遺?? 寃뚯엫 ??щ? ?뺤씤???ъ떎怨?援щ텇?쒕떎.
-
-# evidence_cue_ids
-
-Hard limit: evidence_cue_ids must contain at most 6 cue ids. Never output 7 or more.
-
-媛?event???듭떖 ?댁슜??吏곸젒 ?룸컺移⑦븯??cue_id瑜?2~6媛??좏깮?쒕떎.
-
-- 諛섎뱶???대떦 event??start_cue_id? end_cue_id ?ъ씠???덉뼱???쒕떎.
-- ?ㅼ쓬 event???댁쟾 event???랁븳 cue瑜?evidence濡??곗? ?딅뒗??
-- ?꾩슂?섎㈃ event 踰붿쐞瑜?議곗젙?섍굅??evidence?먯꽌 ?쒖쇅?쒕떎.
-- ?⑥닚???쒖옉 cue? ??cue留??ｌ? ?딅뒗??
-- ?ш굔???듭떖 ?됰룞, ?ㅻ챸 ?먮뒗 寃곌낵瑜??낆쬆?섎뒗 cue瑜??좏깮?쒕떎.
-
-# 異쒕젰 JSON ?ㅽ궎留?
-{
-  "events": [
-    {
-      "start_cue_id": "tr1-c000001",
-      "end_cue_id": "tr1-c000010",
-      "event": "?ㅽ듃由щ㉧媛 ?쒖껌???덈궡???곕씪 ?쒓? ?⑥튂 ?뚯씪??寃뚯엫 ?대뜑???곸슜?쒕떎.",
-      "program_mode": "GAME_SETUP",
-      "content_kind": "TECHNICAL_SETUP",
-      "topics": ["?쒓? ?⑥튂", "寃뚯엫 ?ㅼ젙"],
-      "relation_to_previous": "NEW_TOPIC",
-      "continues_to_next": false,
-      "evidence_cue_ids": ["tr1-c000002", "tr1-c000006"],
-      "support_level": "DIRECT"
-    }
-  ],
-  "excluded_ranges": [
-    {
-      "start_cue_id": "tr1-c000011",
-      "end_cue_id": "tr1-c000012",
-      "reason": "LOW_INFORMATION"
-    }
-  ],
-  "asr_correction_candidates": [
-    {
-      "original": "?먮Ц ?⑥뼱",
-      "suggested": "援먯젙 ?꾨낫",
-      "correction_type": "COMMON_WORD",
-      "apply_scope": "SEARCH_ONLY",
-      "confidence": 0.8
-    }
-  ]
-}
-
-# 理쒖쥌 ?뺤씤
-
-?묐떟??留뚮뱾湲??꾩뿉 ?대??곸쑝濡??ㅼ쓬???뺤씤?쒕떎.
-
-- OWNED_RANGE??紐⑤뱺 cue媛 ?뺥솗????踰?泥섎━?먮뒗媛?
-- event? excluded_range ?ъ씠??鍮?cue媛 ?녿뒗媛?
-- ?쒕줈 寃뱀튂??踰붿쐞媛 ?녿뒗媛?
-- 紐⑤뱺 event evidence_cue_id媛 ?대떦 event 踰붿쐞 ?덉뿉 ?덈뒗媛?
-- CONTEXT ?곸뿭??cue瑜?異쒕젰 踰붿쐞??evidence濡??ъ슜?섏? ?딆븯?붽??
-
-寃?щ? 留덉튇 ??吏?뺣맂 JSON 援ъ“留?諛섑솚?쒕떎.
-"""
-
-
 MICRO_EVENT_EXTRACT_VIDEO_TASK_CONCURRENCY_LIMIT = 1
 MICRO_EVENT_EXTRACT_BATCH_SCAN_LIMIT = 500
 DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT = 80
@@ -340,6 +122,7 @@ class _ExtractionExecutionInput:
     domain_knowledge_entries: list[DomainKnowledgePromptEntryRecord]
     domain_knowledge_fingerprint: str
     streamer_name: str | None
+    prompt: ResolvedPrompt
 
 
 @dataclass(frozen=True, slots=True)
@@ -385,6 +168,7 @@ class ExtractVideoMicroEventsUseCase:
         pipeline_jobs: PipelineJobRepositoryPort,
         micro_events: MicroEventExtractionRepositoryPort,
         extractor: MicroEventExtractorPort,
+        prompt_resolver: PromptResolverPort,
         timeout_seconds: int,
         concurrency_limit: int,
         model: CodexModelChoice,
@@ -401,6 +185,7 @@ class ExtractVideoMicroEventsUseCase:
         self._pipeline_jobs = pipeline_jobs
         self._micro_events = micro_events
         self._extractor = extractor
+        self._prompt_resolver = prompt_resolver
         self._timeout_seconds = timeout_seconds
         self._concurrency_limit = concurrency_limit
         self._model = model
@@ -589,6 +374,7 @@ class ExtractVideoMicroEventsUseCase:
             job.input_json,
             "domainKnowledgeFingerprint",
         ) or _domain_knowledge_fingerprint(domain_knowledge_entries)
+        prompt = await self._resolve_prompt_from_input(job.input_json)
         timeout_seconds = _required_int(job.input_json, "timeoutSeconds")
         task = await self._video_tasks.mark_task_running(
             task.id,
@@ -611,6 +397,7 @@ class ExtractVideoMicroEventsUseCase:
             domain_knowledge_entries=domain_knowledge_entries,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
             streamer_name=streamer_name,
+            prompt=prompt,
         )
         await self._record_task_event(
             "micro_event_extract.task_running",
@@ -926,6 +713,9 @@ class ExtractVideoMicroEventsUseCase:
         )
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or self._reasoning_effort
+        prompt = await self._prompt_resolver.resolve_prompt(
+            MICRO_EVENT_EXTRACT_PROMPT_KEY
+        )
         input_hash = _task_input_hash(
             video=video,
             metadata=metadata,
@@ -934,6 +724,7 @@ class ExtractVideoMicroEventsUseCase:
             model=model,
             reasoning_effort=reasoning_effort,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
+            prompt=prompt,
         )
         execution_input = _ExtractionExecutionInput(
             video=video,
@@ -947,6 +738,7 @@ class ExtractVideoMicroEventsUseCase:
             domain_knowledge_entries=domain_knowledge_entries,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
             streamer_name=streamer_name,
+            prompt=prompt,
         )
         return _PreparedExtraction(
             execution_input=execution_input,
@@ -981,6 +773,7 @@ class ExtractVideoMicroEventsUseCase:
             _str_output(input_json, "domainKnowledgeFingerprint")
             or _domain_knowledge_fingerprint(domain_knowledge_entries)
         )
+        prompt = await self._resolve_prompt_from_input(input_json)
         return _ExtractionExecutionInput(
             video=video,
             metadata=metadata,
@@ -994,6 +787,7 @@ class ExtractVideoMicroEventsUseCase:
             domain_knowledge_entries=domain_knowledge_entries,
             domain_knowledge_fingerprint=domain_knowledge_fingerprint,
             streamer_name=streamer_name,
+            prompt=prompt,
         )
 
     async def _batch_candidate_action(
@@ -1010,6 +804,9 @@ class ExtractVideoMicroEventsUseCase:
             return "ineligible"
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or self._reasoning_effort
+        prompt = await self._prompt_resolver.resolve_prompt(
+            MICRO_EVENT_EXTRACT_PROMPT_KEY
+        )
         input_hash = _task_input_hash(
             video=candidate.video,
             metadata=metadata,
@@ -1023,6 +820,7 @@ class ExtractVideoMicroEventsUseCase:
                     domain_fingerprint_cache,
                 )
             ),
+            prompt=prompt,
         )
         task = await self._video_tasks.get_task_for_input(
             video_id=candidate.video.id,
@@ -1098,6 +896,14 @@ class ExtractVideoMicroEventsUseCase:
             streamer_id
         )
         return entries, streamer_name
+
+    async def _resolve_prompt_from_input(self, input_json: JsonObject) -> ResolvedPrompt:
+        if "promptVersionId" in input_json:
+            return await self._prompt_resolver.resolve_prompt_version(
+                MICRO_EVENT_EXTRACT_PROMPT_KEY,
+                _int_output(input_json, "promptVersionId"),
+            )
+        return await self._prompt_resolver.resolve_prompt(MICRO_EVENT_EXTRACT_PROMPT_KEY)
 
     async def _process_task(
         self,
@@ -1180,7 +986,7 @@ class ExtractVideoMicroEventsUseCase:
             "transcriptId": execution_input.metadata.id,
             "responseSha256": execution_input.metadata.response_sha256,
             "taskVersion": MICRO_EVENT_EXTRACT_TASK_VERSION,
-            "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
+            **_prompt_metadata_json(execution_input.prompt),
             "inputHash": input_hash,
             "windowMinutes": execution_input.window_minutes,
             "overlapMinutes": execution_input.overlap_minutes,
@@ -1827,7 +1633,7 @@ def _window_prompt(
     }
     return "\n\n".join(
         [
-            PROMPT_HEADER,
+            execution_input.prompt.body,
             "# INPUT_METADATA",
             json.dumps(video_metadata, ensure_ascii=False),
             "# ?ъ쟾 ?먯젙???⑹뼱 annotation",
@@ -2593,6 +2399,15 @@ def _single_extract_request(
     )
 
 
+def _prompt_metadata_json(prompt: ResolvedPrompt) -> JsonObject:
+    return {
+        "promptVersionId": prompt.version_id,
+        "promptVersion": prompt.version_label,
+        "promptSha256": prompt.body_sha256,
+        "promptSource": prompt.source,
+    }
+
+
 def _task_input_hash(
     *,
     video: VideoRecord,
@@ -2602,12 +2417,13 @@ def _task_input_hash(
     model: CodexModelChoice,
     reasoning_effort: ReasoningEffortChoice,
     domain_knowledge_fingerprint: str,
+    prompt: ResolvedPrompt,
 ) -> str:
     payload = {
         "domainKnowledgeFingerprint": domain_knowledge_fingerprint,
         "model": model,
         "overlapMinutes": overlap_minutes,
-        "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
+        **_prompt_metadata_json(prompt),
         "reasoningEffort": reasoning_effort,
         "responseSha256": metadata.response_sha256,
         "taskVersion": MICRO_EVENT_EXTRACT_TASK_VERSION,
@@ -2633,7 +2449,7 @@ def _task_input_json(
         "transcriptId": execution_input.metadata.id,
         "responseSha256": execution_input.metadata.response_sha256,
         "taskVersion": MICRO_EVENT_EXTRACT_TASK_VERSION,
-        "promptVersion": MICRO_EVENT_EXTRACT_PROMPT_VERSION,
+        **_prompt_metadata_json(execution_input.prompt),
         "inputHash": input_hash,
         "windowMinutes": execution_input.window_minutes,
         "overlapMinutes": execution_input.overlap_minutes,

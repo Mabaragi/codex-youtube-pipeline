@@ -39,6 +39,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/codex_sdk_cli"]
+artifacts = [
+    "src/codex_sdk_cli/domains/prompts/resources/*.md",
+]
 
 [tool.uv]
 prerelease = "allow"

@@ -23,6 +23,7 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_repository,
 )
 from codex_sdk_cli.api.main import create_app
+from codex_sdk_cli.api.use_case_dependencies.prompts import get_prompt_resolver
 from codex_sdk_cli.domains.channels.ports import (
     ChannelCreate,
     ChannelRecord,
@@ -73,6 +74,12 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobStatus,
     PipelineJobSummaryRecord,
 )
+from codex_sdk_cli.domains.prompts.constants import (
+    MICRO_EVENT_EXTRACT_PROMPT_KEY,
+    PromptKey,
+)
+from codex_sdk_cli.domains.prompts.fallbacks import fallback_prompt
+from codex_sdk_cli.domains.prompts.ports import ResolvedPrompt
 from codex_sdk_cli.domains.streamers.ports import StreamerRecord, StreamerRepositoryPort
 from codex_sdk_cli.domains.transcript_cues.ports import (
     TranscriptCueCreate,
@@ -1057,6 +1064,28 @@ class FakeOperationEventRecorder(OperationEventRecorderPort):
         self.events.append(event)
 
 
+class FakePromptResolver:
+    def __init__(self) -> None:
+        self.prompts: dict[PromptKey, ResolvedPrompt] = {
+            MICRO_EVENT_EXTRACT_PROMPT_KEY: fallback_prompt(
+                MICRO_EVENT_EXTRACT_PROMPT_KEY
+            )
+        }
+        self.version_prompts: dict[tuple[PromptKey, int], ResolvedPrompt] = {}
+
+    async def resolve_prompt(self, prompt_key: PromptKey) -> ResolvedPrompt:
+        return self.prompts[prompt_key]
+
+    async def resolve_prompt_version(
+        self,
+        prompt_key: PromptKey,
+        version_id: int | None,
+    ) -> ResolvedPrompt:
+        if version_id is None:
+            return fallback_prompt(prompt_key)
+        return self.version_prompts[(prompt_key, version_id)]
+
+
 class _Fakes:
     def __init__(self) -> None:
         self.videos = FakeVideoRepository()
@@ -1073,6 +1102,7 @@ class _Fakes:
         )
         self.extractor = FakeMicroEventExtractor()
         self.events = FakeOperationEventRecorder()
+        self.prompt_resolver = FakePromptResolver()
         self.settings = CliSettings(
             micro_event_extract_timeout_seconds=60,
             micro_event_extract_concurrency_limit=1,
@@ -1161,9 +1191,16 @@ def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
     assert "OWNED_RANGE의 모든 cue는 정확히 하나의 event 또는 excluded_range" in prompt
     assert "CONTEXT_BEFORE" in prompt
     assert "OWNED_START_CUE_ID: tr1-c000001" in prompt
+    resolved_prompt = fallback_prompt(MICRO_EVENT_EXTRACT_PROMPT_KEY)
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptVersionId"] is None
     assert fakes.pipeline_jobs.jobs[1].input_json["promptVersion"] == (
-        "micro-event-extract-v3"
+        resolved_prompt.version_label
     )
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptSha256"] == (
+        resolved_prompt.body_sha256
+    )
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptSource"] == "fallback"
+    assert len(str(fakes.pipeline_jobs.jobs[1].input_json["promptSha256"])) == 64
 
 
 def test_micro_event_extract_prompt_includes_semantic_video_context() -> None:
@@ -1467,6 +1504,55 @@ def test_claimed_micro_event_task_executes_through_worker_path() -> None:
     assert fakes.video_tasks.tasks[2].status == "succeeded"
     assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
     assert fakes.pipeline_jobs.attempts[1].worker_id == "micro-event-worker:test"
+
+
+def test_claimed_micro_event_task_uses_queued_prompt_version() -> None:
+    fakes = _seed_ready_fakes()
+    queued_prompt = ResolvedPrompt(
+        key=MICRO_EVENT_EXTRACT_PROMPT_KEY,
+        version_id=101,
+        version_label="db-v1",
+        body="QUEUED PROMPT HEADER\n",
+        body_sha256="a" * 64,
+        source="database",
+    )
+    active_prompt = ResolvedPrompt(
+        key=MICRO_EVENT_EXTRACT_PROMPT_KEY,
+        version_id=102,
+        version_label="db-v2",
+        body="ACTIVE PROMPT HEADER\n",
+        body_sha256="b" * 64,
+        source="database",
+    )
+    fakes.prompt_resolver.prompts[MICRO_EVENT_EXTRACT_PROMPT_KEY] = queued_prompt
+    fakes.prompt_resolver.version_prompts[
+        (MICRO_EVENT_EXTRACT_PROMPT_KEY, 101)
+    ] = queued_prompt
+    asyncio.run(
+        _enqueue(fakes, json={"target": "selected_videos", "videoIds": [1]})
+    )
+    fakes.prompt_resolver.prompts[MICRO_EVENT_EXTRACT_PROMPT_KEY] = active_prompt
+
+    claimed = asyncio.run(
+        fakes.video_tasks.claim_next_pending_task(
+            task_name="micro_event_extract",
+            worker_id="micro-event-worker:test",
+        )
+    )
+    assert claimed is not None
+    result = asyncio.run(
+        _use_case(fakes).execute_claimed_task(
+            claimed,
+            worker_id="micro-event-worker:test",
+        )
+    )
+
+    assert result.status == "succeeded"
+    assert fakes.extractor.prompts[0].startswith("QUEUED PROMPT HEADER\n")
+    assert not fakes.extractor.prompts[0].startswith("ACTIVE PROMPT HEADER\n")
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptVersionId"] == 101
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptVersion"] == "db-v1"
+    assert fakes.pipeline_jobs.jobs[1].input_json["promptSource"] == "database"
 
 
 def test_micro_event_extract_records_invalid_json_as_failed_task() -> None:
@@ -2169,6 +2255,7 @@ def _app(fakes: _Fakes) -> Any:
     )
     app.dependency_overrides[get_micro_event_extractor] = lambda: fakes.extractor
     app.dependency_overrides[get_operation_event_recorder] = lambda: fakes.events
+    app.dependency_overrides[get_prompt_resolver] = lambda: fakes.prompt_resolver
     app.dependency_overrides[get_settings] = lambda: fakes.settings
     return app
 
@@ -2185,6 +2272,7 @@ def _use_case(fakes: _Fakes) -> ExtractVideoMicroEventsUseCase:
         pipeline_jobs=fakes.pipeline_jobs,
         micro_events=fakes.micro_events,
         extractor=fakes.extractor,
+        prompt_resolver=fakes.prompt_resolver,
         timeout_seconds=fakes.settings.micro_event_extract_timeout_seconds,
         concurrency_limit=fakes.settings.micro_event_extract_concurrency_limit,
         model=fakes.settings.model,

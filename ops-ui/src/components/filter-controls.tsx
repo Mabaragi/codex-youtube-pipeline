@@ -66,13 +66,17 @@ export function FilterInput({
   defaultValue: number | string | null | undefined;
   placeholder?: string;
 }) {
+  const numeric = name.toLowerCase().endsWith("id") || name === "limit";
   return (
     <FilterField label={label}>
       <input
+        autoComplete="off"
         className="ops-input"
         name={name}
         defaultValue={defaultValue ?? ""}
+        inputMode={numeric ? "numeric" : undefined}
         placeholder={placeholder}
+        type={numeric ? "number" : "text"}
       />
     </FilterField>
   );
@@ -112,12 +116,12 @@ export function FilterSelect({
 export function FilterActions({ resetHref }: { resetHref: string }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      <button className="ops-button ops-button-primary" type="submit">
-        <Filter size={15} />
+      <button className="ops-button" type="submit">
+        <Filter aria-hidden="true" size={15} />
         Apply
       </button>
       <Link className="ops-button" href={resetHref}>
-        <RotateCcw size={15} />
+        <RotateCcw aria-hidden="true" size={15} />
         Reset
       </Link>
     </div>

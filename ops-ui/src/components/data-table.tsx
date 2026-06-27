@@ -10,12 +10,16 @@ import {
 type DataTableProps<TData> = {
   columns: ColumnDef<TData>[];
   data: TData[];
+  ariaLabel?: string;
+  caption?: string;
   emptyLabel?: string;
 };
 
 export function DataTable<TData>({
   columns,
   data,
+  ariaLabel,
+  caption,
   emptyLabel = "No rows.",
 }: DataTableProps<TData>) {
   // TanStack Table intentionally exposes stable table helpers from this hook.
@@ -28,7 +32,8 @@ export function DataTable<TData>({
 
   return (
     <div className="ops-panel overflow-x-auto">
-      <table className="ops-table">
+      <table aria-label={ariaLabel} className="ops-table">
+        {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
@@ -45,8 +50,10 @@ export function DataTable<TData>({
         <tbody>
           {table.getRowModel().rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="text-slate-500">
-                {emptyLabel}
+              <td colSpan={columns.length}>
+                <div className="py-6 text-center text-sm text-slate-500">
+                  {emptyLabel}
+                </div>
               </td>
             </tr>
           ) : (

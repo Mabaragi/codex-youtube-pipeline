@@ -72,5 +72,5 @@
   다음 행동만 보여준다.
 - Button label은 `Videos`, `Transcripts`, `Retry job`처럼 동작 중심으로
   짧게 쓴다.
-- Empty/loading/error text는 기존 문체를 따른다: `No rows.`, `Loading...`,
+- Empty/loading/error text는 기존 문체를 따른다: `No rows.`, `Loading…`,
   `No recent failures.` 같은 간단한 문장.

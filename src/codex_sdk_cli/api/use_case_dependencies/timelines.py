@@ -17,6 +17,7 @@ from codex_sdk_cli.api.dependencies import (
     VideoRepositoryDep,
     VideoTaskRepositoryDep,
 )
+from codex_sdk_cli.api.use_case_dependencies.prompts import PromptResolverDep
 from codex_sdk_cli.domains.timelines.use_cases import ComposeTimelineUseCase
 
 
@@ -30,6 +31,7 @@ def get_compose_timeline_use_case(
     timelines: TimelineCompositionRepositoryDep,
     pipeline_jobs: PipelineJobRepositoryDep,
     composer: TimelineComposerDep,
+    prompt_resolver: PromptResolverDep,
     settings: SettingsDep,
     events: OperationEventRecorderDep,
 ) -> ComposeTimelineUseCase:
@@ -43,6 +45,7 @@ def get_compose_timeline_use_case(
         timelines=timelines,
         pipeline_jobs=pipeline_jobs,
         composer=composer,
+        prompt_resolver=prompt_resolver,
         timeout_seconds=settings.timeline_compose_timeout_seconds,
         model=settings.model,
         reasoning_effort=settings.reasoning_effort,

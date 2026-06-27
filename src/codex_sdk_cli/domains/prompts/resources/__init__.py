@@ -1,0 +1,1 @@
+"""Packaged fallback prompt resources."""

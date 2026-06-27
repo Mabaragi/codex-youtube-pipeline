@@ -22,7 +22,14 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobAttemptRecord,
     PipelineJobRecord,
 )
-from codex_sdk_cli.domains.timelines.constants import TIMELINE_COMPOSE_PROMPT_VERSION
+from codex_sdk_cli.domains.prompts.constants import (
+    TIMELINE_COMPOSE_PROMPT_KEY,
+    TIMELINE_EPISODE_REPAIR_PROMPT_KEY,
+)
+from codex_sdk_cli.domains.prompts.fallbacks import (
+    fallback_prompt,
+    fallback_prompt_text,
+)
 from codex_sdk_cli.domains.timelines.ports import (
     TimelineComposeRequest,
     TimelineComposeResult,
@@ -30,10 +37,10 @@ from codex_sdk_cli.domains.timelines.ports import (
     TimelineEpisodeRepairResult,
 )
 from codex_sdk_cli.domains.timelines.use_cases import (
-    PROMPT_HEADER,
     _ComposerInput,
     _composition_create,
     _composition_create_with_repairs,
+    _task_input_json,
     _timeline_prompt,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRecord
@@ -175,13 +182,21 @@ def test_timeline_soft_verifier_adds_review_flags() -> None:
 
 
 def test_timeline_prompt_documents_output_limits_and_topic_cluster_keys() -> None:
-    assert TIMELINE_COMPOSE_PROMPT_VERSION == "timeline-compose-v3"
-    assert "topics는 episode마다 검색에 유용한 구체적 명사구 2~6개" in PROMPT_HEADER
-    assert "highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개" in PROMPT_HEADER
-    assert "META, QNA" in PROMPT_HEADER
-    assert "OVERBROAD_EPISODE" in PROMPT_HEADER
-    assert "topic_id, label, summary, display_label, episode_ids" in PROMPT_HEADER
-    assert '"topic_id": "topic_001"' in PROMPT_HEADER
+    compose_prompt = fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY)
+    prompt_text = compose_prompt.body
+    prompt_sha = compose_prompt.body_sha256
+
+    assert compose_prompt.version_label == "timeline-compose-v3"
+    assert len(prompt_sha) == 64
+    assert "topics는 episode마다 검색에 유용한 구체적 명사구 2~6개" in prompt_text
+    assert "highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개" in prompt_text
+    assert "META, QNA" in prompt_text
+    assert "OVERBROAD_EPISODE" in prompt_text
+    assert "topic_id, label, summary, display_label, episode_ids" in prompt_text
+    assert '"topic_id": "topic_001"' in prompt_text
+    assert '"target_episode_id": "episode_001"' in fallback_prompt_text(
+        TIMELINE_EPISODE_REPAIR_PROMPT_KEY
+    )
 
 
 def test_timeline_prompt_filters_domain_entries_like_micro_event_extraction() -> None:
@@ -233,6 +248,25 @@ def test_timeline_prompt_filters_domain_entries_like_micro_event_extraction() ->
     assert [
         entry["canonicalName"] for entry in payload["domain_entries"]
     ] == ["카네코 파냐", "치치"]
+
+
+def test_timeline_task_input_json_includes_prompt_sha() -> None:
+    input_json = _task_input_json(
+        video=_video(),
+        source_task=_video_task(91),
+        source_fingerprint="abc123",
+        input_hash="hash-1",
+        copy_style="LIGHT_FANDOM_V1",
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        timeout_seconds=1200,
+        prompt=fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY),
+    )
+
+    assert input_json["promptSha256"] == fallback_prompt(
+        TIMELINE_COMPOSE_PROMPT_KEY
+    ).body_sha256
+    assert len(str(input_json["promptSha256"])) == 64
 
 
 def test_timeline_normalizes_content_kind_values_in_viewer_tags() -> None:
@@ -552,6 +586,8 @@ def _composer_input(
         model="gpt-5.5",
         reasoning_effort="medium",
         copy_style="LIGHT_FANDOM_V1",
+        compose_prompt=fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY),
+        repair_prompt=fallback_prompt(TIMELINE_EPISODE_REPAIR_PROMPT_KEY),
     )
 
 

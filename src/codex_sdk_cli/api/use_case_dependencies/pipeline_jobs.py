@@ -25,6 +25,7 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_client,
     get_youtube_transcript_storage,
 )
+from codex_sdk_cli.api.use_case_dependencies.prompts import PromptResolverDep
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
@@ -51,6 +52,7 @@ from codex_sdk_cli.domains.pipeline_jobs.use_cases import (
     TranscriptCueGenerateRetryExecutor,
     VideoCollectRetryExecutor,
 )
+from codex_sdk_cli.domains.prompts.ports import PromptResolverPort
 from codex_sdk_cli.domains.streamers.ports import StreamerRepositoryPort
 from codex_sdk_cli.domains.timelines.ports import (
     TimelineComposerPort,
@@ -153,6 +155,7 @@ def get_retry_pipeline_job_use_case(
     domain_knowledge: DomainKnowledgeRepositoryDep,
     micro_event_extractor: MicroEventExtractorDep,
     timeline_composer: TimelineComposerDep,
+    prompt_resolver: PromptResolverDep,
     transcript_cues: TranscriptCueRepositoryDep,
     transcripts: YouTubeTranscriptRepositoryDep,
     fetch_transcript_factory: Annotated[
@@ -207,6 +210,7 @@ def get_retry_pipeline_job_use_case(
                 domain_knowledge=domain_knowledge,
                 micro_events=micro_events,
                 extractor=micro_event_extractor,
+                prompt_resolver=prompt_resolver,
                 settings=settings,
                 events=events,
             ),
@@ -220,6 +224,7 @@ def get_retry_pipeline_job_use_case(
                 timelines=timelines,
                 pipeline_jobs=pipeline_jobs,
                 composer=timeline_composer,
+                prompt_resolver=prompt_resolver,
                 settings=settings,
                 events=events,
             ),
@@ -343,6 +348,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         domain_knowledge: DomainKnowledgeRepositoryPort,
         micro_events: MicroEventExtractionRepositoryPort,
         extractor: MicroEventExtractorPort,
+        prompt_resolver: PromptResolverPort,
         settings: CliSettings,
         events: OperationEventRecorderPort,
     ) -> None:
@@ -356,6 +362,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         self._domain_knowledge = domain_knowledge
         self._micro_events = micro_events
         self._extractor = extractor
+        self._prompt_resolver = prompt_resolver
         self._settings = settings
         self._events = events
 
@@ -375,6 +382,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
             pipeline_jobs=self._pipeline_jobs,
             micro_events=self._micro_events,
             extractor=self._extractor,
+            prompt_resolver=self._prompt_resolver,
             timeout_seconds=self._settings.micro_event_extract_timeout_seconds,
             concurrency_limit=self._settings.micro_event_extract_concurrency_limit,
             model=self._settings.model,
@@ -397,6 +405,7 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
         timelines: TimelineCompositionRepositoryPort,
         pipeline_jobs: PipelineJobRepositoryPort,
         composer: TimelineComposerPort,
+        prompt_resolver: PromptResolverPort,
         settings: CliSettings,
         events: OperationEventRecorderPort,
     ) -> None:
@@ -409,6 +418,7 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
         self._timelines = timelines
         self._pipeline_jobs = pipeline_jobs
         self._composer = composer
+        self._prompt_resolver = prompt_resolver
         self._settings = settings
         self._events = events
 
@@ -427,6 +437,7 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
             timelines=self._timelines,
             pipeline_jobs=self._pipeline_jobs,
             composer=self._composer,
+            prompt_resolver=self._prompt_resolver,
             timeout_seconds=self._settings.timeline_compose_timeout_seconds,
             model=self._settings.model,
             reasoning_effort=self._settings.reasoning_effort,

@@ -8,6 +8,7 @@ import {
   Boxes,
   Cable,
   Database,
+  FileText,
   Gauge,
   ListChecks,
   PlaySquare,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/jobs", label: "Jobs", icon: PlaySquare },
   { href: "/logs", label: "Logs", icon: ScrollText },
   { href: "/usage", label: "Usage", icon: Gauge },
+  { href: "/prompts", label: "Prompts", icon: FileText },
   { href: "/domain-knowledge", label: "Domain", icon: BookOpenText },
   { href: "/erd", label: "ERD", icon: Database },
 ];
@@ -30,37 +32,47 @@ const navItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <div className="ops-shell">
-      <aside className="ops-sidebar">
-        <div className="mb-7 flex items-center gap-2">
-          <Boxes size={22} color="var(--accent)" />
-          <div>
-            <div className="text-sm font-bold">Codex Ops</div>
+    <>
+      <a className="ops-skip-link" href="#main-content">
+        Skip to Content
+      </a>
+      <div className="ops-shell">
+        <aside className="ops-sidebar">
+          <div className="mb-5 flex items-center gap-2 whitespace-nowrap px-1 md:mb-7">
+            <Boxes aria-hidden="true" size={22} color="var(--accent)" />
+            <div>
+              <div className="text-sm font-bold" translate="no">
+                Codex Ops
+              </div>
+            </div>
           </div>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {navItems.map((item) => {
-            const active =
-              pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${
-                  active
-                    ? "bg-[color:var(--accent)] text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Icon size={16} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-      <main className="ops-main">{children}</main>
-    </div>
+          <nav aria-label="Ops navigation" className="flex gap-1 md:flex-col">
+            {navItems.map((item) => {
+              const active =
+                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold ${
+                    active
+                      ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)]"
+                      : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <Icon aria-hidden="true" size={16} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+        <main className="ops-main" id="main-content">
+          {children}
+        </main>
+      </div>
+    </>
   );
 }

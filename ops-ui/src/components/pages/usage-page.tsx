@@ -9,11 +9,12 @@ import { DataTable } from "@/components/data-table";
 import { FilterActions, FilterInput, FilterSelect } from "@/components/filter-controls";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { ErrorState, LoadingState, MetricStrip } from "@/components/ui-primitives";
 import {
   CODEX_MODEL_OPTIONS,
   CODEX_REASONING_EFFORT_OPTIONS,
 } from "@/lib/codex-options";
-import { compactId, formatDateTime } from "@/lib/format";
+import { compactId, formatDateTime, formatNumber } from "@/lib/format";
 import { useCodexUsage, useCodexUsageByJob, useCodexUsageByVideo } from "@/lib/queries";
 import type {
   CodexUsage,
@@ -160,18 +161,22 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
 
   return (
     <>
-      <PageHeader title="Codex Usage" />
-      <div className="mb-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
-        <Metric label="Runs" value={String(data?.summary.runCount ?? 0)} />
-        <Metric label="Total" value={tokenValue(data?.summary.totalTokens)} />
-        <Metric label="Input" value={tokenValue(data?.summary.inputTokens)} />
-        <Metric label="Output" value={tokenValue(data?.summary.outputTokens)} />
-        <Metric label="Cached" value={tokenValue(data?.summary.cachedInputTokens)} />
-        <Metric
-          label="Reasoning"
-          value={tokenValue(data?.summary.reasoningOutputTokens)}
-        />
-      </div>
+      <PageHeader
+        title="Codex Usage"
+        description="Review model runs, token volume, source workflows, and per-video usage."
+      />
+      <MetricStrip
+        ariaLabel="Codex usage summary"
+        className="mb-4"
+        items={[
+          { label: "Runs", value: formatNumber(data?.summary.runCount ?? 0) },
+          { label: "Total", value: tokenValue(data?.summary.totalTokens) },
+          { label: "Input", value: tokenValue(data?.summary.inputTokens) },
+          { label: "Output", value: tokenValue(data?.summary.outputTokens) },
+          { label: "Cached", value: tokenValue(data?.summary.cachedInputTokens) },
+          { label: "Reasoning", value: tokenValue(data?.summary.reasoningOutputTokens) },
+        ]}
+      />
       <form
         key={JSON.stringify(initialFilters)}
         className="ops-panel mb-4 p-4"
@@ -229,8 +234,8 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
         </div>
         <FilterActions resetHref="/usage" />
       </form>
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
       <section className="mb-4 grid gap-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
@@ -242,12 +247,10 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
           </div>
         </div>
         {isByVideoLoading ? (
-          <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div>
+          <LoadingState />
         ) : null}
         {byVideoError ? (
-          <div className="ops-panel p-4 text-sm text-red-700">
-            {String(byVideoError)}
-          </div>
+          <ErrorState message={String(byVideoError)} />
         ) : null}
         <ByVideoUsageTable
           filters={initialFilters}
@@ -256,7 +259,11 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
           onToggleVideo={toggleVideo}
         />
       </section>
-      <DataTable columns={columns} data={data?.items ?? []} />
+      <DataTable
+        ariaLabel="Codex usage runs"
+        columns={columns}
+        data={data?.items ?? []}
+      />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {data?.nextCursor ? (
           <Link
@@ -279,15 +286,6 @@ export function UsagePage({ initialFilters }: UsagePageProps) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="ops-panel p-3">
-      <div className="text-xs font-semibold text-slate-500">{label}</div>
-      <div className="mt-1 text-lg font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function ByVideoUsageTable({
   filters,
   items,
@@ -301,7 +299,7 @@ function ByVideoUsageTable({
 }) {
   return (
     <div className="ops-panel overflow-x-auto">
-      <table className="ops-table">
+      <table aria-label="Usage by video" className="ops-table">
         <thead>
           <tr>
             <th>Video</th>
@@ -338,9 +336,9 @@ function ByVideoUsageTable({
                           title={expanded ? "Hide jobs" : "Show jobs"}
                         >
                           {expanded ? (
-                            <ChevronDown size={15} />
+                            <ChevronDown aria-hidden="true" size={15} />
                           ) : (
-                            <ChevronRight size={15} />
+                            <ChevronRight aria-hidden="true" size={15} />
                           )}
                         </button>
                         <div className="grid min-w-0 gap-1">
@@ -364,7 +362,7 @@ function ByVideoUsageTable({
                         className="text-sm font-semibold"
                         href={usageHref({ ...filters, videoId: item.videoId })}
                       >
-                        {item.runCount.toLocaleString("en")}
+                        {formatNumber(item.runCount)}
                       </Link>
                     </td>
                     <td>
@@ -417,9 +415,9 @@ function VideoJobUsagePanel({
           {data?.items.length ?? 0} jobs
         </div>
       </div>
-      {isLoading ? <div className="text-sm text-slate-600">Loading...</div> : null}
+      {isLoading ? <div className="text-sm text-slate-600">Loading…</div> : null}
       {error ? <div className="text-sm text-red-700">{String(error)}</div> : null}
-      <table className="ops-table rounded border border-slate-200 bg-white">
+      <table aria-label="Usage by job" className="ops-table rounded border border-slate-200 bg-white">
         <thead>
           <tr>
             <th>Job</th>
@@ -451,7 +449,7 @@ function VideoJobUsagePanel({
                 <td>
                   <StatusBadge status={item.jobStatus ?? "Unlinked"} />
                 </td>
-                <td>{item.runCount.toLocaleString("en")}</td>
+                <td>{formatNumber(item.runCount)}</td>
                 <td>
                   <UsageTokenBlock
                     totalTokens={item.totalTokens}
@@ -601,7 +599,7 @@ function idValue(value: number | null | undefined): string {
 }
 
 function tokenValue(value: number | null | undefined): string {
-  return value === null || value === undefined ? "-" : value.toLocaleString("en");
+  return formatNumber(value);
 }
 
 type UsageTokenKey =

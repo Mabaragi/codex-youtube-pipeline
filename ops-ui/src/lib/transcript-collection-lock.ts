@@ -125,7 +125,7 @@ function transcriptCollectionMessage({
     return "Transcript collection is running. Transcript actions are disabled.";
   }
   if (status === "checking") {
-    return "Checking transcript collection state...";
+    return "Checking transcript collection state…";
   }
   if (status === "unavailable") {
     return "Cannot verify transcript collection state. Transcript actions are disabled.";

@@ -47,6 +47,14 @@ import type {
   OpsVideoTaskList,
   PipelineJobFilters,
   PipelineJobList,
+  PromptCacheInvalidateRequest,
+  PromptCacheInvalidateResponse,
+  PromptDetail,
+  PromptKey,
+  PromptSummary,
+  PromptVersion,
+  PromptVersionCreateRequest,
+  PromptVersionUpdateRequest,
   ResolveYouTubeChannelResult,
   RetryPipelineJobResult,
   Streamer,
@@ -76,6 +84,8 @@ export const queryKeys = {
   domainEntries: (filters: Record<string, unknown>) =>
     ["domain-entries", filters] as const,
   domainEntry: (entryId: number) => ["domain-entries", entryId] as const,
+  prompts: ["prompts"] as const,
+  promptDetail: (promptKey: PromptKey) => ["prompts", promptKey] as const,
   schemaGraph: ["ops", "schema-graph"] as const,
   transcriptContent: (transcriptId: number) =>
     ["youtube-transcripts", transcriptId, "content"] as const,
@@ -256,6 +266,144 @@ export function useDomainEntries(filters: DomainEntryFilters) {
   return useQuery({
     queryKey: queryKeys.domainEntries(filters),
     queryFn: () => requestJson<DomainEntryList>("/domain-entries", { query: filters }),
+  });
+}
+
+export function usePrompts() {
+  return useQuery({
+    queryKey: queryKeys.prompts,
+    queryFn: () => requestJson<PromptSummary[]>("/prompts"),
+  });
+}
+
+export function usePromptDetail(promptKey: PromptKey | null | undefined) {
+  return useQuery({
+    queryKey: promptKey
+      ? queryKeys.promptDetail(promptKey)
+      : ["prompts", "detail", "none"],
+    queryFn: () => {
+      if (!promptKey) {
+        throw new Error("Prompt key is required.");
+      }
+      return requestJson<PromptDetail>(`/prompts/${promptKey}`);
+    },
+    enabled: Boolean(promptKey),
+  });
+}
+
+export function useCreatePromptVersionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      promptKey,
+      body,
+    }: {
+      promptKey: PromptKey;
+      body: PromptVersionCreateRequest;
+    }) =>
+      requestJson<PromptVersion>(`/prompts/${promptKey}/versions`, {
+        method: "POST",
+        body,
+      }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.prompts }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.promptDetail(variables.promptKey),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useUpdatePromptVersionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      promptKey,
+      versionId,
+      body,
+    }: {
+      promptKey: PromptKey;
+      versionId: number;
+      body: PromptVersionUpdateRequest;
+    }) =>
+      requestJson<PromptVersion>(`/prompts/${promptKey}/versions/${versionId}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.prompts }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.promptDetail(variables.promptKey),
+        }),
+      ]);
+    },
+  });
+}
+
+export function usePublishPromptVersionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      promptKey,
+      versionId,
+    }: {
+      promptKey: PromptKey;
+      versionId: number;
+    }) =>
+      requestJson<PromptVersion>(
+        `/prompts/${promptKey}/versions/${versionId}/publish`,
+        { method: "POST" },
+      ),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.prompts }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.promptDetail(variables.promptKey),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useArchivePromptVersionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      promptKey,
+      versionId,
+    }: {
+      promptKey: PromptKey;
+      versionId: number;
+    }) =>
+      requestJson<PromptVersion>(
+        `/prompts/${promptKey}/versions/${versionId}/archive`,
+        { method: "POST" },
+      ),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.prompts }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.promptDetail(variables.promptKey),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useInvalidatePromptCacheMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PromptCacheInvalidateRequest = {}) =>
+      requestJson<PromptCacheInvalidateResponse>("/prompts/cache/invalidate", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.prompts });
+    },
   });
 }
 

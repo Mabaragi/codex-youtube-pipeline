@@ -151,7 +151,7 @@ describe("DomainKnowledgePage", () => {
       target: { value: "테스트 인물 설명" },
     });
     fireEvent.click(screen.getByLabelText("Streamer A"));
-    fireEvent.change(screen.getByPlaceholderText("Surface form"), {
+    fireEvent.change(screen.getByPlaceholderText("Surface form…"), {
       target: { value: "테인" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

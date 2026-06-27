@@ -589,6 +589,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Prompts */
+        get: operations["list_prompts_prompts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prompts/cache/invalidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Invalidate Prompt Cache */
+        post: operations["invalidate_prompt_cache_prompts_cache_invalidate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prompts/{promptKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Prompt */
+        get: operations["get_prompt_prompts__promptKey__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prompts/{promptKey}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Prompt Version */
+        post: operations["create_prompt_version_prompts__promptKey__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prompts/{promptKey}/versions/{versionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Prompt Version */
+        patch: operations["update_prompt_version_prompts__promptKey__versions__versionId__patch"];
+        trace?: never;
+    };
+    "/prompts/{promptKey}/versions/{versionId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Prompt Version */
+        post: operations["archive_prompt_version_prompts__promptKey__versions__versionId__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prompts/{promptKey}/versions/{versionId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Prompt Version */
+        post: operations["publish_prompt_version_prompts__promptKey__versions__versionId__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/streamers": {
         parameters: {
             query?: never;
@@ -2803,6 +2922,37 @@ export interface components {
             /** Youtubevideoid */
             youtubeVideoId: string;
         };
+        /** PromptBodyResponse */
+        PromptBodyResponse: {
+            /** Body */
+            body: string;
+            /** Bodysha256 */
+            bodySha256: string;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "database" | "fallback";
+            /** Versionid */
+            versionId: number | null;
+            /** Versionlabel */
+            versionLabel: string;
+        };
+        /** PromptCacheInvalidateRequest */
+        PromptCacheInvalidateRequest: {
+            /** Promptkey */
+            promptKey?: ("micro_event_extract" | "timeline_compose" | "timeline_episode_repair") | null;
+        };
+        /** PromptCacheInvalidateResponse */
+        PromptCacheInvalidateResponse: {
+            /** Invalidatedcount */
+            invalidatedCount: number;
+        };
         /** PromptCueResponse */
         PromptCueResponse: {
             /** Cueid */
@@ -2811,6 +2961,81 @@ export interface components {
             cueIndex: number;
             /** Text */
             text: string;
+        };
+        /** PromptDetailResponse */
+        PromptDetailResponse: {
+            active: components["schemas"]["PromptBodyResponse"];
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            /** Versions */
+            versions: components["schemas"]["PromptVersionResponse"][];
+        };
+        /** PromptSummaryResponse */
+        PromptSummaryResponse: {
+            active: components["schemas"]["PromptBodyResponse"];
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            /** Versioncount */
+            versionCount: number;
+        };
+        /** PromptVersionCreateRequest */
+        PromptVersionCreateRequest: {
+            /** Body */
+            body: string;
+            /** Sourcenote */
+            sourceNote?: string | null;
+            /** Versionlabel */
+            versionLabel: string;
+        };
+        /** PromptVersionResponse */
+        PromptVersionResponse: {
+            /** Archivedat */
+            archivedAt: string | null;
+            /** Bodysha256 */
+            bodySha256: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: number;
+            /** Isactive */
+            isActive: boolean;
+            /**
+             * Promptkey
+             * @enum {string}
+             */
+            promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            /** Publishedat */
+            publishedAt: string | null;
+            /** Sourcenote */
+            sourceNote: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Versionlabel */
+            versionLabel: string;
+        };
+        /** PromptVersionUpdateRequest */
+        PromptVersionUpdateRequest: {
+            /** Body */
+            body?: string | null;
+            /** Sourcenote */
+            sourceNote?: string | null;
         };
         /**
          * ResolveYouTubeChannelRequest
@@ -4836,6 +5061,225 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetryPipelineJobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_prompts_prompts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptSummaryResponse"][];
+                };
+            };
+        };
+    };
+    invalidate_prompt_cache_prompts_cache_invalidate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PromptCacheInvalidateRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptCacheInvalidateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_prompt_prompts__promptKey__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_prompt_version_prompts__promptKey__versions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptVersionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_prompt_version_prompts__promptKey__versions__versionId__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                versionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptVersionUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_prompt_version_prompts__promptKey__versions__versionId__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                versionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_prompt_version_prompts__promptKey__versions__versionId__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                versionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptVersionResponse"];
                 };
             };
             /** @description Validation Error */

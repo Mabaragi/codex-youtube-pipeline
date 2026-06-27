@@ -14,6 +14,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
+import { ErrorState, LoadingState } from "@/components/ui-primitives";
 import {
   useOpsChannels,
   useOpsVideoTasks,
@@ -123,7 +124,7 @@ export function TasksPage({ initialFilters }: TasksPageProps) {
                     : "Retry job"
                 }
               >
-                <RotateCw size={15} />
+                <RotateCw aria-hidden="true" size={15} />
                 Retry job
               </button>
             ) : null}
@@ -131,7 +132,7 @@ export function TasksPage({ initialFilters }: TasksPageProps) {
               className="ops-button"
               href={logsHref({ videoTaskId: row.original.videoTaskId })}
             >
-              <ScrollText size={15} />
+              <ScrollText aria-hidden="true" size={15} />
               Logs
             </Link>
           </div>
@@ -142,7 +143,10 @@ export function TasksPage({ initialFilters }: TasksPageProps) {
 
   return (
     <>
-      <PageHeader title="Video Tasks" />
+      <PageHeader
+        title="Video Tasks"
+        description="Track durable video task state and retry failed job-backed tasks."
+      />
       <TranscriptCollectionStatus className="mb-4" state={transcriptLock} />
       <form
         key={JSON.stringify(initialFilters)}
@@ -182,9 +186,13 @@ export function TasksPage({ initialFilters }: TasksPageProps) {
         </div>
         <FilterActions resetHref="/tasks" />
       </form>
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
-      <DataTable columns={columns} data={data?.items ?? []} />
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
+      <DataTable
+        ariaLabel="Video tasks"
+        columns={columns}
+        data={data?.items ?? []}
+      />
       <div className="mt-2 text-xs text-slate-500">Total {data?.total ?? 0}</div>
     </>
   );

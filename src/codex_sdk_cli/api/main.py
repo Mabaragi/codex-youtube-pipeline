@@ -17,6 +17,7 @@ from codex_sdk_cli.api.routes.micro_events import router as micro_events_router
 from codex_sdk_cli.api.routes.operation_events import router as operation_events_router
 from codex_sdk_cli.api.routes.ops import router as ops_router
 from codex_sdk_cli.api.routes.pipeline_jobs import router as pipeline_jobs_router
+from codex_sdk_cli.api.routes.prompts import router as prompts_router
 from codex_sdk_cli.api.routes.streamers import router as streamers_router
 from codex_sdk_cli.api.routes.timelines import router as timelines_router
 from codex_sdk_cli.api.routes.video_tasks import router as video_tasks_router
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(ops_router, prefix="/ops", tags=["ops"])
     app.include_router(codex_usage_router, prefix="/ops", tags=["ops"])
     app.include_router(domain_knowledge_router, tags=["domain-knowledge"])
+    app.include_router(prompts_router, tags=["prompts"])
     app.include_router(operation_events_router, prefix="/ops", tags=["ops"])
     app.include_router(pipeline_jobs_router, prefix="/pipeline", tags=["pipeline-jobs"])
     app.include_router(streamers_router, tags=["streamers"])

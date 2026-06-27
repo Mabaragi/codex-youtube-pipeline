@@ -32,6 +32,12 @@ from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
     PipelineJobPersistenceError,
     PipelineJobRetryNotAllowed,
 )
+from codex_sdk_cli.domains.prompts.exceptions import (
+    PromptConflict,
+    PromptDomainError,
+    PromptNotFound,
+    PromptPersistenceError,
+)
 from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerDomainError,
     StreamerHasChannels,
@@ -133,6 +139,20 @@ def add_exception_handlers(app: FastAPI) -> None:
         elif isinstance(exc, DomainKnowledgeConflict):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, DomainKnowledgePersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(PromptDomainError)
+    async def prompt_domain_error_handler(
+        _request: Request,
+        exc: PromptDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, PromptNotFound):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(exc, PromptConflict):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(exc, PromptPersistenceError):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 

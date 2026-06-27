@@ -230,10 +230,12 @@ export function ErdGraph({
     <div className="ops-panel min-h-[720px] overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
         <input
+          aria-label="Search table or column"
+          autoComplete="off"
           className="ops-input w-full max-w-sm"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search table or column"
+          placeholder="Search table or column…"
         />
         <button type="button" className="ops-button" onClick={applyAutoLayout}>
           Auto layout

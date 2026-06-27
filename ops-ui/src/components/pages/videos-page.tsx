@@ -25,6 +25,12 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import {
+  ActionPanel,
+  ErrorState,
+  InlineNotice,
+  LoadingState,
+} from "@/components/ui-primitives";
+import {
   useEnqueueMicroEventsMutation,
   useEnqueueTimelineComposeMutation,
   useExtractAllMicroEventsMutation,
@@ -210,7 +216,11 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
           onClick={toggleVisibleSelection}
           type="button"
         >
-          {allVisibleSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+          {allVisibleSelected ? (
+            <CheckSquare aria-hidden="true" size={16} />
+          ) : (
+            <Square aria-hidden="true" size={16} />
+          )}
         </button>
       ),
       cell: ({ row }) => {
@@ -226,7 +236,11 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             onClick={() => toggleVideoSelection(row.original.videoId)}
             type="button"
           >
-            {selected ? <CheckSquare size={16} /> : <Square size={16} />}
+            {selected ? (
+              <CheckSquare aria-hidden="true" size={16} />
+            ) : (
+              <Square aria-hidden="true" size={16} />
+            )}
           </button>
         );
       },
@@ -271,11 +285,11 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             }
             type="button"
           >
-            <ListPlus size={15} />
+            <ListPlus aria-hidden="true" size={15} />
             Queue
           </button>
           <Link className="ops-button" href={`/videos/${row.original.videoId}`}>
-            <Eye size={15} />
+            <Eye aria-hidden="true" size={15} />
             Details
           </Link>
           <button
@@ -289,7 +303,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             }
             type="button"
           >
-            <ListTree size={15} />
+            <ListTree aria-hidden="true" size={15} />
             Timeline
           </button>
         </div>
@@ -299,7 +313,10 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
 
   return (
     <>
-      <PageHeader title="Videos" />
+      <PageHeader
+        title="Videos"
+        description="Select stored videos, queue downstream work, and filter by task state."
+      />
       <MicroEventBatchPanel
         allVisibleSelected={allVisibleSelected}
         defaults={microEventDefaults}
@@ -344,7 +361,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             label="Search"
             name="search"
             defaultValue={initialFilters.search}
-            placeholder="Title or YouTube ID"
+            placeholder="Title or YouTube ID…"
           />
           <FilterSelect
             label="Task status"
@@ -357,9 +374,9 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
         </div>
         <FilterActions resetHref="/videos" />
       </form>
-      {isLoading ? <div className="ops-panel p-4 text-sm text-slate-600">Loading...</div> : null}
-      {error ? <div className="ops-panel p-4 text-sm text-red-700">{String(error)}</div> : null}
-      <DataTable columns={columns} data={videos} />
+      {isLoading ? <LoadingState /> : null}
+      {error ? <ErrorState message={String(error)} /> : null}
+      <DataTable ariaLabel="Videos" columns={columns} data={videos} />
       <div className="mt-2 text-xs text-slate-500">Total {data?.total ?? 0}</div>
     </>
   );
@@ -434,23 +451,21 @@ function MicroEventBatchPanel({
     };
 
   return (
-    <section className="ops-panel mb-4 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">Micro events</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Queue cue-ready videos for the server worker, or run a small batch now.
-          </p>
-        </div>
+    <ActionPanel
+      className="mb-4"
+      title="Micro Events"
+      description={`Queue cue-ready videos for the worker. ${selectedCount} selected, ${visibleCount} visible.`}
+      actions={
         <Link
           className="ops-button"
           href="/tasks?taskName=micro_event_extract&limit=100"
         >
-          <ScrollText size={15} />
+          <ScrollText aria-hidden="true" size={15} />
           Tasks
         </Link>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      }
+    >
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <label className="grid gap-1 text-xs font-medium text-slate-600">
           Batch size
           <select
@@ -496,7 +511,9 @@ function MicroEventBatchPanel({
         <label className="grid gap-1 text-xs font-medium text-slate-600">
           Window
           <input
+            autoComplete="off"
             className="ops-input"
+            inputMode="numeric"
             max={240}
             min={1}
             onChange={setNumberDefault("windowMinutes")}
@@ -507,7 +524,9 @@ function MicroEventBatchPanel({
         <label className="grid gap-1 text-xs font-medium text-slate-600">
           Overlap
           <input
+            autoComplete="off"
             className="ops-input"
+            inputMode="numeric"
             max={239}
             min={0}
             onChange={setNumberDefault("overlapMinutes")}
@@ -544,7 +563,7 @@ function MicroEventBatchPanel({
           title={queueSelectedTitle}
           type="button"
         >
-          <ListPlus size={15} />
+          <ListPlus aria-hidden="true" size={15} />
           Queue selected ({selectedCount})
         </button>
         <button
@@ -553,7 +572,7 @@ function MicroEventBatchPanel({
           onClick={onQueueCurrentFilters}
           type="button"
         >
-          <ListPlus size={15} />
+          <ListPlus aria-hidden="true" size={15} />
           Queue current filters
         </button>
         <button
@@ -562,7 +581,11 @@ function MicroEventBatchPanel({
           onClick={onToggleVisibleSelection}
           type="button"
         >
-          {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          {allVisibleSelected ? (
+            <CheckSquare aria-hidden="true" size={15} />
+          ) : (
+            <Square aria-hidden="true" size={15} />
+          )}
           {visibleToggleLabel}
         </button>
         <button
@@ -571,7 +594,7 @@ function MicroEventBatchPanel({
           onClick={onClearSelection}
           type="button"
         >
-          <X size={15} />
+          <X aria-hidden="true" size={15} />
           Clear
         </button>
         <button
@@ -581,23 +604,23 @@ function MicroEventBatchPanel({
           title="Run the next eligible videos immediately"
           type="button"
         >
-          <Play size={15} />
-          {extractAllMicroEvents.isPending ? "Running..." : "Run now"}
+          <Play aria-hidden="true" size={15} />
+          {extractAllMicroEvents.isPending ? "Running…" : "Run now"}
         </button>
         {enqueueMicroEvents.error ? (
-          <span className="text-xs text-red-700">
+          <InlineNotice tone="danger">
             {formatUnknownError(enqueueMicroEvents.error)}
-          </span>
+          </InlineNotice>
         ) : null}
         {extractAllMicroEvents.error ? (
-          <span className="text-xs text-red-700">
+          <InlineNotice tone="danger">
             {formatUnknownError(extractAllMicroEvents.error)}
-          </span>
+          </InlineNotice>
         ) : null}
       </div>
       {enqueueResult ? <MicroEventEnqueueResult result={enqueueResult} /> : null}
       {runNowResult ? <MicroEventRunNowResult result={runNowResult} /> : null}
-    </section>
+    </ActionPanel>
   );
 }
 
@@ -658,23 +681,21 @@ function TimelineComposePanel({
     };
 
   return (
-    <section className="ops-panel mb-4 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">Timeline compose</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Queue videos with completed micro-events for the timeline worker.
-          </p>
-        </div>
+    <ActionPanel
+      className="mb-4"
+      title="Timeline Compose"
+      description={`Queue videos with completed micro-events. ${selectedCount} selected, ${visibleCount} visible.`}
+      actions={
         <Link
           className="ops-button"
           href="/tasks?taskName=timeline_compose&limit=100"
         >
-          <ScrollText size={15} />
+          <ScrollText aria-hidden="true" size={15} />
           Tasks
         </Link>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      }
+    >
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <label className="grid gap-1 text-xs font-medium text-slate-600">
           Batch size
           <select
@@ -750,13 +771,13 @@ function TimelineComposePanel({
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
-          className="ops-button ops-button-primary"
+          className="ops-button"
           disabled={enqueueTimelineCompose.isPending || selectedCount === 0}
           onClick={onQueueSelected}
           title={queueSelectedTitle}
           type="button"
         >
-          <ListPlus size={15} />
+          <ListPlus aria-hidden="true" size={15} />
           Queue selected ({selectedCount})
         </button>
         <button
@@ -765,7 +786,7 @@ function TimelineComposePanel({
           onClick={onQueueCurrentFilters}
           type="button"
         >
-          <ListPlus size={15} />
+          <ListPlus aria-hidden="true" size={15} />
           Queue current filters
         </button>
         <button
@@ -774,7 +795,11 @@ function TimelineComposePanel({
           onClick={onToggleVisibleSelection}
           type="button"
         >
-          {allVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          {allVisibleSelected ? (
+            <CheckSquare aria-hidden="true" size={15} />
+          ) : (
+            <Square aria-hidden="true" size={15} />
+          )}
           {visibleToggleLabel}
         </button>
         <button
@@ -783,17 +808,17 @@ function TimelineComposePanel({
           onClick={onClearSelection}
           type="button"
         >
-          <X size={15} />
+          <X aria-hidden="true" size={15} />
           Clear
         </button>
         {enqueueTimelineCompose.error ? (
-          <span className="text-xs text-red-700">
+          <InlineNotice tone="danger">
             {formatUnknownError(enqueueTimelineCompose.error)}
-          </span>
+          </InlineNotice>
         ) : null}
       </div>
       {result ? <TimelineComposeEnqueueResult result={result} /> : null}
-    </section>
+    </ActionPanel>
   );
 }
 
@@ -803,7 +828,7 @@ function TimelineComposeEnqueueResult({
   result: NonNullable<EnqueueTimelineComposeMutation["data"]>;
 }) {
   return (
-    <div className="mt-4 border-t border-slate-200 pt-4">
+    <div aria-live="polite" className="mt-4 border-t border-slate-200 pt-4" role="status">
       <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
         <Metric label="Queued" value={result.enqueuedCount} />
         <Metric label="Pending" value={result.alreadyPendingCount} />
@@ -843,7 +868,7 @@ function MicroEventEnqueueResult({
   result: NonNullable<EnqueueMicroEventsMutation["data"]>;
 }) {
   return (
-    <div className="mt-4 border-t border-slate-200 pt-4">
+    <div aria-live="polite" className="mt-4 border-t border-slate-200 pt-4" role="status">
       <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
         <Metric label="Queued" value={result.enqueuedCount} />
         <Metric label="Pending" value={result.alreadyPendingCount} />
@@ -883,7 +908,7 @@ function MicroEventRunNowResult({
   result: NonNullable<ExtractAllMicroEventsMutation["data"]>;
 }) {
   return (
-    <div className="mt-4 border-t border-slate-200 pt-4">
+    <div aria-live="polite" className="mt-4 border-t border-slate-200 pt-4" role="status">
       <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
         <Metric label="Processed" value={result.processedCount} />
         <Metric label="Succeeded" value={result.succeededCount} />

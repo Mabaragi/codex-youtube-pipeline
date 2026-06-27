@@ -14,6 +14,8 @@ from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEvents
 from codex_sdk_cli.domains.operation_events.recorder import (
     BestEffortOperationEventRecorder,
 )
+from codex_sdk_cli.domains.prompts.cache import PromptCache
+from codex_sdk_cli.domains.prompts.use_cases import PromptResolver
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
 from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
@@ -36,6 +38,7 @@ from codex_sdk_cli.infra.operation_events.repository import (
     SQLAlchemyOperationEventRepository,
 )
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
+from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.transcript_cues.repository import (
     SqlAlchemyTranscriptCueRepository,
@@ -49,6 +52,7 @@ from codex_sdk_cli.settings import CliSettings
 
 logger = logging.getLogger(__name__)
 Sleep = Callable[[float], Awaitable[None]]
+_PROMPT_CACHE = PromptCache()
 
 
 def run() -> None:
@@ -145,6 +149,11 @@ def _use_case(
         pipeline_jobs=SqlAlchemyPipelineJobRepository(session),
         micro_events=SqlAlchemyMicroEventExtractionRepository(session),
         extractor=extractor,
+        prompt_resolver=PromptResolver(
+            SqlAlchemyPromptRepository(session),
+            cache=_PROMPT_CACHE,
+            ttl_seconds=settings.prompt_cache_ttl_seconds,
+        ),
         timeout_seconds=settings.micro_event_extract_timeout_seconds,
         concurrency_limit=settings.micro_event_extract_concurrency_limit,
         model=settings.model,

@@ -29,9 +29,10 @@ export function TranscriptCollectionStatus({
     <div
       className={`${className} flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-sm ${tone}`}
       role={state.status === "unavailable" ? "alert" : "status"}
+      aria-live="polite"
     >
       <div className="flex min-w-0 items-center gap-2">
-        <Icon size={16} />
+        <Icon aria-hidden="true" size={16} />
         <div className="min-w-0">
           <div className="font-medium">{statusLabel(state.status)}</div>
           <div className="text-xs">{state.message}</div>
