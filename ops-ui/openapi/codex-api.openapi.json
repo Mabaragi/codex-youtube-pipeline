@@ -30,6 +30,777 @@
         "title": "ApiKeyLoginRequest",
         "type": "object"
       },
+      "ArchiveCurrentResponse": {
+        "properties": {
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "latestPublication": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveIndexPublicationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "storage": {
+            "$ref": "#/components/schemas/ArchiveStorageConfigResponse"
+          }
+        },
+        "required": [
+          "environment",
+          "storage",
+          "latestPublication"
+        ],
+        "title": "ArchiveCurrentResponse",
+        "type": "object"
+      },
+      "ArchiveIndexPublicationResponse": {
+        "properties": {
+          "byteSize": {
+            "title": "Bytesize",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "indexKey": {
+            "title": "Indexkey",
+            "type": "string"
+          },
+          "pointerKey": {
+            "title": "Pointerkey",
+            "type": "string"
+          },
+          "publicUrl": {
+            "title": "Publicurl",
+            "type": "string"
+          },
+          "publicationId": {
+            "title": "Publicationid",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "videoCount": {
+            "title": "Videocount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "publicationId",
+          "environment",
+          "schemaVersion",
+          "version",
+          "pointerKey",
+          "indexKey",
+          "publicUrl",
+          "sha256",
+          "byteSize",
+          "videoCount",
+          "createdAt"
+        ],
+        "title": "ArchiveIndexPublicationResponse",
+        "type": "object"
+      },
+      "ArchiveOpsVideoListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArchiveOpsVideoResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ArchiveOpsVideoListResponse",
+        "type": "object"
+      },
+      "ArchiveOpsVideoResponse": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "channelName": {
+            "title": "Channelname",
+            "type": "string"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "latestArtifact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveVideoArtifactResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestTask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveVideoTaskSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Publishedat",
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnailurl"
+          },
+          "timelineCompositionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelinecompositionid"
+          },
+          "timelineEpisodeCount": {
+            "title": "Timelineepisodecount",
+            "type": "integer"
+          },
+          "timelineReady": {
+            "title": "Timelineready",
+            "type": "boolean"
+          },
+          "timelineTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelinetaskid"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "channelId",
+          "channelName",
+          "youtubeVideoId",
+          "title",
+          "publishedAt",
+          "duration",
+          "thumbnailUrl",
+          "timelineReady",
+          "timelineCompositionId",
+          "timelineTaskId",
+          "timelineEpisodeCount",
+          "latestTask",
+          "latestArtifact"
+        ],
+        "title": "ArchiveOpsVideoResponse",
+        "type": "object"
+      },
+      "ArchivePublishItemResponse": {
+        "properties": {
+          "artifactId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifactid"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "publicUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicurl"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "sourceTimelineCompositionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcetimelinecompositionid"
+          },
+          "sourceTimelineTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcetimelinetaskid"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          },
+          "youtubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubevideoid"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "status",
+          "reason",
+          "sourceTimelineTaskId",
+          "sourceTimelineCompositionId",
+          "environment",
+          "variant",
+          "schemaVersion",
+          "artifactId",
+          "publicUrl",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "ArchivePublishItemResponse",
+        "type": "object"
+      },
+      "ArchivePublishRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "environment": "prod",
+            "limit": 20,
+            "regenerateSucceeded": false,
+            "retryFailed": false,
+            "schemaVersion": 1,
+            "target": "next_eligible",
+            "variant": "control"
+          }
+        ],
+        "properties": {
+          "channelId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channelid"
+          },
+          "environment": {
+            "default": "prod",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "regenerateSucceeded": {
+            "default": false,
+            "title": "Regeneratesucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search"
+          },
+          "target": {
+            "default": "next_eligible",
+            "enum": [
+              "selected_videos",
+              "current_filters",
+              "next_eligible"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "variant": {
+            "default": "control",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Variant",
+            "type": "string"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "title": "Videoids",
+            "type": "array"
+          }
+        },
+        "title": "ArchivePublishRequest",
+        "type": "object"
+      },
+      "ArchivePublishResponse": {
+        "properties": {
+          "alreadyPublishedCount": {
+            "title": "Alreadypublishedcount",
+            "type": "integer"
+          },
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "failedSkippedCount": {
+            "title": "Failedskippedcount",
+            "type": "integer"
+          },
+          "ineligibleCount": {
+            "title": "Ineligiblecount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArchivePublishItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "processedCount": {
+            "title": "Processedcount",
+            "type": "integer"
+          },
+          "publishedCount": {
+            "title": "Publishedcount",
+            "type": "integer"
+          },
+          "regeneratedCount": {
+            "title": "Regeneratedcount",
+            "type": "integer"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "scannedCount": {
+            "title": "Scannedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "scannedCount",
+          "processedCount",
+          "publishedCount",
+          "alreadyPublishedCount",
+          "regeneratedCount",
+          "failedCount",
+          "failedSkippedCount",
+          "ineligibleCount",
+          "items"
+        ],
+        "title": "ArchivePublishResponse",
+        "type": "object"
+      },
+      "ArchiveStorageConfigResponse": {
+        "properties": {
+          "bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bucket"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "publicBaseUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicbaseurl"
+          }
+        },
+        "required": [
+          "configured",
+          "bucket",
+          "endpoint",
+          "publicBaseUrl",
+          "prefix"
+        ],
+        "title": "ArchiveStorageConfigResponse",
+        "type": "object"
+      },
+      "ArchiveVideoArtifactResponse": {
+        "properties": {
+          "artifactId": {
+            "title": "Artifactid",
+            "type": "integer"
+          },
+          "blockCount": {
+            "title": "Blockcount",
+            "type": "integer"
+          },
+          "byteSize": {
+            "title": "Bytesize",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "episodeCount": {
+            "title": "Episodecount",
+            "type": "integer"
+          },
+          "microEventCount": {
+            "title": "Microeventcount",
+            "type": "integer"
+          },
+          "objectKey": {
+            "title": "Objectkey",
+            "type": "string"
+          },
+          "publicUrl": {
+            "title": "Publicurl",
+            "type": "string"
+          },
+          "publishJobId": {
+            "title": "Publishjobid",
+            "type": "integer"
+          },
+          "publishTaskId": {
+            "title": "Publishtaskid",
+            "type": "integer"
+          },
+          "reviewFlagCount": {
+            "title": "Reviewflagcount",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "sourceMicroEventTaskId": {
+            "title": "Sourcemicroeventtaskid",
+            "type": "integer"
+          },
+          "sourceTimelineCompositionId": {
+            "title": "Sourcetimelinecompositionid",
+            "type": "integer"
+          },
+          "sourceTimelineTaskId": {
+            "title": "Sourcetimelinetaskid",
+            "type": "integer"
+          },
+          "topicClusterCount": {
+            "title": "Topicclustercount",
+            "type": "integer"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "sourceTimelineCompositionId",
+          "sourceTimelineTaskId",
+          "sourceMicroEventTaskId",
+          "publishTaskId",
+          "publishJobId",
+          "environment",
+          "variant",
+          "schemaVersion",
+          "version",
+          "objectKey",
+          "publicUrl",
+          "sha256",
+          "byteSize",
+          "blockCount",
+          "episodeCount",
+          "topicClusterCount",
+          "reviewFlagCount",
+          "microEventCount",
+          "createdAt"
+        ],
+        "title": "ArchiveVideoArtifactResponse",
+        "type": "object"
+      },
+      "ArchiveVideoTaskSummaryResponse": {
+        "properties": {
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "status",
+          "jobId",
+          "jobAttemptId",
+          "errorType",
+          "errorMessage",
+          "updatedAt"
+        ],
+        "title": "ArchiveVideoTaskSummaryResponse",
+        "type": "object"
+      },
       "AsrCorrectionCandidateResponse": {
         "properties": {
           "applyScope": {
@@ -7055,7 +7826,7 @@
             "limit": 5,
             "model": "gpt-5.5",
             "promptVersionId": 1,
-            "reasoningEffort": "medium",
+            "reasoningEffort": "high",
             "regenerateSucceeded": false,
             "retryFailed": false,
             "target": "next_eligible"
@@ -10091,6 +10862,190 @@
         ]
       }
     },
+    "/ops/archive/current": {
+      "get": {
+        "operationId": "get_current_archive_publication_ops_archive_current_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCurrentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Current Archive Publication",
+        "tags": [
+          "archive-publish"
+        ]
+      }
+    },
+    "/ops/archive/videos": {
+      "get": {
+        "operationId": "list_archive_videos_ops_archive_videos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "publishStatus",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "not_ready",
+                    "ready",
+                    "pending",
+                    "running",
+                    "failed",
+                    "published"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Publishstatus"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveOpsVideoListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Archive Videos",
+        "tags": [
+          "archive-publish"
+        ]
+      }
+    },
     "/ops/channels": {
       "get": {
         "operationId": "list_ops_channels_ops_channels_get",
@@ -12092,6 +13047,54 @@
         "summary": "Resolve Streamer Channel",
         "tags": [
           "channels"
+        ]
+      }
+    },
+    "/video-tasks/archive-publish": {
+      "post": {
+        "operationId": "publish_archive_video_tasks_archive_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ArchivePublishRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchivePublishResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Archive",
+        "tags": [
+          "archive-publish"
         ]
       }
     },

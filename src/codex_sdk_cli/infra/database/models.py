@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from codex_sdk_cli.infra.archive_publish.repository import (
+    ArchiveIndexPublicationModel,
+    ArchiveVideoArtifactModel,
+)
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import CodexRunUsageModel
 from codex_sdk_cli.infra.domain_knowledge.repository import (
@@ -39,6 +43,8 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscript
 
 __all__ = [
     "ChannelModel",
+    "ArchiveIndexPublicationModel",
+    "ArchiveVideoArtifactModel",
     "AsrCorrectionCandidateModel",
     "CodexRunUsageModel",
     "DomainEntryAliasModel",

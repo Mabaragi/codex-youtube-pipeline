@@ -14,6 +14,8 @@ remain in root `AGENTS.md` and `vaults/`.
   operate the local app without inspecting source code.
 - `docs/ARCHITECTURE_LINTING.md`: Import Linter clean architecture gate,
   layer rules, and violation repair guidance.
+- `docs/ARCHIVE_PUBLISH.md`: R2 archive publish API, worker, object layout,
+  cache policy, and required environment variables.
 - `docs/CICD.md`: current GitHub Actions status. Workflows are manual checks
   only and are not the normal deployment path.
 - `docs/HOME_PC_DEPLOYMENT.md`: short entrypoint that routes to the current

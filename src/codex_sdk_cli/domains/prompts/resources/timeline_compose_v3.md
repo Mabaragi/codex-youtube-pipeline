@@ -11,6 +11,7 @@
 3. 검색과 탐색에 유용한 topic_cluster를 만든다.
 4. 과도하게 넓거나 경계가 불명확한 episode에는 review_flags를 남긴다.
 5. title/summary는 내부 분석용으로, display_title/display_summary는 UI 노출용으로 작성한다.
+6. title, summary, display_title, display_summary, topic label/summary, review flag reason은 공손체 `~습니다`가 아니라 해라체/평서형 `~다` 문장으로 작성한다.
 
 # 중요 규칙
 

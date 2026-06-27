@@ -41,8 +41,18 @@ class CliSettings(BaseSettings):
     micro_event_worker_poll_interval_seconds: int = 5
     micro_event_worker_id: str | None = None
     timeline_compose_timeout_seconds: int = 3600
+    timeline_compose_concurrency_limit: int = 3
     timeline_compose_worker_poll_interval_seconds: int = 5
     timeline_compose_worker_id: str | None = None
+    archive_publish_timeout_seconds: int = 600
+    archive_publish_r2_endpoint: str | None = None
+    archive_publish_r2_access_key: SecretStr | None = None
+    archive_publish_r2_secret_key: SecretStr | None = None
+    archive_publish_r2_bucket: str | None = None
+    archive_publish_r2_secure: bool = True
+    archive_publish_public_base_url: str | None = None
+    archive_publish_prefix: str = "archive"
+    archive_publish_environment: str = "prod"
     prompt_cache_ttl_seconds: int = 60
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
@@ -64,6 +74,11 @@ class CliSettings(BaseSettings):
         "youtube_data_api_key",
         "micro_event_worker_id",
         "timeline_compose_worker_id",
+        "archive_publish_r2_endpoint",
+        "archive_publish_r2_access_key",
+        "archive_publish_r2_secret_key",
+        "archive_publish_r2_bucket",
+        "archive_publish_public_base_url",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
         "transcript_minio_secret_key",
@@ -110,7 +125,9 @@ class CliSettings(BaseSettings):
         "micro_event_extract_concurrency_limit",
         "micro_event_worker_poll_interval_seconds",
         "timeline_compose_timeout_seconds",
+        "timeline_compose_concurrency_limit",
         "timeline_compose_worker_poll_interval_seconds",
+        "archive_publish_timeout_seconds",
         "prompt_cache_ttl_seconds",
     )
     @classmethod

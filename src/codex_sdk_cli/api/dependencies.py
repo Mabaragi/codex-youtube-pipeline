@@ -8,6 +8,7 @@ import httpx
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from codex_sdk_cli.domains.archive_publish.ports import ArchivePublishRepositoryPort
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
 from codex_sdk_cli.domains.codex_usage.ports import (
@@ -46,6 +47,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptRepositoryPort,
     YouTubeTranscriptStoragePort,
 )
+from codex_sdk_cli.infra.archive_publish.repository import SqlAlchemyArchivePublishRepository
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
 from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
@@ -151,6 +153,12 @@ async def get_channel_repository(
     return SqlAlchemyChannelRepository(session)
 
 
+async def get_archive_publish_repository(
+    session: DatabaseSessionDep,
+) -> ArchivePublishRepositoryPort:
+    return SqlAlchemyArchivePublishRepository(session)
+
+
 async def get_pipeline_job_repository(
     session: DatabaseSessionDep,
 ) -> PipelineJobRepositoryPort:
@@ -203,9 +211,7 @@ async def get_codex_usage_recorder(
         Depends(get_database_session_factory),
     ],
 ) -> CodexUsageRecorderPort:
-    return BestEffortCodexUsageRecorder(
-        SessionFactoryCodexUsageRepository(session_factory)
-    )
+    return BestEffortCodexUsageRecorder(SessionFactoryCodexUsageRepository(session_factory))
 
 
 async def get_micro_event_extractor(
@@ -340,6 +346,10 @@ StreamerRepositoryDep = Annotated[
 ChannelRepositoryDep = Annotated[
     ChannelRepositoryPort,
     Depends(get_channel_repository),
+]
+ArchivePublishRepositoryDep = Annotated[
+    ArchivePublishRepositoryPort,
+    Depends(get_archive_publish_repository),
 ]
 PipelineJobRepositoryDep = Annotated[
     PipelineJobRepositoryPort,

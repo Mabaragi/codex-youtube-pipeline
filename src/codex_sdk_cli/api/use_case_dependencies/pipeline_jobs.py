@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from inspect import isawaitable
@@ -7,6 +7,7 @@ from typing import Annotated, Any, cast
 from fastapi import Depends, Request
 
 from codex_sdk_cli.api.dependencies import (
+    ArchivePublishRepositoryDep,
     ChannelRepositoryDep,
     DomainKnowledgeRepositoryDep,
     MicroEventExtractionRepositoryDep,
@@ -25,7 +26,13 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_client,
     get_youtube_transcript_storage,
 )
+from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
+    archive_publish_storage_factory,
+)
 from codex_sdk_cli.api.use_case_dependencies.prompts import PromptResolverDep
+from codex_sdk_cli.domains.archive_publish.constants import ARCHIVE_PUBLISH_TASK_NAME
+from codex_sdk_cli.domains.archive_publish.ports import ArchivePublishRepositoryPort
+from codex_sdk_cli.domains.archive_publish.use_cases import ArchivePublishUseCase
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
@@ -152,6 +159,7 @@ def get_retry_pipeline_job_use_case(
     video_tasks: VideoTaskRepositoryDep,
     micro_events: MicroEventExtractionRepositoryDep,
     timelines: TimelineCompositionRepositoryDep,
+    archive: ArchivePublishRepositoryDep,
     domain_knowledge: DomainKnowledgeRepositoryDep,
     micro_event_extractor: MicroEventExtractorDep,
     timeline_composer: TimelineComposerDep,
@@ -228,6 +236,17 @@ def get_retry_pipeline_job_use_case(
                 settings=settings,
                 events=events,
             ),
+            ARCHIVE_PUBLISH_TASK_NAME: _LazyArchivePublishRetryExecutor(
+                videos=videos,
+                video_tasks=video_tasks,
+                timelines=timelines,
+                micro_events=micro_events,
+                transcript_cues=transcript_cues,
+                pipeline_jobs=pipeline_jobs,
+                archive=archive,
+                settings=settings,
+                events=events,
+            ),
         },
         events,
     )
@@ -277,9 +296,7 @@ class _LazyTranscriptCollectRetryExecutor(PipelineRetryExecutor):
                 pipeline_jobs=self._pipeline_jobs,
                 generate_cues=await self._generate_cues_factory(),
                 timeout_seconds=self._settings.transcript_cue_generate_timeout_seconds,
-                concurrency_limit=(
-                    self._settings.transcript_cue_generate_concurrency_limit
-                ),
+                concurrency_limit=(self._settings.transcript_cue_generate_concurrency_limit),
                 events=self._events,
             ),
             timeout_seconds=self._settings.transcript_collect_timeout_seconds,
@@ -442,6 +459,56 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
             model=self._settings.model,
             reasoning_effort=self._settings.reasoning_effort,
             events=self._events,
+        )
+        return await use_case.execute_retry_job_attempt(job, attempt)
+
+
+class _LazyArchivePublishRetryExecutor(PipelineRetryExecutor):
+    def __init__(
+        self,
+        *,
+        videos: VideoRepositoryPort,
+        video_tasks: VideoTaskRepositoryPort,
+        timelines: TimelineCompositionRepositoryPort,
+        micro_events: MicroEventExtractionRepositoryPort,
+        transcript_cues: TranscriptCueRepositoryPort,
+        pipeline_jobs: PipelineJobRepositoryPort,
+        archive: ArchivePublishRepositoryPort,
+        settings: CliSettings,
+        events: OperationEventRecorderPort,
+    ) -> None:
+        self._videos = videos
+        self._video_tasks = video_tasks
+        self._timelines = timelines
+        self._micro_events = micro_events
+        self._transcript_cues = transcript_cues
+        self._pipeline_jobs = pipeline_jobs
+        self._archive = archive
+        self._settings = settings
+        self._events = events
+
+    async def execute(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+    ) -> JsonObject:
+        use_case = ArchivePublishUseCase(
+            videos=self._videos,
+            video_tasks=self._video_tasks,
+            timelines=self._timelines,
+            micro_events=self._micro_events,
+            transcript_cues=self._transcript_cues,
+            pipeline_jobs=self._pipeline_jobs,
+            archive=self._archive,
+            events=self._events,
+            timeout_seconds=self._settings.archive_publish_timeout_seconds,
+            public_base_url=self._settings.archive_publish_public_base_url,
+            prefix=self._settings.archive_publish_prefix,
+            default_environment=self._settings.archive_publish_environment,
+            default_schema_version=1,
+            storage_factory=archive_publish_storage_factory(self._settings),
+            storage_bucket=self._settings.archive_publish_r2_bucket,
+            storage_endpoint=self._settings.archive_publish_r2_endpoint,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
 

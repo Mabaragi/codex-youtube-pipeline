@@ -270,6 +270,52 @@ def test_domain_entry_add_creates_type_entry_streamer_and_alias(
     assert payload["aliases"][0]["surfaceForm"] == "테인"
 
 
+def test_timeline_normalize_style_cli_dry_run_and_apply(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_file = tmp_path / "timeline-style-cli.db"
+    database_url = f"sqlite+aiosqlite:///{database_file.as_posix()}"
+    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
+    command.upgrade(_alembic_config(), "head")
+    _insert_timeline_style_fixture(database_file)
+
+    dry_run = CliRunner().invoke(
+        main,
+        ["timeline", "normalize-style", "--dry-run"],
+        env={"CODEX_CLI_DATABASE_URL": database_url},
+    )
+
+    assert dry_run.exit_code == 0, dry_run.output
+    dry_payload = json.loads(dry_run.output)
+    assert dry_payload["apply"] is False
+    assert dry_payload["changedFields"] >= 5
+    assert dry_payload["changedOutputJsonStrings"] >= 5
+    assert dry_payload["unresolvedCount"] == 0
+    assert _fetch_timeline_style_fixture(database_file)["composition_summary"] == (
+        "\uac8c\uc784\uc774 \uc774\uc5b4\uc9d1\ub2c8\ub2e4."
+    )
+
+    applied = CliRunner().invoke(
+        main,
+        ["timeline", "normalize-style", "--apply"],
+        env={"CODEX_CLI_DATABASE_URL": database_url},
+    )
+
+    assert applied.exit_code == 0, applied.output
+    apply_payload = json.loads(applied.output)
+    assert apply_payload["apply"] is True
+    assert apply_payload["unresolvedCount"] == 0
+    values = _fetch_timeline_style_fixture(database_file)
+    assert values["composition_summary"] == "\uac8c\uc784\uc774 \uc774\uc5b4\uc9c4\ub2e4."
+    assert values["block_summary"] == "\ub300\ud654\ub97c \ub098\ub208\ub2e4."
+    assert values["episode_summary"] == "\uc2dc\uc791\ud55c\ub2e4."
+    assert values["topic_summary"] == "\uad6c\uac04\uc774\ub2e4."
+    assert values["flag_reason"] == "\uc790\ub8cc\uac00 \uc788\ub2e4."
+    assert values["output_summary"] == "\uac8c\uc784\uc774 \uc774\uc5b4\uc9c4\ub2e4."
+    assert values["raw_response_text"] == "\uc6d0\ubb38\uc740 \uc2dc\uc791\ud569\ub2c8\ub2e4."
+
+
 def test_run_command_resumes_thread() -> None:
     codex = FakeCodexForCli()
 
@@ -373,6 +419,212 @@ def _insert_streamer(database_file: Path) -> None:
     try:
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO streamers (name) VALUES ('Streamer')"))
+    finally:
+        engine.dispose()
+
+
+def _insert_timeline_style_fixture(database_file: Path) -> None:
+    polite_summary = "\uac8c\uc784\uc774 \uc774\uc5b4\uc9d1\ub2c8\ub2e4."
+    polite_block = "\ub300\ud654\ub97c \ub098\ub215\ub2c8\ub2e4."
+    polite_episode = "\uc2dc\uc791\ud569\ub2c8\ub2e4."
+    polite_topic = "\uad6c\uac04\uc785\ub2c8\ub2e4."
+    polite_flag = "\uc790\ub8cc\uac00 \uc788\uc2b5\ub2c8\ub2e4."
+    output_json = {
+        "video_summary": {
+            "title": "test",
+            "summary": polite_summary,
+            "display_title": "test",
+            "display_summary": polite_summary,
+            "main_topics": ["topic"],
+        },
+        "blocks": [
+            {
+                "block_id": "block_001",
+                "block_type": "JUST_CHATTING",
+                "title": "block",
+                "summary": polite_block,
+                "display_title": "block",
+                "display_summary": polite_block,
+                "episode_ids": ["episode_001"],
+            }
+        ],
+        "episodes": [
+            {
+                "episode_id": "episode_001",
+                "parent_block_id": "block_001",
+                "start_micro_event_id": "me_0001",
+                "end_micro_event_id": "me_0002",
+                "program_mode": "JUST_CHATTING",
+                "primary_content_kind": "META_CHAT",
+                "title": "episode",
+                "summary": polite_episode,
+                "display_title": "episode",
+                "display_summary": polite_episode,
+                "topics": ["topic"],
+                "viewer_tags": ["META"],
+                "highlight_micro_event_ids": ["me_0001"],
+                "visibility": "DEFAULT",
+            }
+        ],
+        "topic_clusters": [
+            {
+                "topic_id": "topic_001",
+                "label": polite_topic,
+                "summary": polite_topic,
+                "display_label": polite_topic,
+                "episode_ids": ["episode_001"],
+            }
+        ],
+        "review_flags": [
+            {
+                "start_micro_event_id": "me_0001",
+                "end_micro_event_id": "me_0002",
+                "type": "BOUNDARY_AMBIGUOUS",
+                "reason": polite_flag,
+            }
+        ],
+    }
+    engine = create_engine(f"sqlite:///{database_file.as_posix()}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO streamers (id, name) VALUES (1, 'Streamer')"))
+            connection.execute(
+                text(
+                    "INSERT INTO channels "
+                    "(id, streamer_id, handle, name, youtube_channel_id) "
+                    "VALUES (1, 1, 'handle', 'Channel', 'channel-1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO videos "
+                    "(id, channel_id, youtube_video_id, title, description, published_at) "
+                    "VALUES (1, 1, 'youtube-1', 'Video', '', '2026-01-01 00:00:00')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO video_tasks "
+                    "(id, video_id, task_name, task_version, input_hash, status, "
+                    "timeout_seconds, input_json, output_json) "
+                    "VALUES (1, 1, 'micro_event_extract', 'v1', 'hash-micro', "
+                    "'succeeded', 1200, '{}', '{}')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO video_tasks "
+                    "(id, video_id, task_name, task_version, input_hash, status, "
+                    "timeout_seconds, input_json, output_json) "
+                    "VALUES (2, 1, 'timeline_compose', 'v1', 'hash-timeline', "
+                    "'succeeded', 1200, '{}', '{}')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO timeline_compositions "
+                    "(id, video_task_id, video_id, source_micro_event_task_id, "
+                    "source_micro_event_fingerprint, copy_style, model, reasoning_effort, "
+                    "title, summary, display_title, display_summary, main_topics, "
+                    "output_json, validation_warnings, raw_response_text) "
+                    "VALUES (1, 2, 1, 1, :fingerprint, 'neutral', 'gpt-5.5', "
+                    "'high', 'title', :summary, 'title', :summary, :topics, "
+                    ":output_json, '[]', :raw_response_text)"
+                ),
+                {
+                    "fingerprint": "f" * 64,
+                    "summary": polite_summary,
+                    "topics": json.dumps(["topic"]),
+                    "output_json": json.dumps(output_json, ensure_ascii=False),
+                    "raw_response_text": "\uc6d0\ubb38\uc740 \uc2dc\uc791\ud569\ub2c8\ub2e4.",
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO timeline_blocks "
+                    "(composition_id, block_id, block_index, block_type, title, summary, "
+                    "display_title, display_summary, episode_ids) "
+                    "VALUES (1, 'block_001', 1, 'JUST_CHATTING', 'block', :summary, "
+                    "'block', :summary, :episode_ids)"
+                ),
+                {
+                    "summary": polite_block,
+                    "episode_ids": json.dumps(["episode_001"]),
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO timeline_episodes "
+                    "(composition_id, episode_id, episode_index, parent_block_id, "
+                    "program_mode, primary_content_kind, title, summary, display_title, "
+                    "display_summary, topics, viewer_tags, highlight_micro_event_candidate_ids, "
+                    "visibility) "
+                    "VALUES (1, 'episode_001', 1, 'block_001', 'JUST_CHATTING', "
+                    "'META_CHAT', 'episode', :summary, 'episode', :summary, "
+                    ":topics, :viewer_tags, :highlights, 'DEFAULT')"
+                ),
+                {
+                    "summary": polite_episode,
+                    "topics": json.dumps(["topic"]),
+                    "viewer_tags": json.dumps(["META"]),
+                    "highlights": json.dumps([1]),
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO timeline_topic_clusters "
+                    "(composition_id, topic_id, topic_index, label, summary, "
+                    "display_label, episode_ids) "
+                    "VALUES (1, 'topic_001', 1, :label, :summary, :label, :episode_ids)"
+                ),
+                {
+                    "label": polite_topic,
+                    "summary": polite_topic,
+                    "episode_ids": json.dumps(["episode_001"]),
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO timeline_review_flags "
+                    "(composition_id, flag_index, type, reason) "
+                    "VALUES (1, 1, 'BOUNDARY_AMBIGUOUS', :reason)"
+                ),
+                {"reason": polite_flag},
+            )
+    finally:
+        engine.dispose()
+
+
+def _fetch_timeline_style_fixture(database_file: Path) -> dict[str, str]:
+    engine = create_engine(f"sqlite:///{database_file.as_posix()}")
+    try:
+        with engine.begin() as connection:
+            output_json = json.loads(
+                connection.execute(
+                    text("SELECT output_json FROM timeline_compositions WHERE id = 1")
+                ).scalar_one()
+            )
+            return {
+                "composition_summary": connection.execute(
+                    text("SELECT summary FROM timeline_compositions WHERE id = 1")
+                ).scalar_one(),
+                "block_summary": connection.execute(
+                    text("SELECT summary FROM timeline_blocks WHERE composition_id = 1")
+                ).scalar_one(),
+                "episode_summary": connection.execute(
+                    text("SELECT summary FROM timeline_episodes WHERE composition_id = 1")
+                ).scalar_one(),
+                "topic_summary": connection.execute(
+                    text("SELECT summary FROM timeline_topic_clusters WHERE composition_id = 1")
+                ).scalar_one(),
+                "flag_reason": connection.execute(
+                    text("SELECT reason FROM timeline_review_flags WHERE composition_id = 1")
+                ).scalar_one(),
+                "output_summary": output_json["video_summary"]["summary"],
+                "raw_response_text": connection.execute(
+                    text("SELECT raw_response_text FROM timeline_compositions WHERE id = 1")
+                ).scalar_one(),
+            }
     finally:
         engine.dispose()
 

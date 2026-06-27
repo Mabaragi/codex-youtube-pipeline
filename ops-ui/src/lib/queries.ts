@@ -7,6 +7,11 @@ import {
   DEFAULT_CODEX_REASONING_EFFORT,
 } from "@/lib/codex-options";
 import type {
+  ArchiveCurrent,
+  ArchiveOpsVideoFilters,
+  ArchiveOpsVideoList,
+  ArchivePublishRequest,
+  ArchivePublishResult,
   CollectAllTranscriptsResult,
   CollectChannelTranscriptsResult,
   CollectChannelVideosResult,
@@ -95,6 +100,10 @@ export const queryKeys = {
     ["micro-event-extractions", videoId, "latest"] as const,
   timelineComposition: (videoId: number) =>
     ["timeline-compositions", videoId, "latest"] as const,
+  archiveCurrent: (environment: string | undefined) =>
+    ["ops", "archive", "current", environment ?? "default"] as const,
+  archiveVideos: (filters: Record<string, unknown>) =>
+    ["ops", "archive", "videos", filters] as const,
 };
 
 export function useOpsSummary() {
@@ -210,6 +219,28 @@ export function useOpsVideoTasks(filters: OpsVideoTaskFilters) {
     queryFn: () =>
       requestJson<OpsVideoTaskList>("/ops/video-tasks", { query: filters }),
     refetchInterval: 5_000,
+  });
+}
+
+export function useArchiveCurrent(environment?: string) {
+  return useQuery({
+    queryKey: queryKeys.archiveCurrent(environment),
+    queryFn: () =>
+      requestJson<ArchiveCurrent>("/ops/archive/current", {
+        query: environment ? { environment } : undefined,
+      }),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useArchiveVideos(filters: ArchiveOpsVideoFilters) {
+  return useQuery({
+    queryKey: queryKeys.archiveVideos(filters),
+    queryFn: () =>
+      requestJson<ArchiveOpsVideoList>("/ops/archive/videos", {
+        query: filters,
+      }),
+    refetchInterval: 10_000,
   });
 }
 
@@ -909,6 +940,27 @@ export function useEnqueueTimelineComposeMutation() {
         queryClient.invalidateQueries({ queryKey: ["ops"] }),
         queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
         queryClient.invalidateQueries({ queryKey: ["timeline-compositions"] }),
+      ]);
+    },
+  });
+}
+
+export function usePublishArchiveMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ArchivePublishRequest) =>
+      requestJson<ArchivePublishResult>(
+        "/video-tasks/archive-publish",
+        {
+          method: "POST",
+          body,
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops", "archive"] }),
+        queryClient.invalidateQueries({ queryKey: ["ops", "tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
       ]);
     },
   });

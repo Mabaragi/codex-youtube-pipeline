@@ -17,6 +17,8 @@ def test_database_base_registers_app_tables() -> None:
     import codex_sdk_cli.infra.database.models  # noqa: F401
 
     assert set(Base.metadata.tables) == {
+        "archive_index_publications",
+        "archive_video_artifacts",
         "asr_correction_candidates",
         "channels",
         "codex_run_usages",
@@ -84,6 +86,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert blank_settings.micro_event_extract_concurrency_limit == 3
     assert blank_settings.micro_event_worker_poll_interval_seconds == 5
     assert blank_settings.micro_event_worker_id is None
+    assert blank_settings.timeline_compose_concurrency_limit == 3
 
     monkeypatch.setenv("CODEX_CLI_MODEL", " ")
     monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", " ")
@@ -101,6 +104,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT", "3")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WORKER_POLL_INTERVAL_SECONDS", "7")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WORKER_ID", "micro-event-worker:test")
+    monkeypatch.setenv("CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT", "2")
 
     settings = CliSettings()
 
@@ -115,6 +119,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert settings.micro_event_extract_concurrency_limit == 3
     assert settings.micro_event_worker_poll_interval_seconds == 7
     assert settings.micro_event_worker_id == "micro-event-worker:test"
+    assert settings.timeline_compose_concurrency_limit == 2
 
 
 def test_blank_database_url_uses_default() -> None:

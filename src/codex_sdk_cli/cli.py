@@ -26,6 +26,7 @@ from .domains.domain_knowledge.use_cases import (
 )
 from .infra.database.session import create_database_engine, create_session_factory
 from .infra.domain_knowledge.repository import SqlAlchemyDomainKnowledgeRepository
+from .infra.timelines.style_backfill import normalize_timeline_style_backfill
 from .runner import (
     BLANK_BASE_INSTRUCTIONS,
     BLANK_DEVELOPER_INSTRUCTIONS,
@@ -160,9 +161,7 @@ async def _run_async(
         thread_id=thread_id,
         cwd=cwd,
         model=model or settings.model,
-        reasoning_effort=parse_reasoning_effort(
-            reasoning_effort or settings.reasoning_effort
-        ),
+        reasoning_effort=parse_reasoning_effort(reasoning_effort or settings.reasoning_effort),
         sandbox=parse_sandbox(sandbox or settings.sandbox),
         approval_mode=parse_approval(approval or settings.approval),
         persist=persist,
@@ -462,8 +461,7 @@ async def _domain_entry_add_async(
         sourceNote=source_note,
         streamerIds=streamer_ids,
         aliases=[
-            DomainEntryAliasCreateRequest(surfaceForm=surface_form)
-            for surface_form in aliases
+            DomainEntryAliasCreateRequest(surfaceForm=surface_form) for surface_form in aliases
         ],
     )
     return await _with_domain_repository(
@@ -508,6 +506,47 @@ async def _domain_entry_import_with_repository(
         response = await use_case.execute(request)
         items.append(response.model_dump(by_alias=True, mode="json"))
     return {"items": items, "count": len(items)}
+
+
+@main.group()
+def timeline() -> None:
+    """Manage timeline maintenance operations."""
+
+
+@timeline.command("normalize-style")
+@click.option(
+    "--apply",
+    "apply_changes",
+    is_flag=True,
+    help="Persist timeline style normalization changes.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview timeline style normalization changes without writing.",
+)
+def timeline_normalize_style(apply_changes: bool, dry_run: bool) -> None:
+    """Normalize stored timeline prose from polite style to plain declarative style."""
+    if apply_changes and dry_run:
+        raise click.ClickException("Use either --apply or --dry-run, not both.")
+    payload = _handle_errors(
+        lambda: asyncio.run(_timeline_normalize_style_async(apply_changes=apply_changes))
+    )
+    click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+async def _timeline_normalize_style_async(*, apply_changes: bool) -> object:
+    settings = _settings()
+    engine = create_database_engine(settings.database_url, echo=settings.database_echo)
+    session_factory = create_session_factory(engine)
+    try:
+        async with session_factory() as session:
+            return await normalize_timeline_style_backfill(
+                session,
+                apply=apply_changes,
+            )
+    finally:
+        await engine.dispose()
 
 
 async def _resolve_domain_entry_type_filter(

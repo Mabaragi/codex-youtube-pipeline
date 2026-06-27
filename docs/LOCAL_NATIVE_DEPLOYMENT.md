@@ -163,6 +163,26 @@ CODEX_CLI_TRANSCRIPT_MINIO_PREFIX=youtube/transcripts
 CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX=external-api-calls
 ```
 
+## R2 Archive Publish
+
+Timeline archive publishing is optional and uses Cloudflare R2 instead of local
+MinIO. Configure these only when `/ops/archive` should publish public artifacts:
+
+```text
+CODEX_CLI_ARCHIVE_PUBLISH_R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+CODEX_CLI_ARCHIVE_PUBLISH_R2_ACCESS_KEY=...
+CODEX_CLI_ARCHIVE_PUBLISH_R2_SECRET_KEY=...
+CODEX_CLI_ARCHIVE_PUBLISH_R2_BUCKET=...
+CODEX_CLI_ARCHIVE_PUBLISH_R2_SECURE=true
+CODEX_CLI_ARCHIVE_PUBLISH_PUBLIC_BASE_URL=https://<public-bucket-or-domain>
+CODEX_CLI_ARCHIVE_PUBLISH_PREFIX=archive
+CODEX_CLI_ARCHIVE_PUBLISH_ENVIRONMENT=prod
+```
+
+Archive publish runs synchronously in `POST /video-tasks/archive-publish`; there
+is no local archive publish worker process. See `docs/ARCHIVE_PUBLISH.md` for
+object keys and API usage.
+
 ## GitHub Actions
 
 GitHub Actions no longer deploys this PC. `CI` and `Docker Publish` are manual

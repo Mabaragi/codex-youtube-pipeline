@@ -110,8 +110,7 @@ def test_timeline_composition_accepts_topic_cluster_title_aliases() -> None:
     assert len(create.episodes[0].highlight_micro_event_candidate_ids) == 3
     assert "episode episode_001 topics truncated to 6" in create.validation_warnings
     assert (
-        "episode episode_001 highlight_micro_event_ids truncated to 3"
-        in create.validation_warnings
+        "episode episode_001 highlight_micro_event_ids truncated to 3" in create.validation_warnings
     )
 
 
@@ -256,9 +255,10 @@ def test_timeline_prompt_filters_domain_entries_like_micro_event_extraction() ->
     prompt = _timeline_prompt(composer_input)
     payload = json.loads(prompt.rsplit("\n", 1)[1])
 
-    assert [
-        entry["canonicalName"] for entry in payload["domain_entries"]
-    ] == ["카네코 파냐", "치치"]
+    assert [entry["canonicalName"] for entry in payload["domain_entries"]] == [
+        "카네코 파냐",
+        "치치",
+    ]
 
 
 def test_timeline_task_input_json_includes_prompt_sha() -> None:
@@ -274,9 +274,7 @@ def test_timeline_task_input_json_includes_prompt_sha() -> None:
         prompt=fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY),
     )
 
-    assert input_json["promptSha256"] == fallback_prompt(
-        TIMELINE_COMPOSE_PROMPT_KEY
-    ).body_sha256
+    assert input_json["promptSha256"] == fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY).body_sha256
     assert len(str(input_json["promptSha256"])) == 64
 
 
@@ -345,7 +343,41 @@ async def test_timeline_prepare_uses_requested_compose_prompt_version() -> None:
     assert prepared.input_json["promptVersionId"] == 201
     assert prepared.input_json["promptVersion"] == "timeline-db-v1"
     assert prepared.input_json["promptSource"] == "database"
+    assert prepared.reasoning_effort == "high"
+    assert prepared.input_json["reasoningEffort"] == "high"
     assert prompt_resolver.requested_version_ids == [201]
+
+
+@pytest.mark.anyio
+async def test_timeline_prepare_respects_requested_reasoning_effort() -> None:
+    use_case = ComposeTimelineUseCase(
+        videos=cast(Any, _Noop()),
+        video_tasks=cast(Any, _TimelineVideoTasks()),
+        channels=cast(Any, _Noop()),
+        streamers=cast(Any, _Noop()),
+        domain_knowledge=cast(Any, _Noop()),
+        micro_events=cast(Any, _TimelineMicroEvents()),
+        timelines=cast(Any, _Noop()),
+        pipeline_jobs=cast(Any, _Noop()),
+        composer=cast(Any, _Noop()),
+        prompt_resolver=_TimelinePromptResolver(fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY)),
+        timeout_seconds=1200,
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        events=cast(Any, _Noop()),
+    )
+
+    prepared = await use_case._prepare(
+        _video(),
+        TimelineComposeEnqueueRequest(
+            target="selected_videos",
+            videoIds=[71],
+            reasoningEffort="medium",
+        ),
+    )
+
+    assert prepared.reasoning_effort == "medium"
+    assert prepared.input_json["reasoningEffort"] == "medium"
 
 
 def test_timeline_normalizes_content_kind_values_in_viewer_tags() -> None:
@@ -395,8 +427,7 @@ def test_timeline_normalizes_content_kind_values_in_viewer_tags() -> None:
     ) in create.validation_warnings
     assert (
         "episode episode_001 viewer_tags removed content kind value "
-        "from viewer_tags: BREAK_TIME"
-        in create.validation_warnings
+        "from viewer_tags: BREAK_TIME" in create.validation_warnings
     )
     assert (
         "episode episode_001 viewer_tags removed unknown viewer tag: NOT_A_TAG"
@@ -432,8 +463,7 @@ def test_timeline_all_invalid_viewer_tags_can_normalize_to_empty_list() -> None:
     assert create.episodes[0].viewer_tags == []
     assert (
         "episode episode_001 viewer_tags removed content kind value "
-        "from viewer_tags: BREAK_TIME"
-        in create.validation_warnings
+        "from viewer_tags: BREAK_TIME" in create.validation_warnings
     )
     assert (
         "episode episode_001 viewer_tags removed unknown viewer tag: NOT_A_TAG"
@@ -465,6 +495,81 @@ def test_timeline_legacy_overbroad_flag_is_normalized() -> None:
     )
 
     assert create.review_flags[0].type == "OVERBROAD_EPISODE"
+
+
+def test_timeline_composition_normalizes_polite_style_but_keeps_raw_response() -> None:
+    polite_summary = "\uac8c\uc784\uc774 \uc774\uc5b4\uc9d1\ub2c8\ub2e4."
+    polite_block = "\ub300\ud654\ub97c \ub098\ub215\ub2c8\ub2e4."
+    polite_episode = "\uc2dc\uc791\ud569\ub2c8\ub2e4."
+    polite_topic = "\uad6c\uac04\uc785\ub2c8\ub2e4."
+    polite_flag = "\uc790\ub8cc\uac00 \uc788\uc2b5\ub2c8\ub2e4."
+    output_json = {
+        "video_summary": {
+            "title": "\ud14c\uc2a4\ud2b8",
+            "summary": polite_summary,
+            "display_title": "\ud14c\uc2a4\ud2b8",
+            "display_summary": polite_summary,
+            "main_topics": ["topic"],
+        },
+        "blocks": [
+            {
+                **_block_output(
+                    "block_001",
+                    "JUST_CHATTING",
+                    ["episode_001", "episode_002"],
+                ),
+                "summary": polite_block,
+                "display_summary": polite_block,
+            }
+        ],
+        "episodes": [
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0002",
+                summary=polite_episode,
+            ),
+            _episode_output("episode_002", "me_0003", "me_0004"),
+        ],
+        "topic_clusters": [
+            {
+                "topic_id": "topic_001",
+                "label": polite_topic,
+                "summary": polite_topic,
+                "display_label": polite_topic,
+                "episode_ids": ["episode_001", "episode_002"],
+            }
+        ],
+        "review_flags": [
+            {
+                "start_micro_event_id": "me_0001",
+                "end_micro_event_id": "me_0002",
+                "type": "BOUNDARY_AMBIGUOUS",
+                "reason": polite_flag,
+            }
+        ],
+    }
+    result = _compose_result(output_json)
+
+    create = _composition_create(
+        _composer_input(_candidates(4)),
+        result,
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+    )
+
+    assert create.display_summary == "\uac8c\uc784\uc774 \uc774\uc5b4\uc9c4\ub2e4."
+    assert create.blocks[0].display_summary == "\ub300\ud654\ub97c \ub098\ub208\ub2e4."
+    assert create.episodes[0].display_summary == "\uc2dc\uc791\ud55c\ub2e4."
+    assert create.topic_clusters[0].summary == "\uad6c\uac04\uc774\ub2e4."
+    assert create.review_flags[0].reason == "\uc790\ub8cc\uac00 \uc788\ub2e4."
+    assert create.output_json["episodes"][0]["display_summary"] == "\uc2dc\uc791\ud55c\ub2e4."
+    assert create.output_json["review_flags"][0]["reason"] == "\uc790\ub8cc\uac00 \uc788\ub2e4."
+    assert create.raw_response_text == result.final_response
+    assert create.raw_response_text is not None
+    raw_output_json = json.loads(create.raw_response_text)
+    assert raw_output_json["episodes"][0]["summary"] == polite_episode
 
 
 def test_timeline_repairs_post_game_break_and_closing_blocks() -> None:
@@ -621,6 +726,260 @@ async def test_timeline_partial_repair_keep_preserves_episode_and_flags() -> Non
 
     assert len(create.episodes) == 1
     assert {flag.type for flag in create.review_flags} == {"OVERBROAD_EPISODE"}
+
+
+@pytest.mark.anyio
+async def test_timeline_coverage_repair_fills_missing_micro_event_gap() -> None:
+    composer_input = _composer_input(_candidates(4))
+    output_json = _timeline_output(
+        blocks=[
+            _block_output(
+                "block_001",
+                "JUST_CHATTING",
+                ["episode_001", "episode_002"],
+            )
+        ],
+        episodes=[
+            _episode_output("episode_001", "me_0001", "me_0002"),
+            _episode_output("episode_002", "me_0004", "me_0004"),
+        ],
+    )
+    composer = _RepairComposer(
+        [
+            {
+                "target_episode_id": "episode_recovery_001",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0003", "me_0003", "missing bridge"),
+                ],
+                "reason": "fill missing micro-event",
+            }
+        ]
+    )
+    raw_responses = []
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+        raw_responses=raw_responses,
+    )
+
+    assert len(composer.requests) == 1
+    assert composer.requests[0].target_episode_id == "episode_recovery_001"
+    assert [episode.start_micro_event_candidate_id for episode in create.episodes] == [
+        1,
+        3,
+        4,
+    ]
+    assert [episode.end_micro_event_candidate_id for episode in create.episodes] == [
+        2,
+        3,
+        4,
+    ]
+    assert create.blocks[0].episode_ids == [
+        "episode_001",
+        "episode_recovery_001",
+        "episode_002",
+    ]
+    assert raw_responses[0].operation == "repair_episode"
+    assert raw_responses[0].target_episode_id == "episode_recovery_001"
+    assert any(
+        "coverage repair episode_recovery_001 inserted" in item
+        for item in create.validation_warnings
+    )
+
+
+@pytest.mark.anyio
+async def test_timeline_coverage_repair_rewrites_overlapping_episode_window() -> None:
+    composer_input = _composer_input(_candidates(4))
+    output_json = _timeline_output(
+        blocks=[
+            _block_output(
+                "block_001",
+                "JUST_CHATTING",
+                ["episode_001", "episode_002"],
+            )
+        ],
+        episodes=[
+            _episode_output("episode_001", "me_0001", "me_0003"),
+            _episode_output("episode_002", "me_0003", "me_0004"),
+        ],
+    )
+    composer = _RepairComposer(
+        [
+            {
+                "target_episode_id": "episode_001",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0001", "me_0002", "first topic"),
+                    _repair_episode_output("me_0003", "me_0004", "second topic"),
+                ],
+                "reason": "remove overlap",
+            }
+        ]
+    )
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+    )
+
+    assert len(composer.requests) == 1
+    assert composer.requests[0].target_episode_id == "episode_001"
+    assert [episode.episode_id for episode in create.episodes] == [
+        "episode_001",
+        "episode_001_split_002",
+    ]
+    assert [episode.start_micro_event_candidate_id for episode in create.episodes] == [1, 3]
+    assert [episode.end_micro_event_candidate_id for episode in create.episodes] == [2, 4]
+    assert create.blocks[0].episode_ids == [
+        "episode_001",
+        "episode_001_split_002",
+    ]
+
+
+@pytest.mark.anyio
+async def test_timeline_block_semantic_repair_preserves_episode_order() -> None:
+    composer_input = _composer_input(_candidates(4))
+    output_json = _timeline_output(
+        blocks=[
+            _block_output("block_001", "JUST_CHATTING", ["episode_001"]),
+            _block_output("block_002", "GAMEPLAY", ["episode_003", "episode_004"]),
+        ],
+        episodes=[
+            _episode_output("episode_001", "me_0001", "me_0001"),
+            _episode_output("episode_002", "me_0002", "me_0002"),
+            _episode_output("episode_003", "me_0003", "me_0003"),
+            _episode_output("episode_004", "me_0004", "me_0004"),
+        ],
+    )
+    composer = _RepairComposer([])
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+    )
+
+    assert composer.requests == []
+    assert [episode.episode_id for episode in create.episodes] == [
+        "episode_001",
+        "episode_002",
+        "episode_003",
+        "episode_004",
+    ]
+    assert [episode_id for block in create.blocks for episode_id in block.episode_ids] == [
+        "episode_001",
+        "episode_002",
+        "episode_003",
+        "episode_004",
+    ]
+    assert any(
+        "block semantic repair rebuilt block refs from episode order" in item
+        for item in create.validation_warnings
+    )
+
+
+@pytest.mark.anyio
+async def test_timeline_coverage_repair_handles_more_than_three_gaps() -> None:
+    composer_input = _composer_input(_candidates(8))
+    output_json = _timeline_output(
+        blocks=[
+            _block_output(
+                "block_001",
+                "JUST_CHATTING",
+                ["episode_001", "episode_002", "episode_003", "episode_004"],
+            )
+        ],
+        episodes=[
+            _episode_output("episode_001", "me_0001", "me_0001"),
+            _episode_output("episode_002", "me_0003", "me_0003"),
+            _episode_output("episode_003", "me_0005", "me_0005"),
+            _episode_output("episode_004", "me_0007", "me_0007"),
+        ],
+    )
+    composer = _RepairComposer(
+        [
+            {
+                "target_episode_id": "episode_recovery_001",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0002", "me_0002", "missing 2"),
+                ],
+                "reason": "fill missing micro-event",
+            },
+            {
+                "target_episode_id": "episode_recovery_002",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0004", "me_0004", "missing 4"),
+                ],
+                "reason": "fill missing micro-event",
+            },
+            {
+                "target_episode_id": "episode_recovery_003",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0006", "me_0006", "missing 6"),
+                ],
+                "reason": "fill missing micro-event",
+            },
+            {
+                "target_episode_id": "episode_recovery_004",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0008", "me_0008", "missing 8"),
+                ],
+                "reason": "fill missing micro-event",
+            },
+        ]
+    )
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+    )
+
+    assert len(composer.requests) == 4
+    assert [episode.start_micro_event_candidate_id for episode in create.episodes] == [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+    ]
+    assert [episode.end_micro_event_candidate_id for episode in create.episodes] == [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+    ]
 
 
 @pytest.mark.anyio
@@ -1002,9 +1361,7 @@ class _ComposeAndRepairComposer:
         repair_outputs: list[dict[str, object]] | None = None,
     ) -> None:
         self.compose_response_text = json.dumps(compose_output)
-        self.repair_response_texts = [
-            json.dumps(output) for output in repair_outputs or []
-        ]
+        self.repair_response_texts = [json.dumps(output) for output in repair_outputs or []]
         self.repair_requests: list[TimelineEpisodeRepairRequest] = []
 
     async def compose(self, request: TimelineComposeRequest) -> TimelineComposeResult:

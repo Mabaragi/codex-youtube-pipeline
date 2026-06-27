@@ -265,6 +265,7 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_MICRO_EVENT_WORKER_POLL_INTERVAL_SECONDS`: micro-event worker DB polling interval. 기본값은 `5`.
 - `CODEX_CLI_MICRO_EVENT_WORKER_ID`: micro-event worker id override.
 - `CODEX_CLI_TIMELINE_COMPOSE_TIMEOUT_SECONDS`: `timeline_compose` video task timeout. 기본값은 `3600`.
+- `CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT`: `timeline_compose` worker가 동시에 처리할 video task 수. 기본값은 `3`.
 - `CODEX_CLI_TIMELINE_COMPOSE_WORKER_POLL_INTERVAL_SECONDS`: timeline compose worker DB polling interval. 기본값은 `5`.
 - `CODEX_CLI_TIMELINE_COMPOSE_WORKER_ID`: timeline compose worker id override.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.

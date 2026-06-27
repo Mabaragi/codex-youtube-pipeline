@@ -4,6 +4,14 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from codex_sdk_cli.domains.archive_publish.exceptions import (
+    ArchivePublishArtifactInvalid,
+    ArchivePublishConfigurationError,
+    ArchivePublishDomainError,
+    ArchivePublishPersistenceError,
+    ArchivePublishPreconditionFailed,
+    ArchivePublishStorageError,
+)
 from codex_sdk_cli.domains.channels.exceptions import (
     ChannelAlreadyExists,
     ChannelDomainError,
@@ -233,6 +241,25 @@ def add_exception_handlers(app: FastAPI) -> None:
         elif isinstance(exc, TimelineCompositionPreconditionFailed):
             status_code = status.HTTP_409_CONFLICT
         elif isinstance(exc, TimelineCompositionPersistenceError):
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+
+    @app.exception_handler(ArchivePublishDomainError)
+    async def archive_publish_domain_error_handler(
+        _request: Request,
+        exc: ArchivePublishDomainError,
+    ) -> JSONResponse:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(exc, (ArchivePublishPreconditionFailed, ArchivePublishArtifactInvalid)):
+            status_code = status.HTTP_409_CONFLICT
+        elif isinstance(
+            exc,
+            (
+                ArchivePublishConfigurationError,
+                ArchivePublishPersistenceError,
+                ArchivePublishStorageError,
+            ),
+        ):
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=status_code, content={"detail": exc.message})
 

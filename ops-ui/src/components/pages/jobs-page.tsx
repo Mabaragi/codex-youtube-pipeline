@@ -58,6 +58,7 @@ const JOB_STEP_OPTIONS = [
   { value: "transcript_cue_generate", label: "transcript_cue_generate" },
   { value: "micro_event_extract", label: "micro_event_extract" },
   { value: "timeline_compose", label: "timeline_compose" },
+  { value: "archive_publish", label: "archive_publish" },
 ];
 
 export function JobsPage({ initialFilters }: JobsPageProps) {

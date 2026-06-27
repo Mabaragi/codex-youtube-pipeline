@@ -59,7 +59,7 @@ class TimelineComposeEnqueueRequest(BaseModel):
                     "regenerateSucceeded": False,
                     "copyStyle": "LIGHT_FANDOM_V1",
                     "model": "gpt-5.5",
-                    "reasoningEffort": "medium",
+                    "reasoningEffort": "high",
                     "promptVersionId": 1,
                 }
             ]

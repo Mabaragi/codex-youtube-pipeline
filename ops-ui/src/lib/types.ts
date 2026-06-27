@@ -35,6 +35,14 @@ export type TimelineComposeEnqueueRequest =
   components["schemas"]["TimelineComposeEnqueueRequest"];
 export type TimelineComposeEnqueueResult =
   components["schemas"]["TimelineComposeEnqueueResponse"];
+export type ArchivePublishRequest =
+  components["schemas"]["ArchivePublishRequest"];
+export type ArchivePublishResult =
+  components["schemas"]["ArchivePublishResponse"];
+export type ArchiveCurrent = components["schemas"]["ArchiveCurrentResponse"];
+export type ArchiveOpsVideoList =
+  components["schemas"]["ArchiveOpsVideoListResponse"];
+export type ArchiveOpsVideo = components["schemas"]["ArchiveOpsVideoResponse"];
 export type TimelineComposition =
   components["schemas"]["TimelineCompositionResponse"];
 export type TimelineEpisode = components["schemas"]["TimelineEpisodeResponse"];
@@ -105,6 +113,9 @@ export type PipelineJobFilters = NonNullable<
 >;
 export type OpsVideoFilters = NonNullable<
   paths["/ops/videos"]["get"]["parameters"]["query"]
+>;
+export type ArchiveOpsVideoFilters = NonNullable<
+  paths["/ops/archive/videos"]["get"]["parameters"]["query"]
 >;
 export type OpsVideoTaskFilters = NonNullable<
   paths["/ops/video-tasks"]["get"]["parameters"]["query"]

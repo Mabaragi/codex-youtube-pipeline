@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from codex_sdk_cli.api.dependencies import get_settings
 from codex_sdk_cli.api.exception_handlers import add_exception_handlers
+from codex_sdk_cli.api.routes.archive_publish import router as archive_publish_router
 from codex_sdk_cli.api.routes.channels import router as channels_router
 from codex_sdk_cli.api.routes.codex import router as codex_router
 from codex_sdk_cli.api.routes.codex_usage import router as codex_usage_router
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(video_tasks_router, tags=["video-tasks"])
     app.include_router(micro_events_router, tags=["micro-events"])
     app.include_router(timelines_router, tags=["timelines"])
+    app.include_router(archive_publish_router, tags=["archive-publish"])
     app.include_router(
         youtube_transcripts_router,
         prefix="/youtube-transcripts",

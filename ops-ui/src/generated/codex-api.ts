@@ -368,6 +368,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/archive/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Current Archive Publication */
+        get: operations["get_current_archive_publication_ops_archive_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/archive/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Archive Videos */
+        get: operations["list_archive_videos_ops_archive_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/channels": {
         parameters: {
             query?: never;
@@ -780,6 +814,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/video-tasks/archive-publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Archive */
+        post: operations["publish_archive_video_tasks_archive_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/video-tasks/cancel": {
         parameters: {
             query?: never;
@@ -1092,6 +1143,273 @@ export interface components {
              * @example sk-proj-example
              */
             apiKey: string;
+        };
+        /** ArchiveCurrentResponse */
+        ArchiveCurrentResponse: {
+            /** Environment */
+            environment: string;
+            latestPublication: components["schemas"]["ArchiveIndexPublicationResponse"] | null;
+            storage: components["schemas"]["ArchiveStorageConfigResponse"];
+        };
+        /** ArchiveIndexPublicationResponse */
+        ArchiveIndexPublicationResponse: {
+            /** Bytesize */
+            byteSize: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Environment */
+            environment: string;
+            /** Indexkey */
+            indexKey: string;
+            /** Pointerkey */
+            pointerKey: string;
+            /** Publicurl */
+            publicUrl: string;
+            /** Publicationid */
+            publicationId: number;
+            /** Schemaversion */
+            schemaVersion: number;
+            /** Sha256 */
+            sha256: string;
+            /** Version */
+            version: string;
+            /** Videocount */
+            videoCount: number;
+        };
+        /** ArchiveOpsVideoListResponse */
+        ArchiveOpsVideoListResponse: {
+            /** Items */
+            items: components["schemas"]["ArchiveOpsVideoResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** ArchiveOpsVideoResponse */
+        ArchiveOpsVideoResponse: {
+            /** Channelid */
+            channelId: number;
+            /** Channelname */
+            channelName: string;
+            /** Duration */
+            duration: string | null;
+            latestArtifact: components["schemas"]["ArchiveVideoArtifactResponse"] | null;
+            latestTask: components["schemas"]["ArchiveVideoTaskSummaryResponse"] | null;
+            /**
+             * Publishedat
+             * Format: date-time
+             */
+            publishedAt: string;
+            /** Thumbnailurl */
+            thumbnailUrl: string | null;
+            /** Timelinecompositionid */
+            timelineCompositionId: number | null;
+            /** Timelineepisodecount */
+            timelineEpisodeCount: number;
+            /** Timelineready */
+            timelineReady: boolean;
+            /** Timelinetaskid */
+            timelineTaskId: number | null;
+            /** Title */
+            title: string;
+            /** Videoid */
+            videoId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
+        /** ArchivePublishItemResponse */
+        ArchivePublishItemResponse: {
+            /** Artifactid */
+            artifactId: number | null;
+            /** Environment */
+            environment: string;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Publicurl */
+            publicUrl: string | null;
+            /** Reason */
+            reason: string;
+            /** Schemaversion */
+            schemaVersion: number;
+            /** Sourcetimelinecompositionid */
+            sourceTimelineCompositionId: number | null;
+            /** Sourcetimelinetaskid */
+            sourceTimelineTaskId: number | null;
+            /** Status */
+            status: string;
+            /** Variant */
+            variant: string;
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number | null;
+            /** Youtubevideoid */
+            youtubeVideoId: string | null;
+        };
+        /**
+         * ArchivePublishRequest
+         * @example {
+         *       "environment": "prod",
+         *       "limit": 20,
+         *       "regenerateSucceeded": false,
+         *       "retryFailed": false,
+         *       "schemaVersion": 1,
+         *       "target": "next_eligible",
+         *       "variant": "control"
+         *     }
+         */
+        ArchivePublishRequest: {
+            /** Channelid */
+            channelId?: number | null;
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /**
+             * Regeneratesucceeded
+             * @default false
+             */
+            regenerateSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /**
+             * Schemaversion
+             * @default 1
+             */
+            schemaVersion: number;
+            /** Search */
+            search?: string | null;
+            /**
+             * Target
+             * @default next_eligible
+             * @enum {string}
+             */
+            target: "selected_videos" | "current_filters" | "next_eligible";
+            /**
+             * Variant
+             * @default control
+             */
+            variant: string;
+            /** Videoids */
+            videoIds?: number[];
+        };
+        /** ArchivePublishResponse */
+        ArchivePublishResponse: {
+            /** Alreadypublishedcount */
+            alreadyPublishedCount: number;
+            /** Failedcount */
+            failedCount: number;
+            /** Failedskippedcount */
+            failedSkippedCount: number;
+            /** Ineligiblecount */
+            ineligibleCount: number;
+            /** Items */
+            items: components["schemas"]["ArchivePublishItemResponse"][];
+            /** Processedcount */
+            processedCount: number;
+            /** Publishedcount */
+            publishedCount: number;
+            /** Regeneratedcount */
+            regeneratedCount: number;
+            /** Requestedcount */
+            requestedCount: number;
+            /** Scannedcount */
+            scannedCount: number;
+        };
+        /** ArchiveStorageConfigResponse */
+        ArchiveStorageConfigResponse: {
+            /** Bucket */
+            bucket: string | null;
+            /** Configured */
+            configured: boolean;
+            /** Endpoint */
+            endpoint: string | null;
+            /** Prefix */
+            prefix: string;
+            /** Publicbaseurl */
+            publicBaseUrl: string | null;
+        };
+        /** ArchiveVideoArtifactResponse */
+        ArchiveVideoArtifactResponse: {
+            /** Artifactid */
+            artifactId: number;
+            /** Blockcount */
+            blockCount: number;
+            /** Bytesize */
+            byteSize: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Environment */
+            environment: string;
+            /** Episodecount */
+            episodeCount: number;
+            /** Microeventcount */
+            microEventCount: number;
+            /** Objectkey */
+            objectKey: string;
+            /** Publicurl */
+            publicUrl: string;
+            /** Publishjobid */
+            publishJobId: number;
+            /** Publishtaskid */
+            publishTaskId: number;
+            /** Reviewflagcount */
+            reviewFlagCount: number;
+            /** Schemaversion */
+            schemaVersion: number;
+            /** Sha256 */
+            sha256: string;
+            /** Sourcemicroeventtaskid */
+            sourceMicroEventTaskId: number;
+            /** Sourcetimelinecompositionid */
+            sourceTimelineCompositionId: number;
+            /** Sourcetimelinetaskid */
+            sourceTimelineTaskId: number;
+            /** Topicclustercount */
+            topicClusterCount: number;
+            /** Variant */
+            variant: string;
+            /** Version */
+            version: string;
+        };
+        /** ArchiveVideoTaskSummaryResponse */
+        ArchiveVideoTaskSummaryResponse: {
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Jobattemptid */
+            jobAttemptId: number | null;
+            /** Jobid */
+            jobId: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Videotaskid */
+            videoTaskId: number;
         };
         /** AsrCorrectionCandidateResponse */
         AsrCorrectionCandidateResponse: {
@@ -3367,7 +3685,7 @@ export interface components {
          *       "limit": 5,
          *       "model": "gpt-5.5",
          *       "promptVersionId": 1,
-         *       "reasoningEffort": "medium",
+         *       "reasoningEffort": "high",
          *       "regenerateSucceeded": false,
          *       "retryFailed": false,
          *       "target": "next_eligible"
@@ -4790,6 +5108,73 @@ export interface operations {
             };
         };
     };
+    get_current_archive_publication_ops_archive_current_get: {
+        parameters: {
+            query?: {
+                environment?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveCurrentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_archive_videos_ops_archive_videos_get: {
+        parameters: {
+            query?: {
+                environment?: string | null;
+                channelId?: number | null;
+                publishStatus?: ("not_ready" | "ready" | "pending" | "running" | "failed" | "published") | null;
+                search?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveOpsVideoListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_ops_channels_ops_channels_get: {
         parameters: {
             query?: never;
@@ -5663,6 +6048,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveYouTubeChannelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_archive_video_tasks_archive_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ArchivePublishRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchivePublishResponse"];
                 };
             };
             /** @description Validation Error */

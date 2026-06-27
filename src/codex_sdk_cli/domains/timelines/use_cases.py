@@ -59,6 +59,8 @@ from codex_sdk_cli.domains.videos.ports import VideoRecord, VideoRepositoryPort
 from .constants import (
     TIMELINE_COMPOSE_BATCH_SCAN_LIMIT,
     TIMELINE_COMPOSE_DEFAULT_COPY_STYLE,
+    TIMELINE_COMPOSE_DEFAULT_REASONING_EFFORT,
+    TIMELINE_COMPOSE_MAX_COVERAGE_REPAIRS,
     TIMELINE_COMPOSE_MAX_EPISODE_REPAIRS,
 )
 from .exceptions import (
@@ -96,6 +98,7 @@ from .schemas import (
     TimelineReviewFlagResponse,
     TimelineTopicClusterResponse,
 )
+from .style import normalize_timeline_style_text
 
 TIMELINE_COMPOSE_WORKER_ID_PREFIX = "timeline-compose-worker:"
 TIMELINE_DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT = 80
@@ -156,6 +159,15 @@ class _TimelineRawResponse:
     status: str
     raw_response_text: str
     target_episode_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _CoverageRepairPlan:
+    target_episode: TimelineEpisodeCreate
+    target_candidates: list[MicroEventCandidateRecord]
+    replace_start_index: int
+    replace_end_index: int
+    insert_before_episode_id: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -541,7 +553,7 @@ class ComposeTimelineUseCase:
                 "Micro-event extraction has no micro-events."
             )
         model = request.model or self._model
-        reasoning_effort = request.reasoning_effort or self._reasoning_effort
+        reasoning_effort = request.reasoning_effort or TIMELINE_COMPOSE_DEFAULT_REASONING_EFFORT
         source_fingerprint = _source_micro_event_fingerprint(source_detail)
         prompt = await self._prompt_resolver.resolve_prompt_for_request(
             TIMELINE_COMPOSE_PROMPT_KEY,
@@ -587,17 +599,13 @@ class ComposeTimelineUseCase:
             raise VideoNotFound("Video not found.")
         source_task = await self._video_tasks.get_task(source_task_id)
         if source_task is None:
-            raise TimelineCompositionPreconditionFailed(
-                "Source micro-event task not found."
-            )
+            raise TimelineCompositionPreconditionFailed("Source micro-event task not found.")
         source_detail = await self._micro_events.get_extraction(
             video_id=video.id,
             video_task_id=source_task.id,
         )
         if source_detail is None:
-            raise TimelineCompositionPreconditionFailed(
-                "Source micro-event extraction not found."
-            )
+            raise TimelineCompositionPreconditionFailed("Source micro-event extraction not found.")
         micro_events = _flatten_micro_events(source_detail)
         if not micro_events:
             raise TimelineCompositionPreconditionFailed("Micro-events are required.")
@@ -607,12 +615,9 @@ class ComposeTimelineUseCase:
         if streamer_id is not None:
             streamer = await self._streamers.get_streamer(streamer_id)
             streamer_name = streamer.name if streamer is not None else None
-        domain_entries = await self._domain_knowledge.list_prompt_entries_for_streamer(
-            streamer_id
-        )
+        domain_entries = await self._domain_knowledge.list_prompt_entries_for_streamer(streamer_id)
         synthetic_id_by_candidate_id = {
-            candidate.id: f"me_{index:04d}"
-            for index, candidate in enumerate(micro_events, start=1)
+            candidate.id: f"me_{index:04d}" for index, candidate in enumerate(micro_events, start=1)
         }
         candidate_id_by_synthetic_id = {
             value: key for key, value in synthetic_id_by_candidate_id.items()
@@ -636,8 +641,7 @@ class ComposeTimelineUseCase:
             reasoning_effort=_reasoning_effort_output(input_json) or self._reasoning_effort,
             copy_style=cast(
                 CopyStyle,
-                _str_output(input_json, "copyStyle")
-                or TIMELINE_COMPOSE_DEFAULT_COPY_STYLE,
+                _str_output(input_json, "copyStyle") or TIMELINE_COMPOSE_DEFAULT_COPY_STYLE,
             ),
             compose_prompt=compose_prompt,
             repair_prompt=repair_prompt,
@@ -987,13 +991,10 @@ def _timeline_prompt(composer_input: _ComposerInput) -> str:
             "streamer_name": composer_input.streamer_name,
             "duration_sec": _duration_seconds(composer_input.video.duration),
             "copy_style": composer_input.copy_style,
-            "target_episode_count_hint": _episode_count_hint(
-                len(composer_input.micro_events)
-            ),
+            "target_episode_count_hint": _episode_count_hint(len(composer_input.micro_events)),
         },
         "domain_entries": [
-            _domain_entry_json(entry)
-            for entry in _timeline_domain_entries(composer_input)
+            _domain_entry_json(entry) for entry in _timeline_domain_entries(composer_input)
         ],
         "micro_events": [
             _micro_event_input(candidate, composer_input, seq=index)
@@ -1056,8 +1057,8 @@ def _composition_create(
     job: PipelineJobRecord,
     attempt: PipelineJobAttemptRecord,
 ) -> TimelineCompositionCreate:
-    output_json, summary, blocks, episodes, topics, flags, warnings = (
-        _normalized_timeline_parts(composer_input, result)
+    output_json, summary, blocks, episodes, topics, flags, warnings = _normalized_timeline_parts(
+        composer_input, result
     )
     blocks, episodes = _repair_block_semantics(episodes, blocks, composer_input, warnings)
     flags = _soft_verifier_flags(
@@ -1065,6 +1066,14 @@ def _composition_create(
         blocks=blocks,
         composer_input=composer_input,
         existing_flags=flags,
+        warnings=warnings,
+    )
+    summary, blocks, episodes, topics, flags = _normalize_timeline_style(
+        summary=summary,
+        blocks=blocks,
+        episodes=episodes,
+        topics=topics,
+        flags=flags,
         warnings=warnings,
     )
     _validate_timeline_invariants(episodes, blocks, composer_input)
@@ -1103,10 +1112,39 @@ async def _composition_create_with_repairs(
     timeout_seconds: int,
     raw_responses: list[_TimelineRawResponse] | None = None,
 ) -> TimelineCompositionCreate:
-    output_json, summary, blocks, episodes, topics, flags, warnings = (
-        _normalized_timeline_parts(composer_input, result)
+    output_json, summary, blocks, episodes, topics, flags, warnings = _normalized_timeline_parts(
+        composer_input, result
     )
     episodes, blocks, topics, flags = await _repair_overbroad_episodes(
+        episodes=episodes,
+        blocks=blocks,
+        topics=topics,
+        flags=flags,
+        composer_input=composer_input,
+        task=task,
+        job=job,
+        attempt=attempt,
+        composer=composer,
+        timeout_seconds=timeout_seconds,
+        warnings=warnings,
+        raw_responses=raw_responses,
+    )
+    episodes, blocks, topics, flags = await _repair_episode_coverage(
+        episodes=episodes,
+        blocks=blocks,
+        topics=topics,
+        flags=flags,
+        composer_input=composer_input,
+        task=task,
+        job=job,
+        attempt=attempt,
+        composer=composer,
+        timeout_seconds=timeout_seconds,
+        warnings=warnings,
+        raw_responses=raw_responses,
+    )
+    blocks, episodes = _repair_block_semantics(episodes, blocks, composer_input, warnings)
+    episodes, blocks, topics, flags = await _repair_episode_coverage(
         episodes=episodes,
         blocks=blocks,
         topics=topics,
@@ -1126,6 +1164,14 @@ async def _composition_create_with_repairs(
         blocks=blocks,
         composer_input=composer_input,
         existing_flags=flags,
+        warnings=warnings,
+    )
+    summary, blocks, episodes, topics, flags = _normalize_timeline_style(
+        summary=summary,
+        blocks=blocks,
+        episodes=episodes,
+        topics=topics,
+        flags=flags,
         warnings=warnings,
     )
     _validate_timeline_invariants(episodes, blocks, composer_input)
@@ -1184,6 +1230,119 @@ def _normalized_timeline_parts(
     topics = _normalized_topics(parsed.topic_clusters, episode_ids, warnings)
     flags = _normalized_flags(parsed.review_flags, composer_input, warnings)
     return output_json, parsed.video_summary, blocks, episodes, topics, flags, warnings
+
+
+def _normalize_timeline_style(
+    *,
+    summary: _VideoSummaryOutput,
+    blocks: list[TimelineBlockCreate],
+    episodes: list[TimelineEpisodeCreate],
+    topics: list[TimelineTopicClusterCreate],
+    flags: list[TimelineReviewFlagCreate],
+    warnings: list[str],
+) -> tuple[
+    _VideoSummaryOutput,
+    list[TimelineBlockCreate],
+    list[TimelineEpisodeCreate],
+    list[TimelineTopicClusterCreate],
+    list[TimelineReviewFlagCreate],
+]:
+    unresolved: list[str] = []
+
+    def normalize(value: str, path: str) -> str:
+        normalized = normalize_timeline_style_text(value)
+        if normalized.unresolved_endings:
+            unresolved.append(f"{path}: {', '.join(normalized.unresolved_endings)}")
+        return normalized.text
+
+    normalized_summary = summary.model_copy(
+        update={
+            "title": normalize(summary.title, "video_summary.title"),
+            "summary": normalize(summary.summary, "video_summary.summary"),
+            "display_title": normalize(summary.display_title, "video_summary.display_title"),
+            "display_summary": normalize(
+                summary.display_summary,
+                "video_summary.display_summary",
+            ),
+        }
+    )
+    normalized_blocks = [
+        TimelineBlockCreate(
+            block_id=block.block_id,
+            block_index=block.block_index,
+            block_type=block.block_type,
+            title=normalize(block.title, f"block {block.block_id} title"),
+            summary=normalize(block.summary, f"block {block.block_id} summary"),
+            display_title=normalize(
+                block.display_title,
+                f"block {block.block_id} display_title",
+            ),
+            display_summary=normalize(
+                block.display_summary,
+                f"block {block.block_id} display_summary",
+            ),
+            episode_ids=block.episode_ids,
+        )
+        for block in blocks
+    ]
+    normalized_episodes = [
+        TimelineEpisodeCreate(
+            episode_id=episode.episode_id,
+            episode_index=episode.episode_index,
+            parent_block_id=episode.parent_block_id,
+            start_micro_event_candidate_id=episode.start_micro_event_candidate_id,
+            end_micro_event_candidate_id=episode.end_micro_event_candidate_id,
+            program_mode=episode.program_mode,
+            primary_content_kind=episode.primary_content_kind,
+            title=normalize(episode.title, f"episode {episode.episode_id} title"),
+            summary=normalize(episode.summary, f"episode {episode.episode_id} summary"),
+            display_title=normalize(
+                episode.display_title,
+                f"episode {episode.episode_id} display_title",
+            ),
+            display_summary=normalize(
+                episode.display_summary,
+                f"episode {episode.episode_id} display_summary",
+            ),
+            topics=episode.topics,
+            viewer_tags=episode.viewer_tags,
+            highlight_micro_event_candidate_ids=episode.highlight_micro_event_candidate_ids,
+            visibility=episode.visibility,
+        )
+        for episode in episodes
+    ]
+    normalized_topics = [
+        TimelineTopicClusterCreate(
+            topic_id=topic.topic_id,
+            topic_index=topic.topic_index,
+            label=normalize(topic.label, f"topic {topic.topic_id} label"),
+            summary=normalize(topic.summary, f"topic {topic.topic_id} summary"),
+            display_label=normalize(
+                topic.display_label,
+                f"topic {topic.topic_id} display_label",
+            ),
+            episode_ids=topic.episode_ids,
+        )
+        for topic in topics
+    ]
+    normalized_flags = [
+        TimelineReviewFlagCreate(
+            flag_index=flag.flag_index,
+            start_micro_event_candidate_id=flag.start_micro_event_candidate_id,
+            end_micro_event_candidate_id=flag.end_micro_event_candidate_id,
+            type=flag.type,
+            reason=normalize(flag.reason, f"review_flag {flag.flag_index} reason"),
+        )
+        for flag in flags
+    ]
+    warnings.extend(f"timeline style unresolved polite ending: {item}" for item in unresolved)
+    return (
+        normalized_summary,
+        normalized_blocks,
+        normalized_episodes,
+        normalized_topics,
+        normalized_flags,
+    )
 
 
 def _composition_create_from_parts(
@@ -1275,9 +1434,7 @@ def _normalized_episodes(
             warnings.append(f"duplicate episode_id removed: {episode_id}")
             continue
         seen.add(episode_id)
-        start_id = composer_input.candidate_id_by_synthetic_id.get(
-            episode.start_micro_event_id
-        )
+        start_id = composer_input.candidate_id_by_synthetic_id.get(episode.start_micro_event_id)
         end_id = composer_input.candidate_id_by_synthetic_id.get(episode.end_micro_event_id)
         if start_id is None or end_id is None:
             warnings.append(f"episode has invalid micro-event range: {episode_id}")
@@ -1287,14 +1444,11 @@ def _normalized_episodes(
                 f"to {_MAX_EPISODE_HIGHLIGHTS}"
             )
         if len(episode.topics) > _MAX_EPISODE_TOPICS:
-            warnings.append(
-                f"episode {episode_id} topics truncated to {_MAX_EPISODE_TOPICS}"
-            )
+            warnings.append(f"episode {episode_id} topics truncated to {_MAX_EPISODE_TOPICS}")
         highlights = [
             candidate_id
             for value in episode.highlight_micro_event_ids[:_MAX_EPISODE_HIGHLIGHTS]
-            if (candidate_id := composer_input.candidate_id_by_synthetic_id.get(value))
-            is not None
+            if (candidate_id := composer_input.candidate_id_by_synthetic_id.get(value)) is not None
         ]
         normalized.append(
             TimelineEpisodeCreate(
@@ -1531,9 +1685,7 @@ async def _repair_overbroad_episodes(
                 warnings=warnings,
             )
         except Exception as exc:
-            warnings.append(
-                f"episode {episode.episode_id} repair failed: {exc.__class__.__name__}"
-            )
+            warnings.append(f"episode {episode.episode_id} repair failed: {exc.__class__.__name__}")
             repaired_flags = _append_review_flag(
                 repaired_flags,
                 start_id=episode.start_micro_event_candidate_id,
@@ -1564,10 +1716,624 @@ async def _repair_overbroad_episodes(
             old_episode_id=episode.episode_id,
             new_episode_ids=replacement_ids,
         )
+        warnings.append(f"episode {episode.episode_id} repaired into {len(replacement)} episode(s)")
+    return repaired_episodes, repaired_blocks, repaired_topics, repaired_flags
+
+
+async def _repair_episode_coverage(
+    *,
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    topics: list[TimelineTopicClusterCreate],
+    flags: list[TimelineReviewFlagCreate],
+    composer_input: _ComposerInput,
+    task: VideoTaskRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+    composer: TimelineComposerPort,
+    timeout_seconds: int,
+    warnings: list[str],
+    raw_responses: list[_TimelineRawResponse] | None = None,
+) -> tuple[
+    list[TimelineEpisodeCreate],
+    list[TimelineBlockCreate],
+    list[TimelineTopicClusterCreate],
+    list[TimelineReviewFlagCreate],
+]:
+    repaired_episodes = list(episodes)
+    repaired_blocks = list(blocks)
+    repaired_topics = list(topics)
+    repaired_flags = list(flags)
+    for repair_index in range(1, TIMELINE_COMPOSE_MAX_COVERAGE_REPAIRS + 1):
+        plan = _coverage_repair_plan(
+            repaired_episodes,
+            repaired_blocks,
+            composer_input,
+            repair_index=repair_index,
+        )
+        if plan is None:
+            break
+        try:
+            result = await asyncio.wait_for(
+                composer.repair_episode(
+                    TimelineEpisodeRepairRequest(
+                        prompt=_coverage_repair_prompt(
+                            plan=plan,
+                            episodes=repaired_episodes,
+                            blocks=repaired_blocks,
+                            composer_input=composer_input,
+                        ),
+                        video_id=composer_input.video.id,
+                        video_task_id=task.id,
+                        job_id=job.id,
+                        job_attempt_id=attempt.id,
+                        source_micro_event_task_id=composer_input.source_task.id,
+                        target_episode_id=plan.target_episode.episode_id,
+                        model=composer_input.model,
+                        reasoning_effort=composer_input.reasoning_effort,
+                    )
+                ),
+                timeout=timeout_seconds,
+            )
+            if raw_responses is not None:
+                raw_responses.append(
+                    _raw_response(
+                        "repair_episode",
+                        result,
+                        target_episode_id=plan.target_episode.episode_id,
+                    )
+                )
+            repair = _parse_episode_repair(result.final_response)
+            replacement = _validated_coverage_repair_replacement(
+                repair,
+                target=plan.target_episode,
+                target_candidates=plan.target_candidates,
+                composer_input=composer_input,
+                warnings=warnings,
+            )
+        except Exception as exc:
+            warnings.append(
+                f"coverage repair {plan.target_episode.episode_id} failed: {exc.__class__.__name__}"
+            )
+            break
+        if replacement is None:
+            warnings.append(
+                f"coverage repair {plan.target_episode.episode_id} kept invalid coverage"
+            )
+            break
+        repaired_episodes, repaired_blocks, repaired_topics = _apply_coverage_repair(
+            episodes=repaired_episodes,
+            blocks=repaired_blocks,
+            topics=repaired_topics,
+            plan=plan,
+            replacement=replacement,
+        )
         warnings.append(
-            f"episode {episode.episode_id} repaired into {len(replacement)} episode(s)"
+            f"coverage repair {plan.target_episode.episode_id} inserted "
+            f"{len(replacement)} episode(s)"
         )
     return repaired_episodes, repaired_blocks, repaired_topics, repaired_flags
+
+
+def _coverage_repair_plan(
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    composer_input: _ComposerInput,
+    *,
+    repair_index: int,
+) -> _CoverageRepairPlan | None:
+    candidate_ids = [candidate.id for candidate in composer_input.micro_events]
+    if not candidate_ids:
+        return None
+    candidate_by_id = {candidate.id: candidate for candidate in composer_input.micro_events}
+    candidate_index_by_id = {
+        candidate_id: index for index, candidate_id in enumerate(candidate_ids)
+    }
+    valid_ranges: list[tuple[int, int, int]] = []
+    next_candidate_index = 0
+    for episode_index, episode in enumerate(episodes):
+        range_info = _episode_candidate_range(
+            episode,
+            candidate_ids,
+            candidate_index_by_id,
+            candidate_by_id,
+        )
+        if range_info is None:
+            next_start = _next_valid_episode_start_index(
+                episodes,
+                episode_index + 1,
+                candidate_ids,
+                candidate_index_by_id,
+                candidate_by_id,
+            )
+            target_start_index = min(next_candidate_index, len(candidate_ids) - 1)
+            target_end_index = (
+                len(candidate_ids) - 1
+                if next_start is None
+                else max(target_start_index, next_start - 1)
+            )
+            return _coverage_repair_plan_for_range(
+                candidate_ids=candidate_ids,
+                candidate_by_id=candidate_by_id,
+                episodes=episodes,
+                blocks=blocks,
+                composer_input=composer_input,
+                target_start_index=target_start_index,
+                target_end_index=target_end_index,
+                replace_start_index=episode_index,
+                replace_end_index=episode_index + 1,
+                repair_index=repair_index,
+            )
+        _candidates, start_index, end_index = range_info
+        if start_index > next_candidate_index:
+            return _coverage_repair_plan_for_range(
+                candidate_ids=candidate_ids,
+                candidate_by_id=candidate_by_id,
+                episodes=episodes,
+                blocks=blocks,
+                composer_input=composer_input,
+                target_start_index=next_candidate_index,
+                target_end_index=start_index - 1,
+                replace_start_index=episode_index,
+                replace_end_index=episode_index,
+                repair_index=repair_index,
+            )
+        if start_index < next_candidate_index:
+            overlapping_ranges = [item for item in valid_ranges if item[2] >= start_index]
+            if overlapping_ranges:
+                replace_start_index, target_start_index, previous_end_index = overlapping_ranges[0]
+            else:
+                replace_start_index = episode_index
+                target_start_index = start_index
+                previous_end_index = next_candidate_index - 1
+            return _coverage_repair_plan_for_range(
+                candidate_ids=candidate_ids,
+                candidate_by_id=candidate_by_id,
+                episodes=episodes,
+                blocks=blocks,
+                composer_input=composer_input,
+                target_start_index=target_start_index,
+                target_end_index=max(end_index, previous_end_index),
+                replace_start_index=replace_start_index,
+                replace_end_index=episode_index + 1,
+                repair_index=repair_index,
+            )
+        next_candidate_index = end_index + 1
+        valid_ranges.append((episode_index, start_index, end_index))
+    if next_candidate_index < len(candidate_ids):
+        return _coverage_repair_plan_for_range(
+            candidate_ids=candidate_ids,
+            candidate_by_id=candidate_by_id,
+            episodes=episodes,
+            blocks=blocks,
+            composer_input=composer_input,
+            target_start_index=next_candidate_index,
+            target_end_index=len(candidate_ids) - 1,
+            replace_start_index=len(episodes),
+            replace_end_index=len(episodes),
+            repair_index=repair_index,
+        )
+    return None
+
+
+def _coverage_repair_plan_for_range(
+    *,
+    candidate_ids: list[int],
+    candidate_by_id: dict[int, MicroEventCandidateRecord],
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    composer_input: _ComposerInput,
+    target_start_index: int,
+    target_end_index: int,
+    replace_start_index: int,
+    replace_end_index: int,
+    repair_index: int,
+) -> _CoverageRepairPlan:
+    target_candidates = [
+        candidate_by_id[candidate_id]
+        for candidate_id in candidate_ids[target_start_index : target_end_index + 1]
+    ]
+    parent_block_id = _coverage_repair_parent_block_id(
+        episodes,
+        blocks,
+        replace_start_index=replace_start_index,
+    )
+    target_episode_id = (
+        episodes[replace_start_index].episode_id
+        if replace_start_index < replace_end_index
+        else _coverage_repair_episode_id(episodes, repair_index)
+    )
+    first_candidate = target_candidates[0]
+    program_modes = {candidate.program_mode for candidate in target_candidates}
+    content_kinds = {candidate.content_kind for candidate in target_candidates}
+    program_mode = (
+        cast(TimelineBlockType, first_candidate.program_mode)
+        if len(program_modes) == 1 and first_candidate.program_mode in _TIMELINE_BLOCK_TYPES
+        else "MIXED"
+    )
+    primary_content_kind = (
+        cast(TimelineContentKind, first_candidate.content_kind)
+        if len(content_kinds) == 1 and first_candidate.content_kind in _TIMELINE_CONTENT_KINDS
+        else "OTHER"
+    )
+    topics = list(
+        dict.fromkeys(
+            topic for candidate in target_candidates for topic in (candidate.topics or [])
+        )
+    )[:_MAX_EPISODE_TOPICS]
+    return _CoverageRepairPlan(
+        target_episode=TimelineEpisodeCreate(
+            episode_id=target_episode_id,
+            episode_index=replace_start_index + 1,
+            parent_block_id=parent_block_id,
+            start_micro_event_candidate_id=target_candidates[0].id,
+            end_micro_event_candidate_id=target_candidates[-1].id,
+            program_mode=program_mode,
+            primary_content_kind=primary_content_kind,
+            title="Coverage recovery segment",
+            summary="Repair this segment so timeline episodes cover each micro-event once.",
+            display_title="Coverage recovery segment",
+            display_summary=(
+                "Repair this segment so timeline episodes cover each micro-event once."
+            ),
+            topics=topics,
+            viewer_tags=[],
+            highlight_micro_event_candidate_ids=[target_candidates[0].id],
+            visibility="DEFAULT",
+        ),
+        target_candidates=target_candidates,
+        replace_start_index=replace_start_index,
+        replace_end_index=replace_end_index,
+        insert_before_episode_id=(
+            episodes[replace_start_index].episode_id
+            if replace_start_index == replace_end_index and replace_start_index < len(episodes)
+            else None
+        ),
+    )
+
+
+def _next_valid_episode_start_index(
+    episodes: list[TimelineEpisodeCreate],
+    start_episode_index: int,
+    candidate_ids: list[int],
+    candidate_index_by_id: dict[int, int],
+    candidate_by_id: dict[int, MicroEventCandidateRecord],
+) -> int | None:
+    for episode in episodes[start_episode_index:]:
+        range_info = _episode_candidate_range(
+            episode,
+            candidate_ids,
+            candidate_index_by_id,
+            candidate_by_id,
+        )
+        if range_info is None:
+            continue
+        _candidates, start_index, _end_index = range_info
+        return start_index
+    return None
+
+
+def _coverage_repair_parent_block_id(
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    *,
+    replace_start_index: int,
+) -> str:
+    if replace_start_index < len(episodes):
+        return episodes[replace_start_index].parent_block_id
+    if episodes:
+        return episodes[-1].parent_block_id
+    if blocks:
+        return blocks[-1].block_id
+    return "block_001"
+
+
+def _coverage_repair_episode_id(
+    episodes: list[TimelineEpisodeCreate],
+    repair_index: int,
+) -> str:
+    existing = {episode.episode_id for episode in episodes}
+    candidate = f"episode_recovery_{repair_index:03d}"
+    while candidate in existing:
+        repair_index += 1
+        candidate = f"episode_recovery_{repair_index:03d}"
+    return candidate
+
+
+def _coverage_repair_prompt(
+    *,
+    plan: _CoverageRepairPlan,
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    composer_input: _ComposerInput,
+) -> str:
+    before = episodes[max(0, plan.replace_start_index - 2) : plan.replace_start_index]
+    after = episodes[plan.replace_end_index : min(len(episodes), plan.replace_end_index + 2)]
+    input_json = {
+        "video_metadata": {
+            "video_id": composer_input.video.id,
+            "youtube_video_id": composer_input.video.youtube_video_id,
+            "title": composer_input.video.title,
+            "streamer_name": composer_input.streamer_name,
+            "copy_style": composer_input.copy_style,
+        },
+        "repair_reason": (
+            "The current timeline has a micro-event coverage gap, duplicate, "
+            "overlap, or invalid episode range. Rewrite only target_micro_events."
+        ),
+        "target_episode": _episode_prompt_json(plan.target_episode, composer_input),
+        "target_micro_events": [
+            _micro_event_input(candidate, composer_input, seq=index)
+            for index, candidate in enumerate(plan.target_candidates, start=1)
+        ],
+        "current_episodes_before_target": [
+            _episode_prompt_json(episode, composer_input) for episode in before
+        ],
+        "current_episodes_replaced_by_target": [
+            _episode_prompt_json(episode, composer_input)
+            for episode in episodes[plan.replace_start_index : plan.replace_end_index]
+        ],
+        "current_episodes_after_target": [
+            _episode_prompt_json(episode, composer_input) for episode in after
+        ],
+        "blocks": [
+            {
+                "block_id": block.block_id,
+                "block_type": block.block_type,
+                "episode_ids": block.episode_ids,
+            }
+            for block in blocks
+        ],
+        "output_rules": {
+            "target_episode_id": plan.target_episode.episode_id,
+            "action": "SPLIT",
+            "coverage": (
+                "replacement_episodes must cover every target_micro_events item "
+                "exactly once, in input order, using only provided micro_event_id values."
+            ),
+            "single_episode_allowed": True,
+        },
+    }
+    recovery_instructions = """
+# COVERAGE_RECOVERY_TASK
+
+Repair only the target_micro_events segment. Return the same JSON shape as the
+episode repair task.
+
+- Set action to "SPLIT".
+- replacement_episodes may contain one or more episodes.
+- The first replacement must start at the first target_micro_events item.
+- The final replacement must end at the final target_micro_events item.
+- Adjacent replacements must be contiguous with no gap, overlap, duplicate, or reorder.
+- Do not invent micro_event_id values.
+- Do not include markdown fences or explanatory text.
+""".strip()
+    return "\n\n".join(
+        [
+            composer_input.repair_prompt.body,
+            recovery_instructions,
+            "# INPUT_DATA",
+            json.dumps(input_json, ensure_ascii=False),
+        ]
+    )
+
+
+def _validated_coverage_repair_replacement(
+    repair: _TimelineEpisodeRepairOutput,
+    *,
+    target: TimelineEpisodeCreate,
+    target_candidates: list[MicroEventCandidateRecord],
+    composer_input: _ComposerInput,
+    warnings: list[str],
+) -> list[TimelineEpisodeCreate] | None:
+    if repair.target_episode_id and repair.target_episode_id != target.episode_id:
+        raise TimelineCompositionOutputInvalid("Coverage repair target_episode_id does not match.")
+    action = repair.action.strip().upper()
+    if action == "KEEP":
+        return None
+    if action not in {"SPLIT", "REPLACE"}:
+        raise TimelineCompositionOutputInvalid(f"Unknown coverage repair action: {repair.action}")
+    if not repair.replacement_episodes:
+        return None
+    target_ids = [candidate.id for candidate in target_candidates]
+    candidate_index_by_id = {candidate_id: index for index, candidate_id in enumerate(target_ids)}
+    covered: list[int] = []
+    replacement: list[TimelineEpisodeCreate] = []
+    for index, episode in enumerate(repair.replacement_episodes, start=1):
+        start_id = composer_input.candidate_id_by_synthetic_id.get(episode.start_micro_event_id)
+        end_id = composer_input.candidate_id_by_synthetic_id.get(episode.end_micro_event_id)
+        if start_id is None or end_id is None:
+            raise TimelineCompositionOutputInvalid("Coverage repair episode has invalid range.")
+        start_index = candidate_index_by_id.get(start_id)
+        end_index = candidate_index_by_id.get(end_id)
+        if start_index is None or end_index is None or end_index < start_index:
+            raise TimelineCompositionOutputInvalid(
+                "Coverage repair episode range is outside target."
+            )
+        covered.extend(target_ids[start_index : end_index + 1])
+        episode_id = target.episode_id if index == 1 else f"{target.episode_id}_split_{index:03d}"
+        replacement.append(
+            TimelineEpisodeCreate(
+                episode_id=episode_id,
+                episode_index=target.episode_index + index - 1,
+                parent_block_id=target.parent_block_id,
+                start_micro_event_candidate_id=start_id,
+                end_micro_event_candidate_id=end_id,
+                program_mode=_timeline_block_type(
+                    episode.program_mode,
+                    warnings,
+                    f"coverage repair episode {episode_id} program_mode",
+                ),
+                primary_content_kind=_timeline_content_kind(
+                    episode.primary_content_kind,
+                    warnings,
+                    f"coverage repair episode {episode_id} primary_content_kind",
+                ),
+                title=episode.title,
+                summary=episode.summary,
+                display_title=episode.display_title or episode.title,
+                display_summary=episode.display_summary or episode.summary,
+                topics=episode.topics[:_MAX_EPISODE_TOPICS],
+                viewer_tags=_timeline_viewer_tags(
+                    episode.viewer_tags,
+                    warnings,
+                    f"coverage repair episode {episode_id} viewer_tags",
+                ),
+                highlight_micro_event_candidate_ids=[
+                    candidate_id
+                    for value in episode.highlight_micro_event_ids[:_MAX_EPISODE_HIGHLIGHTS]
+                    if (candidate_id := composer_input.candidate_id_by_synthetic_id.get(value))
+                    is not None
+                ],
+                visibility=_timeline_visibility(
+                    episode.visibility,
+                    warnings,
+                    f"coverage repair episode {episode_id} visibility",
+                ),
+            )
+        )
+    if covered != target_ids:
+        raise TimelineCompositionOutputInvalid(
+            "Coverage repair replacement does not exactly cover target micro-events."
+        )
+    return replacement
+
+
+def _apply_coverage_repair(
+    *,
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    topics: list[TimelineTopicClusterCreate],
+    plan: _CoverageRepairPlan,
+    replacement: list[TimelineEpisodeCreate],
+) -> tuple[
+    list[TimelineEpisodeCreate],
+    list[TimelineBlockCreate],
+    list[TimelineTopicClusterCreate],
+]:
+    removed_episode_ids = [
+        episode.episode_id
+        for episode in episodes[plan.replace_start_index : plan.replace_end_index]
+    ]
+    replacement_episode_ids = [episode.episode_id for episode in replacement]
+    updated_episodes = [
+        *episodes[: plan.replace_start_index],
+        *replacement,
+        *episodes[plan.replace_end_index :],
+    ]
+    updated_blocks = _apply_coverage_repair_to_blocks(
+        blocks=blocks,
+        plan=plan,
+        removed_episode_ids=removed_episode_ids,
+        replacement_episode_ids=replacement_episode_ids,
+    )
+    updated_topics = _apply_coverage_repair_to_topics(
+        topics,
+        removed_episode_ids=removed_episode_ids,
+        replacement_episode_ids=replacement_episode_ids,
+    )
+    return (
+        [
+            _episode_with(episode, episode_index=index)
+            for index, episode in enumerate(updated_episodes, start=1)
+        ],
+        updated_blocks,
+        updated_topics,
+    )
+
+
+def _apply_coverage_repair_to_blocks(
+    *,
+    blocks: list[TimelineBlockCreate],
+    plan: _CoverageRepairPlan,
+    removed_episode_ids: list[str],
+    replacement_episode_ids: list[str],
+) -> list[TimelineBlockCreate]:
+    if not blocks:
+        return [
+            TimelineBlockCreate(
+                block_id=plan.target_episode.parent_block_id,
+                block_index=1,
+                block_type=plan.target_episode.program_mode,
+                title=plan.target_episode.title,
+                summary=plan.target_episode.summary,
+                display_title=plan.target_episode.display_title,
+                display_summary=plan.target_episode.display_summary,
+                episode_ids=replacement_episode_ids,
+            )
+        ]
+    removed = set(removed_episode_ids)
+    first_removed_id = removed_episode_ids[0] if removed_episode_ids else None
+    inserted = False
+    updated: list[TimelineBlockCreate] = []
+    for block in blocks:
+        episode_ids: list[str] = []
+        for episode_id in block.episode_ids:
+            if first_removed_id is not None and episode_id == first_removed_id:
+                episode_ids.extend(replacement_episode_ids)
+                inserted = True
+                continue
+            if episode_id in removed:
+                continue
+            if (
+                first_removed_id is None
+                and plan.insert_before_episode_id is not None
+                and episode_id == plan.insert_before_episode_id
+            ):
+                episode_ids.extend(replacement_episode_ids)
+                inserted = True
+            episode_ids.append(episode_id)
+        if (
+            not inserted
+            and first_removed_id is None
+            and plan.insert_before_episode_id is None
+            and block.block_id == plan.target_episode.parent_block_id
+        ):
+            episode_ids.extend(replacement_episode_ids)
+            inserted = True
+        updated.append(_block_with(block, episode_ids=episode_ids))
+    if not inserted:
+        updated[-1] = _block_with(
+            updated[-1],
+            episode_ids=[*updated[-1].episode_ids, *replacement_episode_ids],
+        )
+    return updated
+
+
+def _apply_coverage_repair_to_topics(
+    topics: list[TimelineTopicClusterCreate],
+    *,
+    removed_episode_ids: list[str],
+    replacement_episode_ids: list[str],
+) -> list[TimelineTopicClusterCreate]:
+    if not removed_episode_ids:
+        return topics
+    removed = set(removed_episode_ids)
+    first_removed_id = removed_episode_ids[0]
+    updated: list[TimelineTopicClusterCreate] = []
+    for topic in topics:
+        episode_ids: list[str] = []
+        for episode_id in topic.episode_ids:
+            if episode_id == first_removed_id:
+                episode_ids.extend(replacement_episode_ids)
+                continue
+            if episode_id in removed:
+                continue
+            episode_ids.append(episode_id)
+        deduped = list(dict.fromkeys(episode_ids))
+        if len(deduped) < 2:
+            continue
+        updated.append(
+            TimelineTopicClusterCreate(
+                topic_id=topic.topic_id,
+                topic_index=len(updated) + 1,
+                label=topic.label,
+                summary=topic.summary,
+                display_label=topic.display_label,
+                episode_ids=deduped,
+            )
+        )
+    return updated
 
 
 def _repair_block_semantics(
@@ -1576,23 +2342,7 @@ def _repair_block_semantics(
     composer_input: _ComposerInput,
     warnings: list[str],
 ) -> tuple[list[TimelineBlockCreate], list[TimelineEpisodeCreate]]:
-    episode_by_id = {episode.episode_id: episode for episode in episodes}
-    segments = [
-        _BlockSegment(
-            block_type=block.block_type,
-            title=block.title,
-            summary=block.summary,
-            display_title=block.display_title,
-            display_summary=block.display_summary,
-            episodes=[
-                episode
-                for episode_id in block.episode_ids
-                if (episode := episode_by_id.get(episode_id)) is not None
-            ],
-        )
-        for block in blocks
-    ]
-    segments = [segment for segment in segments if segment.episodes]
+    segments = _block_semantic_segments(episodes, blocks, warnings)
     segments = _merge_short_break_segments(segments, warnings)
     segments = _split_post_game_segments(segments, warnings)
     segments = _split_closing_segments(segments, warnings)
@@ -1623,6 +2373,67 @@ def _repair_block_semantics(
             )
         )
     return repaired_blocks, repaired_episodes
+
+
+def _block_semantic_segments(
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    warnings: list[str],
+) -> list[_BlockSegment]:
+    block_by_id = {block.block_id: block for block in blocks}
+    episode_ids = {episode.episode_id for episode in episodes}
+    block_episode_ids = [
+        episode_id
+        for block in blocks
+        for episode_id in block.episode_ids
+        if episode_id in episode_ids
+    ]
+    if block_episode_ids != [episode.episode_id for episode in episodes]:
+        warnings.append("block semantic repair rebuilt block refs from episode order")
+
+    block_id_by_episode_id: dict[str, str] = {}
+    for block in blocks:
+        for episode_id in block.episode_ids:
+            if episode_id in episode_ids and episode_id not in block_id_by_episode_id:
+                block_id_by_episode_id[episode_id] = block.block_id
+
+    keyed_segments: list[tuple[str, _BlockSegment]] = []
+    for episode in episodes:
+        block = block_by_id.get(block_id_by_episode_id.get(episode.episode_id, ""))
+        if block is None:
+            block = block_by_id.get(episode.parent_block_id)
+        segment_key = block.block_id if block is not None else episode.episode_id
+        segment = (
+            _BlockSegment(
+                block_type=block.block_type,
+                title=block.title,
+                summary=block.summary,
+                display_title=block.display_title,
+                display_summary=block.display_summary,
+                episodes=[episode],
+            )
+            if block is not None
+            else _BlockSegment(
+                block_type=episode.program_mode,
+                title=episode.title,
+                summary=episode.summary,
+                display_title=episode.display_title,
+                display_summary=episode.display_summary,
+                episodes=[episode],
+            )
+        )
+        if keyed_segments and keyed_segments[-1][0] == segment_key:
+            previous_key, previous_segment = keyed_segments[-1]
+            keyed_segments[-1] = (
+                previous_key,
+                _segment_with(
+                    previous_segment,
+                    episodes=[*previous_segment.episodes, episode],
+                ),
+            )
+            continue
+        keyed_segments.append((segment_key, segment))
+    return [segment for _key, segment in keyed_segments]
 
 
 def _soft_verifier_flags(
@@ -1739,12 +2550,8 @@ def _is_overbroad_episode(
     episode: TimelineEpisodeCreate,
     candidates: list[MicroEventCandidateRecord],
 ) -> bool:
-    program_modes = {
-        candidate.program_mode for candidate in candidates if candidate.program_mode
-    }
-    content_kinds = {
-        candidate.content_kind for candidate in candidates if candidate.content_kind
-    }
+    program_modes = {candidate.program_mode for candidate in candidates if candidate.program_mode}
+    content_kinds = {candidate.content_kind for candidate in candidates if candidate.content_kind}
     return (
         len(candidates) >= _OVERBROAD_MICRO_EVENT_COUNT
         and (
@@ -1752,10 +2559,7 @@ def _is_overbroad_episode(
             or len(program_modes) >= 3
             or len(content_kinds) >= 3
         )
-    ) or (
-        len(candidates) >= _OVERBROAD_LARGE_MICRO_EVENT_COUNT
-        and len(content_kinds) >= 2
-    )
+    ) or (len(candidates) >= _OVERBROAD_LARGE_MICRO_EVENT_COUNT and len(content_kinds) >= 2)
 
 
 def _append_review_flag(
@@ -1804,11 +2608,7 @@ def _episode_repair_prompt(
         -1,
     )
     previous_episode = episodes[episode_index - 1] if episode_index > 0 else None
-    next_episode = (
-        episodes[episode_index + 1]
-        if 0 <= episode_index < len(episodes) - 1
-        else None
-    )
+    next_episode = episodes[episode_index + 1] if 0 <= episode_index < len(episodes) - 1 else None
     parent_block = next(
         (block for block in blocks if episode.episode_id in block.episode_ids),
         None,
@@ -1832,9 +2632,7 @@ def _episode_repair_prompt(
             else None
         ),
         "next_episode": (
-            _episode_prompt_json(next_episode, composer_input)
-            if next_episode is not None
-            else None
+            _episode_prompt_json(next_episode, composer_input) if next_episode is not None else None
         ),
         "parent_block": (
             {
@@ -1882,15 +2680,11 @@ def _validated_repair_replacement(
     if len(repair.replacement_episodes) < 2:
         return None
     target_ids = [candidate.id for candidate in target_candidates]
-    candidate_index_by_id = {
-        candidate_id: index for index, candidate_id in enumerate(target_ids)
-    }
+    candidate_index_by_id = {candidate_id: index for index, candidate_id in enumerate(target_ids)}
     covered: list[int] = []
     replacement: list[TimelineEpisodeCreate] = []
     for index, episode in enumerate(repair.replacement_episodes, start=1):
-        start_id = composer_input.candidate_id_by_synthetic_id.get(
-            episode.start_micro_event_id
-        )
+        start_id = composer_input.candidate_id_by_synthetic_id.get(episode.start_micro_event_id)
         end_id = composer_input.candidate_id_by_synthetic_id.get(episode.end_micro_event_id)
         if start_id is None or end_id is None:
             raise TimelineCompositionOutputInvalid("Repair episode has invalid range.")
@@ -1929,14 +2723,8 @@ def _validated_repair_replacement(
                 ),
                 highlight_micro_event_candidate_ids=[
                     candidate_id
-                    for value in episode.highlight_micro_event_ids[
-                        :_MAX_EPISODE_HIGHLIGHTS
-                    ]
-                    if (
-                        candidate_id := composer_input.candidate_id_by_synthetic_id.get(
-                            value
-                        )
-                    )
+                    for value in episode.highlight_micro_event_ids[:_MAX_EPISODE_HIGHLIGHTS]
+                    if (candidate_id := composer_input.candidate_id_by_synthetic_id.get(value))
                     is not None
                 ],
                 visibility=_timeline_visibility(
@@ -2166,10 +2954,7 @@ def _is_daily_chat_after_game(episode: TimelineEpisodeCreate) -> bool:
     if episode.program_mode in {"GAMEPLAY", "GAME_SETUP"}:
         return False
     text = _episode_text(episode).casefold()
-    return not any(
-        token in text
-        for token in ("게임", "엔딩", "스토리", "플레이", "game")
-    )
+    return not any(token in text for token in ("게임", "엔딩", "스토리", "플레이", "game"))
 
 
 def _is_explicit_closing_episode(episode: TimelineEpisodeCreate) -> bool:
@@ -2337,14 +3122,10 @@ def _validate_timeline_invariants(
             )
         next_candidate_index = end_index + 1
     if next_candidate_index != len(candidate_ids):
-        raise TimelineCompositionOutputInvalid(
-            "Timeline episodes do not cover all micro-events."
-        )
+        raise TimelineCompositionOutputInvalid("Timeline episodes do not cover all micro-events.")
 
     episode_ids = [episode.episode_id for episode in episodes]
-    block_episode_ids = [
-        episode_id for block in blocks for episode_id in block.episode_ids
-    ]
+    block_episode_ids = [episode_id for block in blocks for episode_id in block.episode_ids]
     if block_episode_ids != episode_ids:
         raise TimelineCompositionOutputInvalid(
             "Timeline blocks must contain every episode exactly once in order."
@@ -2548,8 +3329,7 @@ def _timeline_viewer_tags(
                     warnings.append(f"{context} removed unknown viewer tag: {value}")
                 continue
             warnings.append(
-                f"{context} mapped content kind value in viewer_tags: "
-                f"{value} -> {replacement}"
+                f"{context} mapped content kind value in viewer_tags: {value} -> {replacement}"
             )
             tag = replacement
         if tag in seen:
@@ -2571,9 +3351,7 @@ def _timeline_review_flag_type(
         return "OVERBROAD_EPISODE"
     if normalized in _TIMELINE_REVIEW_FLAG_TYPES:
         return cast(TimelineReviewFlagType, normalized)
-    warnings.append(
-        f"{context} had unknown value '{value}', replaced with BOUNDARY_AMBIGUOUS"
-    )
+    warnings.append(f"{context} had unknown value '{value}', replaced with BOUNDARY_AMBIGUOUS")
     return "BOUNDARY_AMBIGUOUS"
 
 
@@ -3028,9 +3806,7 @@ def _raw_response_summary(
         "rawResponseSha256s": [
             _raw_response_sha256(response.raw_response_text) for response in raw_responses
         ],
-        "rawResponseLengths": [
-            len(response.raw_response_text) for response in raw_responses
-        ],
+        "rawResponseLengths": [len(response.raw_response_text) for response in raw_responses],
         "rawResponseStoredIn": _TIMELINE_RAW_RESPONSE_STORED_IN,
     }
 

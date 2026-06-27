@@ -12,6 +12,7 @@
 - 입력에 없는 micro_event_id를 만들지 않는다.
 - cue_id와 micro_event_id는 입력 값을 그대로 사용한다.
 - topics는 replacement episode마다 2~6개, highlight_micro_event_ids는 0~3개만 넣는다.
+- title, summary, display_title, display_summary는 공손체 `~습니다`가 아니라 해라체/평서형 `~다` 문장으로 작성한다.
 
 viewer_tags는 다음 중 필요한 것만 사용한다.
 

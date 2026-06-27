@@ -241,12 +241,18 @@ coverage 누락/중복/겹침처럼 결과 무결성을 깨는 경우만 task/jo
 
 `timeline_compose`는 succeeded micro-event task를 입력으로 한다. Enqueue API는
 selected/current-filter/next-eligible videos에 pending timeline task를 만들고,
-`codex-timeline-compose-worker`가 DB polling으로 claim한다. 결과는
+`codex-timeline-compose-worker`가 DB polling으로 claim한다. Worker는 영상 단위로
+`CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT`개까지 동시에 처리하며, 같은 video의
+timeline task가 이미 running이면 추가 claim하지 않는다. 결과는
 `timeline_compositions`와 block/episode/topic/review flag 테이블에 정규화해 저장한다.
 Prompt version과 input hash가 task idempotency를 결정하며, `validation_warnings`는
 topics/highlight truncation, enum/content-kind alias 보정, block semantic repair처럼
 저장 가능한 흔들림을 기록한다. JSON 파싱 실패, micro-event coverage 파괴, block membership
 불일치 같은 hard invariant는 계속 failed로 처리한다.
+episode range가 micro-event를 빠뜨리거나 중복/겹침으로 덮는 경우에는 hard invariant
+실패로 닫기 전에 문제가 된 연속 구간만 `repair_episode` LLM 작업으로 재작성해 기존
+timeline에 재조합한다. 이 recovery도 target 구간을 정확히 한 번씩 순서대로 덮어야 하며,
+상한 횟수 안에 고치지 못하면 기존과 같이 failed attempt로 남긴다.
 실패한 timeline attempt의 원문 Codex 응답은 해당 `pipeline_job_attempts.output_json`의
 `rawResponses` 배열에 남긴다. `/ops/video-tasks`와 operation events에는
 `rawResponseCount`, `rawResponseSha256s`, `rawResponseLengths`, `rawResponseStoredIn`

@@ -1940,13 +1940,127 @@ def _normalize_extractor_output(
             ),
             *moved_excluded_ranges,
         ]
+    term_annotations = normalized.pop("term_annotations", None)
     asr_candidates = normalized.get("asr_correction_candidates")
+    if term_annotations is not None:
+        moved_asr_candidates = _normalize_term_annotations(
+            term_annotations,
+            warnings,
+        )
+        if moved_asr_candidates:
+            existing_asr_candidates = asr_candidates if isinstance(asr_candidates, list) else []
+            normalized["asr_correction_candidates"] = [
+                *existing_asr_candidates,
+                *moved_asr_candidates,
+            ]
+            asr_candidates = normalized["asr_correction_candidates"]
     if isinstance(asr_candidates, list):
         normalized["asr_correction_candidates"] = [
             _normalize_asr_correction_output(candidate, index, warnings)
             for index, candidate in enumerate(asr_candidates)
         ]
     return normalized, warnings
+
+
+def _normalize_term_annotations(
+    annotations: object,
+    warnings: list[MicroEventOutputWarning],
+) -> list[JsonObject]:
+    if not isinstance(annotations, list):
+        warnings.append(
+            {
+                "type": "ignored_term_annotations",
+                "path": "term_annotations",
+                "reason": "expected list",
+            }
+        )
+        return []
+
+    moved: list[JsonObject] = []
+    skipped = 0
+    for index, annotation in enumerate(annotations):
+        candidate = _term_annotation_to_asr_candidate(annotation)
+        if candidate is None:
+            skipped += 1
+            warnings.append(
+                {
+                    "type": "ignored_term_annotation",
+                    "path": f"term_annotations[{index}]",
+                    "reason": "missing term/canonical text",
+                }
+            )
+            continue
+        moved.append(candidate)
+    warnings.append(
+        {
+            "type": "moved_term_annotations_to_asr_correction_candidates",
+            "fromPath": "term_annotations",
+            "toPath": "asr_correction_candidates",
+            "originalCount": len(annotations),
+            "movedCount": len(moved),
+            "skippedCount": skipped,
+        }
+    )
+    return moved
+
+
+def _term_annotation_to_asr_candidate(annotation: object) -> JsonObject | None:
+    if not isinstance(annotation, dict):
+        return None
+    original = _first_non_empty_string(
+        annotation.get("original"),
+        annotation.get("surface"),
+        annotation.get("term"),
+    )
+    suggested = _first_non_empty_string(
+        annotation.get("suggested"),
+        annotation.get("canonical"),
+    )
+    if original is None or suggested is None:
+        return None
+    annotation_type = _first_non_empty_string(
+        annotation.get("correction_type"),
+        annotation.get("annotation_type"),
+        annotation.get("type"),
+    )
+    return {
+        "original": original,
+        "suggested": suggested,
+        "correction_type": _term_annotation_correction_type(annotation_type),
+        "apply_scope": _term_annotation_apply_scope(annotation_type),
+        "confidence": _term_annotation_confidence(annotation.get("confidence")),
+    }
+
+
+def _first_non_empty_string(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _term_annotation_correction_type(annotation_type: str | None) -> CorrectionType:
+    token = _normalized_token(annotation_type)
+    if token in {"WORDPLAY_OR_NICKNAME", "SEARCH_ALIAS"}:
+        return "STREAM_TERM"
+    if token in {"ASR_ERROR", "SPEAKER_MISTAKE"}:
+        return "UNCERTAIN"
+    return cast(CorrectionType, _normalize_correction_type(annotation_type))
+
+
+def _term_annotation_apply_scope(annotation_type: str | None) -> ApplyScope:
+    token = _normalized_token(annotation_type)
+    if token in {"WORDPLAY_OR_NICKNAME", "SEARCH_ALIAS"}:
+        return "SEARCH_AND_SUMMARY"
+    if token == "UNCERTAIN":
+        return "NONE"
+    return "SEARCH_ONLY"
+
+
+def _term_annotation_confidence(value: object) -> float:
+    if isinstance(value, int | float):
+        return min(max(float(value), 0.0), 1.0)
+    return 0.6
 
 
 def _is_misplaced_excluded_range_event(event: object) -> bool:

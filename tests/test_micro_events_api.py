@@ -1942,6 +1942,86 @@ def test_micro_event_extract_normalizes_loose_enum_values() -> None:
     assert "normalized_enum" in warning_types
 
 
+def test_micro_event_extract_moves_term_annotations_to_asr_candidates() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000002",
+                        "event": "Streamer explains a misunderstood term.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["term correction"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                    }
+                ],
+                "excluded_ranges": [],
+                "asr_correction_candidates": [],
+                "term_annotations": [
+                    {
+                        "term": "misheard word",
+                        "canonical": "correct word",
+                        "type": "ASR_ERROR",
+                        "notes": "Model emitted the legacy annotation shape.",
+                    },
+                    {
+                        "surface": "nickname",
+                        "canonical": "canonical nickname",
+                        "annotation_type": "WORDPLAY_OR_NICKNAME",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+    window = detail["windows"][0]
+
+    assert response["status"] == "succeeded"
+    assert [
+        {
+            key: candidate[key]
+            for key in (
+                "candidateIndex",
+                "original",
+                "suggested",
+                "correctionType",
+                "applyScope",
+                "confidence",
+            )
+        }
+        for candidate in window["asrCorrectionCandidates"]
+    ] == [
+        {
+            "candidateIndex": 1,
+            "original": "misheard word",
+            "suggested": "correct word",
+            "correctionType": "UNCERTAIN",
+            "applyScope": "SEARCH_ONLY",
+            "confidence": 0.6,
+        },
+        {
+            "candidateIndex": 2,
+            "original": "nickname",
+            "suggested": "canonical nickname",
+            "correctionType": "STREAM_TERM",
+            "applyScope": "SEARCH_AND_SUMMARY",
+            "confidence": 0.6,
+        },
+    ]
+    assert "moved_term_annotations_to_asr_correction_candidates" in _warning_types(
+        window["validationError"]
+    )
+
+
 def test_micro_event_extract_truncates_too_many_topics() -> None:
     fakes = _seed_ready_fakes()
     fakes.extractor.responses = [
