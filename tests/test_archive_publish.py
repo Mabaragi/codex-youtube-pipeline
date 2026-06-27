@@ -62,10 +62,15 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
     artifact = _timeline_artifact(
         video=_video(),
         composition=_composition(),
-        micro_events=[_candidate(100, 1, "tr1-c000001", "tr1-c000002")],
+        micro_events=[
+            _candidate(100, 1, "tr1-c000001", "tr1-c000002"),
+            _candidate(101, 2, "tr1-c000003", "tr1-c000004"),
+        ],
         cues=[
             _cue(1, "tr1-c000001", 10_000, 12_000),
             _cue(2, "tr1-c000002", 12_000, 15_000),
+            _cue(3, "tr1-c000003", 15_000, 18_000),
+            _cue(4, "tr1-c000004", 18_000, 20_000),
         ],
         prefix="archive",
         public_base_url="https://pub.example.dev",
@@ -77,9 +82,20 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
     episodes = cast(list[dict[str, object]], artifact.payload["episodes"])
     episode = episodes[0]
     assert episode["startCueId"] == "tr1-c000001"
-    assert episode["endCueId"] == "tr1-c000002"
+    assert episode["endCueId"] == "tr1-c000004"
     assert episode["startMs"] == 10_000
-    assert episode["endMs"] == 15_000
+    assert episode["endMs"] == 20_000
+    micro_events = cast(list[dict[str, object]], episode["microEvents"])
+    assert [event["microEventCandidateId"] for event in micro_events] == [100, 101]
+    assert micro_events[0]["event"] == "Event"
+    assert micro_events[0]["startMs"] == 10_000
+    assert micro_events[1]["endMs"] == 20_000
+    blocks = cast(list[dict[str, object]], artifact.payload["blocks"])
+    block_episodes = cast(list[dict[str, object]], blocks[0]["episodes"])
+    assert block_episodes[0]["episodeId"] == "episode_001"
+    assert cast(list[dict[str, object]], block_episodes[0]["microEvents"])[1][
+        "microEventCandidateId"
+    ] == 101
     assert "rawResponseText" not in artifact.payload
 
 
@@ -183,7 +199,7 @@ def _composition() -> TimelineCompositionRecord:
                 episode_index=1,
                 parent_block_id="block_001",
                 start_micro_event_candidate_id=100,
-                end_micro_event_candidate_id=100,
+                end_micro_event_candidate_id=101,
                 program_mode="JUST_CHATTING",
                 primary_content_kind="PERSONAL_STORY",
                 title="Episode",

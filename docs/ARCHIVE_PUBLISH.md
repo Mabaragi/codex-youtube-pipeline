@@ -95,9 +95,12 @@ GET /ops/archive/videos?environment=prod&publishStatus=ready&limit=50
 Timeline artifacts include playback-ready metadata:
 
 - video metadata and timeline summary
-- blocks
-- episodes with `startMs`, `endMs`, `startCueId`, `endCueId`, and source
-  micro-event candidate IDs
+- a three-level navigation hierarchy: `blocks[].episodes[].microEvents[]`
+- top-level `episodes[]` as a compatibility projection of the same episode data
+- episodes with `startMs`, `endMs`, `startCueId`, `endCueId`, source
+  micro-event candidate IDs, and nested micro-event summaries
+- micro-events with event text, program/content classification, topics,
+  cue/time anchors, and evidence cue IDs
 - topic clusters
 - review flags
 

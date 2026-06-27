@@ -777,9 +777,18 @@ def _timeline_artifact(
         f"timeline.{version}.{_clean_path_part(variant)}.json"
     )
     episodes = [
-        _episode_json(episode, candidate_by_id=candidate_by_id, cue_by_id=cue_by_id)
+        _episode_json(
+            episode,
+            ordered_candidates=micro_events,
+            candidate_by_id=candidate_by_id,
+            cue_by_id=cue_by_id,
+        )
         for episode in composition.episodes
     ]
+    episodes_by_id = {
+        episode.episode_id: episode_json
+        for episode, episode_json in zip(composition.episodes, episodes, strict=True)
+    }
     payload: JsonObject = {
         "schemaVersion": schema_version,
         "environment": environment,
@@ -814,6 +823,11 @@ def _timeline_artifact(
                 "displayTitle": block.display_title,
                 "displaySummary": block.display_summary,
                 "episodeIds": block.episode_ids,
+                "episodes": _block_episode_jsons(
+                    block_id=block.block_id,
+                    episode_ids=block.episode_ids,
+                    episodes_by_id=episodes_by_id,
+                ),
             }
             for block in composition.blocks
         ],
@@ -860,6 +874,7 @@ def _timeline_artifact(
 def _episode_json(
     episode: TimelineEpisodeRecord,
     *,
+    ordered_candidates: list[MicroEventCandidateRecord],
     candidate_by_id: dict[int, MicroEventCandidateRecord],
     cue_by_id: dict[str, TranscriptCueRecord],
 ) -> JsonObject:
@@ -887,6 +902,84 @@ def _episode_json(
         "viewerTags": episode.viewer_tags,
         "highlightMicroEventCandidateIds": episode.highlight_micro_event_candidate_ids,
         "visibility": episode.visibility,
+        "microEvents": _micro_event_jsons(
+            episode,
+            ordered_candidates=ordered_candidates,
+            candidate_by_id=candidate_by_id,
+            cue_by_id=cue_by_id,
+        ),
+    }
+
+
+def _block_episode_jsons(
+    *,
+    block_id: str,
+    episode_ids: list[str],
+    episodes_by_id: dict[str, JsonObject],
+) -> list[JsonObject]:
+    episodes: list[JsonObject] = []
+    for episode_id in episode_ids:
+        episode = episodes_by_id.get(episode_id)
+        if episode is None:
+            raise ArchivePublishArtifactInvalid(
+                f"Timeline block {block_id} references missing episode '{episode_id}'."
+            )
+        episodes.append(episode)
+    return episodes
+
+
+def _micro_event_jsons(
+    episode: TimelineEpisodeRecord,
+    *,
+    ordered_candidates: list[MicroEventCandidateRecord],
+    candidate_by_id: dict[int, MicroEventCandidateRecord],
+    cue_by_id: dict[str, TranscriptCueRecord],
+) -> list[JsonObject]:
+    start_candidate = _candidate(candidate_by_id, episode.start_micro_event_candidate_id)
+    end_candidate = _candidate(candidate_by_id, episode.end_micro_event_candidate_id)
+    candidate_positions = {
+        candidate.id: index for index, candidate in enumerate(ordered_candidates)
+    }
+    start_position = candidate_positions.get(start_candidate.id)
+    end_position = candidate_positions.get(end_candidate.id)
+    if start_position is None or end_position is None or start_position > end_position:
+        raise ArchivePublishArtifactInvalid(
+            f"Timeline episode {episode.episode_id} references an invalid micro-event range."
+        )
+    return [
+        _micro_event_json(candidate, cue_by_id=cue_by_id)
+        for candidate in ordered_candidates[start_position : end_position + 1]
+    ]
+
+
+def _micro_event_json(
+    candidate: MicroEventCandidateRecord,
+    *,
+    cue_by_id: dict[str, TranscriptCueRecord],
+) -> JsonObject:
+    start_cue = _cue(cue_by_id, candidate.start_cue_id)
+    end_cue = _cue(cue_by_id, candidate.end_cue_id)
+    evidence_cue_ids = [
+        cue_id for cue_id in candidate.evidence_cue_ids if cue_id in cue_by_id
+    ]
+    return {
+        "microEventCandidateId": candidate.id,
+        "candidateIndex": candidate.candidate_index,
+        "event": candidate.event,
+        "activity": candidate.activity,
+        "programMode": candidate.program_mode,
+        "contentKind": candidate.content_kind,
+        "topics": candidate.topics or [],
+        "startCueId": start_cue.cue_id,
+        "endCueId": end_cue.cue_id,
+        "startMs": start_cue.start_ms,
+        "endMs": end_cue.end_ms,
+        "evidenceCueIds": evidence_cue_ids,
+        "boundaryBefore": candidate.boundary_before,
+        "boundaryAfter": candidate.boundary_after,
+        "relationToPrevious": candidate.relation_to_previous,
+        "continuesToNext": candidate.continues_to_next,
+        "supportLevel": candidate.support_level,
     }
 
 
