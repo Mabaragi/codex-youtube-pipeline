@@ -188,12 +188,14 @@ def test_timeline_prompt_documents_output_limits_and_topic_cluster_keys() -> Non
 
     assert compose_prompt.version_label == "timeline-compose-v3"
     assert len(prompt_sha) == 64
-    assert "topics는 episode마다 검색에 유용한 구체적 명사구 2~6개" in prompt_text
+    assert "topics는 episode마다 2~6개의 구체적인 명사구" in prompt_text
     assert "highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개" in prompt_text
-    assert "META, QNA" in prompt_text
+    assert "META" in prompt_text
+    assert "QNA" in prompt_text
     assert "OVERBROAD_EPISODE" in prompt_text
-    assert "topic_id, label, summary, display_label, episode_ids" in prompt_text
     assert '"topic_id": "topic_001"' in prompt_text
+    assert '"display_label": "string"' in prompt_text
+    assert '"episode_ids": ["episode_001", "episode_003"]' in prompt_text
     assert '"target_episode_id": "episode_001"' in fallback_prompt_text(
         TIMELINE_EPISODE_REPAIR_PROMPT_KEY
     )

@@ -1,0 +1,31 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+PROMPT_RESOURCE_DIR = Path("src/codex_sdk_cli/domains/prompts/resources")
+MOJIBAKE_MARKERS = (
+    "\ufffd",
+    "?묒",
+    "?꾨",
+    "?덈",
+    "濡",
+    "遺",
+    "援",
+    "釉",
+    "筌",
+    "獄",
+    "揶",
+    "餓",
+)
+EXPECTED_KOREAN_MARKERS = ("역할", "작업", "출력", "반드시")
+
+
+def test_prompt_resources_are_clean_utf8_text() -> None:
+    for path in PROMPT_RESOURCE_DIR.glob("*.md"):
+        raw = path.read_bytes()
+        text = raw.decode("utf-8")
+
+        assert raw == text.encode("utf-8")
+        assert any(marker in text for marker in EXPECTED_KOREAN_MARKERS), path
+        for marker in MOJIBAKE_MARKERS:
+            assert marker not in text, f"{path} contains mojibake marker {marker!r}"

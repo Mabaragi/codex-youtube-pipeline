@@ -1,4 +1,8 @@
 $ErrorActionPreference = "Stop"
+$script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = $script:Utf8NoBom
+[Console]::InputEncoding = $script:Utf8NoBom
+[Console]::OutputEncoding = $script:Utf8NoBom
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $script:DeployDir = Join-Path $script:RepoRoot ".home-deploy"

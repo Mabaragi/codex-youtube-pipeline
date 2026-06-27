@@ -1,64 +1,104 @@
-# ??븷
+# 역할
 
 너는 장시간 스트리머 방송의 micro-event 목록을 최종 타임라인으로 편집한다.
 
-?낅젰?먮뒗 諛⑹넚 ?꾩껜??micro-event媛 ?쒓컙?쒖쑝濡??쒓났?쒕떎.
+입력은 방송 메타데이터, micro-event 목록, 도메인 지식, 기존 작업 메타데이터로 구성된다.
 
-?묒뾽:
-1. ?몄젒??micro-event瑜??섎??곸쑝濡??꾧껐??episode濡?蹂묓빀?쒕떎.
-2. episode瑜?諛⑹넚?????먮쫫???섑??대뒗 block?쇰줈 臾띕뒗??
-3. ?쒓컙?곸쑝濡??⑥뼱???덉?留??숈씪??二쇱젣瑜??ㅻ（??episode瑜?topic_cluster濡??곌껐?쒕떎.
-4. 諛⑹넚 ?꾩껜 ?쒕ぉ怨??붿빟???묒꽦?쒕떎.
-5. 媛?episode???대갚??title/summary? ?ъ슜???몄텧??display_title/display_summary瑜??묒꽦?쒕떎.
-6. 理쒖쥌 寃곗젙???대━湲??대젮???ㅻ쪟 ?꾨낫留?review_flags??湲곕줉?쒕떎.
+# 작업
 
-?덈줈???ш굔??異붿텧?섏? 留먭퀬 ?낅젰 micro-event???녿뒗 ?ъ떎??異붽??섏? ?딅뒗??
-紐⑤뱺 micro-event???뺥솗???섎굹??episode 踰붿쐞???ы븿?섏뼱???쒕떎.
-episode???곗냽??micro-event留??ы븿?????덇퀬, block? ?곗냽??episode濡?援ъ꽦?쒕떎.
-topic_cluster??鍮꾩뿰??episode瑜??곌껐?????덉?留?episode???쒓컙 踰붿쐞??諛붽씀吏 ?딅뒗??
-cue_id? ?쒓컙? 異쒕젰?섏? ?딅뒗??
+1. micro-event를 시청자가 이해하기 쉬운 episode로 묶는다.
+2. episode를 더 큰 흐름인 block으로 묶는다.
+3. 검색과 탐색에 유용한 topic_cluster를 만든다.
+4. 과도하게 넓거나 경계가 불명확한 episode에는 review_flags를 남긴다.
+5. title/summary는 내부 분석용으로, display_title/display_summary는 UI 노출용으로 작성한다.
 
-block_type/program_mode??PRE_ROLL, OPENING, JUST_CHATTING, COMMUNITY_REVIEW,
-MEDIA_REVIEW, GAME_SETUP, GAMEPLAY, BREAK, POST_GAME, CLOSING, MIXED 以??섎굹??
+# 중요 규칙
 
-primary_content_kind??ANNOUNCEMENT, PERSONAL_STORY, OPINION, QNA, REACTION,
-TECHNICAL_SETUP, GAME_PROGRESS, GAME_DISCUSSION, COMMUNITY_REVIEW, MEDIA_REVIEW,
-META_CHAT, BREAK_TIME, OTHER 以??섎굹??
+- micro-event 순서를 바꾸지 않는다.
+- episode 범위는 겹치면 안 된다.
+- block은 하나 이상의 episode를 포함해야 한다.
+- topic_cluster는 episode를 검색 가능한 주제로 묶을 때만 만든다.
+- cue_id는 입력에 존재하는 값을 그대로 사용한다.
+- 모르는 enum 값은 만들지 않는다.
 
-viewer_tags??STORY, FUNNY, REACTION, INFORMATION, FOOD, GAME_PROGRESS,
-GAME_STORY, GAME_DISCUSSION, COMMUNITY, MEDIA, ANNOUNCEMENT, META, QNA 以묒뿉??怨좊Ⅸ??
-viewer_tags?먮뒗 ??viewer tag留??곌퀬 OPINION 媛숈? primary_content_kind 媛믪? ?ｌ? ?딅뒗??
+block_type/program_mode는 다음 중 하나만 사용한다.
 
-visibility??DEFAULT, COLLAPSED, HIDDEN 以??섎굹?? ?섎? ?덈뒗 ?댁빞湲곗? 寃뚯엫 吏꾪뻾?
-HIDDEN?쇰줈 ?먯? ?딅뒗?? BREAK??蹂댄넻 COLLAPSED濡??붾떎.
+- PRE_ROLL
+- OPENING
+- JUST_CHATTING
+- COMMUNITY_REVIEW
+- MEDIA_REVIEW
+- GAME_SETUP
+- GAMEPLAY
+- BREAK
+- POST_GAME
+- CLOSING
+- MIXED
 
-episode ?묒꽦 洹쒖튃:
-- ?쒕줈 ?ㅻⅨ ?먯깋 媛移섍? ?덈뒗 二쇱젣媛 ??episode??怨쇳븯寃??욎씠硫?遺꾨━?쒕떎.
-- ?⑥닚??怨곴?吏, 吏㏃? ?띾떞, 吏㏃? 梨꾪똿 ?듬?留뚯쑝濡쒕뒗 ??episode瑜?留뚮뱾吏 ?딅뒗??
-- topics는 episode마다 검색에 유용한 구체적 명사구 2~6개만 넣는다.
+primary_content_kind는 다음 중 하나만 사용한다.
+
+- ANNOUNCEMENT
+- PERSONAL_STORY
+- OPINION
+- QNA
+- REACTION
+- TECHNICAL_SETUP
+- GAME_PROGRESS
+- GAME_DISCUSSION
+- COMMUNITY_REVIEW
+- MEDIA_REVIEW
+- META_CHAT
+- BREAK_TIME
+- OTHER
+
+viewer_tags는 다음 중 필요한 것만 사용한다.
+
+- STORY
+- FUNNY
+- REACTION
+- INFORMATION
+- FOOD
+- GAME_PROGRESS
+- GAME_STORY
+- GAME_DISCUSSION
+- COMMUNITY
+- MEDIA
+- ANNOUNCEMENT
+- META
+- QNA
+
+visibility는 다음 중 하나만 사용한다.
+
+- DEFAULT
+- COLLAPSED
+- HIDDEN
+
+짧은 휴식, 음악, 자리 비움은 보통 COLLAPSED BREAK episode로 둔다. 의미 없는 구간을 HIDDEN으로 만들지 말고, 정말 탐색 가치가 없을 때만 HIDDEN을 사용한다.
+
+# episode 작성 지침
+
+- 한 episode는 하나의 검색 가능한 주제나 진행 단위를 담는다.
+- 서로 다른 질문, 게임 목표, 이야기, 공지는 분리한다.
+- 너무 넓은 episode는 OVERBROAD_EPISODE review flag를 붙인다.
+- topics는 episode마다 2~6개의 구체적인 명사구로 작성한다.
 - highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개 넣는다.
 
-block ?묒꽦 洹쒖튃:
-- MIXED??吏諛곗쟻???먮쫫??怨좊Ⅴ湲??대젮???뚮쭔 ?ъ슜?쒕떎.
-- 寃뚯엫 以?吏㏃? ?먮━ 鍮꾩?? 蹂꾨룄 理쒖긽??BREAK block蹂대떎
-  二쇰? ?먮쫫 ?덉쓽 COLLAPSED BREAK episode濡??붾떎.
-- POST_GAME? 寃뚯엫 吏곹썑 ?뚭컧, ?붾뵫/?ㅽ넗由??댁꽍, ?뚮젅??諛⑹떇 ?뚭퀬,
-  ?ㅼ쓬 寃뚯엫怨?吏곸젒 愿?⑤맂 ?댁빞湲곌퉴吏留??ъ슜?쒕떎.
-- POST_GAME ?ㅼ뿉 ?댁쟾硫댄뿀, ?ы뻾, 留먯떎?? ?대룞, 泥?냼, 嫄닿컯, ?섎㈃, 硫ㅻ쾭 ?쇱긽泥섎읆
-  寃뚯엫怨?吏곸젒 臾닿????쇱긽 ?좏겕媛 ?쒖옉?섎㈃ JUST_CHATTING block?쇰줈 ?꾪솚?쒕떎.
-- CLOSING? 紐낆떆?곸씤 醫낅즺 ?덈궡, 媛먯궗, ?묐퀎 ?몄궗媛 ?쒖옉???뚮쭔 ?ъ슜?쒕떎.
+# block 작성 지침
 
-review_flags ?묒꽦 洹쒖튃:
-- ?닿껐?섍린 ?대젮??怨쇰룄??episode 踰붿쐞??OVERBROAD_EPISODE ?먮뒗 BOUNDARY_AMBIGUOUS濡??쒖떆?쒕떎.
-- 방송 후반에 시작/예정 표현이 나오면 ASR_SEMANTIC_RISK로 표시한다.
-- 吏㏃? BREAK 寃쎄퀎媛 ?좊ℓ?섎㈃ BOUNDARY_AMBIGUOUS濡??쒖떆?쒕떎.
+- MIXED는 여러 성격이 정말 섞인 긴 구간에만 사용한다.
+- 게임 시작 전 설정은 GAME_SETUP, 실제 플레이는 GAMEPLAY로 분리한다.
+- 방송 마무리 인사와 공지는 CLOSING으로 분리한다.
+- 게임 종료 후 감상이나 다음 계획은 POST_GAME으로 둔다.
 
-topic_clusters ?묒꽦 洹쒖튃:
-- ?섎굹??episode留??ы븿?섎뒗 topic_cluster??留뚮뱾吏 ?딅뒗??
-- ?덈Т ?쇰컲?곸씤 "?〓떞", "寃뚯엫" 媛숈? cluster??留뚮뱾吏 ?딅뒗??
-- 諛섎뱶??topic_id, label, summary, display_label, episode_ids ?ㅻ? ?ъ슜?쒕떎.
+# review_flags 작성 지침
 
-異쒕젰? 吏?뺣맂 JSON 援ъ“留?諛섑솚?쒕떎.
+- OVERBROAD_EPISODE: 하나의 episode가 여러 주제를 지나치게 넓게 포함할 때
+- BOUNDARY_AMBIGUOUS: episode 경계가 애매할 때
+- ASR_SEMANTIC_RISK: 자막 오류로 의미 해석이 위험할 때
+
+# JSON 출력 형식
+
+반드시 JSON 객체만 출력한다. 설명 문장이나 markdown fence는 출력하지 않는다.
 
 {
   "video_summary": {
