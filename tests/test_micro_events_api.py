@@ -78,6 +78,7 @@ from codex_sdk_cli.domains.prompts.constants import (
     MICRO_EVENT_EXTRACT_PROMPT_KEY,
     PromptKey,
 )
+from codex_sdk_cli.domains.prompts.exceptions import PromptConflict, PromptNotFound
 from codex_sdk_cli.domains.prompts.fallbacks import fallback_prompt
 from codex_sdk_cli.domains.prompts.ports import ResolvedPrompt
 from codex_sdk_cli.domains.streamers.ports import StreamerRecord, StreamerRepositoryPort
@@ -1072,9 +1073,22 @@ class FakePromptResolver:
             )
         }
         self.version_prompts: dict[tuple[PromptKey, int], ResolvedPrompt] = {}
+        self.request_failures: dict[tuple[PromptKey, int], Exception] = {}
 
     async def resolve_prompt(self, prompt_key: PromptKey) -> ResolvedPrompt:
         return self.prompts[prompt_key]
+
+    async def resolve_prompt_for_request(
+        self,
+        prompt_key: PromptKey,
+        version_id: int | None,
+    ) -> ResolvedPrompt:
+        if version_id is None:
+            return await self.resolve_prompt(prompt_key)
+        failure = self.request_failures.get((prompt_key, version_id))
+        if failure is not None:
+            raise failure
+        return self.version_prompts[(prompt_key, version_id)]
 
     async def resolve_prompt_version(
         self,
@@ -1201,6 +1215,61 @@ def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
     )
     assert fakes.pipeline_jobs.jobs[1].input_json["promptSource"] == "fallback"
     assert len(str(fakes.pipeline_jobs.jobs[1].input_json["promptSha256"])) == 64
+
+
+def test_micro_event_extract_uses_requested_prompt_version() -> None:
+    fakes = _seed_ready_fakes()
+    prompt = _db_prompt(
+        version_id=101,
+        version_label="db-v1",
+        body="REQUESTED MICRO PROMPT\n",
+        sha="a" * 64,
+    )
+    fakes.prompt_resolver.version_prompts[(MICRO_EVENT_EXTRACT_PROMPT_KEY, 101)] = (
+        prompt
+    )
+
+    asyncio.run(_extract(fakes, json={"promptVersionId": 101}))
+
+    input_json = fakes.pipeline_jobs.jobs[1].input_json
+    assert fakes.extractor.prompts[0].startswith("REQUESTED MICRO PROMPT\n")
+    assert input_json["promptVersionId"] == 101
+    assert input_json["promptVersion"] == "db-v1"
+    assert input_json["promptSha256"] == "a" * 64
+    assert input_json["promptSource"] == "database"
+
+
+def test_micro_event_prompt_version_changes_input_hash() -> None:
+    first_hash = _extract_input_hash_for_prompt_version(version_id=101, sha="a" * 64)
+    second_hash = _extract_input_hash_for_prompt_version(version_id=102, sha="b" * 64)
+
+    assert first_hash != second_hash
+
+
+def test_micro_event_extract_rejects_unknown_prompt_version() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.prompt_resolver.request_failures[(MICRO_EVENT_EXTRACT_PROMPT_KEY, 404)] = (
+        PromptNotFound("Prompt version not found.")
+    )
+
+    response = asyncio.run(
+        _extract(fakes, json={"promptVersionId": 404}, expected_status=404)
+    )
+
+    assert response["detail"] == "Prompt version not found."
+
+
+def test_micro_event_extract_rejects_unpublished_prompt_version() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.prompt_resolver.request_failures[(MICRO_EVENT_EXTRACT_PROMPT_KEY, 105)] = (
+        PromptConflict("Only published prompt versions can be selected.")
+    )
+
+    response = asyncio.run(
+        _extract(fakes, json={"promptVersionId": 105}, expected_status=409)
+    )
+
+    assert response["detail"] == "Only published prompt versions can be selected."
 
 
 def test_micro_event_extract_prompt_includes_semantic_video_context() -> None:
@@ -2285,6 +2354,37 @@ def _seed_ready_fakes() -> _Fakes:
     fakes = _Fakes()
     _seed_ready_video(fakes)
     return fakes
+
+
+def _db_prompt(
+    *,
+    version_id: int,
+    version_label: str,
+    body: str,
+    sha: str,
+) -> ResolvedPrompt:
+    return ResolvedPrompt(
+        key=MICRO_EVENT_EXTRACT_PROMPT_KEY,
+        version_id=version_id,
+        version_label=version_label,
+        body=body,
+        body_sha256=sha,
+        source="database",
+    )
+
+
+def _extract_input_hash_for_prompt_version(*, version_id: int, sha: str) -> str:
+    fakes = _seed_ready_fakes()
+    fakes.prompt_resolver.version_prompts[
+        (MICRO_EVENT_EXTRACT_PROMPT_KEY, version_id)
+    ] = _db_prompt(
+        version_id=version_id,
+        version_label=f"db-v{version_id}",
+        body=f"PROMPT {version_id}\n",
+        sha=sha,
+    )
+    asyncio.run(_extract(fakes, json={"promptVersionId": version_id}))
+    return fakes.video_tasks.tasks[2].input_hash
 
 
 def _seed_ready_video(

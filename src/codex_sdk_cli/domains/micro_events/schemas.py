@@ -35,6 +35,7 @@ class MicroEventExtractRequest(BaseModel):
         default=None,
         alias="reasoningEffort",
     )
+    prompt_version_id: int | None = Field(default=None, ge=1, alias="promptVersionId")
 
     @model_validator(mode="after")
     def _overlap_must_be_shorter_than_window(self) -> MicroEventExtractRequest:
@@ -54,6 +55,7 @@ class MicroEventExtractRequest(BaseModel):
                     "overlapMinutes": 5,
                     "model": "gpt-5.5",
                     "reasoningEffort": "medium",
+                    "promptVersionId": 1,
                 }
             ]
         },
@@ -76,6 +78,7 @@ class MicroEventBatchExtractRequest(MicroEventExtractRequest):
                     "overlapMinutes": 5,
                     "model": "gpt-5.5",
                     "reasoningEffort": "medium",
+                    "promptVersionId": 1,
                 }
             ]
         },

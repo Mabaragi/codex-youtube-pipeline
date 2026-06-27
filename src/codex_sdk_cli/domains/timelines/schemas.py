@@ -39,6 +39,7 @@ class TimelineComposeEnqueueRequest(BaseModel):
         default=TIMELINE_COMPOSE_DEFAULT_COPY_STYLE,
         alias="copyStyle",
     )
+    prompt_version_id: int | None = Field(default=None, ge=1, alias="promptVersionId")
 
     @model_validator(mode="after")
     def _selected_videos_require_ids(self) -> TimelineComposeEnqueueRequest:
@@ -59,6 +60,7 @@ class TimelineComposeEnqueueRequest(BaseModel):
                     "copyStyle": "LIGHT_FANDOM_V1",
                     "model": "gpt-5.5",
                     "reasoningEffort": "medium",
+                    "promptVersionId": 1,
                 }
             ]
         },

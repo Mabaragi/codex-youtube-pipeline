@@ -529,7 +529,10 @@ class ComposeTimelineUseCase:
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or self._reasoning_effort
         source_fingerprint = _source_micro_event_fingerprint(source_detail)
-        prompt = await self._prompt_resolver.resolve_prompt(TIMELINE_COMPOSE_PROMPT_KEY)
+        prompt = await self._prompt_resolver.resolve_prompt_for_request(
+            TIMELINE_COMPOSE_PROMPT_KEY,
+            request.prompt_version_id,
+        )
         input_hash = _task_input_hash(
             video=video,
             source_task=source_task,

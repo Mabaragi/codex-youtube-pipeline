@@ -1876,6 +1876,7 @@ export interface components {
          *       "limit": 1,
          *       "model": "gpt-5.5",
          *       "overlapMinutes": 5,
+         *       "promptVersionId": 1,
          *       "reasoningEffort": "medium",
          *       "regenerateSucceeded": false,
          *       "retryFailed": false,
@@ -1895,6 +1896,8 @@ export interface components {
              * @default 5
              */
             overlapMinutes: number;
+            /** Promptversionid */
+            promptVersionId?: number | null;
             /** Reasoningeffort */
             reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
             /**
@@ -2040,6 +2043,8 @@ export interface components {
              * @default 5
              */
             overlapMinutes: number;
+            /** Promptversionid */
+            promptVersionId?: number | null;
             /** Reasoningeffort */
             reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
             /**
@@ -2122,6 +2127,7 @@ export interface components {
          * @example {
          *       "model": "gpt-5.5",
          *       "overlapMinutes": 5,
+         *       "promptVersionId": 1,
          *       "reasoningEffort": "medium",
          *       "regenerateSucceeded": false,
          *       "retryFailed": false,
@@ -2136,6 +2142,8 @@ export interface components {
              * @default 5
              */
             overlapMinutes: number;
+            /** Promptversionid */
+            promptVersionId?: number | null;
             /** Reasoningeffort */
             reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
             /**
@@ -3237,6 +3245,7 @@ export interface components {
          *       "copyStyle": "LIGHT_FANDOM_V1",
          *       "limit": 5,
          *       "model": "gpt-5.5",
+         *       "promptVersionId": 1,
          *       "reasoningEffort": "medium",
          *       "regenerateSucceeded": false,
          *       "retryFailed": false,
@@ -3259,6 +3268,8 @@ export interface components {
             limit: number;
             /** Model */
             model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            /** Promptversionid */
+            promptVersionId?: number | null;
             /** Reasoningeffort */
             reasoningEffort?: ("low" | "medium" | "high" | "xhigh") | null;
             /**

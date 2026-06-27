@@ -4,7 +4,7 @@ import hashlib
 
 from .cache import PromptCache
 from .constants import KNOWN_PROMPT_KEYS, PromptKey
-from .exceptions import PromptInvalid, PromptNotFound
+from .exceptions import PromptConflict, PromptInvalid, PromptNotFound
 from .fallbacks import fallback_prompt
 from .ports import (
     PromptRepositoryPort,
@@ -43,6 +43,20 @@ class PromptResolver:
             return cached
         prompt = await self._resolve_uncached(prompt_key)
         return self._cache.set(prompt, ttl_seconds=self._ttl_seconds)
+
+    async def resolve_prompt_for_request(
+        self,
+        prompt_key: PromptKey,
+        version_id: int | None,
+    ) -> ResolvedPrompt:
+        if version_id is None:
+            return await self.resolve_prompt(prompt_key)
+        record = await self._repository.get_version(prompt_key, version_id)
+        if record is None:
+            raise PromptNotFound("Prompt version not found.")
+        if record.status != "PUBLISHED":
+            raise PromptConflict("Only published prompt versions can be selected.")
+        return _resolved_from_record(record)
 
     async def resolve_prompt_version(
         self,

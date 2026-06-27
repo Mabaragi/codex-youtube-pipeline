@@ -796,6 +796,7 @@ export function useExtractMicroEventsMutation() {
       overlapMinutes = 5,
       model = DEFAULT_CODEX_MODEL,
       reasoningEffort = DEFAULT_CODEX_REASONING_EFFORT,
+      promptVersionId,
     }: {
       videoId: number;
     } & Partial<MicroEventExtractRequest>) =>
@@ -810,6 +811,7 @@ export function useExtractMicroEventsMutation() {
             overlapMinutes,
             model,
             reasoningEffort,
+            ...(promptVersionId ? { promptVersionId } : {}),
           },
         },
       ),
@@ -839,6 +841,7 @@ export function useExtractAllMicroEventsMutation() {
       overlapMinutes = 5,
       model = DEFAULT_CODEX_MODEL,
       reasoningEffort = DEFAULT_CODEX_REASONING_EFFORT,
+      promptVersionId,
     }: Partial<MicroEventBatchExtractRequest> = {}) =>
       requestJson<MicroEventBatchExtractResult>("/video-tasks/micro-event-extract", {
         method: "POST",
@@ -850,6 +853,7 @@ export function useExtractAllMicroEventsMutation() {
           overlapMinutes,
           model,
           reasoningEffort,
+          ...(promptVersionId ? { promptVersionId } : {}),
         },
       }),
     onSuccess: async () => {
@@ -865,12 +869,15 @@ export function useExtractAllMicroEventsMutation() {
 export function useEnqueueMicroEventsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: MicroEventEnqueueRequest) =>
+    mutationFn: ({ promptVersionId, ...body }: MicroEventEnqueueRequest) =>
       requestJson<MicroEventEnqueueResult>(
         "/video-tasks/micro-event-extract/enqueue",
         {
           method: "POST",
-          body,
+          body: {
+            ...body,
+            ...(promptVersionId ? { promptVersionId } : {}),
+          },
         },
       ),
     onSuccess: async () => {
@@ -886,12 +893,15 @@ export function useEnqueueMicroEventsMutation() {
 export function useEnqueueTimelineComposeMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: TimelineComposeEnqueueRequest) =>
+    mutationFn: ({ promptVersionId, ...body }: TimelineComposeEnqueueRequest) =>
       requestJson<TimelineComposeEnqueueResult>(
         "/video-tasks/timeline-compose/enqueue",
         {
           method: "POST",
-          body,
+          body: {
+            ...body,
+            ...(promptVersionId ? { promptVersionId } : {}),
+          },
         },
       ),
     onSuccess: async () => {

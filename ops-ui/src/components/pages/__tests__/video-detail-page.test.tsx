@@ -5,6 +5,7 @@ import type {
   MicroEventExtractResult,
   MicroEventExtractionDetail,
   OpsVideoDetail,
+  PromptDetail,
   TimelineComposition,
   TranscriptContent,
   TranscriptCueList,
@@ -34,6 +35,10 @@ const queryMocks = vi.hoisted(() => {
       isLoading: false,
       error: null as Error | null,
     },
+    promptDetails: {} as Record<
+      string,
+      { data: PromptDetail | undefined; isLoading: boolean; error: Error | null }
+    >,
     extractMicroEventsMutation: vi.fn(() => mutation),
     fetchTranscriptContent: vi.fn(async (transcriptId: number) => {
       void transcriptId;
@@ -100,6 +105,7 @@ vi.mock("@/lib/queries", () => ({
   fetchTranscriptContent: (transcriptId: number) =>
     queryMocks.fetchTranscriptContent(transcriptId),
   useOpsVideoDetail: () => queryMocks.detail,
+  usePromptDetail: (promptKey: string) => queryMocks.promptDetails[promptKey],
   useTranscriptContent: (transcriptId: number, enabled: boolean) =>
     queryMocks.transcriptContent(transcriptId, enabled),
   useTranscriptCues: (transcriptId: number, enabled: boolean) =>
@@ -451,6 +457,46 @@ const timelineComposition: TimelineComposition = {
   reviewFlags: [],
 };
 
+const microEventPromptDetail: PromptDetail = {
+  key: "micro_event_extract",
+  active: {
+    key: "micro_event_extract",
+    versionId: 101,
+    versionLabel: "micro-active",
+    body: "micro prompt",
+    bodySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source: "database",
+  },
+  versions: [
+    {
+      id: 101,
+      promptKey: "micro_event_extract",
+      versionLabel: "micro-active",
+      status: "PUBLISHED",
+      isActive: true,
+      bodySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      sourceNote: null,
+      publishedAt: "2026-06-18T00:00:00Z",
+      archivedAt: null,
+      createdAt: "2026-06-18T00:00:00Z",
+      updatedAt: "2026-06-18T00:00:00Z",
+    },
+    {
+      id: 102,
+      promptKey: "micro_event_extract",
+      versionLabel: "micro-candidate",
+      status: "PUBLISHED",
+      isActive: false,
+      bodySha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      sourceNote: null,
+      publishedAt: "2026-06-18T00:00:00Z",
+      archivedAt: null,
+      createdAt: "2026-06-18T00:00:00Z",
+      updatedAt: "2026-06-18T00:00:00Z",
+    },
+  ],
+};
+
 let downloadedBlob: Blob | null = null;
 let downloadedFileName = "";
 let anchorClick: ReturnType<typeof vi.fn>;
@@ -493,6 +539,13 @@ describe("VideoDetailPage", () => {
     queryMocks.mutation.data = undefined;
     queryMocks.mutation.error = null;
     queryMocks.mutation.isPending = false;
+    queryMocks.promptDetails = {
+      micro_event_extract: {
+        data: microEventPromptDetail,
+        isLoading: false,
+        error: null,
+      },
+    };
     queryMocks.mutation.mutate.mockClear();
     queryMocks.extractMicroEventsMutation.mockClear();
     queryMocks.fetchTranscriptContent.mockClear();
@@ -593,6 +646,9 @@ describe("VideoDetailPage", () => {
   it("runs micro-event extraction from the detail panel", () => {
     render(<VideoDetailPage videoId={42} />);
 
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "102" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Regenerate/i }));
 
     expect(queryMocks.mutation.mutate).toHaveBeenCalledWith({
@@ -601,6 +657,7 @@ describe("VideoDetailPage", () => {
       regenerateSucceeded: true,
       model: "gpt-5.4",
       reasoningEffort: "high",
+      promptVersionId: 102,
     });
   });
 

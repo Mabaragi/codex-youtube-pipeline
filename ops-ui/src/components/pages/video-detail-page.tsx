@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
+import { PromptVersionSelect } from "@/components/prompt-version-select";
 import { StatusBadge } from "@/components/status-badge";
 import { ErrorState, LoadingState } from "@/components/ui-primitives";
 import {
@@ -29,6 +30,7 @@ import {
   useExtractMicroEventsMutation,
   useMicroEventExtraction,
   useOpsVideoDetail,
+  usePromptDetail,
   useTimelineComposition,
   useTranscriptContent,
   useTranscriptCues,
@@ -41,6 +43,7 @@ import type {
   MicroEventExtractionWindow,
   OpsVideoDetail,
   OpsVideoTask,
+  PromptDetail,
   TimelineBlock,
   TimelineComposition,
   TimelineEpisode,
@@ -84,6 +87,7 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
     error: timelineError,
   } = useTimelineComposition(videoId, Boolean(data));
   const extractMicroEvents = useExtractMicroEventsMutation();
+  const microEventPrompt = usePromptDetail("micro_event_extract");
 
   const taskColumns: ColumnDef<OpsVideoTask>[] = [
     {
@@ -238,6 +242,8 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
             key={videoId}
             latestCueTask={latestCueTask}
             latestMicroEventTask={latestMicroEventTask}
+            promptDetail={microEventPrompt.data}
+            promptLoading={microEventPrompt.isLoading}
             videoId={videoId}
           />
 
@@ -299,6 +305,8 @@ function MicroEventExtractionPanel({
   extractionLoading,
   extractionError,
   extractMicroEvents,
+  promptDetail,
+  promptLoading,
 }: {
   videoId: number;
   latestCueTask: OpsVideoTask | undefined;
@@ -307,10 +315,15 @@ function MicroEventExtractionPanel({
   extractionLoading: boolean;
   extractionError: Error | null;
   extractMicroEvents: ExtractMicroEventsMutation;
+  promptDetail: PromptDetail | undefined;
+  promptLoading: boolean;
 }) {
   const [selectedModel, setSelectedModel] = useState<CodexModelOption | null>(null);
   const [selectedReasoningEffort, setSelectedReasoningEffort] =
     useState<CodexReasoningEffortOption | null>(null);
+  const [selectedPromptVersionId, setSelectedPromptVersionId] = useState<number | null>(
+    null,
+  );
   const model =
     selectedModel ??
     (isCodexModelOption(extraction?.model) ? extraction.model : DEFAULT_CODEX_MODEL);
@@ -345,6 +358,9 @@ function MicroEventExtractionPanel({
       regenerateSucceeded: taskSucceeded,
       model,
       reasoningEffort,
+      ...(selectedPromptVersionId
+        ? { promptVersionId: selectedPromptVersionId }
+        : {}),
     });
   }
 
@@ -432,6 +448,14 @@ function MicroEventExtractionPanel({
             ))}
           </select>
         </label>
+        <PromptVersionSelect
+          detail={promptDetail}
+          disabled={taskIsRunning || extractMicroEvents.isPending}
+          label="Prompt"
+          loading={promptLoading}
+          onChange={setSelectedPromptVersionId}
+          value={selectedPromptVersionId}
+        />
       </div>
       {extractMicroEvents.error ? (
         <div className="mb-3 text-sm text-red-700">

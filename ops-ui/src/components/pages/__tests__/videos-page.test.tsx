@@ -7,6 +7,7 @@ import type {
   OpsChannel,
   OpsVideoFilters,
   OpsVideoList,
+  PromptDetail,
   TimelineComposeEnqueueResult,
 } from "@/lib/types";
 
@@ -40,6 +41,10 @@ const queryMocks = vi.hoisted(() => ({
     data: undefined as TimelineComposeEnqueueResult | undefined,
     error: null as Error | null,
   },
+  promptDetails: {} as Record<
+    string,
+    { data: PromptDetail | undefined; isLoading: boolean; error: Error | null }
+  >,
   videoFilters: undefined as OpsVideoFilters | undefined,
 }));
 
@@ -52,6 +57,7 @@ vi.mock("@/lib/queries", () => ({
     queryMocks.videoFilters = filters;
     return queryMocks.videos;
   },
+  usePromptDetail: (promptKey: string) => queryMocks.promptDetails[promptKey],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -98,6 +104,86 @@ const videoList: OpsVideoList = {
   ],
 };
 
+const microEventPromptDetail: PromptDetail = {
+  key: "micro_event_extract",
+  active: {
+    key: "micro_event_extract",
+    versionId: 101,
+    versionLabel: "micro-active",
+    body: "micro prompt",
+    bodySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source: "database",
+  },
+  versions: [
+    {
+      id: 101,
+      promptKey: "micro_event_extract",
+      versionLabel: "micro-active",
+      status: "PUBLISHED",
+      isActive: true,
+      bodySha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      sourceNote: null,
+      publishedAt: "2026-06-18T00:00:00Z",
+      archivedAt: null,
+      createdAt: "2026-06-18T00:00:00Z",
+      updatedAt: "2026-06-18T00:00:00Z",
+    },
+    {
+      id: 102,
+      promptKey: "micro_event_extract",
+      versionLabel: "micro-candidate",
+      status: "PUBLISHED",
+      isActive: false,
+      bodySha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      sourceNote: null,
+      publishedAt: "2026-06-18T00:00:00Z",
+      archivedAt: null,
+      createdAt: "2026-06-18T00:00:00Z",
+      updatedAt: "2026-06-18T00:00:00Z",
+    },
+  ],
+};
+
+const timelinePromptDetail: PromptDetail = {
+  key: "timeline_compose",
+  active: {
+    key: "timeline_compose",
+    versionId: 201,
+    versionLabel: "timeline-active",
+    body: "timeline prompt",
+    bodySha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    source: "database",
+  },
+  versions: [
+    {
+      id: 201,
+      promptKey: "timeline_compose",
+      versionLabel: "timeline-active",
+      status: "PUBLISHED",
+      isActive: true,
+      bodySha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      sourceNote: null,
+      publishedAt: "2026-06-18T00:00:00Z",
+      archivedAt: null,
+      createdAt: "2026-06-18T00:00:00Z",
+      updatedAt: "2026-06-18T00:00:00Z",
+    },
+    {
+      id: 202,
+      promptKey: "timeline_compose",
+      versionLabel: "timeline-candidate",
+      status: "PUBLISHED",
+      isActive: false,
+      bodySha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      sourceNote: null,
+      publishedAt: "2026-06-18T00:00:00Z",
+      archivedAt: null,
+      createdAt: "2026-06-18T00:00:00Z",
+      updatedAt: "2026-06-18T00:00:00Z",
+    },
+  ],
+};
+
 describe("VideosPage", () => {
   beforeEach(() => {
     routerPush.mockReset();
@@ -117,6 +203,18 @@ describe("VideosPage", () => {
     queryMocks.enqueueTimelineCompose.isPending = false;
     queryMocks.enqueueTimelineCompose.data = undefined;
     queryMocks.enqueueTimelineCompose.error = null;
+    queryMocks.promptDetails = {
+      micro_event_extract: {
+        data: microEventPromptDetail,
+        isLoading: false,
+        error: null,
+      },
+      timeline_compose: {
+        data: timelinePromptDetail,
+        isLoading: false,
+        error: null,
+      },
+    };
     queryMocks.videoFilters = undefined;
   });
 
@@ -205,6 +303,9 @@ describe("VideosPage", () => {
     fireEvent.change(screen.getAllByLabelText("Reasoning")[0], {
       target: { value: "high" },
     });
+    fireEvent.change(screen.getAllByLabelText("Prompt")[0], {
+      target: { value: "102" },
+    });
     fireEvent.click(screen.getAllByLabelText("Retry failed")[0]);
     fireEvent.click(screen.getAllByRole("button", { name: /Queue selected/i })[0]);
 
@@ -218,6 +319,7 @@ describe("VideosPage", () => {
       regenerateSucceeded: false,
       windowMinutes: 30,
       overlapMinutes: 5,
+      promptVersionId: 102,
     });
   });
 
@@ -233,6 +335,9 @@ describe("VideosPage", () => {
     fireEvent.change(screen.getAllByLabelText("Reasoning")[0], {
       target: { value: "high" },
     });
+    fireEvent.change(screen.getAllByLabelText("Prompt")[0], {
+      target: { value: "102" },
+    });
     fireEvent.click(screen.getAllByLabelText("Retry failed")[0]);
     fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
 
@@ -244,6 +349,7 @@ describe("VideosPage", () => {
       regenerateSucceeded: false,
       windowMinutes: 30,
       overlapMinutes: 5,
+      promptVersionId: 102,
     });
   });
 
@@ -290,6 +396,9 @@ describe("VideosPage", () => {
     fireEvent.change(screen.getAllByLabelText("Reasoning")[1], {
       target: { value: "low" },
     });
+    fireEvent.change(screen.getAllByLabelText("Prompt")[1], {
+      target: { value: "202" },
+    });
     fireEvent.click(screen.getAllByLabelText("Retry failed")[1]);
     fireEvent.click(screen.getAllByRole("button", { name: /Queue selected/i })[1]);
 
@@ -302,6 +411,7 @@ describe("VideosPage", () => {
       retryFailed: true,
       regenerateSucceeded: false,
       copyStyle: "LIGHT_FANDOM_V1",
+      promptVersionId: 202,
     });
   });
 

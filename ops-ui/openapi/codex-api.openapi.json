@@ -2400,6 +2400,7 @@
             "limit": 1,
             "model": "gpt-5.5",
             "overlapMinutes": 5,
+            "promptVersionId": 1,
             "reasoningEffort": "medium",
             "regenerateSucceeded": false,
             "retryFailed": false,
@@ -2436,6 +2437,18 @@
             "minimum": 0.0,
             "title": "Overlapminutes",
             "type": "integer"
+          },
+          "promptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversionid"
           },
           "reasoningEffort": {
             "anyOf": [
@@ -2896,6 +2909,18 @@
             "title": "Overlapminutes",
             "type": "integer"
           },
+          "promptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversionid"
+          },
           "reasoningEffort": {
             "anyOf": [
               {
@@ -3100,6 +3125,7 @@
           {
             "model": "gpt-5.5",
             "overlapMinutes": 5,
+            "promptVersionId": 1,
             "reasoningEffort": "medium",
             "regenerateSucceeded": false,
             "retryFailed": false,
@@ -3129,6 +3155,18 @@
             "minimum": 0.0,
             "title": "Overlapminutes",
             "type": "integer"
+          },
+          "promptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversionid"
           },
           "reasoningEffort": {
             "anyOf": [
@@ -6643,6 +6681,7 @@
             "copyStyle": "LIGHT_FANDOM_V1",
             "limit": 5,
             "model": "gpt-5.5",
+            "promptVersionId": 1,
             "reasoningEffort": "medium",
             "regenerateSucceeded": false,
             "retryFailed": false,
@@ -6690,6 +6729,18 @@
               }
             ],
             "title": "Model"
+          },
+          "promptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversionid"
           },
           "reasoningEffort": {
             "anyOf": [

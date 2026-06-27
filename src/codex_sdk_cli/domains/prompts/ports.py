@@ -100,6 +100,13 @@ class PromptResolverPort(Protocol):
     async def resolve_prompt(self, prompt_key: PromptKey) -> ResolvedPrompt:
         """Resolve active DB prompt or fallback prompt."""
 
+    async def resolve_prompt_for_request(
+        self,
+        prompt_key: PromptKey,
+        version_id: int | None,
+    ) -> ResolvedPrompt:
+        """Resolve a request-selected prompt; explicit versions must be published."""
+
     async def resolve_prompt_version(
         self,
         prompt_key: PromptKey,

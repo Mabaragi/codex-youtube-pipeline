@@ -713,8 +713,9 @@ class ExtractVideoMicroEventsUseCase:
         )
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or self._reasoning_effort
-        prompt = await self._prompt_resolver.resolve_prompt(
-            MICRO_EVENT_EXTRACT_PROMPT_KEY
+        prompt = await self._prompt_resolver.resolve_prompt_for_request(
+            MICRO_EVENT_EXTRACT_PROMPT_KEY,
+            request.prompt_version_id,
         )
         input_hash = _task_input_hash(
             video=video,
@@ -804,8 +805,9 @@ class ExtractVideoMicroEventsUseCase:
             return "ineligible"
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or self._reasoning_effort
-        prompt = await self._prompt_resolver.resolve_prompt(
-            MICRO_EVENT_EXTRACT_PROMPT_KEY
+        prompt = await self._prompt_resolver.resolve_prompt_for_request(
+            MICRO_EVENT_EXTRACT_PROMPT_KEY,
+            request.prompt_version_id,
         )
         input_hash = _task_input_hash(
             video=candidate.video,
@@ -2396,6 +2398,7 @@ def _single_extract_request(
         overlapMinutes=request.overlap_minutes,
         model=request.model,
         reasoningEffort=request.reasoning_effort,
+        promptVersionId=request.prompt_version_id,
     )
 
 

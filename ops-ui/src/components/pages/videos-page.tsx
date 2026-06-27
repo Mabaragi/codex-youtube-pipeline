@@ -23,6 +23,7 @@ import {
   FilterSelect,
 } from "@/components/filter-controls";
 import { PageHeader } from "@/components/page-header";
+import { PromptVersionSelect } from "@/components/prompt-version-select";
 import { StatusBadge } from "@/components/status-badge";
 import {
   ActionPanel,
@@ -36,6 +37,7 @@ import {
   useExtractAllMicroEventsMutation,
   useOpsChannels,
   useOpsVideos,
+  usePromptDetail,
 } from "@/lib/queries";
 import {
   CODEX_MODEL_OPTIONS,
@@ -49,6 +51,7 @@ import type {
   MicroEventEnqueueRequest,
   OpsVideo,
   OpsVideoFilters,
+  PromptDetail,
   TimelineComposeEnqueueRequest,
 } from "@/lib/types";
 import {
@@ -69,6 +72,7 @@ type MicroEventDefaults = {
   regenerateSucceeded: boolean;
   windowMinutes: number;
   overlapMinutes: number;
+  promptVersionId: number | null;
 };
 
 type TimelineComposeDefaults = {
@@ -78,6 +82,7 @@ type TimelineComposeDefaults = {
   retryFailed: boolean;
   regenerateSucceeded: boolean;
   copyStyle: NonNullable<TimelineComposeEnqueueRequest["copyStyle"]>;
+  promptVersionId: number | null;
 };
 
 const VIDEO_TASK_STATUS_OPTIONS = [
@@ -98,6 +103,8 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const extractAllMicroEvents = useExtractAllMicroEventsMutation();
   const enqueueMicroEvents = useEnqueueMicroEventsMutation();
   const enqueueTimelineCompose = useEnqueueTimelineComposeMutation();
+  const microEventPrompt = usePromptDetail("micro_event_extract");
+  const timelinePrompt = usePromptDetail("timeline_compose");
   const videos = useMemo(() => data?.items ?? [], [data?.items]);
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
     () => new Set(),
@@ -110,6 +117,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     regenerateSucceeded: false,
     windowMinutes: 30,
     overlapMinutes: 5,
+    promptVersionId: null,
   });
   const [timelineDefaults, setTimelineDefaults] = useState<TimelineComposeDefaults>({
     limit: 20,
@@ -118,6 +126,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     retryFailed: false,
     regenerateSucceeded: false,
     copyStyle: "LIGHT_FANDOM_V1",
+    promptVersionId: null,
   });
   const visibleVideoIds = videos.map((video) => video.videoId);
   const selectedVisibleCount = visibleVideoIds.filter((videoId) =>
@@ -203,6 +212,9 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       regenerateSucceeded: microEventDefaults.regenerateSucceeded,
       windowMinutes: microEventDefaults.windowMinutes,
       overlapMinutes: microEventDefaults.overlapMinutes,
+      ...(microEventDefaults.promptVersionId
+        ? { promptVersionId: microEventDefaults.promptVersionId }
+        : {}),
     });
   };
 
@@ -327,6 +339,8 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
         onQueueSelected={queueSelected}
         onRunNow={runNow}
         onToggleVisibleSelection={toggleVisibleSelection}
+        promptDetail={microEventPrompt.data}
+        promptLoading={microEventPrompt.isLoading}
         selectedCount={selectedVideoIds.size}
         setDefaults={setMicroEventDefaults}
         visibleCount={visibleVideoIds.length}
@@ -339,6 +353,8 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
         onQueueCurrentFilters={queueTimelineCurrentFilters}
         onQueueSelected={queueSelectedTimelines}
         onToggleVisibleSelection={toggleVisibleSelection}
+        promptDetail={timelinePrompt.data}
+        promptLoading={timelinePrompt.isLoading}
         selectedCount={selectedVideoIds.size}
         setDefaults={setTimelineDefaults}
         visibleCount={visibleVideoIds.length}
@@ -398,6 +414,8 @@ function MicroEventBatchPanel({
   onQueueSelected,
   onRunNow,
   onToggleVisibleSelection,
+  promptDetail,
+  promptLoading,
   selectedCount,
   setDefaults,
   visibleCount,
@@ -411,6 +429,8 @@ function MicroEventBatchPanel({
   onQueueSelected: () => void;
   onRunNow: () => void;
   onToggleVisibleSelection: () => void;
+  promptDetail: PromptDetail | undefined;
+  promptLoading: boolean;
   selectedCount: number;
   setDefaults: Dispatch<SetStateAction<MicroEventDefaults>>;
   visibleCount: number;
@@ -449,6 +469,12 @@ function MicroEventBatchPanel({
         [key]: checked,
       }));
     };
+  const setPromptVersion = (versionId: number | null) => {
+    setDefaults((current) => ({
+      ...current,
+      promptVersionId: versionId,
+    }));
+  };
 
   return (
     <ActionPanel
@@ -465,7 +491,7 @@ function MicroEventBatchPanel({
         </Link>
       }
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
         <label className="grid gap-1 text-xs font-medium text-slate-600">
           Batch size
           <select
@@ -534,6 +560,13 @@ function MicroEventBatchPanel({
             value={defaults.overlapMinutes}
           />
         </label>
+        <PromptVersionSelect
+          detail={promptDetail}
+          disabled={busy}
+          loading={promptLoading}
+          onChange={setPromptVersion}
+          value={defaults.promptVersionId}
+        />
         <div className="grid gap-2 text-xs font-medium text-slate-600">
           <label className="flex items-center gap-2">
             <input
@@ -632,6 +665,8 @@ function TimelineComposePanel({
   onQueueCurrentFilters,
   onQueueSelected,
   onToggleVisibleSelection,
+  promptDetail,
+  promptLoading,
   selectedCount,
   setDefaults,
   visibleCount,
@@ -643,6 +678,8 @@ function TimelineComposePanel({
   onQueueCurrentFilters: () => void;
   onQueueSelected: () => void;
   onToggleVisibleSelection: () => void;
+  promptDetail: PromptDetail | undefined;
+  promptLoading: boolean;
   selectedCount: number;
   setDefaults: Dispatch<SetStateAction<TimelineComposeDefaults>>;
   visibleCount: number;
@@ -679,6 +716,12 @@ function TimelineComposePanel({
         [key]: checked,
       }));
     };
+  const setPromptVersion = (versionId: number | null) => {
+    setDefaults((current) => ({
+      ...current,
+      promptVersionId: versionId,
+    }));
+  };
 
   return (
     <ActionPanel
@@ -748,6 +791,13 @@ function TimelineComposePanel({
             <option value="LIGHT_FANDOM_V1">LIGHT_FANDOM_V1</option>
           </select>
         </label>
+        <PromptVersionSelect
+          detail={promptDetail}
+          disabled={enqueueTimelineCompose.isPending}
+          loading={promptLoading}
+          onChange={setPromptVersion}
+          value={defaults.promptVersionId}
+        />
         <div className="grid gap-2 text-xs font-medium text-slate-600">
           <label className="flex items-center gap-2">
             <input
@@ -1024,6 +1074,7 @@ function microEventRequestDefaults(
   | "regenerateSucceeded"
   | "retryFailed"
   | "windowMinutes"
+  | "promptVersionId"
 > {
   return {
     limit: Math.min(Math.max(defaults.limit, 1), 200),
@@ -1033,6 +1084,7 @@ function microEventRequestDefaults(
     regenerateSucceeded: defaults.regenerateSucceeded,
     windowMinutes: defaults.windowMinutes,
     overlapMinutes: defaults.overlapMinutes,
+    ...(defaults.promptVersionId ? { promptVersionId: defaults.promptVersionId } : {}),
   };
 }
 
@@ -1046,6 +1098,7 @@ function timelineRequestDefaults(
   | "reasoningEffort"
   | "regenerateSucceeded"
   | "retryFailed"
+  | "promptVersionId"
 > {
   return {
     limit: Math.min(Math.max(defaults.limit, 1), 200),
@@ -1054,6 +1107,7 @@ function timelineRequestDefaults(
     retryFailed: defaults.retryFailed,
     regenerateSucceeded: defaults.regenerateSucceeded,
     copyStyle: defaults.copyStyle,
+    ...(defaults.promptVersionId ? { promptVersionId: defaults.promptVersionId } : {}),
   };
 }
 

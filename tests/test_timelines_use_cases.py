@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -16,6 +16,7 @@ from codex_sdk_cli.domains.micro_events.ports import (
     ContentKind,
     MicroEventCandidateRecord,
     MicroEventExtractionDetailRecord,
+    MicroEventExtractionWindowRecord,
     ProgramMode,
 )
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
@@ -25,21 +26,26 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
 from codex_sdk_cli.domains.prompts.constants import (
     TIMELINE_COMPOSE_PROMPT_KEY,
     TIMELINE_EPISODE_REPAIR_PROMPT_KEY,
+    PromptKey,
 )
 from codex_sdk_cli.domains.prompts.fallbacks import (
     fallback_prompt,
     fallback_prompt_text,
 )
+from codex_sdk_cli.domains.prompts.ports import ResolvedPrompt
 from codex_sdk_cli.domains.timelines.ports import (
     TimelineComposeRequest,
     TimelineComposeResult,
     TimelineEpisodeRepairRequest,
     TimelineEpisodeRepairResult,
 )
+from codex_sdk_cli.domains.timelines.schemas import TimelineComposeEnqueueRequest
 from codex_sdk_cli.domains.timelines.use_cases import (
+    ComposeTimelineUseCase,
     _ComposerInput,
     _composition_create,
     _composition_create_with_repairs,
+    _task_input_hash,
     _task_input_json,
     _timeline_prompt,
 )
@@ -269,6 +275,74 @@ def test_timeline_task_input_json_includes_prompt_sha() -> None:
         TIMELINE_COMPOSE_PROMPT_KEY
     ).body_sha256
     assert len(str(input_json["promptSha256"])) == 64
+
+
+def test_timeline_task_input_hash_changes_with_prompt_version() -> None:
+    first_prompt = _timeline_db_prompt(version_id=201, sha="a" * 64)
+    second_prompt = _timeline_db_prompt(version_id=202, sha="b" * 64)
+
+    first_hash = _task_input_hash(
+        video=_video(),
+        source_task=_video_task(91),
+        source_fingerprint="abc123",
+        copy_style="LIGHT_FANDOM_V1",
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        prompt=first_prompt,
+    )
+    second_hash = _task_input_hash(
+        video=_video(),
+        source_task=_video_task(91),
+        source_fingerprint="abc123",
+        copy_style="LIGHT_FANDOM_V1",
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        prompt=second_prompt,
+    )
+
+    assert first_hash != second_hash
+
+
+@pytest.mark.anyio
+async def test_timeline_prepare_uses_requested_compose_prompt_version() -> None:
+    requested_prompt = _timeline_db_prompt(
+        version_id=201,
+        version_label="timeline-db-v1",
+        body="REQUESTED TIMELINE PROMPT\n",
+        sha="a" * 64,
+    )
+    prompt_resolver = _TimelinePromptResolver(requested_prompt)
+    use_case = ComposeTimelineUseCase(
+        videos=cast(Any, _Noop()),
+        video_tasks=cast(Any, _TimelineVideoTasks()),
+        channels=cast(Any, _Noop()),
+        streamers=cast(Any, _Noop()),
+        domain_knowledge=cast(Any, _Noop()),
+        micro_events=cast(Any, _TimelineMicroEvents()),
+        timelines=cast(Any, _Noop()),
+        pipeline_jobs=cast(Any, _Noop()),
+        composer=cast(Any, _Noop()),
+        prompt_resolver=prompt_resolver,
+        timeout_seconds=1200,
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        events=cast(Any, _Noop()),
+    )
+
+    prepared = await use_case._prepare(
+        _video(),
+        TimelineComposeEnqueueRequest(
+            target="selected_videos",
+            videoIds=[71],
+            promptVersionId=201,
+        ),
+    )
+
+    assert prepared.prompt == requested_prompt
+    assert prepared.input_json["promptVersionId"] == 201
+    assert prepared.input_json["promptVersion"] == "timeline-db-v1"
+    assert prepared.input_json["promptSource"] == "database"
+    assert prompt_resolver.requested_version_ids == [201]
 
 
 def test_timeline_normalizes_content_kind_values_in_viewer_tags() -> None:
@@ -593,6 +667,68 @@ def _composer_input(
     )
 
 
+def _timeline_db_prompt(
+    *,
+    version_id: int,
+    sha: str,
+    version_label: str | None = None,
+    body: str | None = None,
+) -> ResolvedPrompt:
+    return ResolvedPrompt(
+        key=TIMELINE_COMPOSE_PROMPT_KEY,
+        version_id=version_id,
+        version_label=version_label or f"timeline-db-v{version_id}",
+        body=body or f"TIMELINE PROMPT {version_id}\n",
+        body_sha256=sha,
+        source="database",
+    )
+
+
+def _source_detail(
+    candidates: list[MicroEventCandidateRecord],
+) -> MicroEventExtractionDetailRecord:
+    return MicroEventExtractionDetailRecord(
+        video_task_id=91,
+        video_id=71,
+        youtube_video_id="youtube-1",
+        transcript_id=47,
+        status="succeeded",
+        job_id=12,
+        job_attempt_id=13,
+        output_json={},
+        error_type=None,
+        error_message=None,
+        started_at=NOW,
+        completed_at=NOW,
+        created_at=NOW,
+        updated_at=NOW,
+        windows=[
+            MicroEventExtractionWindowRecord(
+                id=1,
+                video_task_id=91,
+                video_id=71,
+                transcript_id=47,
+                window_index=1,
+                start_cue_id="tr47-c000001",
+                end_cue_id="tr47-c000002",
+                cue_count=2,
+                status="succeeded",
+                carry_out_unfinished=False,
+                codex_thread_id=None,
+                codex_turn_id=None,
+                raw_response_text=None,
+                parsed_response_json=None,
+                validation_error=None,
+                source_job_id=12,
+                source_job_attempt_id=13,
+                created_at=NOW,
+                updated_at=NOW,
+                micro_events=candidates,
+            )
+        ],
+    )
+
+
 def _episode_output(
     episode_id: str,
     start_micro_event_id: str,
@@ -741,6 +877,54 @@ class _RepairComposer:
             status="completed",
             final_response=json.dumps(output),
         )
+
+
+class _Noop:
+    pass
+
+
+class _TimelinePromptResolver:
+    def __init__(self, requested_prompt: ResolvedPrompt) -> None:
+        self._requested_prompt = requested_prompt
+        self.requested_version_ids: list[int | None] = []
+
+    async def resolve_prompt(self, prompt_key: PromptKey) -> ResolvedPrompt:
+        return fallback_prompt(prompt_key)
+
+    async def resolve_prompt_for_request(
+        self,
+        prompt_key: PromptKey,
+        version_id: int | None,
+    ) -> ResolvedPrompt:
+        self.requested_version_ids.append(version_id)
+        return self._requested_prompt
+
+    async def resolve_prompt_version(
+        self,
+        prompt_key: PromptKey,
+        version_id: int | None,
+    ) -> ResolvedPrompt:
+        return self._requested_prompt
+
+
+class _TimelineVideoTasks:
+    async def get_latest_succeeded_task_for_video(
+        self,
+        *,
+        video_id: int,
+        task_name: str,
+    ) -> VideoTaskRecord | None:
+        return _video_task(task_id=91)
+
+
+class _TimelineMicroEvents:
+    async def get_extraction(
+        self,
+        *,
+        video_id: int,
+        video_task_id: int,
+    ) -> MicroEventExtractionDetailRecord | None:
+        return _source_detail(_candidates(2))
 
 
 def _candidates(count: int) -> list[MicroEventCandidateRecord]:
