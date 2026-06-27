@@ -148,6 +148,17 @@ Environment variables use the `CODEX_CLI_` prefix:
 - `CODEX_CLI_TRANSCRIPT_MINIO_PREFIX` (default: `youtube/transcripts`)
 - `CODEX_CLI_TRANSCRIPT_MINIO_SECURE` (default: `false`)
 - `CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS` (default: `300`)
+- `CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS`
+- `CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT`
+- `CODEX_CLI_TRANSCRIPT_CUE_GENERATE_TIMEOUT_SECONDS`
+- `CODEX_CLI_TRANSCRIPT_CUE_GENERATE_CONCURRENCY_LIMIT`
+- `CODEX_CLI_MICRO_EVENT_EXTRACT_TIMEOUT_SECONDS`
+- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`
+- `CODEX_CLI_MICRO_EVENT_WORKER_POLL_INTERVAL_SECONDS`
+- `CODEX_CLI_MICRO_EVENT_WORKER_ID`
+- `CODEX_CLI_TIMELINE_COMPOSE_TIMEOUT_SECONDS`
+- `CODEX_CLI_TIMELINE_COMPOSE_WORKER_POLL_INTERVAL_SECONDS`
+- `CODEX_CLI_TIMELINE_COMPOSE_WORKER_ID`
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX` (default: `external-api-calls`)
 - `CODEX_CLI_DATABASE_URL` (app default:
   `sqlite+aiosqlite:///./data/app.db`; Docker Compose default:
@@ -161,11 +172,14 @@ The project uses async SQLAlchemy with Alembic migrations. Non-Docker runs use
 `db-data` named volume so redeploy checkout cleanup does not remove metadata.
 Local database files and SQLite journal/WAL files are ignored by git. Current
 application tables are `youtube_transcripts`, `streamers`, `channels`,
-`external_api_calls`, `pipeline_jobs`, `pipeline_job_attempts`, `videos`, and
-`video_tasks`. Transcript and external API raw response JSON stays in MinIO
-while SQLite stores metadata plus the MinIO bucket, object name, URI, response
-hash, validation status, and pipeline state. Operators can update only the
-nullable `notes` field through the transcript metadata API.
+`external_api_calls`, `pipeline_jobs`, `pipeline_job_attempts`, `videos`,
+`video_tasks`, transcript cues, operation events, Codex usage, domain knowledge,
+micro-event extraction, and timeline composition tables. See
+`docs/PROJECT_OVERVIEW.md` for the current table inventory. Transcript and
+external API raw response JSON stays in MinIO while SQLite stores metadata plus
+the MinIO bucket, object name, URI, response hash, validation status, and
+pipeline state. Operators can update only the nullable `notes` field through the
+transcript metadata API.
 
 Schema changes must go through Alembic migrations. Do not call
 `metadata.create_all()` or `metadata.drop_all()` from app code, tests, or startup
@@ -196,95 +210,42 @@ pnpm --filter codex-sdk-ops-ui build
 
 ## AWS Deployment
 
-Build the wheel, validate Terraform, and create a plan:
+The AWS EC2/Terraform deployment path is legacy. Its files are archived under
+`legacy/` with their original root-relative layout preserved, and are not part
+of the normal Home PC runtime.
 
-```powershell
-.\scripts\deploy_aws.ps1
-```
+For reference, the old entrypoint is `legacy/scripts/deploy_aws.ps1`. Treat it
+as archival material: restore the legacy tree to the old root layout or adjust
+its internal paths before using it again.
 
-Apply the AWS EC2 deployment:
-
-```powershell
-.\scripts\deploy_aws.ps1 -Apply
-```
-
-See `docs/AWS_DEPLOYMENT.md` for SSM login, Codex authentication, and optional
+See `legacy/docs/AWS_DEPLOYMENT.md` for SSM login, Codex authentication, and optional
 S3 Mountpoint usage.
 
 ## Docker
 
-Build and run the CLI image locally:
+Docker deployment artifacts are legacy. The current Home PC runtime keeps MinIO
+in Docker and runs the API, workers, and Ops UI as local Windows processes. See
+`docs/LOCAL_NATIVE_DEPLOYMENT.md`.
 
-```powershell
-docker build -t codex-sdk-cli .
-docker run --rm codex-sdk-cli --help
-```
+Archived Docker files live under `legacy/` with their original root-relative
+paths preserved:
 
-When S3 is mounted on the host, pass it into the container with a bind mount:
+- `legacy/Dockerfile`
+- `legacy/compose.yaml`
+- `legacy/compose.home.yaml`
+- `legacy/compose.home.build.yaml`
+- `legacy/ops-ui/Dockerfile`
+- `legacy/deploy/nginx/home.conf`
 
-```bash
-docker run --rm \
-  --mount type=bind,source=/mnt/s3,target=/data/s3,readonly \
-  codex-sdk-cli \
-  run --sandbox read-only "Read /data/s3/prompt.md and summarize it."
-```
-
-Codex login state and API keys are not baked into the image. Pass credentials at
-runtime with environment variables or a mounted state directory.
-
-To keep Codex login state across disposable containers, mount a persistent
-volume at the Codex user's state directory:
-
-```powershell
-docker volume create codex-sdk-cli-home
-docker run --rm -it `
-  --mount type=volume,source=codex-sdk-cli-home,target=/home/codex/.codex `
-  codex-sdk-cli login device
-docker run --rm `
-  --mount type=volume,source=codex-sdk-cli-home,target=/home/codex/.codex `
-  codex-sdk-cli account
-```
-
-Docker Compose keeps the same state volume without repeating the mount flags:
-
-```powershell
-New-Item -ItemType Directory -Force .docker-empty-s3 | Out-Null
-docker compose build
-docker compose run --rm codex login device
-docker compose run --rm codex account
-docker compose run --rm codex run --sandbox read-only "Describe /work in one sentence."
-```
-
-Docker Compose also starts MinIO for YouTube transcript JSON storage. The local
-compose file exposes only the MinIO console on `127.0.0.1:9001`; the API talks to
-MinIO through the internal `minio:9000` Docker network endpoint.
-
-Run migrations before starting the API against a fresh SQLite file:
-
-```powershell
-docker compose build api
-docker compose run --rm --no-deps --entrypoint alembic api upgrade head
-docker compose up api
-```
-
-The home deployment also builds `ops-ui`, a Next.js operational console mounted
-at `/ops` behind the same Nginx Basic Auth boundary. The UI calls FastAPI through
-its Next BFF at `/ops/api/backend/*`; in Docker Compose the BFF target is
-`CODEX_OPS_BACKEND_BASE_URL=http://api:8000`.
-
-To expose a host S3 mount to the container, set `CODEX_CLI_S3_DIR`:
-
-```powershell
-$env:CODEX_CLI_S3_DIR = "C:\path\to\mounted\s3"
-docker compose run --rm codex run --cwd /data/s3 "Summarize this directory."
-```
+The old CLI image workflow can still be reconstructed from `legacy/` if needed,
+but it is no longer the documented operating path.
 
 ## REST API
 
-Run the FastAPI wrapper:
+Start the local Home PC runtime:
 
 ```powershell
-docker compose up api
+.\scripts\local-home\start.ps1
 ```
 
 Open `http://localhost:8000/docs`, or call the API directly:
@@ -410,10 +371,9 @@ Operational read APIs for the UI are exposed under `/ops/*`, including
 `/ops/schema-graph`. The deployed UI renders the schema graph interactively at
 `/ops/erd`; static ERD SVG artifacts are no longer generated.
 
-When running from a cloud host, YouTube may still block the host IP. The home PC
-deployment in `docs/HOME_PC_DEPLOYMENT.md` runs the API through a Windows
-self-hosted runner, Docker Nginx, and an ngrok dev domain tunnel so transcript
-requests egress through the PC's network.
+The normal Home PC runtime has no public URL. Remote operation should be done by
+an agent running on this PC and calling `http://127.0.0.1:8000`; see
+`docs/AGENT_API_OPERATIONS.md`.
 
 The REST API keeps route handlers thin: HTTP DTOs live in the Codex domain,
 application workflows live in use cases, and the actual Codex SDK adapter lives
@@ -421,21 +381,14 @@ under the infrastructure layer.
 
 ## GitHub CI/CD
 
-GitHub Actions runs Python quality gates and a Docker build on pull requests and
-`main` pushes. Pushes to `main` or `v*.*.*` tags also publish the Docker image to
-GitHub Container Registry:
+GitHub Actions are not part of the normal deployment loop. The active workflow
+set is manual verification only; legacy GHCR publishing is archived under
+`legacy/.github/workflows/`.
 
-```text
-ghcr.io/<owner>/<repo>:latest
-ghcr.io/<owner>/<repo>:sha-<commit>
-ghcr.io/<owner>/<repo>:vX.Y.Z
-```
+`main` pushes do not deploy the Home PC. GitHub Actions are manual checks only;
+see `docs/CICD.md`. Home PC operations use the local native flow in
+`docs/HOME_PC_DEPLOYMENT.md`.
 
-On `main` pushes, CI deploys the API to a Windows self-hosted runner labeled
-`codex-home` when the runner and Basic Auth secrets are available. The home stack
-uses Docker Compose, Nginx Basic Auth, and an ngrok dev domain tunnel. See
-`docs/CICD.md` for the full CI/CD topology and `docs/HOME_PC_DEPLOYMENT.md` for
-Home PC operations.
-
-The older Terraform EC2 deployment remains documented in `docs/AWS_DEPLOYMENT.md`
-for manual AWS use, but `main` pushes no longer deploy to EC2.
+The older Terraform EC2 deployment remains documented in
+`legacy/docs/AWS_DEPLOYMENT.md` for manual AWS reference, but `main` pushes no
+longer deploy to EC2.

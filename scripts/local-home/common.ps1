@@ -99,6 +99,72 @@ function Get-ManagedProcess {
     return Get-Process -Id $processId -ErrorAction SilentlyContinue
 }
 
+function Stop-ProcessTree {
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+
+    $allProcesses = @(Get-CimInstance Win32_Process)
+    $descendants = New-Object System.Collections.Generic.List[int]
+    $pending = New-Object System.Collections.Generic.Queue[int]
+    $pending.Enqueue($ProcessId)
+
+    while ($pending.Count -gt 0) {
+        $parentId = $pending.Dequeue()
+        foreach ($child in $allProcesses | Where-Object { $_.ParentProcessId -eq $parentId }) {
+            if ($child.ProcessId -ne $PID -and -not $descendants.Contains([int]$child.ProcessId)) {
+                $descendants.Add([int]$child.ProcessId)
+                $pending.Enqueue([int]$child.ProcessId)
+            }
+        }
+    }
+
+    for ($index = $descendants.Count - 1; $index -ge 0; $index--) {
+        Stop-Process -Id $descendants[$index] -Force -ErrorAction SilentlyContinue
+    }
+    if ($ProcessId -ne $PID) {
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-LocalHomeRuntimeProcesses {
+    $escapedRepoRoot = [regex]::Escape($script:RepoRoot)
+    $escapedRepoRootLower = [regex]::Escape($script:RepoRoot.ToLowerInvariant())
+
+    return Get-CimInstance Win32_Process | Where-Object {
+        if ($_.ProcessId -eq $PID) {
+            return $false
+        }
+
+        $commandLine = $_.CommandLine
+        if ([string]::IsNullOrWhiteSpace($commandLine)) {
+            return $false
+        }
+        $lowerCommandLine = $commandLine.ToLowerInvariant()
+        $isRepoProcess = $commandLine -match $escapedRepoRoot -or $lowerCommandLine -match $escapedRepoRootLower
+        $isKnownRuntime = (
+            $lowerCommandLine -match "codex_sdk_cli\.api\.main:app" -or
+            $lowerCommandLine -match "codex-micro-event-worker" -or
+            $lowerCommandLine -match "codex-timeline-compose-worker" -or
+            $lowerCommandLine -match "ops-ui[\\/]\.next[\\/]standalone" -or
+            $lowerCommandLine -match "scripts[\\/]start-standalone\.mjs" -or
+            $lowerCommandLine -match "pnpm(?:\.cmd)?\s+-c\s+ops-ui\s+start"
+        )
+        return $isKnownRuntime -and ($isRepoProcess -or $lowerCommandLine -match "pnpm(?:\.cmd)?\s+-c\s+ops-ui\s+start" -or $lowerCommandLine -match "scripts[\\/]start-standalone\.mjs")
+    }
+}
+
+function Stop-LocalHomeRuntimeProcesses {
+    $processes = @(Get-LocalHomeRuntimeProcesses)
+    if ($processes.Count -eq 0) {
+        Write-Host "No orphan local runtime processes found."
+        return
+    }
+
+    foreach ($process in $processes) {
+        Write-Host "Stopping orphan local runtime process PID $($process.ProcessId) ($($process.Name))."
+        Stop-ProcessTree -ProcessId ([int]$process.ProcessId)
+    }
+}
+
 function Test-LocalHttp {
     param(
         [Parameter(Mandatory = $true)][string]$Uri,
@@ -153,7 +219,7 @@ function Stop-ManagedProcess {
 
     $process = Get-ManagedProcess $Name
     if ($process) {
-        Stop-Process -Id $process.Id -Force
+        Stop-ProcessTree -ProcessId $process.Id
         Write-Host "Stopped $Name with PID $($process.Id)."
     } else {
         Write-Host "$Name is not running."
@@ -179,7 +245,7 @@ function Start-LocalMinio {
 }
 
 function Stop-LegacyHomeContainers {
-    $legacyCompose = Join-Path $script:RepoRoot "compose.home.yaml"
+    $legacyCompose = Join-Path $script:RepoRoot "legacy\compose.home.yaml"
     if (-not (Test-Path -LiteralPath $legacyCompose)) {
         return
     }

@@ -1323,6 +1323,44 @@ def test_channel_transcript_collect_sleeps_between_fetch_attempts() -> None:
     ]
 
 
+def test_channel_transcript_collect_does_not_sleep_after_no_transcript() -> None:
+    fakes = _fakes(delay_seconds=300)
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos, video_id=1, youtube_video_id=YOUTUBE_VIDEO_ID)
+    _seed_video(fakes.videos, video_id=2, youtube_video_id="def456GHI78")
+    fakes.transcript_client.error = YouTubeTranscriptNotFound("No transcript.")
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    response = asyncio.run(
+        CollectChannelTranscriptTasksUseCase(
+            channels=fakes.channels,
+            videos=fakes.videos,
+            video_tasks=fakes.video_tasks,
+            pipeline_jobs=fakes.pipeline_jobs,
+            transcripts=fakes.transcripts,
+            fetch_transcript=FetchYouTubeTranscriptUseCase(
+                fakes.transcript_client,
+                fakes.storage,
+                fakes.transcripts,
+            ),
+            timeout_seconds=600,
+            concurrency_limit=1,
+            delay_seconds=300,
+            sleep=fake_sleep,
+            events=fakes.events,
+        ).execute(
+            1,
+            CollectChannelTranscriptTasksRequest(limit=2),
+        )
+    )
+
+    assert response.no_transcript_count == 2
+    assert sleep_calls == []
+
+
 def test_channel_video_tasks_list_and_openapi() -> None:
     fakes = _fakes()
     _seed_channel(fakes.channels)

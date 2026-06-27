@@ -1,4 +1,4 @@
-"""Helpers for best-effort operation event recording."""
+﻿"""Helpers for best-effort operation event recording."""
 
 from __future__ import annotations
 

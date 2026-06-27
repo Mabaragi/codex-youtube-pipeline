@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from .exceptions import DomainKnowledgeNotFound
 from .ports import (

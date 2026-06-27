@@ -12,13 +12,15 @@ remain in root `AGENTS.md` and `vaults/`.
   in Docker; API, workers, and Ops UI run as local Windows processes.
 - `docs/AGENT_API_OPERATIONS.md`: API-only runbook for agents that should
   operate the local app without inspecting source code.
+- `docs/ARCHITECTURE_LINTING.md`: Import Linter clean architecture gate,
+  layer rules, and violation repair guidance.
 - `docs/CICD.md`: current GitHub Actions status. Workflows are manual checks
   only and are not the normal deployment path.
 - `docs/HOME_PC_DEPLOYMENT.md`: short entrypoint that routes to the current
   local native deployment guide.
-- `docs/HOME_DEPLOYMENT_FLOW.md`: legacy GHCR/ngrok Home PC deployment flow,
+- `legacy/docs/HOME_DEPLOYMENT_FLOW.md`: legacy GHCR/ngrok Home PC deployment flow,
   retained for reference only.
-- `docs/AWS_DEPLOYMENT.md`: old Terraform/EC2/SSM deployment notes, not the
+- `legacy/docs/AWS_DEPLOYMENT.md`: old Terraform/EC2/SSM deployment notes, not the
   current target.
 - `ops-ui/docs/FRONTEND_ARCHITECTURE.md`: Next.js Ops UI structure, BFF, state,
   and screen organization.

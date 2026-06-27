@@ -27,6 +27,7 @@ codex-timeline-compose-worker = "codex_sdk_cli.workers.timelines:run"
 
 [dependency-groups]
 dev = [
+    "import-linter>=2.12",
     "pyrefly",
     "pytest>=8.0",
     "ruff>=0.15.0",
@@ -65,3 +66,52 @@ markers = [
 
 [tool.pyrefly]
 project-includes = ["src", "tests", "scripts"]
+
+[tool.importlinter]
+root_package = "codex_sdk_cli"
+include_external_packages = true
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Clean architecture layers"
+type = "layers"
+layers = [
+    "api | workers",
+    "infra",
+    "domains",
+]
+containers = ["codex_sdk_cli"]
+
+[[tool.importlinter.contracts]]
+name = "Domains do not import outer app layers"
+type = "forbidden"
+source_modules = ["codex_sdk_cli.domains"]
+forbidden_modules = [
+    "codex_sdk_cli.api",
+    "codex_sdk_cli.infra",
+    "codex_sdk_cli.workers",
+    "codex_sdk_cli.settings",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domains do not import external adapters"
+type = "forbidden"
+source_modules = ["codex_sdk_cli.domains"]
+forbidden_modules = [
+    "fastapi",
+    "httpx",
+    "minio",
+    "openai_codex",
+    "sqlalchemy",
+    "uvicorn",
+    "youtube_transcript_api",
+]
+
+[[tool.importlinter.contracts]]
+name = "Infrastructure does not import app entrypoints"
+type = "forbidden"
+source_modules = ["codex_sdk_cli.infra"]
+forbidden_modules = [
+    "codex_sdk_cli.api",
+    "codex_sdk_cli.workers",
+]

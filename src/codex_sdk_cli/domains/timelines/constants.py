@@ -1,5 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-TIMELINE_COMPOSE_PROMPT_VERSION = "timeline-compose-v2"
+TIMELINE_COMPOSE_PROMPT_VERSION = "timeline-compose-v3"
 TIMELINE_COMPOSE_DEFAULT_COPY_STYLE = "LIGHT_FANDOM_V1"
 TIMELINE_COMPOSE_BATCH_SCAN_LIMIT = 500
+TIMELINE_COMPOSE_MAX_EPISODE_REPAIRS = 3

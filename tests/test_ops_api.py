@@ -32,6 +32,7 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsChannelRecord,
     OpsRecentFailureRecord,
     OpsRepositoryPort,
+    OpsSchemaGraphRecord,
     OpsStatusCountRecord,
     OpsSummaryCountsRecord,
     OpsVideoDetailRecord,
@@ -257,6 +258,9 @@ class FakeOpsRepository(OpsRepositoryPort):
                 ),
             ),
         )
+
+    async def get_schema_graph(self) -> OpsSchemaGraphRecord:
+        return OpsSchemaGraphRecord(tables=(), relations=())
 
 
 class FakeCodexUsageRepository(CodexUsageRepositoryPort):

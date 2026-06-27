@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 MICRO_EVENT_EXTRACT_TASK_NAME = "micro_event_extract"
 MICRO_EVENT_EXTRACT_TASK_VERSION = "v2"

@@ -1,4 +1,4 @@
-"""Use cases for operation event timelines."""
+﻿"""Use cases for operation event timelines."""
 
 from __future__ import annotations
 

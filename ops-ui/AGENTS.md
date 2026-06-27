@@ -54,15 +54,14 @@ pnpm --filter codex-sdk-ops-ui build
 
 ## Deployment Pitfalls
 
-- `pnpm --filter codex-sdk-ops-ui build`만으로 Home PC 배포 가능성을 판단하지
-  않는다. Docker or Compose wiring을 바꿨다면
-  `docker compose -f compose.home.yaml build ops-ui`도 확인한다.
-- Next standalone output은 monorepo path를 포함한다. Runtime server는
-  `/app/ops-ui/server.js`에서 뜨고, static assets는
-  `/app/ops-ui/.next/static` 아래에 있어야 한다.
+- Home PC deployment is local native now. Docker/Compose deployment files are
+  archived under `legacy/` and are not the normal Ops UI validation path.
+- `pnpm --filter codex-sdk-ops-ui build` verifies the Next.js build. Runtime
+  smoke checks should hit `/ops` and `/ops/api/backend/ops/summary` after
+  `scripts/local-home/start.ps1` or `scripts/local-home/deploy.ps1`.
 - Browser API calls stay under `/ops/api/backend/*`; only the Next BFF calls
   `CODEX_OPS_BACKEND_BASE_URL`.
-- 배포 검증은 `/ops` page뿐 아니라 `/ops/api/backend/ops/summary`도 확인한다.
-  page가 떠도 BFF-to-FastAPI wiring이 깨질 수 있다.
+- Local native Ops UI reads `CODEX_OPS_BACKEND_BASE_URL` from the local
+  environment; do not hard-code Docker service names in browser code.
 - Windows PowerShell 5.1 deploy checks that call `Invoke-WebRequest` against
   Next HTML must use `-UseBasicParsing`.

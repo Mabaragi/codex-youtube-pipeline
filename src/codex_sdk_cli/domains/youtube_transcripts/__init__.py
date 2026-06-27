@@ -1,2 +1,2 @@
-"""YouTube transcript REST domain."""
+﻿"""YouTube transcript REST domain."""
 

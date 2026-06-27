@@ -11,6 +11,7 @@ Stop-ManagedProcess "ops-ui"
 Stop-ManagedProcess "timeline-compose-worker"
 Stop-ManagedProcess "micro-event-worker"
 Stop-ManagedProcess "api"
+Stop-LocalHomeRuntimeProcesses
 
 if ($StopInfra) {
     Invoke-Checked "docker" @(

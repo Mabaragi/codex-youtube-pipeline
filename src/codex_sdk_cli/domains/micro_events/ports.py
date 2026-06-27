@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Protocol
 
+from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
-from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
 JsonObject = dict[str, object]
 WindowStatus = Literal["succeeded", "failed"]

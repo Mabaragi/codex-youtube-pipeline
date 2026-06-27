@@ -1,12 +1,16 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Literal
-
-from sqlalchemy import Column, Table, UniqueConstraint
 
 from codex_sdk_cli.domains.ops.ports import (
     OpsRepositoryPort,
+    OpsSchemaColumnRecord,
+    OpsSchemaForeignKeyConstraintRecord,
+    OpsSchemaGraphRecord,
+    OpsSchemaIndexRecord,
+    OpsSchemaRelationRecord,
+    OpsSchemaTableRecord,
+    OpsSchemaUniqueConstraintRecord,
     OpsVideoListQuery,
     OpsVideoTaskListQuery,
     OpsVideoTaskRecord,
@@ -40,13 +44,6 @@ from codex_sdk_cli.domains.youtube_transcripts.schemas import (
 )
 
 from .exceptions import OpsVideoNotFound
-
-SchemaRelationKind = Literal[
-    "one_to_many",
-    "one_to_one",
-    "optional_one_to_many",
-    "optional_one_to_one",
-]
 
 
 class GetOpsSummaryUseCase:
@@ -237,178 +234,92 @@ class ListOpsVideoTasksUseCase:
 
 
 class GetOpsSchemaGraphUseCase:
-    def execute(self) -> OpsSchemaGraphResponse:
-        import codex_sdk_cli.infra.database.models  # noqa: F401
-        from codex_sdk_cli.infra.database.base import Base
+    def __init__(self, repository: OpsRepositoryPort) -> None:
+        self._repository = repository
 
-        tables = list(Base.metadata.sorted_tables)
-        return OpsSchemaGraphResponse(
-            tables=[
-                OpsSchemaTableResponse(
-                    id=table.name,
-                    name=table.name,
-                    columns=[
-                        OpsSchemaColumnResponse(
-                            id=f"{table.name}.{column.name}",
-                            name=column.name,
-                            type=_column_type(column),
-                            nullable=bool(column.nullable),
-                            primaryKey=column.primary_key,
-                            unique=column.unique or column.name in _unique_column_names(table),
-                            index=column.index or column.name in _index_column_names(table),
-                            default=_column_default(column),
-                            foreignKeys=sorted(
-                                f"{foreign_key.column.table.name}.{foreign_key.column.name}"
-                                for foreign_key in column.foreign_keys
-                            ),
-                            constraintNames=_column_constraint_names(table, column),
-                        )
-                        for column in table.columns
-                    ],
-                    indexes=_table_indexes(table),
-                    uniqueConstraints=_table_unique_constraints(table),
-                    foreignKeyConstraints=_table_foreign_key_constraints(table),
-                )
-                for table in tables
-            ],
-            relations=[
-                OpsSchemaRelationResponse(
-                    id=(
-                        f"{foreign_key.column.table.name}.{foreign_key.column.name}"
-                        f"->{table.name}.{column.name}"
-                    ),
-                    constraintName=_constraint_name(foreign_key.constraint),
-                    sourceTable=foreign_key.column.table.name,
-                    sourceColumn=foreign_key.column.name,
-                    targetTable=table.name,
-                    targetColumn=column.name,
-                    sourceNullable=bool(column.nullable),
-                    targetPrimaryKey=column.primary_key,
-                    relationKind=_relation_kind(table, column),
-                )
-                for table in tables
-                for column in table.columns
-                for foreign_key in column.foreign_keys
-            ],
-        )
+    async def execute(self) -> OpsSchemaGraphResponse:
+        return _schema_graph_response(await self._repository.get_schema_graph())
 
 
-def _column_type(column: Column[Any]) -> str:
-    return str(column.type).replace("DATETIME", "DateTime")
-
-
-def _column_default(column: Column[Any]) -> str | None:
-    if column.server_default is not None:
-        return str(getattr(column.server_default, "arg", column.server_default))
-    if column.default is not None:
-        return str(getattr(column.default, "arg", column.default))
-    return None
-
-
-def _index_column_names(table: Table) -> set[str]:
-    return {column.name for index in table.indexes for column in index.columns}
-
-
-def _unique_column_names(table: Table) -> set[str]:
-    return {
-        column.name
-        for constraint in table.constraints
-        if isinstance(constraint, UniqueConstraint)
-        for column in constraint.columns
-    }
-
-
-def _table_indexes(table: Table) -> list[OpsSchemaIndexResponse]:
-    return [
-        OpsSchemaIndexResponse(
-            name=_constraint_name(index),
-            columnNames=[column.name for column in index.columns],
-            unique=index.unique,
-        )
-        for index in sorted(table.indexes, key=_constraint_name)
-    ]
-
-
-def _table_unique_constraints(table: Table) -> list[OpsSchemaUniqueConstraintResponse]:
-    constraints = [
-        constraint
-        for constraint in table.constraints
-        if isinstance(constraint, UniqueConstraint)
-    ]
-    return [
-        OpsSchemaUniqueConstraintResponse(
-            name=_constraint_name(constraint),
-            columnNames=[column.name for column in constraint.columns],
-        )
-        for constraint in sorted(constraints, key=_constraint_name)
-    ]
-
-
-def _table_foreign_key_constraints(table: Table) -> list[OpsSchemaForeignKeyConstraintResponse]:
-    return [
-        OpsSchemaForeignKeyConstraintResponse(
-            name=_constraint_name(constraint),
-            columnNames=[element.parent.name for element in constraint.elements],
-            targetTable=constraint.elements[0].column.table.name,
-            targetColumnNames=[element.column.name for element in constraint.elements],
-        )
-        for constraint in sorted(table.foreign_key_constraints, key=_constraint_name)
-        if constraint.elements
-    ]
-
-
-def _column_constraint_names(table: Table, column: Column[Any]) -> list[str]:
-    names: set[str] = set()
-    if column.primary_key:
-        names.add(_constraint_name(table.primary_key))
-    names.update(
-        _constraint_name(constraint)
-        for constraint in table.constraints
-        if isinstance(constraint, UniqueConstraint)
-        and column.name in constraint.columns
-    )
-    names.update(
-        _constraint_name(constraint)
-        for constraint in table.foreign_key_constraints
-        if column.name in constraint.columns
-    )
-    names.update(
-        _constraint_name(index)
-        for index in table.indexes
-        if column.name in index.columns
-    )
-    return sorted(names)
-
-
-def _relation_kind(table: Table, column: Column[Any]) -> SchemaRelationKind:
-    is_optional = bool(column.nullable)
-    is_single_unique = _is_single_column_unique(table, column)
-    if is_optional and is_single_unique:
-        return "optional_one_to_one"
-    if is_optional:
-        return "optional_one_to_many"
-    if is_single_unique:
-        return "one_to_one"
-    return "one_to_many"
-
-
-def _is_single_column_unique(table: Table, column: Column[Any]) -> bool:
-    if column.primary_key or column.unique:
-        return True
-    for constraint in table.constraints:
-        if not isinstance(constraint, UniqueConstraint):
-            continue
-        constraint_column_names = [item.name for item in constraint.columns]
-        if constraint_column_names == [column.name]:
-            return True
-    return any(
-        index.unique and [item.name for item in index.columns] == [column.name]
-        for index in table.indexes
+def _schema_graph_response(record: OpsSchemaGraphRecord) -> OpsSchemaGraphResponse:
+    return OpsSchemaGraphResponse(
+        tables=[_schema_table_response(table) for table in record.tables],
+        relations=[_schema_relation_response(relation) for relation in record.relations],
     )
 
 
-def _constraint_name(item: Any) -> str:
-    return str(item.name or "unnamed")
+def _schema_table_response(record: OpsSchemaTableRecord) -> OpsSchemaTableResponse:
+    return OpsSchemaTableResponse(
+        id=record.id,
+        name=record.name,
+        columns=[_schema_column_response(column) for column in record.columns],
+        indexes=[_schema_index_response(index) for index in record.indexes],
+        uniqueConstraints=[
+            _schema_unique_constraint_response(constraint)
+            for constraint in record.unique_constraints
+        ],
+        foreignKeyConstraints=[
+            _schema_foreign_key_constraint_response(constraint)
+            for constraint in record.foreign_key_constraints
+        ],
+    )
+
+
+def _schema_column_response(record: OpsSchemaColumnRecord) -> OpsSchemaColumnResponse:
+    return OpsSchemaColumnResponse(
+        id=record.id,
+        name=record.name,
+        type=record.type,
+        nullable=record.nullable,
+        primaryKey=record.primary_key,
+        unique=record.unique,
+        index=record.index,
+        default=record.default,
+        foreignKeys=list(record.foreign_keys),
+        constraintNames=list(record.constraint_names),
+    )
+
+
+def _schema_index_response(record: OpsSchemaIndexRecord) -> OpsSchemaIndexResponse:
+    return OpsSchemaIndexResponse(
+        name=record.name,
+        columnNames=list(record.column_names),
+        unique=record.unique,
+    )
+
+
+def _schema_unique_constraint_response(
+    record: OpsSchemaUniqueConstraintRecord,
+) -> OpsSchemaUniqueConstraintResponse:
+    return OpsSchemaUniqueConstraintResponse(
+        name=record.name,
+        columnNames=list(record.column_names),
+    )
+
+
+def _schema_foreign_key_constraint_response(
+    record: OpsSchemaForeignKeyConstraintRecord,
+) -> OpsSchemaForeignKeyConstraintResponse:
+    return OpsSchemaForeignKeyConstraintResponse(
+        name=record.name,
+        columnNames=list(record.column_names),
+        targetTable=record.target_table,
+        targetColumnNames=list(record.target_column_names),
+    )
+
+
+def _schema_relation_response(record: OpsSchemaRelationRecord) -> OpsSchemaRelationResponse:
+    return OpsSchemaRelationResponse(
+        id=record.id,
+        constraintName=record.constraint_name,
+        sourceTable=record.source_table,
+        sourceColumn=record.source_column,
+        targetTable=record.target_table,
+        targetColumn=record.target_column,
+        sourceNullable=record.source_nullable,
+        targetPrimaryKey=record.target_primary_key,
+        relationKind=record.relation_kind,
+    )
 
 
 def _video_task_response(record: OpsVideoTaskRecord) -> OpsVideoTaskResponse:

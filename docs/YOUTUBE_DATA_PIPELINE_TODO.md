@@ -1,6 +1,6 @@
 # YouTube Data Pipeline Backlog
 
-Last updated: 2026-06-16
+Last updated: 2026-06-25
 
 공통 설계 원칙은 `docs/YOUTUBE_DATA_PIPELINE.md`를 따른다. 이 문서는 구현 TODO와 완료 상태만 추적한다.
 
@@ -48,14 +48,22 @@ Last updated: 2026-06-16
 - [x] `transcript_collect` failed job retry를 executor registry에 연결한다.
 - [x] `YouTubeTranscriptNotFound`를 generic `failed`가 아닌 `no_transcript` task outcome으로 분리하고, `recheckNoTranscript=true`로 재확인을 지원한다.
 - [x] pipeline job detail에서 linked transcript output을 반환한다.
+- [x] `transcript_cues` table과 `transcript_cue_generate` task를 추가해 prompt-friendly cue row를 저장한다.
+- [x] channel/global cue generation selector API와 task-aware cue retry를 지원한다.
+- [x] `micro_event_extract` domain을 추가해 cue windows, micro-event candidates, excluded ranges, ASR correction candidates를 저장한다.
+- [x] `micro_event_extract` one-video run, small batch run, enqueue API를 지원한다.
+- [x] `codex-micro-event-worker`가 pending micro-event tasks를 DB polling으로 claim한다.
+- [x] `timeline_compose` domain을 추가해 video summary, blocks, episodes, topic clusters, review flags, validation warnings를 저장한다.
+- [x] `POST /video-tasks/timeline-compose/enqueue`와 `codex-timeline-compose-worker`를 추가한다.
+- [x] `operation_events`로 작업 중심 append-only event log를 추가한다.
+- [x] `codex_run_usages`와 `/ops/codex-usage*`로 Codex token usage 조회를 추가한다.
 
 ## Future Domain Work
 
-- [ ] LLM summary 결과는 transcript metadata와 분리된 summary domain table에 저장한다.
-- [ ] summary 생성 request/response raw도 재현성과 감사 가능성을 위해 저장한다.
+- [ ] Timeline composition에서 사용자가 선택한 episode/bookmark/published state 같은 product-facing curation layer가 필요하면 별도 domain table로 분리한다.
+- [ ] Micro-event/timeline quality verifier가 충분히 안정되면 review flag 자동 생성 규칙과 수동 검수 workflow를 더 명확히 문서화한다.
 
 ## Open Implementation Details
 
 - `pipeline_jobs.input_hash`에 unique 제약을 둘지 여부는 idempotency 정책을 정할 때 결정한다.
-- job 조회/list API는 pipeline state table 도입 후 별도 endpoint로 설계한다.
-- worker/queue 도입 전에는 REST use case 안에서 동기 실행하되, job/attempt 기록은 먼저 남긴다.
+- Worker queue가 늘어나면 `video_tasks` pending claim 정책, concurrency cap, stuck-task recovery 규칙을 task type별로 분리할지 결정한다.

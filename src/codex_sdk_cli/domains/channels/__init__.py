@@ -1,1 +1,1 @@
-"""Channel domain package."""
+﻿"""Channel domain package."""

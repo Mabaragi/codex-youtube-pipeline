@@ -74,13 +74,6 @@
             "title": "Createdat",
             "type": "string"
           },
-          "evidenceCueIds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Evidencecueids",
-            "type": "array"
-          },
           "original": {
             "title": "Original",
             "type": "string"
@@ -102,7 +95,6 @@
           "suggested",
           "correctionType",
           "applyScope",
-          "evidenceCueIds",
           "confidence",
           "createdAt",
           "updatedAt"
@@ -6794,6 +6786,21 @@
           },
           "viewerTags": {
             "items": {
+              "enum": [
+                "STORY",
+                "FUNNY",
+                "REACTION",
+                "INFORMATION",
+                "FOOD",
+                "GAME_PROGRESS",
+                "GAME_STORY",
+                "GAME_DISCUSSION",
+                "COMMUNITY",
+                "MEDIA",
+                "ANNOUNCEMENT",
+                "META",
+                "QNA"
+              ],
               "type": "string"
             },
             "title": "Viewertags",
@@ -6866,6 +6873,7 @@
               "MODE_CONFLICT",
               "BOUNDARY_AMBIGUOUS",
               "ASR_SEMANTIC_RISK",
+              "OVERBROAD_EPISODE",
               "OVERBROAD_MICRO_EVENT",
               "POSSIBLE_DUPLICATE"
             ],

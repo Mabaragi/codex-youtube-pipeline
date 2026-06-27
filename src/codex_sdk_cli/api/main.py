@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
@@ -9,20 +9,20 @@ from fastapi import FastAPI
 
 from codex_sdk_cli.api.dependencies import get_settings
 from codex_sdk_cli.api.exception_handlers import add_exception_handlers
+from codex_sdk_cli.api.routes.channels import router as channels_router
+from codex_sdk_cli.api.routes.codex import router as codex_router
+from codex_sdk_cli.api.routes.codex_usage import router as codex_usage_router
+from codex_sdk_cli.api.routes.domain_knowledge import router as domain_knowledge_router
+from codex_sdk_cli.api.routes.micro_events import router as micro_events_router
+from codex_sdk_cli.api.routes.operation_events import router as operation_events_router
+from codex_sdk_cli.api.routes.ops import router as ops_router
+from codex_sdk_cli.api.routes.pipeline_jobs import router as pipeline_jobs_router
+from codex_sdk_cli.api.routes.streamers import router as streamers_router
+from codex_sdk_cli.api.routes.timelines import router as timelines_router
+from codex_sdk_cli.api.routes.video_tasks import router as video_tasks_router
+from codex_sdk_cli.api.routes.videos import router as videos_router
+from codex_sdk_cli.api.routes.youtube_transcripts import router as youtube_transcripts_router
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
-from codex_sdk_cli.domains.channels.router import router as channels_router
-from codex_sdk_cli.domains.codex.router import router as codex_router
-from codex_sdk_cli.domains.codex_usage.router import router as codex_usage_router
-from codex_sdk_cli.domains.domain_knowledge.router import router as domain_knowledge_router
-from codex_sdk_cli.domains.micro_events.router import router as micro_events_router
-from codex_sdk_cli.domains.operation_events.router import router as operation_events_router
-from codex_sdk_cli.domains.ops.router import router as ops_router
-from codex_sdk_cli.domains.pipeline_jobs.router import router as pipeline_jobs_router
-from codex_sdk_cli.domains.streamers.router import router as streamers_router
-from codex_sdk_cli.domains.timelines.router import router as timelines_router
-from codex_sdk_cli.domains.video_tasks.router import router as video_tasks_router
-from codex_sdk_cli.domains.videos.router import router as videos_router
-from codex_sdk_cli.domains.youtube_transcripts.router import router as youtube_transcripts_router
 from codex_sdk_cli.infra.database.recovery import recover_interrupted_running_work
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 

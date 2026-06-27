@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -259,6 +259,7 @@ class CollectChannelTranscriptTasksUseCase:
             items.append(processed.response)
             if (
                 processed.attempted_fetch
+                and processed.response.status != "no_transcript"
                 and self._delay_seconds > 0
                 and index < len(videos) - 1
             ):

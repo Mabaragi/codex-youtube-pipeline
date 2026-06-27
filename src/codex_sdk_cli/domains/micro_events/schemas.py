@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
+from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
 
 from .ports import (
     Activity,

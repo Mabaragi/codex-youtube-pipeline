@@ -9,6 +9,11 @@ param(
 
 Set-Location $script:RepoRoot
 Import-LocalHomeEnv
+Stop-ManagedProcess "ops-ui"
+Stop-ManagedProcess "timeline-compose-worker"
+Stop-ManagedProcess "micro-event-worker"
+Stop-ManagedProcess "api"
+Stop-LocalHomeRuntimeProcesses
 
 if (-not $SkipSync) {
     Invoke-Checked "uv" @("sync", "--dev", "--locked")

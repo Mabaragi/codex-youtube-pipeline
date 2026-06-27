@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr
 
-from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
+from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
 
 
 class RunRequest(BaseModel):

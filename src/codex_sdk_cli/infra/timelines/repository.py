@@ -42,6 +42,7 @@ from codex_sdk_cli.domains.timelines.ports import (
     TimelineReviewFlagType,
     TimelineTopicClusterCreate,
     TimelineTopicClusterRecord,
+    TimelineViewerTag,
     TimelineVisibility,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
@@ -546,7 +547,7 @@ def _episode_record(model: TimelineEpisodeModel) -> TimelineEpisodeRecord:
         display_title=model.display_title,
         display_summary=model.display_summary,
         topics=model.topics,
-        viewer_tags=model.viewer_tags,
+        viewer_tags=cast(list[TimelineViewerTag], model.viewer_tags),
         highlight_micro_event_candidate_ids=model.highlight_micro_event_candidate_ids,
         visibility=cast(TimelineVisibility, model.visibility),
         created_at=model.created_at,

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 TRANSCRIPT_COLLECT_STEP = "transcript_collect"
 TRANSCRIPT_COLLECT_BATCH_STEP = "transcript_collect_batch"

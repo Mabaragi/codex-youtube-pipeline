@@ -4,6 +4,14 @@ import json
 from datetime import UTC, datetime
 from typing import cast
 
+import pytest
+
+from codex_sdk_cli.domains.domain_knowledge.ports import (
+    AliasKind,
+    DomainKnowledgePromptAliasRecord,
+    DomainKnowledgePromptEntryRecord,
+    PromptPolicy,
+)
 from codex_sdk_cli.domains.micro_events.ports import (
     ContentKind,
     MicroEventCandidateRecord,
@@ -15,11 +23,18 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
 )
 from codex_sdk_cli.domains.timelines.constants import TIMELINE_COMPOSE_PROMPT_VERSION
-from codex_sdk_cli.domains.timelines.ports import TimelineComposeResult
+from codex_sdk_cli.domains.timelines.ports import (
+    TimelineComposeRequest,
+    TimelineComposeResult,
+    TimelineEpisodeRepairRequest,
+    TimelineEpisodeRepairResult,
+)
 from codex_sdk_cli.domains.timelines.use_cases import (
     PROMPT_HEADER,
     _ComposerInput,
     _composition_create,
+    _composition_create_with_repairs,
+    _timeline_prompt,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRecord
 from codex_sdk_cli.domains.videos.ports import VideoRecord
@@ -154,20 +169,352 @@ def test_timeline_soft_verifier_adds_review_flags() -> None:
     )
 
     flag_types = {flag.type for flag in create.review_flags}
-    assert "OVERBROAD_MICRO_EVENT" in flag_types
-    assert "BOUNDARY_AMBIGUOUS" in flag_types
+    assert "OVERBROAD_EPISODE" in flag_types
+    assert "BOUNDARY_AMBIGUOUS" not in flag_types
     assert "ASR_SEMANTIC_RISK" in flag_types
 
 
 def test_timeline_prompt_documents_output_limits_and_topic_cluster_keys() -> None:
-    assert TIMELINE_COMPOSE_PROMPT_VERSION == "timeline-compose-v2"
+    assert TIMELINE_COMPOSE_PROMPT_VERSION == "timeline-compose-v3"
     assert "topics는 episode마다 검색에 유용한 구체적 명사구 2~6개" in PROMPT_HEADER
     assert "highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개" in PROMPT_HEADER
+    assert "META, QNA" in PROMPT_HEADER
+    assert "OVERBROAD_EPISODE" in PROMPT_HEADER
     assert "topic_id, label, summary, display_label, episode_ids" in PROMPT_HEADER
     assert '"topic_id": "topic_001"' in PROMPT_HEADER
 
 
-def _composer_input(candidates: list[MicroEventCandidateRecord]) -> _ComposerInput:
+def test_timeline_prompt_filters_domain_entries_like_micro_event_extraction() -> None:
+    matching = _domain_entry(
+        1,
+        "치치",
+        prompt_policy="AUTO_ON_MATCH",
+        priority=10,
+        aliases=[_domain_alias("치티", "ASR_ERROR")],
+    )
+    non_matching = _domain_entry(
+        2,
+        "쿠온 레이",
+        prompt_policy="AUTO_ON_MATCH",
+        priority=100,
+        aliases=[_domain_alias("레이", "ALIAS")],
+    )
+    always = _domain_entry(
+        3,
+        "카네코 파냐",
+        prompt_policy="ALWAYS_FOR_SCOPED_STREAMER",
+        priority=50,
+        aliases=[_domain_alias("파냐", "ALIAS")],
+    )
+    disabled = _domain_entry(
+        4,
+        "나부",
+        prompt_policy="DISABLED",
+        priority=1000,
+        aliases=[_domain_alias("나부", "ALIAS")],
+    )
+    candidates = [
+        _candidate(
+            1,
+            1,
+            event="치티치 이야기를 한다.",
+            program_mode="JUST_CHATTING",
+            content_kind="META_CHAT",
+        )
+    ]
+    composer_input = _composer_input(
+        candidates,
+        domain_entries=[matching, non_matching, always, disabled],
+    )
+
+    prompt = _timeline_prompt(composer_input)
+    payload = json.loads(prompt.rsplit("\n", 1)[1])
+
+    assert [
+        entry["canonicalName"] for entry in payload["domain_entries"]
+    ] == ["카네코 파냐", "치치"]
+
+
+def test_timeline_normalizes_content_kind_values_in_viewer_tags() -> None:
+    composer_input = _composer_input(_candidates(2))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
+        episodes=[
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0002",
+                content_kind="QNA",
+                viewer_tags=[
+                    "QNA",
+                    "OPINION",
+                    "PERSONAL_STORY",
+                    "META_CHAT",
+                    "COMMUNITY_REVIEW",
+                    "MEDIA_REVIEW",
+                    "BREAK_TIME",
+                    "NOT_A_TAG",
+                    "QNA",
+                ],
+            )
+        ],
+    )
+
+    create = _composition_create(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+    )
+
+    assert create.episodes[0].viewer_tags == [
+        "QNA",
+        "INFORMATION",
+        "STORY",
+        "META",
+        "COMMUNITY",
+        "MEDIA",
+    ]
+    assert (
+        "episode episode_001 viewer_tags mapped content kind value in viewer_tags: "
+        "OPINION -> INFORMATION"
+    ) in create.validation_warnings
+    assert (
+        "episode episode_001 viewer_tags removed content kind value "
+        "from viewer_tags: BREAK_TIME"
+        in create.validation_warnings
+    )
+    assert (
+        "episode episode_001 viewer_tags removed unknown viewer tag: NOT_A_TAG"
+        in create.validation_warnings
+    )
+    assert "episode episode_001 viewer_tags duplicate viewer tag removed: QNA" in (
+        create.validation_warnings
+    )
+
+
+def test_timeline_all_invalid_viewer_tags_can_normalize_to_empty_list() -> None:
+    composer_input = _composer_input(_candidates(2))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
+        episodes=[
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0002",
+                viewer_tags=["BREAK_TIME", "NOT_A_TAG"],
+            )
+        ],
+    )
+
+    create = _composition_create(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+    )
+
+    assert create.episodes[0].viewer_tags == []
+    assert (
+        "episode episode_001 viewer_tags removed content kind value "
+        "from viewer_tags: BREAK_TIME"
+        in create.validation_warnings
+    )
+    assert (
+        "episode episode_001 viewer_tags removed unknown viewer tag: NOT_A_TAG"
+        in create.validation_warnings
+    )
+
+
+def test_timeline_legacy_overbroad_flag_is_normalized() -> None:
+    composer_input = _composer_input(_candidates(2))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
+        episodes=[_episode_output("episode_001", "me_0001", "me_0002")],
+        review_flags=[
+            {
+                "start_micro_event_id": "me_0001",
+                "end_micro_event_id": "me_0002",
+                "type": "OVERBROAD_MICRO_EVENT",
+                "reason": "legacy flag",
+            }
+        ],
+    )
+
+    create = _composition_create(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+    )
+
+    assert create.review_flags[0].type == "OVERBROAD_EPISODE"
+
+
+def test_timeline_repairs_post_game_break_and_closing_blocks() -> None:
+    composer_input = _composer_input(_candidates(8))
+    output_json = _timeline_output(
+        blocks=[
+            _block_output("block_001", "POST_GAME", ["episode_001", "episode_002", "episode_003"]),
+            _block_output("block_002", "BREAK", ["episode_004"]),
+            _block_output("block_003", "CLOSING", ["episode_005", "episode_006"]),
+        ],
+        episodes=[
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0002",
+                title="게임 엔딩 회고",
+                summary="게임 엔딩과 플레이를 돌아본다.",
+                program_mode="POST_GAME",
+                content_kind="GAME_DISCUSSION",
+            ),
+            _episode_output(
+                "episode_002",
+                "me_0003",
+                "me_0003",
+                title="운전면허 이야기",
+                summary="운전면허와 교통 이야기를 한다.",
+                program_mode="POST_GAME",
+                content_kind="PERSONAL_STORY",
+            ),
+            _episode_output(
+                "episode_003",
+                "me_0004",
+                "me_0004",
+                title="수면과 건강 이야기",
+                summary="잠과 건강 이야기를 한다.",
+                program_mode="POST_GAME",
+                content_kind="QNA",
+            ),
+            _episode_output(
+                "episode_004",
+                "me_0005",
+                "me_0005",
+                program_mode="BREAK",
+                content_kind="BREAK_TIME",
+            ),
+            _episode_output(
+                "episode_005",
+                "me_0006",
+                "me_0006",
+                title="청소 이야기",
+                summary="방 정리와 청소 이야기를 한다.",
+                program_mode="CLOSING",
+                content_kind="PERSONAL_STORY",
+            ),
+            _episode_output(
+                "episode_006",
+                "me_0007",
+                "me_0008",
+                title="오늘도 고마워",
+                summary="시청자에게 감사 인사를 하고 방송을 마무리한다.",
+                program_mode="CLOSING",
+                content_kind="META_CHAT",
+            ),
+        ],
+    )
+
+    create = _composition_create(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+    )
+
+    block_types = [block.block_type for block in create.blocks]
+    assert block_types == ["POST_GAME", "JUST_CHATTING", "CLOSING"]
+    assert create.episodes[3].visibility == "COLLAPSED"
+    assert create.episodes[3].parent_block_id == "block_002"
+    assert create.episodes[4].program_mode == "JUST_CHATTING"
+
+
+@pytest.mark.anyio
+async def test_timeline_partial_repair_splits_only_overbroad_episode() -> None:
+    composer_input = _composer_input(_candidates(12))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
+        episodes=[
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0012",
+                topics=[f"주제{i}" for i in range(1, 7)],
+            )
+        ],
+    )
+    composer = _RepairComposer(
+        [
+            {
+                "target_episode_id": "episode_001",
+                "action": "SPLIT",
+                "replacement_episodes": [
+                    _repair_episode_output("me_0001", "me_0004", "중국집 식사 이야기"),
+                    _repair_episode_output("me_0005", "me_0008", "일본어 수업 이야기"),
+                    _repair_episode_output("me_0009", "me_0012", "포켓몬 추천 이야기"),
+                ],
+                "reason": "separate topics",
+            }
+        ]
+    )
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+    )
+
+    assert len(composer.requests) == 1
+    assert [episode.start_micro_event_candidate_id for episode in create.episodes] == [1, 5, 9]
+    assert [episode.end_micro_event_candidate_id for episode in create.episodes] == [4, 8, 12]
+    assert len(create.review_flags) == 0
+
+
+@pytest.mark.anyio
+async def test_timeline_partial_repair_keep_preserves_episode_and_flags() -> None:
+    composer_input = _composer_input(_candidates(12))
+    output_json = _timeline_output(
+        blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
+        episodes=[
+            _episode_output(
+                "episode_001",
+                "me_0001",
+                "me_0012",
+                topics=[f"주제{i}" for i in range(1, 7)],
+            )
+        ],
+    )
+    composer = _RepairComposer(
+        [{"target_episode_id": "episode_001", "action": "KEEP", "replacement_episodes": []}]
+    )
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+    )
+
+    assert len(create.episodes) == 1
+    assert {flag.type for flag in create.review_flags} == {"OVERBROAD_EPISODE"}
+
+
+def _composer_input(
+    candidates: list[MicroEventCandidateRecord],
+    *,
+    domain_entries: list[DomainKnowledgePromptEntryRecord] | None = None,
+) -> _ComposerInput:
     synthetic_id_by_candidate_id = {
         candidate.id: f"me_{candidate.candidate_index:04d}" for candidate in candidates
     }
@@ -178,7 +525,7 @@ def _composer_input(candidates: list[MicroEventCandidateRecord]) -> _ComposerInp
     return _ComposerInput(
         video=_video(),
         streamer_name="나기",
-        domain_entries=[],
+        domain_entries=domain_entries or [],
         source_task=_video_task(task_id=91),
         source_detail=MicroEventExtractionDetailRecord(
             video_task_id=91,
@@ -217,6 +564,7 @@ def _episode_output(
     summary: str = "대표 요약",
     topics: list[str] | None = None,
     highlights: list[str] | None = None,
+    viewer_tags: list[str] | None = None,
     program_mode: str = "JUST_CHATTING",
     content_kind: str = "META_CHAT",
 ) -> dict[str, object]:
@@ -232,10 +580,129 @@ def _episode_output(
         "display_title": title,
         "display_summary": summary,
         "topics": topics or ["대표 주제", "보조 주제"],
-        "viewer_tags": ["META"],
+        "viewer_tags": viewer_tags or ["META"],
         "highlight_micro_event_ids": highlights or [start_micro_event_id],
         "visibility": "DEFAULT",
     }
+
+
+def _timeline_output(
+    *,
+    blocks: list[dict[str, object]],
+    episodes: list[dict[str, object]],
+    review_flags: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    return {
+        "video_summary": {"title": "테스트 타임라인"},
+        "blocks": blocks,
+        "episodes": episodes,
+        "topic_clusters": [],
+        "review_flags": review_flags or [],
+    }
+
+
+def _block_output(
+    block_id: str,
+    block_type: str,
+    episode_ids: list[str],
+) -> dict[str, object]:
+    return {
+        "block_id": block_id,
+        "block_type": block_type,
+        "title": block_type,
+        "summary": block_type,
+        "display_title": block_type,
+        "display_summary": block_type,
+        "episode_ids": episode_ids,
+    }
+
+
+def _compose_result(output_json: dict[str, object]) -> TimelineComposeResult:
+    return TimelineComposeResult(
+        thread_id="thread-1",
+        turn_id="turn-1",
+        status="completed",
+        final_response=json.dumps(output_json),
+    )
+
+
+def _repair_episode_output(
+    start_micro_event_id: str,
+    end_micro_event_id: str,
+    title: str,
+) -> dict[str, object]:
+    return {
+        "start_micro_event_id": start_micro_event_id,
+        "end_micro_event_id": end_micro_event_id,
+        "program_mode": "JUST_CHATTING",
+        "primary_content_kind": "PERSONAL_STORY",
+        "title": title,
+        "summary": title,
+        "display_title": title,
+        "display_summary": title,
+        "topics": [title, "보조 주제"],
+        "viewer_tags": ["STORY"],
+        "highlight_micro_event_ids": [start_micro_event_id],
+        "visibility": "DEFAULT",
+    }
+
+
+def _domain_entry(
+    entry_id: int,
+    canonical_name: str,
+    *,
+    prompt_policy: str,
+    priority: int,
+    aliases: list[DomainKnowledgePromptAliasRecord],
+) -> DomainKnowledgePromptEntryRecord:
+    return DomainKnowledgePromptEntryRecord(
+        entry_id=entry_id,
+        type_key="person",
+        type_label="Person",
+        canonical_name=canonical_name,
+        display_name=None,
+        disambiguation=None,
+        detail=None,
+        prompt_policy=cast(PromptPolicy, prompt_policy),
+        priority=priority,
+        aliases=aliases,
+    )
+
+
+def _domain_alias(
+    surface_form: str,
+    alias_kind: str,
+) -> DomainKnowledgePromptAliasRecord:
+    return DomainKnowledgePromptAliasRecord(
+        surface_form=surface_form,
+        alias_kind=cast(AliasKind, alias_kind),
+        certainty="HIGH",
+        apply_scope="SEARCH_AND_SUMMARY",
+        language_code="ko",
+        note=None,
+    )
+
+
+class _RepairComposer:
+    def __init__(self, outputs: list[dict[str, object]]) -> None:
+        self._outputs = list(outputs)
+        self.requests: list[TimelineEpisodeRepairRequest] = []
+
+    async def compose(self, request: TimelineComposeRequest) -> TimelineComposeResult:
+        raise AssertionError("compose should not be called by repair tests")
+
+    async def repair_episode(
+        self,
+        request: TimelineEpisodeRepairRequest,
+    ) -> TimelineEpisodeRepairResult:
+        self.requests.append(request)
+        output = self._outputs.pop(0)
+        return TimelineEpisodeRepairResult(
+            thread_id="repair-thread",
+            turn_id="repair-turn",
+            status="completed",
+            final_response=json.dumps(output),
+        )
 
 
 def _candidates(count: int) -> list[MicroEventCandidateRecord]:

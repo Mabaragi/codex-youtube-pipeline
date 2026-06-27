@@ -64,6 +64,8 @@ This performs:
 
 - `uv sync --dev --locked`
 - `pnpm install --frozen-lockfile`
+- local API, worker, and Ops UI process cleanup, including stale child processes
+  that may keep `.next/standalone` locked
 - MinIO start through `compose.local-infra.yaml`
 - legacy Docker app/proxy/tunnel containers stop, including `api`, workers,
   `ops-ui`, `nginx`, and `ngrok`
@@ -103,6 +105,11 @@ Stop app processes:
 ```powershell
 .\scripts\local-home\stop.ps1
 ```
+
+`stop.ps1` removes both PID-file managed processes and stale local runtime
+children such as Next standalone `node` processes. This keeps a later
+`deploy.ps1` from failing with Windows `EBUSY` errors while rebuilding
+`ops-ui/.next`.
 
 Stop app processes and MinIO:
 
@@ -176,8 +183,14 @@ pnpm --filter codex-sdk-ops-ui build
 These files remain for reference or emergency fallback, but are no longer the
 normal runtime path:
 
-- `compose.home.yaml`
-- `compose.home.build.yaml`
-- `deploy/nginx/home.conf`
-- `docs/HOME_DEPLOYMENT_FLOW.md`
+- `legacy/compose.home.yaml`
+- `legacy/compose.home.build.yaml`
+- `legacy/compose.yaml`
+- `legacy/Dockerfile`
+- `legacy/ops-ui/Dockerfile`
+- `legacy/deploy/nginx/home.conf`
+- `legacy/docs/HOME_DEPLOYMENT_FLOW.md`
+- `legacy/docs/AWS_DEPLOYMENT.md`
+- `legacy/scripts/deploy_aws.ps1`
+- `legacy/infra/aws-codex-cli/`
 - `docs/CICD.md`

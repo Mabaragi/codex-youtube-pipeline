@@ -1,4 +1,4 @@
-"""API schemas for operation events."""
+﻿"""API schemas for operation events."""
 
 from __future__ import annotations
 

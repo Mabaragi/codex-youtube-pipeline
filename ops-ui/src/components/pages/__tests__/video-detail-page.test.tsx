@@ -390,7 +390,6 @@ const microEventExtraction: MicroEventExtractionDetail = {
           suggested: "recording",
           correctionType: "COMMON_WORD",
           applyScope: "SEARCH_ONLY",
-          evidenceCueIds: ["tr11-c000002"],
           confidence: 0.8,
           createdAt: "2026-06-18T00:59:00Z",
           updatedAt: "2026-06-18T00:59:00Z",

@@ -21,6 +21,13 @@ def test_timeline_compose_openapi_paths_and_aliases() -> None:
     ]["201"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/TimelineComposeEnqueueResponse"
     )
+    episode_schema = schema["components"]["schemas"]["TimelineEpisodeResponse"]
+    viewer_tag_enum = episode_schema["properties"]["viewerTags"]["items"]["enum"]
+    assert "QNA" in viewer_tag_enum
+    review_schema = schema["components"]["schemas"]["TimelineReviewFlagResponse"]
+    review_flag_enum = review_schema["properties"]["type"]["enum"]
+    assert "OVERBROAD_EPISODE" in review_flag_enum
+    assert "OVERBROAD_MICRO_EVENT" in review_flag_enum
 
     request = TimelineComposeEnqueueRequest.model_validate(
         {

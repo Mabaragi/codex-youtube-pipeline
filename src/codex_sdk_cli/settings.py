@@ -1,30 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 from openai_codex import CodexConfig
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ApprovalChoice = Literal["auto-review", "deny-all"]
-SandboxChoice = Literal["read-only", "workspace-write", "full-access"]
-CodexModelChoice = Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]
-ReasoningEffortChoice = Literal["low", "medium", "high", "xhigh"]
+from codex_sdk_cli.domains.codex.choices import (
+    DEFAULT_CODEX_MODEL,
+    DEFAULT_CODEX_REASONING_EFFORT,
+    ApprovalChoice,
+    CodexModelChoice,
+    ReasoningEffortChoice,
+    SandboxChoice,
+)
+
 DEFAULT_DATABASE_URL = "sqlite+aiosqlite:///./data/app.db"
-DEFAULT_CODEX_MODEL: CodexModelChoice = "gpt-5.5"
-DEFAULT_CODEX_REASONING_EFFORT: ReasoningEffortChoice = "medium"
-CODEX_MODEL_CHOICES: tuple[CodexModelChoice, ...] = (
-    "gpt-5.5",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-)
-CODEX_REASONING_EFFORT_CHOICES: tuple[ReasoningEffortChoice, ...] = (
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-)
 
 
 class CliSettings(BaseSettings):

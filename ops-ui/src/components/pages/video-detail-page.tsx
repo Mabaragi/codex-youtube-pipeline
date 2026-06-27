@@ -936,9 +936,6 @@ function AsrCorrectionCandidateRow({
         <div className="break-words text-sm text-slate-800">
           {candidate.original} -&gt; {candidate.suggested}
         </div>
-        <div className="mt-1 break-words font-mono text-slate-500">
-          evidence {candidate.evidenceCueIds.join(", ")}
-        </div>
       </div>
       <div className="grid content-start gap-1 text-slate-500">
         <span>{candidate.correctionType}</span>

@@ -1,4 +1,4 @@
-"""Operation event domain exceptions."""
+﻿"""Operation event domain exceptions."""
 
 
 class OperationEventDomainError(Exception):

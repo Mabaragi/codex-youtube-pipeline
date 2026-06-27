@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,6 +10,12 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 
 OpsFailureKind = Literal["pipeline_job", "video_task"]
+OpsSchemaRelationKind = Literal[
+    "one_to_many",
+    "one_to_one",
+    "optional_one_to_many",
+    "optional_one_to_one",
+]
 
 
 @dataclass(frozen=True)
@@ -154,6 +160,70 @@ class OpsVideoTaskListResult:
     total: int
 
 
+@dataclass(frozen=True)
+class OpsSchemaColumnRecord:
+    id: str
+    name: str
+    type: str
+    nullable: bool
+    primary_key: bool
+    unique: bool
+    index: bool
+    default: str | None
+    foreign_keys: tuple[str, ...]
+    constraint_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OpsSchemaIndexRecord:
+    name: str
+    column_names: tuple[str, ...]
+    unique: bool
+
+
+@dataclass(frozen=True)
+class OpsSchemaUniqueConstraintRecord:
+    name: str
+    column_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OpsSchemaForeignKeyConstraintRecord:
+    name: str
+    column_names: tuple[str, ...]
+    target_table: str
+    target_column_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OpsSchemaTableRecord:
+    id: str
+    name: str
+    columns: tuple[OpsSchemaColumnRecord, ...]
+    indexes: tuple[OpsSchemaIndexRecord, ...]
+    unique_constraints: tuple[OpsSchemaUniqueConstraintRecord, ...]
+    foreign_key_constraints: tuple[OpsSchemaForeignKeyConstraintRecord, ...]
+
+
+@dataclass(frozen=True)
+class OpsSchemaRelationRecord:
+    id: str
+    constraint_name: str
+    source_table: str
+    source_column: str
+    target_table: str
+    target_column: str
+    source_nullable: bool
+    target_primary_key: bool
+    relation_kind: OpsSchemaRelationKind
+
+
+@dataclass(frozen=True)
+class OpsSchemaGraphRecord:
+    tables: tuple[OpsSchemaTableRecord, ...]
+    relations: tuple[OpsSchemaRelationRecord, ...]
+
+
 class OpsRepositoryPort(Protocol):
     async def get_summary_counts(self) -> OpsSummaryCountsRecord:
         ...
@@ -174,4 +244,7 @@ class OpsRepositoryPort(Protocol):
         self,
         query: OpsVideoTaskListQuery,
     ) -> OpsVideoTaskListResult:
+        ...
+
+    async def get_schema_graph(self) -> OpsSchemaGraphRecord:
         ...

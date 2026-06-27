@@ -1,7 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from codex_sdk_cli.settings import CliSettings
+from dataclasses import dataclass
 
+from .choices import ApprovalChoice, CodexModelChoice, ReasoningEffortChoice, SandboxChoice
 from .exceptions import InvalidCodexRequest
 from .ports import CodexRunCommand, CodexRuntimePort, CodexRunUsageContext
 from .schemas import (
@@ -14,17 +15,25 @@ from .schemas import (
 )
 
 
+@dataclass(frozen=True)
+class CodexRunDefaults:
+    model: CodexModelChoice
+    reasoning_effort: ReasoningEffortChoice
+    sandbox: SandboxChoice
+    approval: ApprovalChoice
+
+
 class RunCodexPromptUseCase:
-    def __init__(self, runtime: CodexRuntimePort, settings: CliSettings) -> None:
+    def __init__(self, runtime: CodexRuntimePort, defaults: CodexRunDefaults) -> None:
         self._runtime = runtime
-        self._settings = settings
+        self._defaults = defaults
 
     async def execute(self, request: RunRequest) -> RunResponse:
         prompt = request.prompt.strip()
         if not prompt:
             raise InvalidCodexRequest("Prompt cannot be empty.")
-        model = request.model or self._settings.model
-        reasoning_effort = request.reasoning_effort or self._settings.reasoning_effort
+        model = request.model or self._defaults.model
+        reasoning_effort = request.reasoning_effort or self._defaults.reasoning_effort
 
         result = await self._runtime.run_prompt(
             CodexRunCommand(
@@ -33,8 +42,8 @@ class RunCodexPromptUseCase:
                 cwd=None,
                 model=model,
                 reasoning_effort=reasoning_effort,
-                sandbox=self._settings.sandbox,
-                approval=self._settings.approval,
+                sandbox=self._defaults.sandbox,
+                approval=self._defaults.approval,
                 persist=False,
                 base_instructions=_instruction_or_blank(request.base_instructions),
                 developer_instructions=_instruction_or_blank(request.developer_instructions),

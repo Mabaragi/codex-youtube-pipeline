@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from codex_sdk_cli.domains.channels.schemas import ResolveYouTubeChannelRequest
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase

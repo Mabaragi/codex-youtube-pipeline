@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
-from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
 from .constants import TIMELINE_COMPOSE_DEFAULT_COPY_STYLE
 from .ports import (
@@ -14,6 +14,7 @@ from .ports import (
     TimelineBlockType,
     TimelineContentKind,
     TimelineReviewFlagType,
+    TimelineViewerTag,
     TimelineVisibility,
 )
 
@@ -122,7 +123,7 @@ class TimelineEpisodeResponse(BaseModel):
     display_title: str = Field(alias="displayTitle")
     display_summary: str = Field(alias="displaySummary")
     topics: list[str]
-    viewer_tags: list[str] = Field(alias="viewerTags")
+    viewer_tags: list[TimelineViewerTag] = Field(alias="viewerTags")
     highlight_micro_event_candidate_ids: list[int] = Field(
         alias="highlightMicroEventCandidateIds"
     )

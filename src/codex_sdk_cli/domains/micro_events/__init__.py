@@ -1,1 +1,1 @@
-"""Micro-event extraction domain."""
+﻿"""Micro-event extraction domain."""

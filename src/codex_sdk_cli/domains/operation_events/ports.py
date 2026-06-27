@@ -1,4 +1,4 @@
-"""Ports and DTOs for operation event timelines."""
+﻿"""Ports and DTOs for operation event timelines."""
 
 from __future__ import annotations
 

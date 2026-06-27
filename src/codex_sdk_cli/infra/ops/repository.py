@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import case, distinct, func, or_, select
+from typing import Any
+
+from sqlalchemy import Column, Table, UniqueConstraint, case, distinct, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing_extensions import override
@@ -10,6 +12,14 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsChannelRecord,
     OpsRecentFailureRecord,
     OpsRepositoryPort,
+    OpsSchemaColumnRecord,
+    OpsSchemaForeignKeyConstraintRecord,
+    OpsSchemaGraphRecord,
+    OpsSchemaIndexRecord,
+    OpsSchemaRelationKind,
+    OpsSchemaRelationRecord,
+    OpsSchemaTableRecord,
+    OpsSchemaUniqueConstraintRecord,
     OpsStatusCountRecord,
     OpsSummaryCountsRecord,
     OpsVideoDetailRecord,
@@ -25,6 +35,8 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
 )
 from codex_sdk_cli.infra.channels.repository import ChannelModel
+from codex_sdk_cli.infra.database import models as database_models
+from codex_sdk_cli.infra.database.base import Base
 from codex_sdk_cli.infra.pipeline_jobs.repository import (
     PipelineJobAttemptModel,
     PipelineJobModel,
@@ -417,6 +429,73 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             total=total or 0,
         )
 
+    @override
+    async def get_schema_graph(self) -> OpsSchemaGraphRecord:
+        _ = database_models
+        tables = list(Base.metadata.sorted_tables)
+        return OpsSchemaGraphRecord(
+            tables=tuple(
+                OpsSchemaTableRecord(
+                    id=table.name,
+                    name=table.name,
+                    columns=tuple(
+                        OpsSchemaColumnRecord(
+                            id=f"{table.name}.{column.name}",
+                            name=column.name,
+                            type=_column_type(column),
+                            nullable=bool(column.nullable),
+                            primary_key=column.primary_key,
+                            unique=(
+                                column.unique
+                                or column.name in _unique_column_names(table)
+                            ),
+                            index=(
+                                column.index
+                                or column.name in _index_column_names(table)
+                            ),
+                            default=_column_default(column),
+                            foreign_keys=tuple(
+                                sorted(
+                                    f"{foreign_key.column.table.name}."
+                                    f"{foreign_key.column.name}"
+                                    for foreign_key in column.foreign_keys
+                                )
+                            ),
+                            constraint_names=tuple(
+                                _column_constraint_names(table, column)
+                            ),
+                        )
+                        for column in table.columns
+                    ),
+                    indexes=tuple(_table_indexes(table)),
+                    unique_constraints=tuple(_table_unique_constraints(table)),
+                    foreign_key_constraints=tuple(
+                        _table_foreign_key_constraints(table)
+                    ),
+                )
+                for table in tables
+            ),
+            relations=tuple(
+                OpsSchemaRelationRecord(
+                    id=(
+                        f"{foreign_key.column.table.name}.{foreign_key.column.name}"
+                        f"->{table.name}.{column.name}"
+                    ),
+                    constraint_name=_constraint_name(foreign_key.constraint),
+                    source_table=foreign_key.column.table.name,
+                    source_column=foreign_key.column.name,
+                    target_table=table.name,
+                    target_column=column.name,
+                    source_nullable=bool(column.nullable),
+                    target_primary_key=column.primary_key,
+                    relation_kind=_relation_kind(table, column),
+                )
+                for table in tables
+                for column in table.columns
+                for foreign_key in column.foreign_keys
+            ),
+        )
+
     async def _count_rows(self, model: type[object]) -> int:
         count = await self._session.scalar(select(func.count()).select_from(model))
         return count or 0
@@ -445,6 +524,126 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             .group_by(VideoTaskModel.video_id)
             .subquery()
         )
+
+
+def _column_type(column: Column[Any]) -> str:
+    return str(column.type).replace("DATETIME", "DateTime")
+
+
+def _column_default(column: Column[Any]) -> str | None:
+    if column.server_default is not None:
+        return str(getattr(column.server_default, "arg", column.server_default))
+    if column.default is not None:
+        return str(getattr(column.default, "arg", column.default))
+    return None
+
+
+def _index_column_names(table: Table) -> set[str]:
+    return {column.name for index in table.indexes for column in index.columns}
+
+
+def _unique_column_names(table: Table) -> set[str]:
+    return {
+        column.name
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+        for column in constraint.columns
+    }
+
+
+def _table_indexes(table: Table) -> list[OpsSchemaIndexRecord]:
+    return [
+        OpsSchemaIndexRecord(
+            name=_constraint_name(index),
+            column_names=tuple(column.name for column in index.columns),
+            unique=index.unique,
+        )
+        for index in sorted(table.indexes, key=_constraint_name)
+    ]
+
+
+def _table_unique_constraints(table: Table) -> list[OpsSchemaUniqueConstraintRecord]:
+    constraints = [
+        constraint
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    ]
+    return [
+        OpsSchemaUniqueConstraintRecord(
+            name=_constraint_name(constraint),
+            column_names=tuple(column.name for column in constraint.columns),
+        )
+        for constraint in sorted(constraints, key=_constraint_name)
+    ]
+
+
+def _table_foreign_key_constraints(
+    table: Table,
+) -> list[OpsSchemaForeignKeyConstraintRecord]:
+    return [
+        OpsSchemaForeignKeyConstraintRecord(
+            name=_constraint_name(constraint),
+            column_names=tuple(element.parent.name for element in constraint.elements),
+            target_table=constraint.elements[0].column.table.name,
+            target_column_names=tuple(element.column.name for element in constraint.elements),
+        )
+        for constraint in sorted(table.foreign_key_constraints, key=_constraint_name)
+        if constraint.elements
+    ]
+
+
+def _column_constraint_names(table: Table, column: Column[Any]) -> list[str]:
+    names: set[str] = set()
+    if column.primary_key:
+        names.add(_constraint_name(table.primary_key))
+    names.update(
+        _constraint_name(constraint)
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+        and column.name in constraint.columns
+    )
+    names.update(
+        _constraint_name(constraint)
+        for constraint in table.foreign_key_constraints
+        if column.name in constraint.columns
+    )
+    names.update(
+        _constraint_name(index)
+        for index in table.indexes
+        if column.name in index.columns
+    )
+    return sorted(names)
+
+
+def _relation_kind(table: Table, column: Column[Any]) -> OpsSchemaRelationKind:
+    is_optional = bool(column.nullable)
+    is_single_unique = _is_single_column_unique(table, column)
+    if is_optional and is_single_unique:
+        return "optional_one_to_one"
+    if is_optional:
+        return "optional_one_to_many"
+    if is_single_unique:
+        return "one_to_one"
+    return "one_to_many"
+
+
+def _is_single_column_unique(table: Table, column: Column[Any]) -> bool:
+    if column.primary_key or column.unique:
+        return True
+    for constraint in table.constraints:
+        if not isinstance(constraint, UniqueConstraint):
+            continue
+        constraint_column_names = [item.name for item in constraint.columns]
+        if constraint_column_names == [column.name]:
+            return True
+    return any(
+        index.unique and [item.name for item in index.columns] == [column.name]
+        for index in table.indexes
+    )
+
+
+def _constraint_name(item: Any) -> str:
+    return str(item.name or "unnamed")
 
 
 def _ops_video_task_record(

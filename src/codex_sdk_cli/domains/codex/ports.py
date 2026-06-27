@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from codex_sdk_cli.settings import ApprovalChoice, ReasoningEffortChoice, SandboxChoice
+from codex_sdk_cli.domains.codex.choices import ApprovalChoice, ReasoningEffortChoice, SandboxChoice
 
 
 class CodexRunUsageContext(BaseModel):

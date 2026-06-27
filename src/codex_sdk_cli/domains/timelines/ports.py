@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal, Protocol
 
+from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
-from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
 JsonObject = dict[str, object]
 
@@ -39,10 +39,26 @@ TimelineContentKind = Literal[
     "OTHER",
 ]
 TimelineVisibility = Literal["DEFAULT", "COLLAPSED", "HIDDEN"]
+TimelineViewerTag = Literal[
+    "STORY",
+    "FUNNY",
+    "REACTION",
+    "INFORMATION",
+    "FOOD",
+    "GAME_PROGRESS",
+    "GAME_STORY",
+    "GAME_DISCUSSION",
+    "COMMUNITY",
+    "MEDIA",
+    "ANNOUNCEMENT",
+    "META",
+    "QNA",
+]
 TimelineReviewFlagType = Literal[
     "MODE_CONFLICT",
     "BOUNDARY_AMBIGUOUS",
     "ASR_SEMANTIC_RISK",
+    "OVERBROAD_EPISODE",
     "OVERBROAD_MICRO_EVENT",
     "POSSIBLE_DUPLICATE",
 ]
@@ -68,9 +84,36 @@ class TimelineComposeResult:
     final_response: str
 
 
+@dataclass(frozen=True, slots=True)
+class TimelineEpisodeRepairRequest:
+    prompt: str
+    video_id: int
+    video_task_id: int
+    job_id: int
+    job_attempt_id: int
+    source_micro_event_task_id: int
+    target_episode_id: str
+    model: CodexModelChoice | None
+    reasoning_effort: ReasoningEffortChoice | None
+
+
+@dataclass(frozen=True, slots=True)
+class TimelineEpisodeRepairResult:
+    thread_id: str | None
+    turn_id: str | None
+    status: str
+    final_response: str
+
+
 class TimelineComposerPort(Protocol):
     async def compose(self, request: TimelineComposeRequest) -> TimelineComposeResult:
         """Compose one video timeline from micro-events."""
+
+    async def repair_episode(
+        self,
+        request: TimelineEpisodeRepairRequest,
+    ) -> TimelineEpisodeRepairResult:
+        """Repair one overbroad timeline episode without recomposing the full video."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +142,7 @@ class TimelineEpisodeCreate:
     display_title: str
     display_summary: str
     topics: list[str]
-    viewer_tags: list[str]
+    viewer_tags: list[TimelineViewerTag]
     highlight_micro_event_candidate_ids: list[int]
     visibility: TimelineVisibility
 

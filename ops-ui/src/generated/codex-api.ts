@@ -980,8 +980,6 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
-            /** Evidencecueids */
-            evidenceCueIds: string[];
             /** Original */
             original: string;
             /** Suggested */
@@ -3172,7 +3170,7 @@ export interface components {
             /** Topics */
             topics: string[];
             /** Viewertags */
-            viewerTags: string[];
+            viewerTags: ("STORY" | "FUNNY" | "REACTION" | "INFORMATION" | "FOOD" | "GAME_PROGRESS" | "GAME_STORY" | "GAME_DISCUSSION" | "COMMUNITY" | "MEDIA" | "ANNOUNCEMENT" | "META" | "QNA")[];
             /**
              * Visibility
              * @enum {string}
@@ -3193,7 +3191,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "MODE_CONFLICT" | "BOUNDARY_AMBIGUOUS" | "ASR_SEMANTIC_RISK" | "OVERBROAD_MICRO_EVENT" | "POSSIBLE_DUPLICATE";
+            type: "MODE_CONFLICT" | "BOUNDARY_AMBIGUOUS" | "ASR_SEMANTIC_RISK" | "OVERBROAD_EPISODE" | "OVERBROAD_MICRO_EVENT" | "POSSIBLE_DUPLICATE";
         };
         /** TimelineTopicClusterResponse */
         TimelineTopicClusterResponse: {

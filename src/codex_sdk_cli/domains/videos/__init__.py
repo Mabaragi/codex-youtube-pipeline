@@ -1,1 +1,1 @@
-"""Video collection domain."""
+﻿"""Video collection domain."""

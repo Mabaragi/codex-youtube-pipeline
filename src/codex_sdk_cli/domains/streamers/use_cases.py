@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from .exceptions import StreamerNotFound
 from .ports import StreamerRecord, StreamerRepositoryPort
