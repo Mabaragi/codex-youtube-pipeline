@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -58,6 +59,7 @@ from .exceptions import (
     ArchivePublishPreconditionFailed,
 )
 from .ports import (
+    ArchiveChannelRecord,
     ArchiveIndexArtifact,
     ArchiveIndexPublicationCreate,
     ArchiveIndexPublicationRecord,
@@ -69,6 +71,7 @@ from .ports import (
     ArchivePublishRepositoryPort,
     ArchivePublishStatusFilter,
     ArchivePublishStoragePort,
+    ArchiveStreamerRecord,
     ArchiveTimelineArtifact,
     ArchiveVideoArtifactCreate,
     ArchiveVideoArtifactRecord,
@@ -88,6 +91,8 @@ from .schemas import (
 )
 
 ArchivePublishStorageFactory = Callable[[], ArchivePublishStoragePort]
+_STREAMER_SUBJECT_BOUNDARY_RE = r"(?<![0-9A-Za-z가-힣])"
+_STREAMER_SUBJECT_PARTICLE_RE = r"(?:가|이|의)"
 
 
 @dataclass(slots=True)
@@ -553,9 +558,18 @@ class ArchivePublishUseCase:
     ) -> JsonObject:
         try:
             storage = self._storage()
-            video = await self._videos.get_video(task.video_id)
-            if video is None:
+            environment = _required_str(job.input_json, "environment")
+            variant = _required_str(job.input_json, "variant")
+            schema_version = _required_int(job.input_json, "schemaVersion")
+            candidate = await self._archive.get_publish_candidate(
+                video_id=task.video_id,
+                environment=environment,
+                variant=variant,
+                schema_version=schema_version,
+            )
+            if candidate is None:
                 raise VideoNotFound("Video not found.")
+            video = candidate.video
             composition = await self._timelines.get_composition(
                 video_id=video.id,
                 video_task_id=_required_int(job.input_json, "sourceTimelineTaskId"),
@@ -571,14 +585,16 @@ class ArchivePublishUseCase:
             cues = await self._transcript_cues.list_cues(micro_detail.transcript_id)
             timeline_artifact = _timeline_artifact(
                 video=video,
+                channel=candidate.channel,
+                streamer=candidate.streamer,
                 composition=composition,
                 micro_events=_flatten_micro_events(micro_detail.windows),
                 cues=cues,
                 prefix=self._prefix,
                 public_base_url=_required_public_base_url(self._public_base_url),
-                environment=_required_str(job.input_json, "environment"),
-                variant=_required_str(job.input_json, "variant"),
-                schema_version=_required_int(job.input_json, "schemaVersion"),
+                environment=environment,
+                variant=variant,
+                schema_version=schema_version,
             )
             await storage.save_json(
                 ArchiveObjectSaveRequest(
@@ -595,9 +611,9 @@ class ArchivePublishUseCase:
                     source_micro_event_task_id=composition.source_micro_event_task_id,
                     publish_task_id=task.id,
                     publish_job_id=job.id,
-                    environment=_required_str(job.input_json, "environment"),
-                    variant=_required_str(job.input_json, "variant"),
-                    schema_version=_required_int(job.input_json, "schemaVersion"),
+                    environment=environment,
+                    variant=variant,
+                    schema_version=schema_version,
                     version=timeline_artifact.version,
                     object_key=timeline_artifact.object_key,
                     public_url=timeline_artifact.public_url,
@@ -612,13 +628,13 @@ class ArchivePublishUseCase:
             )
             index_artifact = _index_artifact(
                 artifacts=await self._archive.list_latest_video_artifacts(
-                    environment=_required_str(job.input_json, "environment"),
-                    schema_version=_required_int(job.input_json, "schemaVersion"),
+                    environment=environment,
+                    schema_version=schema_version,
                 ),
                 prefix=self._prefix,
                 public_base_url=_required_public_base_url(self._public_base_url),
-                environment=_required_str(job.input_json, "environment"),
-                schema_version=_required_int(job.input_json, "schemaVersion"),
+                environment=environment,
+                schema_version=schema_version,
             )
             await storage.save_json(
                 ArchiveObjectSaveRequest(
@@ -760,6 +776,8 @@ class ArchivePublishUseCase:
 def _timeline_artifact(
     *,
     video: VideoRecord,
+    channel: ArchiveChannelRecord,
+    streamer: ArchiveStreamerRecord,
     composition: TimelineCompositionRecord,
     micro_events: list[MicroEventCandidateRecord],
     cues: list[TranscriptCueRecord],
@@ -782,6 +800,7 @@ def _timeline_artifact(
             ordered_candidates=micro_events,
             candidate_by_id=candidate_by_id,
             cue_by_id=cue_by_id,
+            streamer_subject_aliases=_streamer_subject_aliases(streamer.name),
         )
         for episode in composition.episodes
     ]
@@ -797,13 +816,12 @@ def _timeline_artifact(
         "generatedAt": _now_iso(),
         "videoId": video.id,
         "youtubeVideoId": video.youtube_video_id,
-        "sourceTimelineCompositionId": composition.id,
-        "sourceTimelineTaskId": composition.video_task_id,
-        "sourceMicroEventTaskId": composition.source_micro_event_task_id,
         "video": {
             "id": video.id,
             "youtubeId": video.youtube_video_id,
             "title": video.title,
+            "streamer": _streamer_json(streamer),
+            "channel": _channel_json(channel),
             "publishedAt": video.published_at.isoformat(),
             "duration": video.duration,
             "durationSec": _duration_seconds(video.duration),
@@ -843,16 +861,6 @@ def _timeline_artifact(
             }
             for topic in composition.topic_clusters
         ],
-        "reviewFlags": [
-            {
-                "flagIndex": flag.flag_index,
-                "startMicroEventCandidateId": flag.start_micro_event_candidate_id,
-                "endMicroEventCandidateId": flag.end_micro_event_candidate_id,
-                "type": flag.type,
-                "reason": flag.reason,
-            }
-            for flag in composition.review_flags
-        ],
     }
     payload_bytes = _json_bytes(payload)
     return ArchiveTimelineArtifact(
@@ -877,6 +885,7 @@ def _episode_json(
     ordered_candidates: list[MicroEventCandidateRecord],
     candidate_by_id: dict[int, MicroEventCandidateRecord],
     cue_by_id: dict[str, TranscriptCueRecord],
+    streamer_subject_aliases: tuple[str, ...],
 ) -> JsonObject:
     start_candidate = _candidate(candidate_by_id, episode.start_micro_event_candidate_id)
     end_candidate = _candidate(candidate_by_id, episode.end_micro_event_candidate_id)
@@ -886,10 +895,6 @@ def _episode_json(
         "episodeId": episode.episode_id,
         "episodeIndex": episode.episode_index,
         "parentBlockId": episode.parent_block_id,
-        "startMicroEventCandidateId": episode.start_micro_event_candidate_id,
-        "endMicroEventCandidateId": episode.end_micro_event_candidate_id,
-        "startCueId": start_cue.cue_id,
-        "endCueId": end_cue.cue_id,
         "startMs": start_cue.start_ms,
         "endMs": end_cue.end_ms,
         "programMode": episode.program_mode,
@@ -900,13 +905,13 @@ def _episode_json(
         "displaySummary": episode.display_summary,
         "topics": episode.topics,
         "viewerTags": episode.viewer_tags,
-        "highlightMicroEventCandidateIds": episode.highlight_micro_event_candidate_ids,
         "visibility": episode.visibility,
         "microEvents": _micro_event_jsons(
             episode,
             ordered_candidates=ordered_candidates,
             candidate_by_id=candidate_by_id,
             cue_by_id=cue_by_id,
+            streamer_subject_aliases=streamer_subject_aliases,
         ),
     }
 
@@ -934,6 +939,7 @@ def _micro_event_jsons(
     ordered_candidates: list[MicroEventCandidateRecord],
     candidate_by_id: dict[int, MicroEventCandidateRecord],
     cue_by_id: dict[str, TranscriptCueRecord],
+    streamer_subject_aliases: tuple[str, ...],
 ) -> list[JsonObject]:
     start_candidate = _candidate(candidate_by_id, episode.start_micro_event_candidate_id)
     end_candidate = _candidate(candidate_by_id, episode.end_micro_event_candidate_id)
@@ -947,7 +953,11 @@ def _micro_event_jsons(
             f"Timeline episode {episode.episode_id} references an invalid micro-event range."
         )
     return [
-        _micro_event_json(candidate, cue_by_id=cue_by_id)
+        _micro_event_json(
+            candidate,
+            cue_by_id=cue_by_id,
+            streamer_subject_aliases=streamer_subject_aliases,
+        )
         for candidate in ordered_candidates[start_position : end_position + 1]
     ]
 
@@ -956,31 +966,46 @@ def _micro_event_json(
     candidate: MicroEventCandidateRecord,
     *,
     cue_by_id: dict[str, TranscriptCueRecord],
+    streamer_subject_aliases: tuple[str, ...],
 ) -> JsonObject:
     start_cue = _cue(cue_by_id, candidate.start_cue_id)
     end_cue = _cue(cue_by_id, candidate.end_cue_id)
-    evidence_cue_ids = [
-        cue_id for cue_id in candidate.evidence_cue_ids if cue_id in cue_by_id
-    ]
     return {
-        "microEventCandidateId": candidate.id,
-        "candidateIndex": candidate.candidate_index,
-        "event": candidate.event,
+        "event": _archive_micro_event_text(
+            candidate.event,
+            streamer_subject_aliases=streamer_subject_aliases,
+        ),
         "activity": candidate.activity,
         "programMode": candidate.program_mode,
         "contentKind": candidate.content_kind,
         "topics": candidate.topics or [],
-        "startCueId": start_cue.cue_id,
-        "endCueId": end_cue.cue_id,
         "startMs": start_cue.start_ms,
         "endMs": end_cue.end_ms,
-        "evidenceCueIds": evidence_cue_ids,
-        "boundaryBefore": candidate.boundary_before,
-        "boundaryAfter": candidate.boundary_after,
-        "relationToPrevious": candidate.relation_to_previous,
-        "continuesToNext": candidate.continues_to_next,
-        "supportLevel": candidate.support_level,
     }
+
+
+def _archive_micro_event_text(
+    value: str,
+    *,
+    streamer_subject_aliases: tuple[str, ...],
+) -> str:
+    if not streamer_subject_aliases:
+        return value
+    alias_pattern = "|".join(re.escape(alias) for alias in streamer_subject_aliases)
+    subject_pattern = re.compile(
+        rf"{_STREAMER_SUBJECT_BOUNDARY_RE}(?:{alias_pattern})"
+        rf"{_STREAMER_SUBJECT_PARTICLE_RE}\s+"
+    )
+    return subject_pattern.sub("", value)
+
+
+def _streamer_subject_aliases(streamer_name: str) -> tuple[str, ...]:
+    aliases = {"스트리머"}
+    normalized = " ".join(streamer_name.split())
+    if normalized:
+        aliases.add(normalized)
+        aliases.add(normalized.split()[-1])
+    return tuple(sorted(aliases, key=len, reverse=True))
 
 
 def _index_artifact(
@@ -1004,6 +1029,8 @@ def _index_artifact(
                 "id": video.id,
                 "youtubeId": video.youtube_video_id,
                 "title": video.title,
+                "streamer": _streamer_json(item.streamer),
+                "channel": _channel_json(item.channel),
                 "publishedAt": video.published_at.isoformat(),
                 "durationText": video.duration,
                 "episodeCount": artifact.episode_count,
@@ -1019,8 +1046,6 @@ def _index_artifact(
                     "key": artifact.variant,
                     "url": artifact.public_url,
                     "version": artifact.version,
-                    "sourceTimelineTaskId": artifact.source_timeline_task_id,
-                    "artifactId": artifact.id,
                 }
             )
     videos = list(videos_by_id.values())
@@ -1061,6 +1086,19 @@ def _index_artifact(
         pointer_public_url=_public_url(public_base_url, pointer_key),
         artifact_ids=[item.artifact.id for item in artifacts],
     )
+
+
+def _streamer_json(streamer: ArchiveStreamerRecord) -> JsonObject:
+    return {"id": streamer.id, "name": streamer.name}
+
+
+def _channel_json(channel: ArchiveChannelRecord) -> JsonObject:
+    return {
+        "id": channel.id,
+        "name": channel.name,
+        "handle": channel.handle,
+        "youtubeChannelId": channel.youtube_channel_id,
+    }
 
 
 def _candidate(

@@ -24,8 +24,12 @@ from .domains.domain_knowledge.use_cases import (
     ListDomainEntriesUseCase,
     ListDomainEntryTypesUseCase,
 )
+from .domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
+from .domains.ops.use_cases import DetectOpsStuckTasksUseCase
+from .domains.video_tasks.constants import TIMELINE_COMPOSE_TASK_NAME
 from .infra.database.session import create_database_engine, create_session_factory
 from .infra.domain_knowledge.repository import SqlAlchemyDomainKnowledgeRepository
+from .infra.ops.repository import SqlAlchemyOpsRepository
 from .infra.timelines.style_backfill import normalize_timeline_style_backfill
 from .runner import (
     BLANK_BASE_INSTRUCTIONS,
@@ -545,6 +549,53 @@ async def _timeline_normalize_style_async(*, apply_changes: bool) -> object:
                 session,
                 apply=apply_changes,
             )
+    finally:
+        await engine.dispose()
+
+
+@main.group()
+def ops() -> None:
+    """Run local operational read models."""
+
+
+@ops.command("detect-stuck")
+@click.option(
+    "--task",
+    "task_name",
+    required=True,
+    type=click.Choice(
+        [MICRO_EVENT_EXTRACT_TASK_NAME, TIMELINE_COMPOSE_TASK_NAME],
+        case_sensitive=True,
+    ),
+    help="Task name to inspect.",
+)
+@click.option(
+    "--minutes",
+    type=click.IntRange(min=1),
+    default=15,
+    show_default=True,
+    help="Report running tasks with no task/event movement for this many minutes.",
+)
+def ops_detect_stuck(task_name: str, minutes: int) -> None:
+    """Print stale running video tasks as JSON."""
+    payload = _handle_errors(
+        lambda: asyncio.run(
+            _ops_detect_stuck_async(task_name=task_name, minutes=minutes)
+        )
+    )
+    click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+async def _ops_detect_stuck_async(*, task_name: str, minutes: int) -> object:
+    settings = _settings()
+    engine = create_database_engine(settings.database_url, echo=settings.database_echo)
+    session_factory = create_session_factory(engine)
+    try:
+        async with session_factory() as session:
+            response = await DetectOpsStuckTasksUseCase(
+                SqlAlchemyOpsRepository(session)
+            ).execute(task_name=task_name, minutes=minutes)
+            return response.model_dump(by_alias=True, mode="json")
     finally:
         await engine.dispose()
 

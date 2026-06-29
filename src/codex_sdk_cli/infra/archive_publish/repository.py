@@ -26,6 +26,7 @@ from codex_sdk_cli.domains.archive_publish.exceptions import (
     ArchivePublishPersistenceError,
 )
 from codex_sdk_cli.domains.archive_publish.ports import (
+    ArchiveChannelRecord,
     ArchiveIndexPublicationCreate,
     ArchiveIndexPublicationRecord,
     ArchiveOpsVideoListResult,
@@ -34,6 +35,7 @@ from codex_sdk_cli.domains.archive_publish.ports import (
     ArchivePublishCandidateQuery,
     ArchivePublishCandidateRecord,
     ArchivePublishRepositoryPort,
+    ArchiveStreamerRecord,
     ArchiveVideoArtifactCreate,
     ArchiveVideoArtifactRecord,
     ArchiveVideoArtifactWithVideoRecord,
@@ -42,6 +44,7 @@ from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRecord, VideoTaskSt
 from codex_sdk_cli.domains.videos.ports import VideoRecord
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.database.base import Base
+from codex_sdk_cli.infra.streamers.repository import StreamerModel
 from codex_sdk_cli.infra.timelines.repository import (
     SqlAlchemyTimelineCompositionRepository,
     TimelineCompositionModel,
@@ -200,9 +203,18 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
         schema_version: int,
     ) -> ArchivePublishCandidateRecord | None:
         try:
-            video = await self._session.get(VideoModel, video_id)
-            if video is None:
+            row = (
+                await self._session.execute(
+                    select(VideoModel, ChannelModel, StreamerModel)
+                    .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+                    .join(StreamerModel, ChannelModel.streamer_id == StreamerModel.id)
+                    .where(VideoModel.id == video_id)
+                    .limit(1)
+                )
+            ).one_or_none()
+            if row is None:
                 return None
+            video, channel, streamer = row
             composition = await self._timelines.get_latest_succeeded_composition(video_id=video_id)
             latest_task = await self._latest_archive_task(video_id)
             latest_artifact = await self._latest_artifact_for_video(
@@ -213,6 +225,8 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
             )
             return ArchivePublishCandidateRecord(
                 video=_video_record(video),
+                channel=_channel_record(channel),
+                streamer=_streamer_record(streamer),
                 composition=composition,
                 latest_archive_task=latest_task,
                 latest_artifact=latest_artifact,
@@ -332,9 +346,11 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
             schema_version=schema_version,
         )
         statement = (
-            select(ArchiveVideoArtifactModel, VideoModel)
+            select(ArchiveVideoArtifactModel, VideoModel, ChannelModel, StreamerModel)
             .join(latest_artifact, latest_artifact.c.artifact_id == ArchiveVideoArtifactModel.id)
             .join(VideoModel, ArchiveVideoArtifactModel.video_id == VideoModel.id)
+            .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+            .join(StreamerModel, ChannelModel.streamer_id == StreamerModel.id)
             .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
         )
         try:
@@ -343,8 +359,10 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
                 ArchiveVideoArtifactWithVideoRecord(
                     artifact=_artifact_record(artifact),
                     video=_video_record(video),
+                    channel=_channel_record(channel),
+                    streamer=_streamer_record(streamer),
                 )
-                for artifact, video in rows
+                for artifact, video, channel, streamer in rows
             ]
         except SQLAlchemyError as exc:
             raise ArchivePublishPersistenceError("Archive publish persistence failed.") from exc
@@ -653,6 +671,19 @@ def _video_record(model: VideoModel) -> VideoRecord:
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
+
+
+def _channel_record(model: ChannelModel) -> ArchiveChannelRecord:
+    return ArchiveChannelRecord(
+        id=model.id,
+        name=model.name,
+        handle=model.handle,
+        youtube_channel_id=model.youtube_channel_id,
+    )
+
+
+def _streamer_record(model: StreamerModel) -> ArchiveStreamerRecord:
+    return ArchiveStreamerRecord(id=model.id, name=model.name)
 
 
 def _task_record(model: VideoTaskModel) -> VideoTaskRecord:

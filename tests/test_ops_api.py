@@ -29,12 +29,22 @@ from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventRepositoryPort,
 )
 from codex_sdk_cli.domains.ops.ports import (
+    OpsCandidateListQuery,
     OpsChannelRecord,
+    OpsLatestEventRecord,
+    OpsMicroEventReadyCandidateListResult,
+    OpsMicroEventReadyCandidateRecord,
     OpsRecentFailureRecord,
     OpsRepositoryPort,
     OpsSchemaGraphRecord,
     OpsStatusCountRecord,
+    OpsStuckTaskListResult,
+    OpsStuckTaskQuery,
+    OpsStuckTaskRecord,
     OpsSummaryCountsRecord,
+    OpsTaskSummaryRecord,
+    OpsTimelineReadyCandidateListResult,
+    OpsTimelineReadyCandidateRecord,
     OpsVideoCueGenerationRecord,
     OpsVideoDetailRecord,
     OpsVideoGenerationRecord,
@@ -91,6 +101,9 @@ class FakeOpsRepository(OpsRepositoryPort):
     def __init__(self) -> None:
         self.video_queries: list[OpsVideoListQuery] = []
         self.video_task_queries: list[OpsVideoTaskListQuery] = []
+        self.micro_candidate_queries: list[OpsCandidateListQuery] = []
+        self.timeline_candidate_queries: list[OpsCandidateListQuery] = []
+        self.stuck_queries: list[OpsStuckTaskQuery] = []
 
     async def get_summary_counts(self) -> OpsSummaryCountsRecord:
         return OpsSummaryCountsRecord(
@@ -260,6 +273,99 @@ class FakeOpsRepository(OpsRepositoryPort):
                     completed_at=now,
                     created_at=now,
                     updated_at=now,
+                ),
+            ),
+        )
+
+    async def list_micro_event_ready_candidates(
+        self,
+        query: OpsCandidateListQuery,
+    ) -> OpsMicroEventReadyCandidateListResult:
+        self.micro_candidate_queries.append(query)
+        now = datetime.now(UTC)
+        return OpsMicroEventReadyCandidateListResult(
+            total=1,
+            items=(
+                OpsMicroEventReadyCandidateRecord(
+                    video_id=2,
+                    channel_id=1,
+                    channel_name="Channel",
+                    youtube_video_id="video-micro",
+                    title="Micro candidate",
+                    published_at=now,
+                    transcript_id=3,
+                    cue_count=22,
+                    latest_cue_task=_task_summary(4, "succeeded", now),
+                    latest_micro_task=None,
+                    category="readyNoHistory",
+                    recommended_retry_failed=False,
+                ),
+            ),
+        )
+
+    async def list_timeline_ready_candidates(
+        self,
+        query: OpsCandidateListQuery,
+    ) -> OpsTimelineReadyCandidateListResult:
+        self.timeline_candidate_queries.append(query)
+        now = datetime.now(UTC)
+        return OpsTimelineReadyCandidateListResult(
+            total=1,
+            items=(
+                OpsTimelineReadyCandidateRecord(
+                    video_id=3,
+                    channel_id=1,
+                    channel_name="Channel",
+                    youtube_video_id="video-timeline",
+                    title="Timeline candidate",
+                    published_at=now,
+                    source_micro_event_task_id=5,
+                    micro_event_count=9,
+                    window_count=2,
+                    latest_timeline_task=_task_summary(6, "failed", now),
+                    category="failed",
+                    recommended_retry_failed=True,
+                ),
+            ),
+        )
+
+    async def detect_stuck_tasks(
+        self,
+        query: OpsStuckTaskQuery,
+    ) -> OpsStuckTaskListResult:
+        self.stuck_queries.append(query)
+        now = datetime.now(UTC)
+        return OpsStuckTaskListResult(
+            total=1,
+            items=(
+                OpsStuckTaskRecord(
+                    video_task_id=7,
+                    video_id=3,
+                    channel_id=1,
+                    channel_name="Channel",
+                    youtube_video_id="video-stuck",
+                    title="Stuck video",
+                    task_name=query.task_name,
+                    status="running",
+                    worker_id="micro-event-worker:host:1234",
+                    worker_pid=1234,
+                    job_id=8,
+                    job_attempt_id=9,
+                    job_attempt_status="running",
+                    started_at=now,
+                    updated_at=now,
+                    stale_since=now,
+                    latest_event=OpsLatestEventRecord(
+                        operation_event_id=10,
+                        occurred_at=now,
+                        event_type="micro_event_extract.window_started",
+                        severity="info",
+                        message="Started.",
+                        error_type=None,
+                        error_message=None,
+                    ),
+                    error_type=None,
+                    error_message=None,
                 ),
             ),
         )
@@ -606,6 +712,73 @@ async def _test_ops_video_and_task_filters_are_forwarded() -> None:
     )
 
 
+def test_ops_candidate_routes_are_filterable() -> None:
+    asyncio.run(_test_ops_candidate_routes_are_filterable())
+
+
+async def _test_ops_candidate_routes_are_filterable() -> None:
+    repository = FakeOpsRepository()
+    app = create_app()
+    app.dependency_overrides[get_ops_repository] = lambda: repository
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        micro = await client.get(
+            "/ops/candidates/micro-event-ready",
+            params={
+                "channelId": 1,
+                "search": "needle",
+                "category": "readyNoHistory",
+                "limit": 25,
+                "offset": 5,
+            },
+        )
+        timeline = await client.get(
+            "/ops/candidates/timeline-ready",
+            params={
+                "channelId": 1,
+                "search": "needle",
+                "category": "failed",
+                "limit": 25,
+                "offset": 5,
+            },
+        )
+        invalid_limit = await client.get(
+            "/ops/candidates/timeline-ready",
+            params={"limit": 201},
+        )
+
+    assert micro.status_code == 200, micro.text
+    assert timeline.status_code == 200, timeline.text
+    assert invalid_limit.status_code == 422
+    micro_payload = micro.json()
+    assert micro_payload["items"][0]["category"] == "readyNoHistory"
+    assert micro_payload["items"][0]["recommendedEnqueue"] == {
+        "target": "selected_videos",
+        "videoIds": [2],
+        "retryFailed": False,
+    }
+    timeline_payload = timeline.json()
+    assert timeline_payload["items"][0]["sourceMicroEventTaskId"] == 5
+    assert timeline_payload["items"][0]["recommendedEnqueue"]["retryFailed"] is True
+    assert repository.micro_candidate_queries[0] == OpsCandidateListQuery(
+        channel_id=1,
+        search="needle",
+        category="readyNoHistory",
+        limit=25,
+        offset=5,
+    )
+    assert repository.timeline_candidate_queries[0] == OpsCandidateListQuery(
+        channel_id=1,
+        search="needle",
+        category="failed",
+        limit=25,
+        offset=5,
+    )
+
+
 def test_ops_events_are_filterable() -> None:
     asyncio.run(_test_ops_events_are_filterable())
 
@@ -676,10 +849,14 @@ def test_ops_routes_are_in_openapi() -> None:
     assert schema["paths"]["/ops/summary"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/videos/{video_id}"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/events"]["get"]["tags"] == ["ops"]
+    assert schema["paths"]["/ops/candidates/micro-event-ready"]["get"]["tags"] == ["ops"]
+    assert schema["paths"]["/ops/candidates/timeline-ready"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/codex-usage"]["get"]["tags"] == ["ops"]
     assert schema["paths"]["/ops/schema-graph"]["get"]["tags"] == ["ops"]
     assert "CodexUsageListResponse" in schema["components"]["schemas"]
     assert "OperationEventListResponse" in schema["components"]["schemas"]
+    assert "OpsMicroEventReadyCandidateListResponse" in schema["components"]["schemas"]
+    assert "OpsTimelineReadyCandidateListResponse" in schema["components"]["schemas"]
     assert "OpsSchemaGraphResponse" in schema["components"]["schemas"]
 
 
@@ -711,4 +888,21 @@ def _video_generation_record(now: datetime) -> OpsVideoGenerationRecord:
             latest_task_status="succeeded",
             latest_task_updated_at=now,
         ),
+    )
+
+
+def _task_summary(
+    task_id: int,
+    status: str,
+    now: datetime,
+) -> OpsTaskSummaryRecord:
+    return OpsTaskSummaryRecord(
+        video_task_id=task_id,
+        status=status,
+        worker_id=None,
+        job_id=task_id + 100,
+        job_attempt_id=task_id + 200,
+        error_type=None,
+        error_message=None,
+        updated_at=now,
     )

@@ -94,18 +94,41 @@ GET /ops/archive/videos?environment=prod&publishStatus=ready&limit=50
 
 Timeline artifacts include playback-ready metadata:
 
-- video metadata and timeline summary
+- video metadata, channel metadata, streamer metadata, and timeline summary
 - a three-level navigation hierarchy: `blocks[].episodes[].microEvents[]`
 - top-level `episodes[]` as a compatibility projection of the same episode data
-- episodes with `startMs`, `endMs`, `startCueId`, `endCueId`, source
-  micro-event candidate IDs, and nested micro-event summaries
+- episodes with `startMs`, `endMs`, display text, tags, and nested
+  micro-event summaries
 - micro-events with event text, program/content classification, topics,
-  cue/time anchors, and evidence cue IDs
+  and playback time anchors
 - topic clusters
-- review flags
 
 They intentionally do not include full transcript text, raw Codex output, raw
-micro-event windows, or ASR correction candidates.
+micro-event windows, ASR correction candidates, review flags, validation
+warnings, job/task IDs, source timeline IDs, micro-event candidate IDs, cue IDs,
+or repair diagnostics.
+
+The index `videos[]` row and the timeline artifact `video` object both include
+the same public ownership metadata:
+
+```json
+{
+  "streamer": {
+    "id": 1,
+    "name": "Amane Nagi"
+  },
+  "channel": {
+    "id": 7,
+    "name": "Nagi channel",
+    "handle": "@nagi",
+    "youtubeChannelId": "UC..."
+  }
+}
+```
+
+Clients should use index-level `streamer` and `channel` for listing, filtering,
+and grouping. Timeline-level copies are included so detail pages do not need a
+second lookup.
 
 ## Retry
 

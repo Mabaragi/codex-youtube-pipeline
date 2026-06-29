@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 from sqlalchemy import Column, Table, UniqueConstraint, case, distinct, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,7 +12,12 @@ from typing_extensions import override
 from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from codex_sdk_cli.domains.ops.exceptions import OpsPersistenceError
 from codex_sdk_cli.domains.ops.ports import (
+    OpsCandidateCategory,
+    OpsCandidateListQuery,
     OpsChannelRecord,
+    OpsLatestEventRecord,
+    OpsMicroEventReadyCandidateListResult,
+    OpsMicroEventReadyCandidateRecord,
     OpsRecentFailureRecord,
     OpsRepositoryPort,
     OpsSchemaColumnRecord,
@@ -23,7 +29,13 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsSchemaTableRecord,
     OpsSchemaUniqueConstraintRecord,
     OpsStatusCountRecord,
+    OpsStuckTaskListResult,
+    OpsStuckTaskQuery,
+    OpsStuckTaskRecord,
     OpsSummaryCountsRecord,
+    OpsTaskSummaryRecord,
+    OpsTimelineReadyCandidateListResult,
+    OpsTimelineReadyCandidateRecord,
     OpsVideoCueGenerationRecord,
     OpsVideoDetailRecord,
     OpsVideoGenerationRecord,
@@ -51,6 +63,7 @@ from codex_sdk_cli.infra.micro_events.repository import (
     MicroEventCandidateModel,
     MicroEventExtractionWindowModel,
 )
+from codex_sdk_cli.infra.operation_events.repository import OperationEventModel
 from codex_sdk_cli.infra.pipeline_jobs.repository import (
     PipelineJobAttemptModel,
     PipelineJobModel,
@@ -548,6 +561,289 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
         )
 
     @override
+    async def list_micro_event_ready_candidates(
+        self,
+        query: OpsCandidateListQuery,
+    ) -> OpsMicroEventReadyCandidateListResult:
+        latest_cue_task = self._latest_task_subquery(
+            task_name=TRANSCRIPT_CUE_GENERATE_TASK_NAME,
+            status="succeeded",
+        )
+        latest_micro_task = self._latest_task_subquery(
+            task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
+        )
+        micro_summary = self._micro_event_summary_subquery()
+        cue_summary = self._cue_summary_subquery()
+        cue_task_alias = aliased(VideoTaskModel)
+        micro_task_alias = aliased(VideoTaskModel)
+        category_expr = _candidate_category_expr(micro_task_alias.status)
+        conditions = [
+            cue_task_alias.id.is_not(None),
+            func.coalesce(cue_summary.c.cue_count, 0) > 0,
+            micro_summary.c.video_task_id.is_(None),
+        ]
+        conditions.extend(_candidate_filter_conditions(query))
+        if query.category is not None:
+            conditions.append(category_expr == query.category)
+
+        base = (
+            select(VideoModel.id)
+            .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+            .outerjoin(latest_cue_task, latest_cue_task.c.video_id == VideoModel.id)
+            .outerjoin(cue_task_alias, cue_task_alias.id == latest_cue_task.c.task_id)
+            .outerjoin(
+                cue_summary,
+                cue_summary.c.transcript_id == cue_task_alias.output_transcript_id,
+            )
+            .outerjoin(latest_micro_task, latest_micro_task.c.video_id == VideoModel.id)
+            .outerjoin(micro_task_alias, micro_task_alias.id == latest_micro_task.c.task_id)
+            .outerjoin(micro_summary, micro_summary.c.video_id == VideoModel.id)
+            .where(*conditions)
+        )
+        try:
+            total = await self._session.scalar(select(func.count()).select_from(base.subquery()))
+            rows = (
+                await self._session.execute(
+                    select(
+                        VideoModel,
+                        ChannelModel.name,
+                        cue_task_alias,
+                        cue_task_alias.output_transcript_id,
+                        cue_summary.c.cue_count,
+                        micro_task_alias,
+                        category_expr.label("category"),
+                    )
+                    .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+                    .outerjoin(latest_cue_task, latest_cue_task.c.video_id == VideoModel.id)
+                    .outerjoin(cue_task_alias, cue_task_alias.id == latest_cue_task.c.task_id)
+                    .outerjoin(
+                        cue_summary,
+                        cue_summary.c.transcript_id == cue_task_alias.output_transcript_id,
+                    )
+                    .outerjoin(latest_micro_task, latest_micro_task.c.video_id == VideoModel.id)
+                    .outerjoin(
+                        micro_task_alias,
+                        micro_task_alias.id == latest_micro_task.c.task_id,
+                    )
+                    .outerjoin(micro_summary, micro_summary.c.video_id == VideoModel.id)
+                    .where(*conditions)
+                    .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
+                    .limit(query.limit)
+                    .offset(query.offset)
+                )
+            ).all()
+        except SQLAlchemyError as exc:
+            raise OpsPersistenceError("Ops metadata read failed.") from exc
+
+        return OpsMicroEventReadyCandidateListResult(
+            items=tuple(
+                OpsMicroEventReadyCandidateRecord(
+                    video_id=video.id,
+                    channel_id=video.channel_id,
+                    channel_name=channel_name,
+                    youtube_video_id=video.youtube_video_id,
+                    title=video.title,
+                    published_at=video.published_at,
+                    transcript_id=transcript_id,
+                    cue_count=int(cue_count or 0),
+                    latest_cue_task=_task_summary_record(cue_task),
+                    latest_micro_task=(
+                        _task_summary_record(micro_task)
+                        if micro_task is not None
+                        else None
+                    ),
+                    category=_candidate_category(category),
+                    recommended_retry_failed=_recommended_retry_failed(category),
+                )
+                for (
+                    video,
+                    channel_name,
+                    cue_task,
+                    transcript_id,
+                    cue_count,
+                    micro_task,
+                    category,
+                ) in rows
+            ),
+            total=total or 0,
+        )
+
+    @override
+    async def list_timeline_ready_candidates(
+        self,
+        query: OpsCandidateListQuery,
+    ) -> OpsTimelineReadyCandidateListResult:
+        latest_timeline_task = self._latest_task_subquery(
+            task_name=TIMELINE_COMPOSE_TASK_NAME,
+        )
+        micro_summary = self._micro_event_summary_subquery()
+        timeline_summary = self._timeline_summary_subquery()
+        timeline_task_alias = aliased(VideoTaskModel)
+        category_expr = _candidate_category_expr(timeline_task_alias.status)
+        conditions = [
+            micro_summary.c.video_task_id.is_not(None),
+            micro_summary.c.micro_event_count > 0,
+            timeline_summary.c.video_task_id.is_(None),
+        ]
+        conditions.extend(_candidate_filter_conditions(query))
+        if query.category is not None:
+            conditions.append(category_expr == query.category)
+
+        base = (
+            select(VideoModel.id)
+            .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+            .outerjoin(micro_summary, micro_summary.c.video_id == VideoModel.id)
+            .outerjoin(latest_timeline_task, latest_timeline_task.c.video_id == VideoModel.id)
+            .outerjoin(
+                timeline_task_alias,
+                timeline_task_alias.id == latest_timeline_task.c.task_id,
+            )
+            .outerjoin(timeline_summary, timeline_summary.c.video_id == VideoModel.id)
+            .where(*conditions)
+        )
+        try:
+            total = await self._session.scalar(select(func.count()).select_from(base.subquery()))
+            rows = (
+                await self._session.execute(
+                    select(
+                        VideoModel,
+                        ChannelModel.name,
+                        micro_summary.c.video_task_id,
+                        micro_summary.c.micro_event_count,
+                        micro_summary.c.window_count,
+                        timeline_task_alias,
+                        category_expr.label("category"),
+                    )
+                    .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+                    .outerjoin(micro_summary, micro_summary.c.video_id == VideoModel.id)
+                    .outerjoin(
+                        latest_timeline_task,
+                        latest_timeline_task.c.video_id == VideoModel.id,
+                    )
+                    .outerjoin(
+                        timeline_task_alias,
+                        timeline_task_alias.id == latest_timeline_task.c.task_id,
+                    )
+                    .outerjoin(timeline_summary, timeline_summary.c.video_id == VideoModel.id)
+                    .where(*conditions)
+                    .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
+                    .limit(query.limit)
+                    .offset(query.offset)
+                )
+            ).all()
+        except SQLAlchemyError as exc:
+            raise OpsPersistenceError("Ops metadata read failed.") from exc
+
+        return OpsTimelineReadyCandidateListResult(
+            items=tuple(
+                OpsTimelineReadyCandidateRecord(
+                    video_id=video.id,
+                    channel_id=video.channel_id,
+                    channel_name=channel_name,
+                    youtube_video_id=video.youtube_video_id,
+                    title=video.title,
+                    published_at=video.published_at,
+                    source_micro_event_task_id=int(source_micro_event_task_id),
+                    micro_event_count=int(micro_event_count or 0),
+                    window_count=int(window_count or 0),
+                    latest_timeline_task=(
+                        _task_summary_record(timeline_task)
+                        if timeline_task is not None
+                        else None
+                    ),
+                    category=_candidate_category(category),
+                    recommended_retry_failed=_recommended_retry_failed(category),
+                )
+                for (
+                    video,
+                    channel_name,
+                    source_micro_event_task_id,
+                    micro_event_count,
+                    window_count,
+                    timeline_task,
+                    category,
+                ) in rows
+            ),
+            total=total or 0,
+        )
+
+    @override
+    async def detect_stuck_tasks(
+        self,
+        query: OpsStuckTaskQuery,
+    ) -> OpsStuckTaskListResult:
+        latest_event = (
+            select(
+                OperationEventModel.video_task_id.label("video_task_id"),
+                func.max(OperationEventModel.id).label("event_id"),
+            )
+            .where(OperationEventModel.video_task_id.is_not(None))
+            .group_by(OperationEventModel.video_task_id)
+            .subquery()
+        )
+        event_alias = aliased(OperationEventModel)
+        try:
+            rows = (
+                await self._session.execute(
+                    select(
+                        VideoTaskModel,
+                        VideoModel,
+                        ChannelModel.name,
+                        PipelineJobAttemptModel,
+                        event_alias,
+                    )
+                    .join(VideoModel, VideoTaskModel.video_id == VideoModel.id)
+                    .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+                    .outerjoin(
+                        PipelineJobAttemptModel,
+                        PipelineJobAttemptModel.id == VideoTaskModel.job_attempt_id,
+                    )
+                    .outerjoin(latest_event, latest_event.c.video_task_id == VideoTaskModel.id)
+                    .outerjoin(event_alias, event_alias.id == latest_event.c.event_id)
+                    .where(
+                        VideoTaskModel.task_name == query.task_name,
+                        VideoTaskModel.status == "running",
+                    )
+                    .order_by(VideoTaskModel.updated_at.asc(), VideoTaskModel.id.asc())
+                )
+            ).all()
+        except SQLAlchemyError as exc:
+            raise OpsPersistenceError("Ops metadata read failed.") from exc
+
+        older_than = _utc(query.older_than)
+        items: list[OpsStuckTaskRecord] = []
+        for task, video, channel_name, attempt, event in rows:
+            stale_since = _latest_activity_at(task, event)
+            if stale_since > older_than:
+                continue
+            items.append(
+                OpsStuckTaskRecord(
+                    video_task_id=task.id,
+                    video_id=video.id,
+                    channel_id=video.channel_id,
+                    channel_name=channel_name,
+                    youtube_video_id=video.youtube_video_id,
+                    title=video.title,
+                    task_name=task.task_name,
+                    status=task.status,
+                    worker_id=task.worker_id,
+                    worker_pid=_worker_pid(task.worker_id),
+                    job_id=task.job_id,
+                    job_attempt_id=task.job_attempt_id,
+                    job_attempt_status=attempt.status if attempt is not None else None,
+                    started_at=task.started_at,
+                    updated_at=task.updated_at,
+                    stale_since=stale_since,
+                    latest_event=(
+                        _latest_event_record(event) if event is not None else None
+                    ),
+                    error_type=task.error_type,
+                    error_message=task.error_message,
+                )
+            )
+        return OpsStuckTaskListResult(items=tuple(items), total=len(items))
+
+    @override
     async def get_schema_graph(self) -> OpsSchemaGraphRecord:
         _ = database_models
         tables = list(Base.metadata.sorted_tables)
@@ -878,6 +1174,93 @@ def _ops_video_task_record(
         created_at=task.created_at,
         updated_at=task.updated_at,
     )
+
+
+def _task_summary_record(task: VideoTaskModel) -> OpsTaskSummaryRecord:
+    return OpsTaskSummaryRecord(
+        video_task_id=task.id,
+        status=task.status,
+        worker_id=task.worker_id,
+        job_id=task.job_id,
+        job_attempt_id=task.job_attempt_id,
+        error_type=task.error_type,
+        error_message=task.error_message,
+        updated_at=task.updated_at,
+    )
+
+
+def _latest_event_record(event: OperationEventModel) -> OpsLatestEventRecord:
+    return OpsLatestEventRecord(
+        operation_event_id=event.id,
+        occurred_at=event.occurred_at,
+        event_type=event.event_type,
+        severity=event.severity,
+        message=event.message,
+        error_type=event.error_type,
+        error_message=event.error_message,
+    )
+
+
+def _candidate_filter_conditions(query: OpsCandidateListQuery) -> list[Any]:
+    conditions: list[Any] = []
+    if query.channel_id is not None:
+        conditions.append(VideoModel.channel_id == query.channel_id)
+    if query.search is not None:
+        like = f"%{query.search}%"
+        conditions.append(
+            or_(
+                VideoModel.title.ilike(like),
+                VideoModel.youtube_video_id.ilike(like),
+            )
+        )
+    return conditions
+
+
+def _candidate_category_expr(status_column: Any) -> Any:
+    return case(
+        (status_column.is_(None), "readyNoHistory"),
+        (status_column.in_(("pending", "running")), "active"),
+        (status_column == "canceled", "retryableCanceled"),
+        (status_column.in_(("failed", "timed_out")), "failed"),
+        else_="blocked",
+    )
+
+
+def _candidate_category(value: object) -> OpsCandidateCategory:
+    if value in {"readyNoHistory", "retryableCanceled", "failed", "active", "blocked"}:
+        return cast(OpsCandidateCategory, value)
+    return "blocked"
+
+
+def _recommended_retry_failed(value: object) -> bool:
+    return value in {"retryableCanceled", "failed"}
+
+
+def _latest_activity_at(
+    task: VideoTaskModel,
+    event: OperationEventModel | None,
+) -> datetime:
+    latest = _utc(task.updated_at)
+    if event is not None:
+        event_time = _utc(event.occurred_at)
+        if event_time > latest:
+            latest = event_time
+    return latest
+
+
+def _worker_pid(worker_id: str | None) -> int | None:
+    if not worker_id:
+        return None
+    for part in reversed(worker_id.split(":")):
+        if part.isdigit():
+            return int(part)
+    return None
+
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _ops_video_generation_record(

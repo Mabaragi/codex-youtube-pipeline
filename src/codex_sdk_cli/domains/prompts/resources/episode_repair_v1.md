@@ -12,7 +12,13 @@
 - 입력에 없는 micro_event_id를 만들지 않는다.
 - cue_id와 micro_event_id는 입력 값을 그대로 사용한다.
 - topics는 replacement episode마다 2~6개, highlight_micro_event_ids는 0~3개만 넣는다.
-- title, summary, display_title, display_summary는 공손체 `~습니다`가 아니라 해라체/평서형 `~다` 문장으로 작성한다.
+- title, summary는 공손체 `~습니다`를 쓰지 말고, 담백한 분석 문구로 작성한다.
+- display_title은 분석 문장을 그대로 옮기지 말고, 목록에서 눌러보고 싶은 짧은 팬 피드 헤드라인으로 작성한다.
+- display_summary도 내부 summary를 줄인 보고문이 아니라, 실제로 볼 장면 2~3개를 짧게 압축한 팬 피드 캡션으로 작성한다.
+- display_summary는 `처음부터 끝까지`, `X에서 Y까지`, `X하다가 Y까지`, `X 뒤에 Y`처럼 흐름이 보이면 좋다.
+- display_summary는 `A가 B한다`, `A가 B를 진행한다`, `A로 이어진다`, `구간이다`, `확인한다`, `방송이다` 같은 보고서형 종결을 피한다.
+- display_summary는 `~한다.`, `~했다.`, `~된다.`, `~이다.`로 끝나는 설명문보다, `~까지`, `~타임`, `~모음`, `~대잔치`, `~의 순간`, `~?`, `~!`처럼 피드에서 읽히는 캡션을 우선한다.
+- display_title/display_summary는 건조한 보고문보다 가볍고 귀여운 팬 커뮤니티 톤으로 쓰되, 입력에 없는 감정이나 사건은 만들지 않는다.
 
 viewer_tags는 다음 중 필요한 것만 사용한다.
 

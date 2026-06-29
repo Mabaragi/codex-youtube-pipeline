@@ -1,8 +1,14 @@
 ﻿from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 from codex_sdk_cli.domains.ops.ports import (
+    OpsCandidateCategory,
+    OpsCandidateListQuery,
+    OpsLatestEventRecord,
+    OpsMicroEventReadyCandidateListResult,
+    OpsMicroEventReadyCandidateRecord,
     OpsRepositoryPort,
     OpsSchemaColumnRecord,
     OpsSchemaForeignKeyConstraintRecord,
@@ -11,14 +17,24 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsSchemaRelationRecord,
     OpsSchemaTableRecord,
     OpsSchemaUniqueConstraintRecord,
+    OpsStuckTaskListResult,
+    OpsStuckTaskQuery,
+    OpsStuckTaskRecord,
+    OpsTaskSummaryRecord,
+    OpsTimelineReadyCandidateListResult,
+    OpsTimelineReadyCandidateRecord,
     OpsVideoGenerationRecord,
     OpsVideoListQuery,
     OpsVideoTaskListQuery,
     OpsVideoTaskRecord,
 )
 from codex_sdk_cli.domains.ops.schemas import (
+    OpsCandidateRecommendedEnqueueResponse,
     OpsChannelListResponse,
     OpsChannelResponse,
+    OpsLatestEventResponse,
+    OpsMicroEventReadyCandidateListResponse,
+    OpsMicroEventReadyCandidateResponse,
     OpsRecentFailureResponse,
     OpsSchemaColumnResponse,
     OpsSchemaForeignKeyConstraintResponse,
@@ -28,8 +44,13 @@ from codex_sdk_cli.domains.ops.schemas import (
     OpsSchemaTableResponse,
     OpsSchemaUniqueConstraintResponse,
     OpsStatusCountResponse,
+    OpsStuckTaskListResponse,
+    OpsStuckTaskResponse,
     OpsSummaryCountsResponse,
     OpsSummaryResponse,
+    OpsTaskSummaryResponse,
+    OpsTimelineReadyCandidateListResponse,
+    OpsTimelineReadyCandidateResponse,
     OpsVideoCueGenerationResponse,
     OpsVideoDetailResponse,
     OpsVideoGenerationResponse,
@@ -239,6 +260,82 @@ class ListOpsVideoTasksUseCase:
         )
 
 
+class ListOpsMicroEventReadyCandidatesUseCase:
+    def __init__(self, repository: OpsRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        *,
+        channel_id: int | None,
+        search: str | None,
+        category: OpsCandidateCategory | None,
+        limit: int,
+        offset: int,
+    ) -> OpsMicroEventReadyCandidateListResponse:
+        result = await self._repository.list_micro_event_ready_candidates(
+            OpsCandidateListQuery(
+                channel_id=channel_id,
+                search=search,
+                category=category,
+                limit=limit,
+                offset=offset,
+            )
+        )
+        return _micro_event_candidates_response(result, limit=limit, offset=offset)
+
+
+class ListOpsTimelineReadyCandidatesUseCase:
+    def __init__(self, repository: OpsRepositoryPort) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        *,
+        channel_id: int | None,
+        search: str | None,
+        category: OpsCandidateCategory | None,
+        limit: int,
+        offset: int,
+    ) -> OpsTimelineReadyCandidateListResponse:
+        result = await self._repository.list_timeline_ready_candidates(
+            OpsCandidateListQuery(
+                channel_id=channel_id,
+                search=search,
+                category=category,
+                limit=limit,
+                offset=offset,
+            )
+        )
+        return _timeline_candidates_response(result, limit=limit, offset=offset)
+
+
+class DetectOpsStuckTasksUseCase:
+    def __init__(
+        self,
+        repository: OpsRepositoryPort,
+        *,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
+        self._repository = repository
+        self._clock = clock or (lambda: datetime.now(UTC))
+
+    async def execute(self, *, task_name: str, minutes: int) -> OpsStuckTaskListResponse:
+        now = _utc(self._clock())
+        result = await self._repository.detect_stuck_tasks(
+            OpsStuckTaskQuery(
+                task_name=task_name,
+                older_than=now - timedelta(minutes=minutes),
+            )
+        )
+        return _stuck_tasks_response(
+            result,
+            task_name=task_name,
+            minutes=minutes,
+            now=now,
+        )
+
+
 class GetOpsSchemaGraphUseCase:
     def __init__(self, repository: OpsRepositoryPort) -> None:
         self._repository = repository
@@ -351,6 +448,166 @@ def _video_task_response(record: OpsVideoTaskRecord) -> OpsVideoTaskResponse:
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
+
+
+def _micro_event_candidates_response(
+    result: OpsMicroEventReadyCandidateListResult,
+    *,
+    limit: int,
+    offset: int,
+) -> OpsMicroEventReadyCandidateListResponse:
+    return OpsMicroEventReadyCandidateListResponse(
+        items=[_micro_event_candidate_response(item) for item in result.items],
+        total=result.total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _micro_event_candidate_response(
+    record: OpsMicroEventReadyCandidateRecord,
+) -> OpsMicroEventReadyCandidateResponse:
+    return OpsMicroEventReadyCandidateResponse(
+        videoId=record.video_id,
+        channelId=record.channel_id,
+        channelName=record.channel_name,
+        youtubeVideoId=record.youtube_video_id,
+        title=record.title,
+        publishedAt=record.published_at,
+        transcriptId=record.transcript_id,
+        cueCount=record.cue_count,
+        latestCueTask=_task_summary_response(record.latest_cue_task),
+        latestMicroTask=(
+            _task_summary_response(record.latest_micro_task)
+            if record.latest_micro_task is not None
+            else None
+        ),
+        category=record.category,
+        recommendedEnqueue=OpsCandidateRecommendedEnqueueResponse(
+            videoIds=[record.video_id],
+            retryFailed=record.recommended_retry_failed,
+        ),
+    )
+
+
+def _timeline_candidates_response(
+    result: OpsTimelineReadyCandidateListResult,
+    *,
+    limit: int,
+    offset: int,
+) -> OpsTimelineReadyCandidateListResponse:
+    return OpsTimelineReadyCandidateListResponse(
+        items=[_timeline_candidate_response(item) for item in result.items],
+        total=result.total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _timeline_candidate_response(
+    record: OpsTimelineReadyCandidateRecord,
+) -> OpsTimelineReadyCandidateResponse:
+    return OpsTimelineReadyCandidateResponse(
+        videoId=record.video_id,
+        channelId=record.channel_id,
+        channelName=record.channel_name,
+        youtubeVideoId=record.youtube_video_id,
+        title=record.title,
+        publishedAt=record.published_at,
+        sourceMicroEventTaskId=record.source_micro_event_task_id,
+        microEventCount=record.micro_event_count,
+        windowCount=record.window_count,
+        latestTimelineTask=(
+            _task_summary_response(record.latest_timeline_task)
+            if record.latest_timeline_task is not None
+            else None
+        ),
+        category=record.category,
+        recommendedEnqueue=OpsCandidateRecommendedEnqueueResponse(
+            videoIds=[record.video_id],
+            retryFailed=record.recommended_retry_failed,
+        ),
+    )
+
+
+def _task_summary_response(record: OpsTaskSummaryRecord) -> OpsTaskSummaryResponse:
+    return OpsTaskSummaryResponse(
+        videoTaskId=record.video_task_id,
+        status=record.status,
+        workerId=record.worker_id,
+        jobId=record.job_id,
+        jobAttemptId=record.job_attempt_id,
+        errorType=record.error_type,
+        errorMessage=record.error_message,
+        updatedAt=record.updated_at,
+    )
+
+
+def _stuck_tasks_response(
+    result: OpsStuckTaskListResult,
+    *,
+    task_name: str,
+    minutes: int,
+    now: datetime,
+) -> OpsStuckTaskListResponse:
+    return OpsStuckTaskListResponse(
+        items=[_stuck_task_response(item, now=now) for item in result.items],
+        total=result.total,
+        taskName=task_name,
+        minutes=minutes,
+    )
+
+
+def _stuck_task_response(
+    record: OpsStuckTaskRecord,
+    *,
+    now: datetime,
+) -> OpsStuckTaskResponse:
+    stale_age = max(0, int((now - _utc(record.stale_since)).total_seconds()))
+    return OpsStuckTaskResponse(
+        videoTaskId=record.video_task_id,
+        videoId=record.video_id,
+        channelId=record.channel_id,
+        channelName=record.channel_name,
+        youtubeVideoId=record.youtube_video_id,
+        title=record.title,
+        taskName=record.task_name,
+        status=record.status,
+        workerId=record.worker_id,
+        workerPid=record.worker_pid,
+        jobId=record.job_id,
+        jobAttemptId=record.job_attempt_id,
+        jobAttemptStatus=record.job_attempt_status,
+        startedAt=record.started_at,
+        updatedAt=record.updated_at,
+        staleSince=record.stale_since,
+        staleAgeSeconds=stale_age,
+        latestEvent=(
+            _latest_event_response(record.latest_event)
+            if record.latest_event is not None
+            else None
+        ),
+        errorType=record.error_type,
+        errorMessage=record.error_message,
+    )
+
+
+def _latest_event_response(record: OpsLatestEventRecord) -> OpsLatestEventResponse:
+    return OpsLatestEventResponse(
+        operationEventId=record.operation_event_id,
+        occurredAt=record.occurred_at,
+        eventType=record.event_type,
+        severity=record.severity,
+        message=record.message,
+        errorType=record.error_type,
+        errorMessage=record.error_message,
+    )
+
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _video_generation_response(

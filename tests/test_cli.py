@@ -316,6 +316,32 @@ def test_timeline_normalize_style_cli_dry_run_and_apply(
     assert values["raw_response_text"] == "\uc6d0\ubb38\uc740 \uc2dc\uc791\ud569\ub2c8\ub2e4."
 
 
+def test_ops_detect_stuck_cli_reports_stale_running_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_file = tmp_path / "ops-cli.db"
+    database_url = f"sqlite+aiosqlite:///{database_file.as_posix()}"
+    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
+    command.upgrade(_alembic_config(), "head")
+    _insert_stuck_task_fixture(database_file)
+
+    result = CliRunner().invoke(
+        main,
+        ["ops", "detect-stuck", "--task", "micro_event_extract", "--minutes", "15"],
+        env={"CODEX_CLI_DATABASE_URL": database_url},
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["total"] == 1
+    assert payload["items"][0]["videoTaskId"] == 1
+    assert payload["items"][0]["workerPid"] == 9876
+    assert payload["items"][0]["latestEvent"]["eventType"] == (
+        "micro_event_extract.window_started"
+    )
+
+
 def test_run_command_resumes_thread() -> None:
     codex = FakeCodexForCli()
 
@@ -590,6 +616,66 @@ def _insert_timeline_style_fixture(database_file: Path) -> None:
                     "VALUES (1, 1, 'BOUNDARY_AMBIGUOUS', :reason)"
                 ),
                 {"reason": polite_flag},
+            )
+    finally:
+        engine.dispose()
+
+
+def _insert_stuck_task_fixture(database_file: Path) -> None:
+    engine = create_engine(f"sqlite:///{database_file.as_posix()}")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("INSERT INTO streamers (id, name) VALUES (1, 'Streamer')"))
+            connection.execute(
+                text(
+                    "INSERT INTO channels "
+                    "(id, streamer_id, handle, name, youtube_channel_id) "
+                    "VALUES (1, 1, 'handle', 'Channel', 'channel-1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO videos "
+                    "(id, channel_id, youtube_video_id, title, description, published_at) "
+                    "VALUES (1, 1, 'youtube-1', 'Video', '', '2026-01-01 00:00:00')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO pipeline_jobs "
+                    "(id, step, status, subject_type, subject_id, external_key, "
+                    "input_json, input_hash) "
+                    "VALUES (1, 'micro_event_extract', 'running', 'video', 1, "
+                    "'youtube-1', '{}', 'job-hash')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO pipeline_job_attempts "
+                    "(id, job_id, attempt_no, status, worker_id) "
+                    "VALUES (1, 1, 1, 'running', 'micro-event-worker:host:9876')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO video_tasks "
+                    "(id, video_id, task_name, task_version, input_hash, status, "
+                    "worker_id, timeout_seconds, job_id, job_attempt_id, started_at, "
+                    "updated_at) "
+                    "VALUES (1, 1, 'micro_event_extract', 'v2', 'hash', 'running', "
+                    "'micro-event-worker:host:9876', 600, 1, 1, "
+                    "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO operation_events "
+                    "(id, occurred_at, event_type, severity, message, actor_type, "
+                    "source, metadata_json, video_task_id, video_id) "
+                    "VALUES (1, '2026-01-01 00:00:00', "
+                    "'micro_event_extract.window_started', 'info', 'Started.', "
+                    "'system', 'test', '{}', 1, 1)"
+                )
             )
     finally:
         engine.dispose()

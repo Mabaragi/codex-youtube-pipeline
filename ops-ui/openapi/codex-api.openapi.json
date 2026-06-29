@@ -4889,6 +4889,33 @@
         "title": "OperationEventResponse",
         "type": "object"
       },
+      "OpsCandidateRecommendedEnqueueResponse": {
+        "properties": {
+          "retryFailed": {
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "target": {
+            "const": "selected_videos",
+            "default": "selected_videos",
+            "title": "Target",
+            "type": "string"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Videoids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "videoIds",
+          "retryFailed"
+        ],
+        "title": "OpsCandidateRecommendedEnqueueResponse",
+        "type": "object"
+      },
       "OpsChannelListResponse": {
         "properties": {
           "items": {
@@ -5011,6 +5038,124 @@
           "latestTaskUpdatedAt"
         ],
         "title": "OpsChannelResponse",
+        "type": "object"
+      },
+      "OpsMicroEventReadyCandidateListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpsMicroEventReadyCandidateResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "OpsMicroEventReadyCandidateListResponse",
+        "type": "object"
+      },
+      "OpsMicroEventReadyCandidateResponse": {
+        "properties": {
+          "category": {
+            "enum": [
+              "readyNoHistory",
+              "retryableCanceled",
+              "failed",
+              "active",
+              "blocked"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "channelName": {
+            "title": "Channelname",
+            "type": "string"
+          },
+          "cueCount": {
+            "title": "Cuecount",
+            "type": "integer"
+          },
+          "latestCueTask": {
+            "$ref": "#/components/schemas/OpsTaskSummaryResponse"
+          },
+          "latestMicroTask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsTaskSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Publishedat",
+            "type": "string"
+          },
+          "recommendedEnqueue": {
+            "$ref": "#/components/schemas/OpsCandidateRecommendedEnqueueResponse"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transcriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcriptid"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "channelId",
+          "channelName",
+          "youtubeVideoId",
+          "title",
+          "publishedAt",
+          "transcriptId",
+          "cueCount",
+          "latestCueTask",
+          "latestMicroTask",
+          "category",
+          "recommendedEnqueue"
+        ],
+        "title": "OpsMicroEventReadyCandidateResponse",
         "type": "object"
       },
       "OpsRecentFailureResponse": {
@@ -5458,6 +5603,202 @@
           "recentFailures"
         ],
         "title": "OpsSummaryResponse",
+        "type": "object"
+      },
+      "OpsTaskSummaryResponse": {
+        "properties": {
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "workerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workerid"
+          }
+        },
+        "required": [
+          "videoTaskId",
+          "status",
+          "workerId",
+          "jobId",
+          "jobAttemptId",
+          "errorType",
+          "errorMessage",
+          "updatedAt"
+        ],
+        "title": "OpsTaskSummaryResponse",
+        "type": "object"
+      },
+      "OpsTimelineReadyCandidateListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpsTimelineReadyCandidateResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "OpsTimelineReadyCandidateListResponse",
+        "type": "object"
+      },
+      "OpsTimelineReadyCandidateResponse": {
+        "properties": {
+          "category": {
+            "enum": [
+              "readyNoHistory",
+              "retryableCanceled",
+              "failed",
+              "active",
+              "blocked"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "channelName": {
+            "title": "Channelname",
+            "type": "string"
+          },
+          "latestTimelineTask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsTaskSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "microEventCount": {
+            "title": "Microeventcount",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "title": "Publishedat",
+            "type": "string"
+          },
+          "recommendedEnqueue": {
+            "$ref": "#/components/schemas/OpsCandidateRecommendedEnqueueResponse"
+          },
+          "sourceMicroEventTaskId": {
+            "title": "Sourcemicroeventtaskid",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "windowCount": {
+            "title": "Windowcount",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "channelId",
+          "channelName",
+          "youtubeVideoId",
+          "title",
+          "publishedAt",
+          "sourceMicroEventTaskId",
+          "microEventCount",
+          "windowCount",
+          "latestTimelineTask",
+          "category",
+          "recommendedEnqueue"
+        ],
+        "title": "OpsTimelineReadyCandidateResponse",
         "type": "object"
       },
       "OpsVideoCueGenerationResponse": {
@@ -6962,6 +7303,383 @@
           "sourceJobId"
         ],
         "title": "PipelineVideoOutputResponse",
+        "type": "object"
+      },
+      "ProcessToPublishItemResponse": {
+        "properties": {
+          "micro": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProcessToPublishStageResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProcessToPublishStageResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timeline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProcessToPublishStageResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubevideoid"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "status",
+          "reason"
+        ],
+        "title": "ProcessToPublishItemResponse",
+        "type": "object"
+      },
+      "ProcessToPublishRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "environment": "prod",
+            "microReasoning": "medium",
+            "pollIntervalSeconds": 10,
+            "retryFailed": true,
+            "schemaVersion": 1,
+            "timelineReasoning": "high",
+            "variant": "control",
+            "videoIds": [
+              1,
+              2,
+              3
+            ],
+            "waitTimeoutMinutes": 30
+          }
+        ],
+        "properties": {
+          "environment": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "microReasoning": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Microreasoning"
+          },
+          "pollIntervalSeconds": {
+            "default": 10,
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Pollintervalseconds",
+            "type": "integer"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schemaversion"
+          },
+          "timelineReasoning": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelinereasoning"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Videoids",
+            "type": "array"
+          },
+          "waitTimeoutMinutes": {
+            "default": 30,
+            "maximum": 240.0,
+            "minimum": 1.0,
+            "title": "Waittimeoutminutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "videoIds"
+        ],
+        "title": "ProcessToPublishRequest",
+        "type": "object"
+      },
+      "ProcessToPublishResponse": {
+        "properties": {
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessToPublishItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "microSucceededCount": {
+            "title": "Microsucceededcount",
+            "type": "integer"
+          },
+          "publishedCount": {
+            "title": "Publishedcount",
+            "type": "integer"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          },
+          "timelineSucceededCount": {
+            "title": "Timelinesucceededcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requestedCount",
+          "microSucceededCount",
+          "timelineSucceededCount",
+          "publishedCount",
+          "failedCount",
+          "skippedCount",
+          "items"
+        ],
+        "title": "ProcessToPublishResponse",
+        "type": "object"
+      },
+      "ProcessToPublishStageResponse": {
+        "properties": {
+          "artifactId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifactid"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "publicUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicurl"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "sourceMicroEventTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcemicroeventtaskid"
+          },
+          "sourceTimelineCompositionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcetimelinecompositionid"
+          },
+          "sourceTimelineTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcetimelinetaskid"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          }
+        },
+        "title": "ProcessToPublishStageResponse",
         "type": "object"
       },
       "PromptBodyResponse": {
@@ -11046,6 +11764,234 @@
         ]
       }
     },
+    "/ops/candidates/micro-event-ready": {
+      "get": {
+        "operationId": "list_ops_micro_event_ready_candidates_ops_candidates_micro_event_ready_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "readyNoHistory",
+                    "retryableCanceled",
+                    "failed",
+                    "active",
+                    "blocked"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsMicroEventReadyCandidateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ops Micro Event Ready Candidates",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/candidates/timeline-ready": {
+      "get": {
+        "operationId": "list_ops_timeline_ready_candidates_ops_candidates_timeline_ready_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "readyNoHistory",
+                    "retryableCanceled",
+                    "failed",
+                    "active",
+                    "blocked"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsTimelineReadyCandidateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ops Timeline Ready Candidates",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
     "/ops/channels": {
       "get": {
         "operationId": "list_ops_channels_ops_channels_get",
@@ -13232,6 +14178,47 @@
         "summary": "Enqueue Video Micro Events",
         "tags": [
           "micro-events"
+        ]
+      }
+    },
+    "/video-tasks/process-to-publish": {
+      "post": {
+        "operationId": "process_video_tasks_to_publish_video_tasks_process_to_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessToPublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessToPublishResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Process Video Tasks To Publish",
+        "tags": [
+          "video-tasks"
         ]
       }
     },

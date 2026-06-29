@@ -70,9 +70,25 @@ class ArchiveVideoArtifactRecord(ArchiveVideoArtifactCreate):
 
 
 @dataclass(frozen=True, slots=True)
+class ArchiveStreamerRecord:
+    id: int
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ArchiveChannelRecord:
+    id: int
+    name: str
+    handle: str
+    youtube_channel_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class ArchiveVideoArtifactWithVideoRecord:
     artifact: ArchiveVideoArtifactRecord
     video: VideoRecord
+    channel: ArchiveChannelRecord
+    streamer: ArchiveStreamerRecord
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +114,8 @@ class ArchiveIndexPublicationRecord(ArchiveIndexPublicationCreate):
 @dataclass(frozen=True, slots=True)
 class ArchivePublishCandidateRecord:
     video: VideoRecord
+    channel: ArchiveChannelRecord
+    streamer: ArchiveStreamerRecord
     composition: TimelineCompositionRecord | None
     latest_archive_task: VideoTaskRecord | None = None
     latest_artifact: ArchiveVideoArtifactRecord | None = None

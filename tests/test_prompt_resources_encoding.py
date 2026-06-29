@@ -29,3 +29,23 @@ def test_prompt_resources_are_clean_utf8_text() -> None:
         assert any(marker in text for marker in EXPECTED_KOREAN_MARKERS), path
         for marker in MOJIBAKE_MARKERS:
             assert marker not in text, f"{path} contains mojibake marker {marker!r}"
+
+
+def test_micro_event_prompt_requires_plain_declarative_event_style() -> None:
+    text = (PROMPT_RESOURCE_DIR / "micro_event_extract_v3.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "공손체 `~습니다`나 해요체 `~해요`가 아니라 해라체/평서형 `~다`" in text
+
+
+def test_timeline_prompt_guides_display_summary_feed_caption_tone() -> None:
+    text = (PROMPT_RESOURCE_DIR / "timeline_compose_v3.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "좋은 클립 목록 캡션처럼" in text
+    assert "실제로 볼 장면 2~3개를 짧게 압축" in text
+    assert "`처음부터 끝까지`, `X에서 Y까지`, `X하다가 Y까지`, `X 뒤에 Y`" in text
+    assert "`~한다.`, `~했다.`, `~된다.`, `~이다.`로 끝나는 설명문보다" in text
+    assert "해라체/평서형 `~다` 문장" not in text

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -12,6 +13,7 @@ from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainKnowledgePromptEntryRecord,
     PromptPolicy,
 )
+from codex_sdk_cli.domains.llm_traces.ports import NoopLlmTraceRecorder
 from codex_sdk_cli.domains.micro_events.ports import (
     ContentKind,
     MicroEventCandidateRecord,
@@ -54,6 +56,7 @@ from codex_sdk_cli.domains.timelines.use_cases import (
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRecord
 from codex_sdk_cli.domains.videos.ports import VideoRecord
+from codex_sdk_cli.infra.llm_traces.writer import FileLlmTraceRecorder
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -497,18 +500,21 @@ def test_timeline_legacy_overbroad_flag_is_normalized() -> None:
     assert create.review_flags[0].type == "OVERBROAD_EPISODE"
 
 
-def test_timeline_composition_normalizes_polite_style_but_keeps_raw_response() -> None:
+def test_timeline_composition_normalizes_internal_style_but_keeps_display_copy() -> None:
     polite_summary = "\uac8c\uc784\uc774 \uc774\uc5b4\uc9d1\ub2c8\ub2e4."
     polite_block = "\ub300\ud654\ub97c \ub098\ub215\ub2c8\ub2e4."
     polite_episode = "\uc2dc\uc791\ud569\ub2c8\ub2e4."
     polite_topic = "\uad6c\uac04\uc785\ub2c8\ub2e4."
     polite_flag = "\uc790\ub8cc\uac00 \uc788\uc2b5\ub2c8\ub2e4."
+    display_video = "\uc774 \uac8c\uc784, \uc774\uc81c\ubd80\ud130 \uc2dc\uc791?"
+    display_block = "\ub300\ud654\uac00 \uc774\ub807\uac8c \ud280\uc5b4\ub098\uc640?"
+    display_episode = "\uc2dc\uc791\ubd80\ud130 \ubc14\ub85c \uc218\uc0c1\ud55c\ub370!"
     output_json = {
         "video_summary": {
             "title": "\ud14c\uc2a4\ud2b8",
             "summary": polite_summary,
             "display_title": "\ud14c\uc2a4\ud2b8",
-            "display_summary": polite_summary,
+            "display_summary": display_video,
             "main_topics": ["topic"],
         },
         "blocks": [
@@ -519,7 +525,7 @@ def test_timeline_composition_normalizes_polite_style_but_keeps_raw_response() -
                     ["episode_001", "episode_002"],
                 ),
                 "summary": polite_block,
-                "display_summary": polite_block,
+                "display_summary": display_block,
             }
         ],
         "episodes": [
@@ -528,6 +534,7 @@ def test_timeline_composition_normalizes_polite_style_but_keeps_raw_response() -
                 "me_0001",
                 "me_0002",
                 summary=polite_episode,
+                display_summary=display_episode,
             ),
             _episode_output("episode_002", "me_0003", "me_0004"),
         ],
@@ -559,12 +566,16 @@ def test_timeline_composition_normalizes_polite_style_but_keeps_raw_response() -
         attempt=_attempt(),
     )
 
-    assert create.display_summary == "\uac8c\uc784\uc774 \uc774\uc5b4\uc9c4\ub2e4."
-    assert create.blocks[0].display_summary == "\ub300\ud654\ub97c \ub098\ub208\ub2e4."
-    assert create.episodes[0].display_summary == "\uc2dc\uc791\ud55c\ub2e4."
+    assert create.summary == "\uac8c\uc784\uc774 \uc774\uc5b4\uc9c4\ub2e4."
+    assert create.blocks[0].summary == "\ub300\ud654\ub97c \ub098\ub208\ub2e4."
+    assert create.episodes[0].summary == "\uc2dc\uc791\ud55c\ub2e4."
+    assert create.display_summary == display_video
+    assert create.blocks[0].display_summary == display_block
+    assert create.episodes[0].display_summary == display_episode
     assert create.topic_clusters[0].summary == "\uad6c\uac04\uc774\ub2e4."
     assert create.review_flags[0].reason == "\uc790\ub8cc\uac00 \uc788\ub2e4."
-    assert create.output_json["episodes"][0]["display_summary"] == "\uc2dc\uc791\ud55c\ub2e4."
+    assert create.output_json["episodes"][0]["summary"] == "\uc2dc\uc791\ud55c\ub2e4."
+    assert create.output_json["episodes"][0]["display_summary"] == display_episode
     assert create.output_json["review_flags"][0]["reason"] == "\uc790\ub8cc\uac00 \uc788\ub2e4."
     assert create.raw_response_text == result.final_response
     assert create.raw_response_text is not None
@@ -983,7 +994,9 @@ async def test_timeline_coverage_repair_handles_more_than_three_gaps() -> None:
 
 
 @pytest.mark.anyio
-async def test_timeline_failure_stores_raw_response_only_on_failed_attempt() -> None:
+async def test_timeline_failure_stores_raw_response_only_on_failed_attempt(
+    tmp_path: Path,
+) -> None:
     composer_input = _composer_input(_candidates(3))
     output_json = _timeline_output(
         blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001"])],
@@ -993,11 +1006,16 @@ async def test_timeline_failure_stores_raw_response_only_on_failed_attempt() -> 
     pipeline_jobs = _TimelinePipelineJobsForFailure()
     video_tasks = _TimelineVideoTasksForFailure()
     events = _TimelineEvents()
+    trace_recorder = FileLlmTraceRecorder(
+        base_dir=tmp_path,
+        clock=lambda: datetime(2026, 6, 29, 12, tzinfo=UTC),
+    )
     use_case = _timeline_failure_use_case(
         composer=composer,
         pipeline_jobs=pipeline_jobs,
         video_tasks=video_tasks,
         events=events,
+        llm_traces=trace_recorder,
     )
 
     with pytest.raises(TimelineCompositionOutputInvalid):
@@ -1033,10 +1051,25 @@ async def test_timeline_failure_stores_raw_response_only_on_failed_attempt() -> 
     assert events.items[0].metadata_json["rawResponseCount"] == 1
     assert "rawResponses" not in events.items[0].metadata_json
     assert composer.compose_response_text not in json.dumps(events.items[0].metadata_json)
+    trace_events = _llm_trace_events(tmp_path, "timeline_compose")
+    phases = [event["phase"] for event in trace_events]
+    assert "compose_started" in phases
+    assert "compose_response_received" in phases
+    assert "compose_validation_failed" in phases
+    assert "compose_failed" in phases
+    response_event = next(
+        event for event in trace_events if event["phase"] == "compose_response_received"
+    )
+    assert Path(str(response_event["rawResponsePath"])).read_text(
+        encoding="utf-8"
+    ) == composer.compose_response_text
+    assert "rawResponseText" not in response_event
 
 
 @pytest.mark.anyio
-async def test_timeline_failure_stores_compose_and_repair_raw_responses() -> None:
+async def test_timeline_failure_stores_compose_and_repair_raw_responses(
+    tmp_path: Path,
+) -> None:
     composer_input = _composer_input(_candidates(14))
     output_json = _timeline_output(
         blocks=[_block_output("block_001", "JUST_CHATTING", ["episode_001", "episode_002"])],
@@ -1065,11 +1098,16 @@ async def test_timeline_failure_stores_compose_and_repair_raw_responses() -> Non
         repair_outputs=[repair_output],
     )
     pipeline_jobs = _TimelinePipelineJobsForFailure()
+    trace_recorder = FileLlmTraceRecorder(
+        base_dir=tmp_path,
+        clock=lambda: datetime(2026, 6, 29, 12, tzinfo=UTC),
+    )
     use_case = _timeline_failure_use_case(
         composer=composer,
         pipeline_jobs=pipeline_jobs,
         video_tasks=_TimelineVideoTasksForFailure(),
         events=_TimelineEvents(),
+        llm_traces=trace_recorder,
     )
 
     with pytest.raises(TimelineCompositionOutputInvalid):
@@ -1092,6 +1130,29 @@ async def test_timeline_failure_stores_compose_and_repair_raw_responses() -> Non
     assert isinstance(repair_response, dict)
     assert repair_response["targetEpisodeId"] == "episode_001"
     assert repair_response["rawResponseText"] == composer.repair_response_texts[0]
+    trace_events = _llm_trace_events(tmp_path, "timeline_compose")
+    phases = [event["phase"] for event in trace_events]
+    assert "repair_requested" in phases
+    assert "repair_response_received" in phases
+    assert "repair_succeeded" in phases
+    repair_trace = next(
+        event for event in trace_events if event["phase"] == "repair_response_received"
+    )
+    assert repair_trace["targetEpisodeId"] == "episode_001"
+    assert repair_trace["repairReason"] == "overbroad_episode"
+    assert Path(str(repair_trace["rawResponsePath"])).read_text(
+        encoding="utf-8"
+    ) == composer.repair_response_texts[0]
+
+
+def _llm_trace_events(base_dir: Path, source: str) -> list[dict[str, object]]:
+    paths = list(base_dir.glob(f"*/{source}.jsonl"))
+    assert len(paths) == 1
+    return [
+        json.loads(line)
+        for line in paths[0].read_text(encoding="utf-8").splitlines()
+        if line
+    ]
 
 
 def _composer_input(
@@ -1210,6 +1271,7 @@ def _episode_output(
     *,
     title: str = "대표 제목",
     summary: str = "대표 요약",
+    display_summary: str | None = None,
     topics: list[str] | None = None,
     highlights: list[str] | None = None,
     viewer_tags: list[str] | None = None,
@@ -1226,7 +1288,7 @@ def _episode_output(
         "title": title,
         "summary": summary,
         "display_title": title,
-        "display_summary": summary,
+        "display_summary": display_summary or summary,
         "topics": topics or ["대표 주제", "보조 주제"],
         "viewer_tags": viewer_tags or ["META"],
         "highlight_micro_event_ids": highlights or [start_micro_event_id],
@@ -1460,6 +1522,7 @@ def _timeline_failure_use_case(
     pipeline_jobs: _TimelinePipelineJobsForFailure,
     video_tasks: _TimelineVideoTasksForFailure,
     events: _TimelineEvents,
+    llm_traces: Any | None = None,
 ) -> ComposeTimelineUseCase:
     return ComposeTimelineUseCase(
         videos=cast(Any, _Noop()),
@@ -1476,6 +1539,7 @@ def _timeline_failure_use_case(
         model="gpt-5.5",
         reasoning_effort="medium",
         events=events,
+        llm_traces=llm_traces or NoopLlmTraceRecorder(),
     )
 
 

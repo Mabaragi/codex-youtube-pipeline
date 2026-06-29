@@ -7,6 +7,7 @@ from fastapi import Depends
 from codex_sdk_cli.api.dependencies import (
     ChannelRepositoryDep,
     DomainKnowledgeRepositoryDep,
+    LlmTraceRecorderDep,
     MicroEventExtractionRepositoryDep,
     MicroEventExtractorDep,
     OperationEventRecorderDep,
@@ -36,6 +37,7 @@ def get_extract_video_micro_events_use_case(
     prompt_resolver: PromptResolverDep,
     settings: SettingsDep,
     events: OperationEventRecorderDep,
+    llm_traces: LlmTraceRecorderDep,
 ) -> ExtractVideoMicroEventsUseCase:
     return ExtractVideoMicroEventsUseCase(
         videos=videos,
@@ -54,6 +56,7 @@ def get_extract_video_micro_events_use_case(
         model=settings.model,
         reasoning_effort=settings.reasoning_effort,
         events=events,
+        llm_traces=llm_traces,
     )
 
 

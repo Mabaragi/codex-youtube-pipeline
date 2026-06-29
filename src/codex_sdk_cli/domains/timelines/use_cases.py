@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import cast, get_args
 
@@ -14,6 +15,11 @@ from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffor
 from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainKnowledgePromptEntryRecord,
     DomainKnowledgeRepositoryPort,
+)
+from codex_sdk_cli.domains.llm_traces.ports import (
+    LlmTraceEvent,
+    LlmTraceRecorderPort,
+    NoopLlmTraceRecorder,
 )
 from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from codex_sdk_cli.domains.micro_events.ports import (
@@ -198,6 +204,7 @@ class ComposeTimelineUseCase:
         model: CodexModelChoice,
         reasoning_effort: ReasoningEffortChoice,
         events: OperationEventRecorderPort,
+        llm_traces: LlmTraceRecorderPort | None = None,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -213,6 +220,7 @@ class ComposeTimelineUseCase:
         self._model = model
         self._reasoning_effort = reasoning_effort
         self._events = events
+        self._llm_traces = llm_traces or NoopLlmTraceRecorder()
 
     async def enqueue(
         self,
@@ -672,6 +680,18 @@ class ComposeTimelineUseCase:
         try:
             await self._timelines.delete_composition(task.id)
             prompt = _timeline_prompt(composer_input)
+            await self._llm_traces.record_event(
+                _timeline_trace_event(
+                    operation="compose_video",
+                    phase="compose_started",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    prompt_text=prompt,
+                )
+            )
+            started_at = time.monotonic()
             result = await asyncio.wait_for(
                 self._composer.compose(
                     TimelineComposeRequest(
@@ -688,6 +708,19 @@ class ComposeTimelineUseCase:
                 timeout=timeout_seconds,
             )
             raw_responses.append(_raw_response("compose_video", result))
+            await self._llm_traces.record_event(
+                _timeline_trace_event(
+                    operation="compose_video",
+                    phase="compose_response_received",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    raw_response_text=result.final_response,
+                )
+            )
             failure_stage = "compose_output_validation"
             create = await _composition_create_with_repairs(
                 composer_input,
@@ -698,9 +731,23 @@ class ComposeTimelineUseCase:
                 composer=self._composer,
                 timeout_seconds=timeout_seconds,
                 raw_responses=raw_responses,
+                llm_traces=self._llm_traces,
             )
         except TimeoutError:
             message = f"Timeline compose exceeded {timeout_seconds} seconds."
+            await self._llm_traces.record_event(
+                _timeline_trace_event(
+                    operation="compose_video",
+                    phase="compose_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    error_type="TimeoutError",
+                    error_message=message,
+                    metadata={"stage": failure_stage},
+                )
+            )
             attempt_output_json = _failed_attempt_output_json(
                 composer_input,
                 job=job,
@@ -749,6 +796,36 @@ class ComposeTimelineUseCase:
         except Exception as exc:
             error_type = exc.__class__.__name__
             error_message = str(exc) or error_type
+            if failure_stage == "compose_output_validation":
+                await self._llm_traces.record_event(
+                    _timeline_trace_event(
+                        operation="compose_video",
+                        phase="compose_validation_failed",
+                        task=task,
+                        job=job,
+                        attempt=attempt,
+                        composer_input=composer_input,
+                        raw_response_text=raw_responses[0].raw_response_text
+                        if raw_responses
+                        else None,
+                        error_type=error_type,
+                        error_message=error_message,
+                        metadata={"stage": failure_stage},
+                    )
+                )
+            await self._llm_traces.record_event(
+                _timeline_trace_event(
+                    operation="compose_video",
+                    phase="compose_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    error_type=error_type,
+                    error_message=error_message,
+                    metadata={"stage": failure_stage},
+                )
+            )
             attempt_output_json = _failed_attempt_output_json(
                 composer_input,
                 job=job,
@@ -819,6 +896,17 @@ class ComposeTimelineUseCase:
             reason="composed",
             metadata_json=output_json,
         )
+        await self._llm_traces.record_event(
+            _timeline_trace_event(
+                operation="compose_video",
+                phase="compose_succeeded",
+                task=updated,
+                job=job,
+                attempt=attempt,
+                composer_input=composer_input,
+                metadata={"compositionId": record.id},
+            )
+        )
         return _timeline_response(record)
 
     async def _batch_candidate_action(
@@ -875,6 +963,54 @@ class ComposeTimelineUseCase:
                 error_message=error_message,
             ),
         )
+
+
+def _timeline_trace_event(
+    *,
+    operation: str,
+    phase: str,
+    task: VideoTaskRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+    composer_input: _ComposerInput,
+    repair_index: int | None = None,
+    target_episode_id: str | None = None,
+    repair_reason: str | None = None,
+    result: TimelineComposeResult | TimelineEpisodeRepairResult | None = None,
+    elapsed_ms: int | None = None,
+    prompt_text: str | None = None,
+    raw_response_text: str | None = None,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    metadata: JsonObject | None = None,
+) -> LlmTraceEvent:
+    return LlmTraceEvent(
+        source="timeline_compose",
+        operation=operation,
+        phase=phase,
+        video_task_id=task.id,
+        video_id=composer_input.video.id,
+        job_id=job.id,
+        job_attempt_id=attempt.id,
+        repair_index=repair_index,
+        target_episode_id=target_episode_id,
+        repair_reason=repair_reason,
+        model=str(composer_input.model),
+        reasoning_effort=str(composer_input.reasoning_effort),
+        thread_id=result.thread_id if result is not None else None,
+        turn_id=result.turn_id if result is not None else None,
+        status=result.status if result is not None else None,
+        elapsed_ms=elapsed_ms,
+        prompt_text=prompt_text,
+        raw_response_text=raw_response_text,
+        error_type=error_type,
+        error_message=error_message,
+        metadata=metadata or {},
+    )
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((time.monotonic() - started_at) * 1000))
 
 
 class _VideoSummaryOutput(BaseModel):
@@ -1111,7 +1247,9 @@ async def _composition_create_with_repairs(
     composer: TimelineComposerPort,
     timeout_seconds: int,
     raw_responses: list[_TimelineRawResponse] | None = None,
+    llm_traces: LlmTraceRecorderPort | None = None,
 ) -> TimelineCompositionCreate:
+    trace_recorder = llm_traces or NoopLlmTraceRecorder()
     output_json, summary, blocks, episodes, topics, flags, warnings = _normalized_timeline_parts(
         composer_input, result
     )
@@ -1128,6 +1266,7 @@ async def _composition_create_with_repairs(
         timeout_seconds=timeout_seconds,
         warnings=warnings,
         raw_responses=raw_responses,
+        llm_traces=trace_recorder,
     )
     episodes, blocks, topics, flags = await _repair_episode_coverage(
         episodes=episodes,
@@ -1142,6 +1281,7 @@ async def _composition_create_with_repairs(
         timeout_seconds=timeout_seconds,
         warnings=warnings,
         raw_responses=raw_responses,
+        llm_traces=trace_recorder,
     )
     blocks, episodes = _repair_block_semantics(episodes, blocks, composer_input, warnings)
     episodes, blocks, topics, flags = await _repair_episode_coverage(
@@ -1157,6 +1297,7 @@ async def _composition_create_with_repairs(
         timeout_seconds=timeout_seconds,
         warnings=warnings,
         raw_responses=raw_responses,
+        llm_traces=trace_recorder,
     )
     blocks, episodes = _repair_block_semantics(episodes, blocks, composer_input, warnings)
     flags = _soft_verifier_flags(
@@ -1259,11 +1400,8 @@ def _normalize_timeline_style(
         update={
             "title": normalize(summary.title, "video_summary.title"),
             "summary": normalize(summary.summary, "video_summary.summary"),
-            "display_title": normalize(summary.display_title, "video_summary.display_title"),
-            "display_summary": normalize(
-                summary.display_summary,
-                "video_summary.display_summary",
-            ),
+            "display_title": summary.display_title,
+            "display_summary": summary.display_summary,
         }
     )
     normalized_blocks = [
@@ -1273,14 +1411,8 @@ def _normalize_timeline_style(
             block_type=block.block_type,
             title=normalize(block.title, f"block {block.block_id} title"),
             summary=normalize(block.summary, f"block {block.block_id} summary"),
-            display_title=normalize(
-                block.display_title,
-                f"block {block.block_id} display_title",
-            ),
-            display_summary=normalize(
-                block.display_summary,
-                f"block {block.block_id} display_summary",
-            ),
+            display_title=block.display_title,
+            display_summary=block.display_summary,
             episode_ids=block.episode_ids,
         )
         for block in blocks
@@ -1296,14 +1428,8 @@ def _normalize_timeline_style(
             primary_content_kind=episode.primary_content_kind,
             title=normalize(episode.title, f"episode {episode.episode_id} title"),
             summary=normalize(episode.summary, f"episode {episode.episode_id} summary"),
-            display_title=normalize(
-                episode.display_title,
-                f"episode {episode.episode_id} display_title",
-            ),
-            display_summary=normalize(
-                episode.display_summary,
-                f"episode {episode.episode_id} display_summary",
-            ),
+            display_title=episode.display_title,
+            display_summary=episode.display_summary,
             topics=episode.topics,
             viewer_tags=episode.viewer_tags,
             highlight_micro_event_candidate_ids=episode.highlight_micro_event_candidate_ids,
@@ -1614,6 +1740,7 @@ async def _repair_overbroad_episodes(
     timeout_seconds: int,
     warnings: list[str],
     raw_responses: list[_TimelineRawResponse] | None = None,
+    llm_traces: LlmTraceRecorderPort | None = None,
 ) -> tuple[
     list[TimelineEpisodeCreate],
     list[TimelineBlockCreate],
@@ -1645,17 +1772,34 @@ async def _repair_overbroad_episodes(
         if not _is_overbroad_episode(episode, candidates):
             continue
         repairs_attempted += 1
+        repair_prompt = _episode_repair_prompt(
+            episode=episode,
+            episodes=repaired_episodes,
+            blocks=repaired_blocks,
+            candidates=candidates,
+            composer_input=composer_input,
+        )
+        trace_recorder = llm_traces or NoopLlmTraceRecorder()
+        await trace_recorder.record_event(
+            _timeline_trace_event(
+                operation="repair_episode",
+                phase="repair_requested",
+                task=task,
+                job=job,
+                attempt=attempt,
+                composer_input=composer_input,
+                repair_index=repairs_attempted,
+                target_episode_id=episode.episode_id,
+                repair_reason="overbroad_episode",
+                prompt_text=repair_prompt,
+            )
+        )
+        started_at = time.monotonic()
         try:
             result = await asyncio.wait_for(
                 composer.repair_episode(
                     TimelineEpisodeRepairRequest(
-                        prompt=_episode_repair_prompt(
-                            episode=episode,
-                            episodes=repaired_episodes,
-                            blocks=repaired_blocks,
-                            candidates=candidates,
-                            composer_input=composer_input,
-                        ),
+                        prompt=repair_prompt,
                         video_id=composer_input.video.id,
                         video_task_id=task.id,
                         job_id=job.id,
@@ -1667,6 +1811,22 @@ async def _repair_overbroad_episodes(
                     )
                 ),
                 timeout=timeout_seconds,
+            )
+            await trace_recorder.record_event(
+                _timeline_trace_event(
+                    operation="repair_episode",
+                    phase="repair_response_received",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    repair_index=repairs_attempted,
+                    target_episode_id=episode.episode_id,
+                    repair_reason="overbroad_episode",
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    raw_response_text=result.final_response,
+                )
             )
             if raw_responses is not None:
                 raw_responses.append(
@@ -1685,6 +1845,22 @@ async def _repair_overbroad_episodes(
                 warnings=warnings,
             )
         except Exception as exc:
+            await trace_recorder.record_event(
+                _timeline_trace_event(
+                    operation="repair_episode",
+                    phase="repair_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    repair_index=repairs_attempted,
+                    target_episode_id=episode.episode_id,
+                    repair_reason="overbroad_episode",
+                    elapsed_ms=_elapsed_ms(started_at),
+                    error_type=exc.__class__.__name__,
+                    error_message=str(exc) or exc.__class__.__name__,
+                )
+            )
             warnings.append(f"episode {episode.episode_id} repair failed: {exc.__class__.__name__}")
             repaired_flags = _append_review_flag(
                 repaired_flags,
@@ -1695,6 +1871,23 @@ async def _repair_overbroad_episodes(
             )
             continue
         if replacement is None:
+            await trace_recorder.record_event(
+                _timeline_trace_event(
+                    operation="repair_episode",
+                    phase="repair_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    repair_index=repairs_attempted,
+                    target_episode_id=episode.episode_id,
+                    repair_reason="overbroad_episode",
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    error_type="TimelineEpisodeRepairKeptOriginal",
+                    error_message="Episode repair kept original episode.",
+                )
+            )
             warnings.append(f"episode {episode.episode_id} repair kept original episode")
             repaired_flags = _append_review_flag(
                 repaired_flags,
@@ -1716,6 +1909,22 @@ async def _repair_overbroad_episodes(
             old_episode_id=episode.episode_id,
             new_episode_ids=replacement_ids,
         )
+        await trace_recorder.record_event(
+            _timeline_trace_event(
+                operation="repair_episode",
+                phase="repair_succeeded",
+                task=task,
+                job=job,
+                attempt=attempt,
+                composer_input=composer_input,
+                repair_index=repairs_attempted,
+                target_episode_id=episode.episode_id,
+                repair_reason="overbroad_episode",
+                result=result,
+                elapsed_ms=_elapsed_ms(started_at),
+                metadata={"replacementCount": len(replacement)},
+            )
+        )
         warnings.append(f"episode {episode.episode_id} repaired into {len(replacement)} episode(s)")
     return repaired_episodes, repaired_blocks, repaired_topics, repaired_flags
 
@@ -1734,6 +1943,7 @@ async def _repair_episode_coverage(
     timeout_seconds: int,
     warnings: list[str],
     raw_responses: list[_TimelineRawResponse] | None = None,
+    llm_traces: LlmTraceRecorderPort | None = None,
 ) -> tuple[
     list[TimelineEpisodeCreate],
     list[TimelineBlockCreate],
@@ -1753,16 +1963,33 @@ async def _repair_episode_coverage(
         )
         if plan is None:
             break
+        repair_prompt = _coverage_repair_prompt(
+            plan=plan,
+            episodes=repaired_episodes,
+            blocks=repaired_blocks,
+            composer_input=composer_input,
+        )
+        trace_recorder = llm_traces or NoopLlmTraceRecorder()
+        await trace_recorder.record_event(
+            _timeline_trace_event(
+                operation="repair_episode",
+                phase="repair_requested",
+                task=task,
+                job=job,
+                attempt=attempt,
+                composer_input=composer_input,
+                repair_index=repair_index,
+                target_episode_id=plan.target_episode.episode_id,
+                repair_reason="coverage_repair",
+                prompt_text=repair_prompt,
+            )
+        )
+        started_at = time.monotonic()
         try:
             result = await asyncio.wait_for(
                 composer.repair_episode(
                     TimelineEpisodeRepairRequest(
-                        prompt=_coverage_repair_prompt(
-                            plan=plan,
-                            episodes=repaired_episodes,
-                            blocks=repaired_blocks,
-                            composer_input=composer_input,
-                        ),
+                        prompt=repair_prompt,
                         video_id=composer_input.video.id,
                         video_task_id=task.id,
                         job_id=job.id,
@@ -1774,6 +2001,22 @@ async def _repair_episode_coverage(
                     )
                 ),
                 timeout=timeout_seconds,
+            )
+            await trace_recorder.record_event(
+                _timeline_trace_event(
+                    operation="repair_episode",
+                    phase="repair_response_received",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    repair_index=repair_index,
+                    target_episode_id=plan.target_episode.episode_id,
+                    repair_reason="coverage_repair",
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    raw_response_text=result.final_response,
+                )
             )
             if raw_responses is not None:
                 raw_responses.append(
@@ -1792,11 +2035,44 @@ async def _repair_episode_coverage(
                 warnings=warnings,
             )
         except Exception as exc:
+            await trace_recorder.record_event(
+                _timeline_trace_event(
+                    operation="repair_episode",
+                    phase="repair_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    repair_index=repair_index,
+                    target_episode_id=plan.target_episode.episode_id,
+                    repair_reason="coverage_repair",
+                    elapsed_ms=_elapsed_ms(started_at),
+                    error_type=exc.__class__.__name__,
+                    error_message=str(exc) or exc.__class__.__name__,
+                )
+            )
             warnings.append(
                 f"coverage repair {plan.target_episode.episode_id} failed: {exc.__class__.__name__}"
             )
             break
         if replacement is None:
+            await trace_recorder.record_event(
+                _timeline_trace_event(
+                    operation="repair_episode",
+                    phase="repair_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    composer_input=composer_input,
+                    repair_index=repair_index,
+                    target_episode_id=plan.target_episode.episode_id,
+                    repair_reason="coverage_repair",
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    error_type="TimelineEpisodeRepairKeptInvalidCoverage",
+                    error_message="Coverage repair kept invalid coverage.",
+                )
+            )
             warnings.append(
                 f"coverage repair {plan.target_episode.episode_id} kept invalid coverage"
             )
@@ -1811,6 +2087,22 @@ async def _repair_episode_coverage(
         warnings.append(
             f"coverage repair {plan.target_episode.episode_id} inserted "
             f"{len(replacement)} episode(s)"
+        )
+        await trace_recorder.record_event(
+            _timeline_trace_event(
+                operation="repair_episode",
+                phase="repair_succeeded",
+                task=task,
+                job=job,
+                attempt=attempt,
+                composer_input=composer_input,
+                repair_index=repair_index,
+                target_episode_id=plan.target_episode.episode_id,
+                repair_reason="coverage_repair",
+                result=result,
+                elapsed_ms=_elapsed_ms(started_at),
+                metadata={"replacementCount": len(replacement)},
+            )
         )
     return repaired_episodes, repaired_blocks, repaired_topics, repaired_flags
 

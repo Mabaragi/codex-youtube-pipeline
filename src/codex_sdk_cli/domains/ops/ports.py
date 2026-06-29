@@ -10,6 +10,13 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 
 OpsFailureKind = Literal["pipeline_job", "video_task"]
+OpsCandidateCategory = Literal[
+    "readyNoHistory",
+    "retryableCanceled",
+    "failed",
+    "active",
+    "blocked",
+]
 OpsSchemaRelationKind = Literal[
     "one_to_many",
     "one_to_one",
@@ -201,6 +208,117 @@ class OpsVideoTaskListResult:
 
 
 @dataclass(frozen=True)
+class OpsCandidateListQuery:
+    channel_id: int | None
+    search: str | None
+    category: OpsCandidateCategory | None
+    limit: int
+    offset: int
+
+
+@dataclass(frozen=True)
+class OpsTaskSummaryRecord:
+    video_task_id: int
+    status: str
+    worker_id: str | None
+    job_id: int | None
+    job_attempt_id: int | None
+    error_type: str | None
+    error_message: str | None
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class OpsMicroEventReadyCandidateRecord:
+    video_id: int
+    channel_id: int
+    channel_name: str
+    youtube_video_id: str
+    title: str
+    published_at: datetime
+    transcript_id: int | None
+    cue_count: int
+    latest_cue_task: OpsTaskSummaryRecord
+    latest_micro_task: OpsTaskSummaryRecord | None
+    category: OpsCandidateCategory
+    recommended_retry_failed: bool
+
+
+@dataclass(frozen=True)
+class OpsMicroEventReadyCandidateListResult:
+    items: tuple[OpsMicroEventReadyCandidateRecord, ...]
+    total: int
+
+
+@dataclass(frozen=True)
+class OpsTimelineReadyCandidateRecord:
+    video_id: int
+    channel_id: int
+    channel_name: str
+    youtube_video_id: str
+    title: str
+    published_at: datetime
+    source_micro_event_task_id: int
+    micro_event_count: int
+    window_count: int
+    latest_timeline_task: OpsTaskSummaryRecord | None
+    category: OpsCandidateCategory
+    recommended_retry_failed: bool
+
+
+@dataclass(frozen=True)
+class OpsTimelineReadyCandidateListResult:
+    items: tuple[OpsTimelineReadyCandidateRecord, ...]
+    total: int
+
+
+@dataclass(frozen=True)
+class OpsLatestEventRecord:
+    operation_event_id: int
+    occurred_at: datetime
+    event_type: str
+    severity: str
+    message: str
+    error_type: str | None
+    error_message: str | None
+
+
+@dataclass(frozen=True)
+class OpsStuckTaskQuery:
+    task_name: str
+    older_than: datetime
+
+
+@dataclass(frozen=True)
+class OpsStuckTaskRecord:
+    video_task_id: int
+    video_id: int
+    channel_id: int
+    channel_name: str
+    youtube_video_id: str
+    title: str
+    task_name: str
+    status: str
+    worker_id: str | None
+    worker_pid: int | None
+    job_id: int | None
+    job_attempt_id: int | None
+    job_attempt_status: str | None
+    started_at: datetime | None
+    updated_at: datetime
+    stale_since: datetime
+    latest_event: OpsLatestEventRecord | None
+    error_type: str | None
+    error_message: str | None
+
+
+@dataclass(frozen=True)
+class OpsStuckTaskListResult:
+    items: tuple[OpsStuckTaskRecord, ...]
+    total: int
+
+
+@dataclass(frozen=True)
 class OpsSchemaColumnRecord:
     id: str
     name: str
@@ -284,6 +402,24 @@ class OpsRepositoryPort(Protocol):
         self,
         query: OpsVideoTaskListQuery,
     ) -> OpsVideoTaskListResult:
+        ...
+
+    async def list_micro_event_ready_candidates(
+        self,
+        query: OpsCandidateListQuery,
+    ) -> OpsMicroEventReadyCandidateListResult:
+        ...
+
+    async def list_timeline_ready_candidates(
+        self,
+        query: OpsCandidateListQuery,
+    ) -> OpsTimelineReadyCandidateListResult:
+        ...
+
+    async def detect_stuck_tasks(
+        self,
+        query: OpsStuckTaskQuery,
+    ) -> OpsStuckTaskListResult:
         ...
 
     async def get_schema_graph(self) -> OpsSchemaGraphRecord:

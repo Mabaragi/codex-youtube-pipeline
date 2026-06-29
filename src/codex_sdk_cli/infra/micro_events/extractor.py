@@ -11,6 +11,7 @@ from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRequest,
     MicroEventExtractionResult,
     MicroEventExtractorPort,
+    MicroEventRepairRequest,
 )
 from codex_sdk_cli.settings import CodexModelChoice, ReasoningEffortChoice
 
@@ -32,6 +33,21 @@ class CodexMicroEventExtractor(MicroEventExtractorPort):
         self,
         request: MicroEventExtractionRequest,
     ) -> MicroEventExtractionResult:
+        return await self._run_prompt(request, operation="extract_window")
+
+    @override
+    async def repair_window(
+        self,
+        request: MicroEventRepairRequest,
+    ) -> MicroEventExtractionResult:
+        return await self._run_prompt(request, operation="repair_window")
+
+    async def _run_prompt(
+        self,
+        request: MicroEventExtractionRequest | MicroEventRepairRequest,
+        *,
+        operation: str,
+    ) -> MicroEventExtractionResult:
         result = await self._runtime.run_prompt(
             CodexRunCommand(
                 prompt=request.prompt,
@@ -46,7 +62,7 @@ class CodexMicroEventExtractor(MicroEventExtractorPort):
                 developer_instructions=" ",
                 usage_context=CodexRunUsageContext(
                     source="micro_event_extract",
-                    operation="extract_window",
+                    operation=operation,
                     video_id=request.video_id,
                     video_task_id=request.video_task_id,
                     job_id=request.job_id,

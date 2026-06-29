@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import cast
@@ -15,6 +16,11 @@ from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainKnowledgePromptAliasRecord,
     DomainKnowledgePromptEntryRecord,
     DomainKnowledgeRepositoryPort,
+)
+from codex_sdk_cli.domains.llm_traces.ports import (
+    LlmTraceEvent,
+    LlmTraceRecorderPort,
+    NoopLlmTraceRecorder,
 )
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventActorType,
@@ -81,6 +87,7 @@ from .ports import (
     MicroEventExtractionResult,
     MicroEventExtractionWindowCreate,
     MicroEventExtractorPort,
+    MicroEventRepairRequest,
     ProgramMode,
     RelationToPrevious,
     SupportLevel,
@@ -174,6 +181,7 @@ class ExtractVideoMicroEventsUseCase:
         model: CodexModelChoice,
         reasoning_effort: ReasoningEffortChoice,
         events: OperationEventRecorderPort,
+        llm_traces: LlmTraceRecorderPort | None = None,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -191,6 +199,7 @@ class ExtractVideoMicroEventsUseCase:
         self._model = model
         self._reasoning_effort = reasoning_effort
         self._events = events
+        self._llm_traces = llm_traces or NoopLlmTraceRecorder()
 
     async def execute(
         self,
@@ -647,7 +656,17 @@ class ExtractVideoMicroEventsUseCase:
                 reason=f"previously_{task.status}",
                 transcript_id=prepared.execution_input.metadata.id,
             )
-        if task.status in {"skipped", "canceled", "no_transcript"}:
+        if task.status == "canceled" and not request.retry_failed:
+            counters.ineligible_count += 1
+            return _enqueue_item_from_task(
+                task,
+                request=request,
+                video=prepared.execution_input.video,
+                status="skipped",
+                reason="not_retryable",
+                transcript_id=prepared.execution_input.metadata.id,
+            )
+        if task.status in {"skipped", "no_transcript"}:
             counters.ineligible_count += 1
             return _enqueue_item_from_task(
                 task,
@@ -1058,6 +1077,18 @@ class ExtractVideoMicroEventsUseCase:
             )
         except TimeoutError:
             message = f"Micro-event extraction exceeded {timeout_seconds} seconds."
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="extract_video",
+                    phase="task_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    error_type="TimeoutError",
+                    error_message=message,
+                )
+            )
             await self._pipeline_jobs.mark_attempt_failed(
                 attempt.id,
                 error_type="TimeoutError",
@@ -1091,6 +1122,18 @@ class ExtractVideoMicroEventsUseCase:
         except Exception as exc:
             error_type = exc.__class__.__name__
             error_message = str(exc) or error_type
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="extract_video",
+                    phase="task_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    error_type=error_type,
+                    error_message=error_message,
+                )
+            )
             updated = await self._video_tasks.mark_task_failed(
                 task.id,
                 error_type=error_type,
@@ -1192,6 +1235,7 @@ class ExtractVideoMicroEventsUseCase:
                         attempt=attempt,
                         execution_input=execution_input,
                         cue_window=cue_window,
+                        window_count=len(cue_windows),
                     )
                 finally:
                     queue.task_done()
@@ -1225,23 +1269,71 @@ class ExtractVideoMicroEventsUseCase:
         attempt: PipelineJobAttemptRecord,
         execution_input: _ExtractionExecutionInput,
         cue_window: _CueWindow,
+        window_count: int,
     ) -> MicroEventExtractionWindowCreate:
         prompt = _window_prompt(execution_input, cue_window)
-        result = await self._extractor.extract_window(
-            MicroEventExtractionRequest(
-                prompt=prompt,
-                video_id=execution_input.video.id,
-                video_task_id=task.id,
-                job_id=job.id,
-                job_attempt_id=attempt.id,
-                transcript_id=execution_input.metadata.id,
-                window_index=cue_window.window_index,
-                model=execution_input.model,
-                reasoning_effort=execution_input.reasoning_effort,
+        await self._llm_traces.record_event(
+            _micro_trace_event(
+                operation="extract_window",
+                phase="window_started",
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                window_count=window_count,
+                prompt_text=prompt,
+            )
+        )
+        started_at = time.monotonic()
+        try:
+            result = await self._extractor.extract_window(
+                MicroEventExtractionRequest(
+                    prompt=prompt,
+                    video_id=execution_input.video.id,
+                    video_task_id=task.id,
+                    job_id=job.id,
+                    job_attempt_id=attempt.id,
+                    transcript_id=execution_input.metadata.id,
+                    window_index=cue_window.window_index,
+                    model=execution_input.model,
+                    reasoning_effort=execution_input.reasoning_effort,
+                )
+            )
+        except Exception as exc:
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="extract_window",
+                    phase="task_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    cue_window=cue_window,
+                    window_count=window_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    error_type=exc.__class__.__name__,
+                    error_message=str(exc) or exc.__class__.__name__,
+                )
+            )
+            raise
+        await self._llm_traces.record_event(
+            _micro_trace_event(
+                operation="extract_window",
+                phase="llm_response_received",
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                window_count=window_count,
+                result=result,
+                elapsed_ms=_elapsed_ms(started_at),
+                raw_response_text=result.final_response,
             )
         )
         try:
-            return _validated_window(
+            window = _validated_window(
                 task=task,
                 job=job,
                 attempt=attempt,
@@ -1249,7 +1341,70 @@ class ExtractVideoMicroEventsUseCase:
                 cue_window=cue_window,
                 result=result,
             )
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="extract_window",
+                    phase="window_succeeded",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    cue_window=cue_window,
+                    window_count=window_count,
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    metadata={"microEventCount": len(window.micro_events)},
+                )
+            )
+            return window
         except MicroEventExtractionOutputInvalid as exc:
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="extract_window",
+                    phase=_micro_event_validation_failure_phase(exc),
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    cue_window=cue_window,
+                    window_count=window_count,
+                    result=result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    raw_response_text=result.final_response,
+                    error_type=exc.__class__.__name__,
+                    error_message=str(exc) or exc.__class__.__name__,
+                )
+            )
+            repaired = await self._repair_window_if_recoverable(
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                window_count=window_count,
+                original_prompt=prompt,
+                original_result=result,
+                original_error=exc,
+            )
+            if repaired is not None:
+                await self._llm_traces.record_event(
+                    _micro_trace_event(
+                        operation="extract_window",
+                        phase="window_succeeded",
+                        task=task,
+                        job=job,
+                        attempt=attempt,
+                        execution_input=execution_input,
+                        cue_window=cue_window,
+                        window_count=window_count,
+                        elapsed_ms=_elapsed_ms(started_at),
+                        metadata={
+                            "microEventCount": len(repaired.micro_events),
+                            "repaired": True,
+                        },
+                    )
+                )
+                return repaired
             raise _MicroEventWindowValidationFailure(
                 exc,
                 _failed_window(
@@ -1262,6 +1417,216 @@ class ExtractVideoMicroEventsUseCase:
                     validation_error=str(exc),
                 ),
             ) from exc
+
+    async def _repair_window_if_recoverable(
+        self,
+        *,
+        task: VideoTaskRecord,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+        execution_input: _ExtractionExecutionInput,
+        cue_window: _CueWindow,
+        window_count: int,
+        original_prompt: str,
+        original_result: MicroEventExtractionResult,
+        original_error: MicroEventExtractionOutputInvalid,
+    ) -> MicroEventExtractionWindowCreate | None:
+        original_error_message = str(original_error)
+        if not _is_recoverable_window_validation_error(original_error_message):
+            return None
+        await self._record_task_event(
+            "micro_event_extract.window_repair_requested",
+            "warning",
+            "Micro-event extraction window repair requested.",
+            task=task,
+            execution_input=execution_input,
+            reason="window_validation_repair",
+            error_type=original_error.__class__.__name__,
+            error_message=original_error_message,
+            metadata_json=_repair_event_metadata(
+                cue_window,
+                original_error=original_error_message,
+            ),
+        )
+        repair_prompt = _repair_window_prompt(
+            original_prompt=original_prompt,
+            original_response=original_result.final_response,
+            validation_error=original_error_message,
+            cue_window=cue_window,
+        )
+        await self._llm_traces.record_event(
+            _micro_trace_event(
+                operation="repair_window",
+                phase="repair_requested",
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                window_count=window_count,
+                repair_index=1,
+                prompt_text=repair_prompt,
+                error_type=original_error.__class__.__name__,
+                error_message=original_error_message,
+            )
+        )
+        started_at = time.monotonic()
+        try:
+            repair_result = await self._extractor.repair_window(
+                MicroEventRepairRequest(
+                    prompt=repair_prompt,
+                    original_prompt=original_prompt,
+                    original_response=original_result.final_response,
+                    validation_error=original_error_message,
+                    owned_start_cue_id=cue_window.owned_cues[0].cue_id,
+                    owned_end_cue_id=cue_window.owned_cues[-1].cue_id,
+                    owned_cue_ids=[cue.cue_id for cue in cue_window.owned_cues],
+                    video_id=execution_input.video.id,
+                    video_task_id=task.id,
+                    job_id=job.id,
+                    job_attempt_id=attempt.id,
+                    transcript_id=execution_input.metadata.id,
+                    window_index=cue_window.window_index,
+                    model=execution_input.model,
+                    reasoning_effort=execution_input.reasoning_effort,
+                )
+            )
+        except Exception as exc:
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="repair_window",
+                    phase="repair_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    cue_window=cue_window,
+                    window_count=window_count,
+                    repair_index=1,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    error_type=exc.__class__.__name__,
+                    error_message=str(exc) or exc.__class__.__name__,
+                )
+            )
+            await self._record_task_event(
+                "micro_event_extract.window_repair_failed",
+                "error",
+                "Micro-event extraction window repair failed.",
+                task=task,
+                execution_input=execution_input,
+                reason="window_repair_exception",
+                error_type=exc.__class__.__name__,
+                error_message=str(exc) or exc.__class__.__name__,
+                metadata_json=_repair_event_metadata(
+                    cue_window,
+                    original_error=original_error_message,
+                    repair_error=str(exc) or exc.__class__.__name__,
+                ),
+            )
+            return None
+        await self._llm_traces.record_event(
+            _micro_trace_event(
+                operation="repair_window",
+                phase="repair_response_received",
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                window_count=window_count,
+                repair_index=1,
+                result=repair_result,
+                elapsed_ms=_elapsed_ms(started_at),
+                raw_response_text=repair_result.final_response,
+            )
+        )
+        repair_warning: MicroEventOutputWarning = {
+            "type": "llm_repaired_window",
+            "originalError": original_error_message,
+            "repairThreadId": repair_result.thread_id,
+            "repairTurnId": repair_result.turn_id,
+        }
+        try:
+            repaired_window = _validated_window(
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                result=repair_result,
+                extra_warnings=[repair_warning],
+            )
+        except MicroEventExtractionOutputInvalid as exc:
+            repair_error = str(exc)
+            await self._llm_traces.record_event(
+                _micro_trace_event(
+                    operation="repair_window",
+                    phase="repair_failed",
+                    task=task,
+                    job=job,
+                    attempt=attempt,
+                    execution_input=execution_input,
+                    cue_window=cue_window,
+                    window_count=window_count,
+                    repair_index=1,
+                    result=repair_result,
+                    elapsed_ms=_elapsed_ms(started_at),
+                    raw_response_text=repair_result.final_response,
+                    error_type=exc.__class__.__name__,
+                    error_message=repair_error,
+                )
+            )
+            await self._record_task_event(
+                "micro_event_extract.window_repair_failed",
+                "error",
+                "Micro-event extraction window repair produced invalid output.",
+                task=task,
+                execution_input=execution_input,
+                reason="window_repair_invalid",
+                error_type=exc.__class__.__name__,
+                error_message=repair_error,
+                metadata_json=_repair_event_metadata(
+                    cue_window,
+                    original_error=original_error_message,
+                    repair_error=repair_error,
+                    repair_thread_id=repair_result.thread_id,
+                    repair_turn_id=repair_result.turn_id,
+                ),
+            )
+            return None
+        await self._llm_traces.record_event(
+            _micro_trace_event(
+                operation="repair_window",
+                phase="repair_succeeded",
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=cue_window,
+                window_count=window_count,
+                repair_index=1,
+                result=repair_result,
+                elapsed_ms=_elapsed_ms(started_at),
+                metadata={"microEventCount": len(repaired_window.micro_events)},
+            )
+        )
+        await self._record_task_event(
+            "micro_event_extract.window_repaired",
+            "warning",
+            "Micro-event extraction window repaired.",
+            task=task,
+            execution_input=execution_input,
+            reason="window_repaired",
+            error_type=original_error.__class__.__name__,
+            error_message=original_error_message,
+            metadata_json=_repair_event_metadata(
+                cue_window,
+                original_error=original_error_message,
+                repair_thread_id=repair_result.thread_id,
+                repair_turn_id=repair_result.turn_id,
+            ),
+        )
+        return repaired_window
 
     async def _record_task_event(
         self,
@@ -1308,6 +1673,63 @@ class ExtractVideoMicroEventsUseCase:
                 metadata_json=metadata,
             ),
         )
+
+
+def _micro_trace_event(
+    *,
+    operation: str,
+    phase: str,
+    task: VideoTaskRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+    execution_input: _ExtractionExecutionInput,
+    cue_window: _CueWindow | None = None,
+    window_count: int | None = None,
+    repair_index: int | None = None,
+    result: MicroEventExtractionResult | None = None,
+    elapsed_ms: int | None = None,
+    prompt_text: str | None = None,
+    raw_response_text: str | None = None,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    metadata: JsonObject | None = None,
+) -> LlmTraceEvent:
+    return LlmTraceEvent(
+        source="micro_event_extract",
+        operation=operation,
+        phase=phase,
+        video_task_id=task.id,
+        video_id=execution_input.video.id,
+        job_id=job.id,
+        job_attempt_id=attempt.id,
+        window_index=cue_window.window_index if cue_window is not None else None,
+        window_count=window_count,
+        repair_index=repair_index,
+        model=str(execution_input.model),
+        reasoning_effort=str(execution_input.reasoning_effort),
+        thread_id=result.thread_id if result is not None else None,
+        turn_id=result.turn_id if result is not None else None,
+        status=result.status if result is not None else None,
+        elapsed_ms=elapsed_ms,
+        prompt_text=prompt_text,
+        raw_response_text=raw_response_text,
+        error_type=error_type,
+        error_message=error_message,
+        metadata=metadata or {},
+    )
+
+
+def _micro_event_validation_failure_phase(
+    exc: MicroEventExtractionOutputInvalid,
+) -> str:
+    message = str(exc).casefold()
+    if "invalid json" in message or "json" in message and "decode" in message:
+        return "parse_failed"
+    return "validation_failed"
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((time.monotonic() - started_at) * 1000))
 
 
 def _normalized_token(value: object) -> str | None:
@@ -1657,6 +2079,102 @@ def _window_prompt(
     )
 
 
+def _repair_window_prompt(
+    *,
+    original_prompt: str,
+    original_response: str,
+    validation_error: str,
+    cue_window: _CueWindow,
+) -> str:
+    return "\n\n".join(
+        [
+            "# 역할",
+            "너는 micro-event extractor가 만든 JSON을 고치는 repair step이다.",
+            (
+                "새 사건을 만들지 말고, 원본 응답의 의미와 분류를 가능한 한 "
+                "유지하면서 cue 범위와 coverage 정합성만 고친다."
+            ),
+            "# 실패 원인",
+            validation_error,
+            "# 반드시 지킬 규칙",
+            "\n".join(
+                [
+                    "1. 반드시 JSON 객체만 출력한다.",
+                    (
+                        "2. 출력 schema는 events, excluded_ranges, "
+                        "asr_correction_candidates만 사용한다."
+                    ),
+                    "3. OWNED_RANGE 밖 cue_id는 절대 사용하지 않는다.",
+                    "4. 모든 OWNED_RANGE cue를 event 또는 excluded_range로 정확히 한 번 덮는다.",
+                    (
+                        "5. event 문장, program_mode, content_kind, topics는 "
+                        "원본 의미를 가능한 한 유지한다."
+                    ),
+                    (
+                        "6. cue 범위를 고치기 어렵거나 정보가 낮은 구간은 "
+                        "excluded_range reason=LOW_INFORMATION으로 덮는다."
+                    ),
+                    "7. asr_correction_candidates에는 evidence_cue_ids를 출력하지 않는다.",
+                ]
+            ),
+            "# OWNED_RANGE",
+            json.dumps(
+                {
+                    "ownedStartCueId": cue_window.owned_cues[0].cue_id,
+                    "ownedEndCueId": cue_window.owned_cues[-1].cue_id,
+                    "ownedCueIds": [cue.cue_id for cue in cue_window.owned_cues],
+                },
+                ensure_ascii=False,
+            ),
+            "# 원본 window prompt",
+            original_prompt,
+            "# 고쳐야 할 원본 응답",
+            original_response,
+        ]
+    )
+
+
+def _is_recoverable_window_validation_error(error_message: str) -> bool:
+    if error_message in {
+        "Extractor returned invalid JSON.",
+        "Extractor output must be a JSON object.",
+        "event must have at least one evidence_cue_id inside its cue range.",
+    }:
+        return False
+    recoverable_fragments = (
+        "Extractor referenced cue_id outside OWNED_RANGE",
+        "Extractor left a gap in OWNED_RANGE coverage.",
+        "Extractor returned overlapping",
+        "Extractor did not cover every owned cue exactly once.",
+        "start_cue_id must not come after end_cue_id.",
+        "Extractor must cover OWNED_RANGE with events or excluded_ranges.",
+    )
+    return any(fragment in error_message for fragment in recoverable_fragments)
+
+
+def _repair_event_metadata(
+    cue_window: _CueWindow,
+    *,
+    original_error: str,
+    repair_error: str | None = None,
+    repair_thread_id: str | None = None,
+    repair_turn_id: str | None = None,
+) -> JsonObject:
+    metadata: JsonObject = {
+        "windowIndex": cue_window.window_index,
+        "originalError": original_error,
+        "ownedStartCueId": cue_window.owned_cues[0].cue_id,
+        "ownedEndCueId": cue_window.owned_cues[-1].cue_id,
+    }
+    if repair_error is not None:
+        metadata["repairError"] = repair_error
+    if repair_thread_id is not None:
+        metadata["repairThreadId"] = repair_thread_id
+    if repair_turn_id is not None:
+        metadata["repairTurnId"] = repair_turn_id
+    return metadata
+
+
 def _window_term_annotations(
     execution_input: _ExtractionExecutionInput,
     cue_window: _CueWindow,
@@ -1733,9 +2251,12 @@ def _validated_window(
     execution_input: _ExtractionExecutionInput,
     cue_window: _CueWindow,
     result: MicroEventExtractionResult,
+    extra_warnings: list[MicroEventOutputWarning] | None = None,
 ) -> MicroEventExtractionWindowCreate:
     parsed = _parse_extractor_output(result.final_response)
     output, warnings = _validate_extractor_output(parsed)
+    if extra_warnings:
+        warnings.extend(extra_warnings)
     cue_id_to_position = {
         cue.cue_id: position for position, cue in enumerate(cue_window.owned_cues)
     }
@@ -1906,6 +2427,7 @@ def _normalize_extractor_output(
 ) -> tuple[JsonObject, list[MicroEventOutputWarning]]:
     normalized: JsonObject = dict(parsed)
     warnings: list[MicroEventOutputWarning] = []
+    _merge_continued_events(normalized, warnings)
     events = normalized.get("events")
     excluded_ranges = normalized.get("excluded_ranges")
     existing_excluded_ranges = excluded_ranges if isinstance(excluded_ranges, list) else []
@@ -1959,7 +2481,64 @@ def _normalize_extractor_output(
             _normalize_asr_correction_output(candidate, index, warnings)
             for index, candidate in enumerate(asr_candidates)
         ]
+    _drop_unknown_top_level_fields(normalized, warnings)
     return normalized, warnings
+
+
+def _merge_continued_events(
+    normalized: JsonObject,
+    warnings: list[MicroEventOutputWarning],
+) -> None:
+    continued_events = normalized.pop("events_continued", None)
+    if continued_events is None:
+        return
+    if not isinstance(continued_events, list):
+        warnings.append(
+            {
+                "type": "ignored_events_continued",
+                "path": "events_continued",
+                "reason": "expected list",
+            }
+        )
+        return
+    events = normalized.get("events")
+    if events is None:
+        normalized["events"] = continued_events
+    elif isinstance(events, list):
+        normalized["events"] = [*events, *continued_events]
+    else:
+        warnings.append(
+            {
+                "type": "ignored_events_continued",
+                "path": "events_continued",
+                "reason": "events is not a list",
+                "ignoredCount": len(continued_events),
+            }
+        )
+        return
+    warnings.append(
+        {
+            "type": "moved_events_continued_to_events",
+            "fromPath": "events_continued",
+            "toPath": "events",
+            "movedCount": len(continued_events),
+        }
+    )
+
+
+def _drop_unknown_top_level_fields(
+    normalized: JsonObject,
+    warnings: list[MicroEventOutputWarning],
+) -> None:
+    allowed_fields = {"events", "excluded_ranges", "asr_correction_candidates"}
+    for key in sorted(set(normalized) - allowed_fields):
+        normalized.pop(key, None)
+        warnings.append(
+            {
+                "type": "ignored_unknown_top_level_field",
+                "path": key,
+            }
+        )
 
 
 def _normalize_term_annotations(

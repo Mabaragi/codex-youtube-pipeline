@@ -44,6 +44,10 @@ class CliSettings(BaseSettings):
     timeline_compose_concurrency_limit: int = 3
     timeline_compose_worker_poll_interval_seconds: int = 5
     timeline_compose_worker_id: str | None = None
+    llm_trace_enabled: bool = True
+    llm_trace_dir: Path = Path(".home-deploy/logs/llm-traces")
+    llm_trace_raw_response_enabled: bool = True
+    llm_trace_retention_days: int = 14
     archive_publish_timeout_seconds: int = 600
     archive_publish_r2_endpoint: str | None = None
     archive_publish_r2_access_key: SecretStr | None = None
@@ -127,6 +131,7 @@ class CliSettings(BaseSettings):
         "timeline_compose_timeout_seconds",
         "timeline_compose_concurrency_limit",
         "timeline_compose_worker_poll_interval_seconds",
+        "llm_trace_retention_days",
         "archive_publish_timeout_seconds",
         "prompt_cache_ttl_seconds",
     )

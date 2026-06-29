@@ -18,6 +18,7 @@ from codex_sdk_cli.domains.codex_usage.ports import (
 from codex_sdk_cli.domains.codex_usage.recorder import BestEffortCodexUsageRecorder
 from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallRecorderPort
+from codex_sdk_cli.domains.llm_traces.ports import LlmTraceRecorderPort
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRepositoryPort,
     MicroEventExtractorPort,
@@ -65,6 +66,7 @@ from codex_sdk_cli.infra.domain_knowledge.repository import (
 from codex_sdk_cli.infra.external_api_calls.recorder import ExternalApiCallRecorder
 from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternalApiCallRepository
 from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
+from codex_sdk_cli.infra.llm_traces.factory import create_llm_trace_recorder
 from codex_sdk_cli.infra.micro_events.extractor import CodexMicroEventExtractor
 from codex_sdk_cli.infra.micro_events.repository import (
     SqlAlchemyMicroEventExtractionRepository,
@@ -212,6 +214,12 @@ async def get_codex_usage_recorder(
     ],
 ) -> CodexUsageRecorderPort:
     return BestEffortCodexUsageRecorder(SessionFactoryCodexUsageRepository(session_factory))
+
+
+def get_llm_trace_recorder(
+    settings: Annotated[CliSettings, Depends(get_settings)],
+) -> LlmTraceRecorderPort:
+    return create_llm_trace_recorder(settings)
 
 
 async def get_micro_event_extractor(
@@ -394,6 +402,10 @@ OperationEventRepositoryDep = Annotated[
 OperationEventRecorderDep = Annotated[
     OperationEventRecorderPort,
     Depends(get_operation_event_recorder),
+]
+LlmTraceRecorderDep = Annotated[
+    LlmTraceRecorderPort,
+    Depends(get_llm_trace_recorder),
 ]
 YouTubeDataClientDep = Annotated[
     YouTubeDataClientPort,

@@ -10,6 +10,7 @@ from codex_sdk_cli.api.dependencies import (
     ArchivePublishRepositoryDep,
     ChannelRepositoryDep,
     DomainKnowledgeRepositoryDep,
+    LlmTraceRecorderDep,
     MicroEventExtractionRepositoryDep,
     MicroEventExtractorDep,
     OperationEventRecorderDep,
@@ -36,6 +37,7 @@ from codex_sdk_cli.domains.archive_publish.use_cases import ArchivePublishUseCas
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
+from codex_sdk_cli.domains.llm_traces.ports import LlmTraceRecorderPort
 from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRepositoryPort,
@@ -176,6 +178,7 @@ def get_retry_pipeline_job_use_case(
     ],
     settings: SettingsDep,
     events: OperationEventRecorderDep,
+    llm_traces: LlmTraceRecorderDep,
 ) -> RetryPipelineJobUseCase:
     return RetryPipelineJobUseCase(
         pipeline_jobs,
@@ -221,6 +224,7 @@ def get_retry_pipeline_job_use_case(
                 prompt_resolver=prompt_resolver,
                 settings=settings,
                 events=events,
+                llm_traces=llm_traces,
             ),
             TIMELINE_COMPOSE_TASK_NAME: _LazyTimelineComposeRetryExecutor(
                 videos=videos,
@@ -235,6 +239,7 @@ def get_retry_pipeline_job_use_case(
                 prompt_resolver=prompt_resolver,
                 settings=settings,
                 events=events,
+                llm_traces=llm_traces,
             ),
             ARCHIVE_PUBLISH_TASK_NAME: _LazyArchivePublishRetryExecutor(
                 videos=videos,
@@ -368,6 +373,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         prompt_resolver: PromptResolverPort,
         settings: CliSettings,
         events: OperationEventRecorderPort,
+        llm_traces: LlmTraceRecorderPort,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -382,6 +388,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
         self._prompt_resolver = prompt_resolver
         self._settings = settings
         self._events = events
+        self._llm_traces = llm_traces
 
     async def execute(
         self,
@@ -405,6 +412,7 @@ class _LazyMicroEventExtractRetryExecutor(PipelineRetryExecutor):
             model=self._settings.model,
             reasoning_effort=self._settings.reasoning_effort,
             events=self._events,
+            llm_traces=self._llm_traces,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
 
@@ -425,6 +433,7 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
         prompt_resolver: PromptResolverPort,
         settings: CliSettings,
         events: OperationEventRecorderPort,
+        llm_traces: LlmTraceRecorderPort,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -438,6 +447,7 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
         self._prompt_resolver = prompt_resolver
         self._settings = settings
         self._events = events
+        self._llm_traces = llm_traces
 
     async def execute(
         self,
@@ -459,6 +469,7 @@ class _LazyTimelineComposeRetryExecutor(PipelineRetryExecutor):
             model=self._settings.model,
             reasoning_effort=self._settings.reasoning_effort,
             events=self._events,
+            llm_traces=self._llm_traces,
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
 

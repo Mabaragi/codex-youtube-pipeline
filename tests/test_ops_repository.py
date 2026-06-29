@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -14,6 +14,7 @@ from codex_sdk_cli.infra.micro_events.repository import (
     MicroEventCandidateModel,
     MicroEventExtractionWindowModel,
 )
+from codex_sdk_cli.infra.operation_events.repository import OperationEventModel
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
 from codex_sdk_cli.infra.pipeline_jobs.repository import PipelineJobAttemptModel, PipelineJobModel
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
@@ -41,11 +42,11 @@ def test_ops_repository_lists_operational_views(
     result = asyncio.run(_exercise_repository(database_file))
 
     assert result["counts"].channels == 1
-    assert result["counts"].videos == 1
-    assert result["channels"][0].video_count == 1
+    assert result["counts"].videos == 6
+    assert result["channels"][0].video_count == 6
     assert result["channels"][0].transcript_succeeded_count == 1
     assert result["channels"][0].task_no_transcript_count == 1
-    assert result["videos"].total == 1
+    assert result["videos"].total == 6
     assert result["videos"].items[0].latest_task_status == "succeeded"
     assert result["videos"].items[0].transcript_id == result["transcript_id"]
     assert result["videos"].items[0].generation.cues.generated is True
@@ -58,8 +59,26 @@ def test_ops_repository_lists_operational_views(
         "composition_id"
     ]
     assert result["videos"].items[0].generation.timeline.episode_count == 2
-    assert result["tasks"].items[0].youtube_video_id == "video1234567"
-    assert result["failures"][0].kind == "pipeline_job"
+    assert result["micro_candidates"].total == 3
+    assert {item.category for item in result["micro_candidates"].items} == {
+        "readyNoHistory",
+        "failed",
+        "active",
+    }
+    assert result["timeline_candidates"].total == 2
+    assert {item.source_micro_event_task_id for item in result["timeline_candidates"].items} == {
+        result["timeline_ready_micro_task_id"],
+        result["timeline_failed_micro_task_id"],
+    }
+    assert {item.category for item in result["timeline_candidates"].items} == {
+        "readyNoHistory",
+        "failed",
+    }
+    assert result["stuck"].total == 1
+    assert result["stuck"].items[0].worker_pid == 4321
+    assert result["stuck"].items[0].latest_event is not None
+    assert any(item.youtube_video_id == "video1234567" for item in result["tasks"].items)
+    assert any(item.kind == "pipeline_job" for item in result["failures"])
 
 
 async def _exercise_repository(database_file: Path):
@@ -302,11 +321,110 @@ async def _exercise_repository(database_file: Path):
                     ),
                 ]
             )
+
+            await _add_video_with_cues(session, channel.id, 2, now - timedelta(minutes=1))
+
+            micro_failed_video, micro_failed_transcript = await _add_video_with_cues(
+                session,
+                channel.id,
+                3,
+                now - timedelta(minutes=2),
+            )
+            session.add(
+                VideoTaskModel(
+                    video_id=micro_failed_video.id,
+                    task_name="micro_event_extract",
+                    task_version="v2",
+                    input_hash="failed-micro",
+                    status="failed",
+                    timeout_seconds=600,
+                    output_transcript_id=micro_failed_transcript.id,
+                    error_type="ValidationError",
+                    error_message="invalid",
+                )
+            )
+
+            timeline_ready_video, timeline_ready_transcript = await _add_video_with_cues(
+                session,
+                channel.id,
+                4,
+                now - timedelta(minutes=3),
+            )
+            timeline_ready_micro_task = await _add_micro_success(
+                session,
+                video=timeline_ready_video,
+                transcript=timeline_ready_transcript,
+                suffix=4,
+                input_hash="timeline-ready-micro",
+            )
+
+            timeline_failed_video, timeline_failed_transcript = await _add_video_with_cues(
+                session,
+                channel.id,
+                5,
+                now - timedelta(minutes=4),
+            )
+            timeline_failed_micro_task = await _add_micro_success(
+                session,
+                video=timeline_failed_video,
+                transcript=timeline_failed_transcript,
+                suffix=5,
+                input_hash="timeline-failed-micro",
+            )
+            session.add(
+                VideoTaskModel(
+                    video_id=timeline_failed_video.id,
+                    task_name="timeline_compose",
+                    task_version="v1",
+                    input_hash="timeline-failed",
+                    status="failed",
+                    timeout_seconds=600,
+                    error_type="TimelineError",
+                    error_message="failed",
+                )
+            )
+
+            stuck_video, stuck_transcript = await _add_video_with_cues(
+                session,
+                channel.id,
+                6,
+                now - timedelta(minutes=5),
+            )
+            old = now - timedelta(minutes=30)
+            stuck_task = VideoTaskModel(
+                video_id=stuck_video.id,
+                task_name="micro_event_extract",
+                task_version="v2",
+                input_hash="stuck-micro",
+                status="running",
+                worker_id="micro-event-worker:host:4321",
+                timeout_seconds=600,
+                output_transcript_id=stuck_transcript.id,
+                started_at=old,
+                updated_at=old,
+            )
+            session.add(stuck_task)
+            await session.flush()
+            session.add(
+                OperationEventModel(
+                    occurred_at=old,
+                    event_type="micro_event_extract.window_started",
+                    severity="info",
+                    message="Window started.",
+                    actor_type="system",
+                    source="test",
+                    metadata_json={},
+                    video_task_id=stuck_task.id,
+                    video_id=stuck_video.id,
+                )
+            )
             await session.commit()
 
         async with session_factory() as session:
             repository = SqlAlchemyOpsRepository(session)
             from codex_sdk_cli.domains.ops.ports import (
+                OpsCandidateListQuery,
+                OpsStuckTaskQuery,
                 OpsVideoListQuery,
                 OpsVideoTaskListQuery,
             )
@@ -328,16 +446,161 @@ async def _exercise_repository(database_file: Path):
                         channel_id=None,
                         task_name=None,
                         status=None,
-                        limit=10,
+                        limit=50,
                         offset=0,
                     )
                 ),
                 "failures": await repository.list_recent_failures(limit=5),
+                "micro_candidates": await repository.list_micro_event_ready_candidates(
+                    OpsCandidateListQuery(
+                        channel_id=None,
+                        search=None,
+                        category=None,
+                        limit=10,
+                        offset=0,
+                    )
+                ),
+                "timeline_candidates": await repository.list_timeline_ready_candidates(
+                    OpsCandidateListQuery(
+                        channel_id=None,
+                        search=None,
+                        category=None,
+                        limit=10,
+                        offset=0,
+                    )
+                ),
+                "stuck": await repository.detect_stuck_tasks(
+                    OpsStuckTaskQuery(
+                        task_name="micro_event_extract",
+                        older_than=now - timedelta(minutes=15),
+                    )
+                ),
                 "transcript_id": transcript.id,
                 "composition_id": composition.id,
+                "timeline_ready_micro_task_id": timeline_ready_micro_task.id,
+                "timeline_failed_micro_task_id": timeline_failed_micro_task.id,
             }
     finally:
         await engine.dispose()
+
+
+async def _add_video_with_cues(session, channel_id: int, suffix: int, published_at: datetime):
+    video = VideoModel(
+        channel_id=channel_id,
+        youtube_video_id=f"video{suffix:07d}",
+        title=f"Video {suffix}",
+        description="Description",
+        published_at=published_at,
+        duration="PT1M",
+    )
+    session.add(video)
+    await session.flush()
+    transcript = YouTubeTranscriptRecordModel(
+        video_id=video.youtube_video_id,
+        language="Korean",
+        language_code="ko",
+        is_generated=False,
+        requested_languages=["ko", "en"],
+        preserve_formatting=False,
+        storage_bucket="raw",
+        storage_object_name=f"object-{suffix}.json",
+        storage_uri=f"s3://raw/object-{suffix}.json",
+        response_sha256=f"{suffix}" * 64,
+        segment_count=2,
+        text_length=20,
+    )
+    session.add(transcript)
+    await session.flush()
+    session.add(
+        VideoTaskModel(
+            video_id=video.id,
+            task_name="transcript_cue_generate",
+            task_version="v1",
+            input_hash=f"cue-{suffix}",
+            status="succeeded",
+            timeout_seconds=600,
+            output_transcript_id=transcript.id,
+            output_json={"cueCount": 2},
+        )
+    )
+    session.add_all(
+        [
+            TranscriptCueModel(
+                transcript_id=transcript.id,
+                cue_id=f"tr{suffix}-c000001",
+                cue_index=1,
+                text="first cue",
+                start_ms=0,
+                end_ms=1000,
+                duration_ms=1000,
+                source_segment_index=0,
+            ),
+            TranscriptCueModel(
+                transcript_id=transcript.id,
+                cue_id=f"tr{suffix}-c000002",
+                cue_index=2,
+                text="second cue",
+                start_ms=1000,
+                end_ms=2000,
+                duration_ms=1000,
+                source_segment_index=1,
+            ),
+        ]
+    )
+    await session.flush()
+    return video, transcript
+
+
+async def _add_micro_success(
+    session,
+    *,
+    video: VideoModel,
+    transcript: YouTubeTranscriptRecordModel,
+    suffix: int,
+    input_hash: str,
+) -> VideoTaskModel:
+    micro_task = VideoTaskModel(
+        video_id=video.id,
+        task_name="micro_event_extract",
+        task_version="v2",
+        input_hash=input_hash,
+        status="succeeded",
+        timeout_seconds=600,
+        output_transcript_id=transcript.id,
+    )
+    session.add(micro_task)
+    await session.flush()
+    micro_window = MicroEventExtractionWindowModel(
+        video_task_id=micro_task.id,
+        video_id=video.id,
+        transcript_id=transcript.id,
+        window_index=1,
+        start_cue_id=f"tr{suffix}-c000001",
+        end_cue_id=f"tr{suffix}-c000002",
+        cue_count=2,
+        status="succeeded",
+        carry_out_unfinished=False,
+    )
+    session.add(micro_window)
+    await session.flush()
+    session.add(
+        MicroEventCandidateModel(
+            window_id=micro_window.id,
+            video_task_id=micro_task.id,
+            transcript_id=transcript.id,
+            candidate_index=1,
+            activity="JUST_CHATTING",
+            event="candidate event",
+            start_cue_id=f"tr{suffix}-c000001",
+            end_cue_id=f"tr{suffix}-c000002",
+            evidence_cue_ids=[f"tr{suffix}-c000001", f"tr{suffix}-c000002"],
+            boundary_before=True,
+            boundary_after=True,
+            confidence=0.9,
+        )
+    )
+    await session.flush()
+    return micro_task
 
 
 def _alembic_config() -> Config:

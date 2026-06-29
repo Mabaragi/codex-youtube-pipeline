@@ -402,6 +402,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/candidates/micro-event-ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ops Micro Event Ready Candidates */
+        get: operations["list_ops_micro_event_ready_candidates_ops_candidates_micro_event_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/candidates/timeline-ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ops Timeline Ready Candidates */
+        get: operations["list_ops_timeline_ready_candidates_ops_candidates_timeline_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/channels": {
         parameters: {
             query?: never;
@@ -876,6 +910,23 @@ export interface paths {
         put?: never;
         /** Enqueue Video Micro Events */
         post: operations["enqueue_video_micro_events_video_tasks_micro_event_extract_enqueue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/video-tasks/process-to-publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process Video Tasks To Publish */
+        post: operations["process_video_tasks_to_publish_video_tasks_process_to_publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2750,6 +2801,19 @@ export interface components {
             /** Videotaskid */
             videoTaskId?: number | null;
         };
+        /** OpsCandidateRecommendedEnqueueResponse */
+        OpsCandidateRecommendedEnqueueResponse: {
+            /** Retryfailed */
+            retryFailed: boolean;
+            /**
+             * Target
+             * @default selected_videos
+             * @constant
+             */
+            target: "selected_videos";
+            /** Videoids */
+            videoIds: number[];
+        };
         /** OpsChannelListResponse */
         OpsChannelListResponse: {
             /** Items */
@@ -2785,6 +2849,47 @@ export interface components {
             videoCount: number;
             /** Youtubechannelid */
             youtubeChannelId: string | null;
+        };
+        /** OpsMicroEventReadyCandidateListResponse */
+        OpsMicroEventReadyCandidateListResponse: {
+            /** Items */
+            items: components["schemas"]["OpsMicroEventReadyCandidateResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** OpsMicroEventReadyCandidateResponse */
+        OpsMicroEventReadyCandidateResponse: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "readyNoHistory" | "retryableCanceled" | "failed" | "active" | "blocked";
+            /** Channelid */
+            channelId: number;
+            /** Channelname */
+            channelName: string;
+            /** Cuecount */
+            cueCount: number;
+            latestCueTask: components["schemas"]["OpsTaskSummaryResponse"];
+            latestMicroTask: components["schemas"]["OpsTaskSummaryResponse"] | null;
+            /**
+             * Publishedat
+             * Format: date-time
+             */
+            publishedAt: string;
+            recommendedEnqueue: components["schemas"]["OpsCandidateRecommendedEnqueueResponse"];
+            /** Title */
+            title: string;
+            /** Transcriptid */
+            transcriptId: number | null;
+            /** Videoid */
+            videoId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
         };
         /** OpsRecentFailureResponse */
         OpsRecentFailureResponse: {
@@ -2946,6 +3051,70 @@ export interface components {
             s3: {
                 [key: string]: unknown;
             };
+        };
+        /** OpsTaskSummaryResponse */
+        OpsTaskSummaryResponse: {
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Jobattemptid */
+            jobAttemptId: number | null;
+            /** Jobid */
+            jobId: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Videotaskid */
+            videoTaskId: number;
+            /** Workerid */
+            workerId: string | null;
+        };
+        /** OpsTimelineReadyCandidateListResponse */
+        OpsTimelineReadyCandidateListResponse: {
+            /** Items */
+            items: components["schemas"]["OpsTimelineReadyCandidateResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** OpsTimelineReadyCandidateResponse */
+        OpsTimelineReadyCandidateResponse: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "readyNoHistory" | "retryableCanceled" | "failed" | "active" | "blocked";
+            /** Channelid */
+            channelId: number;
+            /** Channelname */
+            channelName: string;
+            latestTimelineTask: components["schemas"]["OpsTaskSummaryResponse"] | null;
+            /** Microeventcount */
+            microEventCount: number;
+            /**
+             * Publishedat
+             * Format: date-time
+             */
+            publishedAt: string;
+            recommendedEnqueue: components["schemas"]["OpsCandidateRecommendedEnqueueResponse"];
+            /** Sourcemicroeventtaskid */
+            sourceMicroEventTaskId: number;
+            /** Title */
+            title: string;
+            /** Videoid */
+            videoId: number;
+            /** Windowcount */
+            windowCount: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
         };
         /** OpsVideoCueGenerationResponse */
         OpsVideoCueGenerationResponse: {
@@ -3368,6 +3537,111 @@ export interface components {
             videoId: number;
             /** Youtubevideoid */
             youtubeVideoId: string;
+        };
+        /** ProcessToPublishItemResponse */
+        ProcessToPublishItemResponse: {
+            micro?: components["schemas"]["ProcessToPublishStageResponse"] | null;
+            publish?: components["schemas"]["ProcessToPublishStageResponse"] | null;
+            /** Reason */
+            reason: string;
+            /** Status */
+            status: string;
+            timeline?: components["schemas"]["ProcessToPublishStageResponse"] | null;
+            /** Videoid */
+            videoId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string | null;
+        };
+        /**
+         * ProcessToPublishRequest
+         * @example {
+         *       "environment": "prod",
+         *       "microReasoning": "medium",
+         *       "pollIntervalSeconds": 10,
+         *       "retryFailed": true,
+         *       "schemaVersion": 1,
+         *       "timelineReasoning": "high",
+         *       "variant": "control",
+         *       "videoIds": [
+         *         1,
+         *         2,
+         *         3
+         *       ],
+         *       "waitTimeoutMinutes": 30
+         *     }
+         */
+        ProcessToPublishRequest: {
+            /** Environment */
+            environment?: string | null;
+            /** Microreasoning */
+            microReasoning?: ("low" | "medium" | "high" | "xhigh") | null;
+            /**
+             * Pollintervalseconds
+             * @default 10
+             */
+            pollIntervalSeconds: number;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /** Schemaversion */
+            schemaVersion?: number | null;
+            /** Timelinereasoning */
+            timelineReasoning?: ("low" | "medium" | "high" | "xhigh") | null;
+            /** Variant */
+            variant?: string | null;
+            /** Videoids */
+            videoIds: number[];
+            /**
+             * Waittimeoutminutes
+             * @default 30
+             */
+            waitTimeoutMinutes: number;
+        };
+        /** ProcessToPublishResponse */
+        ProcessToPublishResponse: {
+            /** Failedcount */
+            failedCount: number;
+            /** Items */
+            items: components["schemas"]["ProcessToPublishItemResponse"][];
+            /** Microsucceededcount */
+            microSucceededCount: number;
+            /** Publishedcount */
+            publishedCount: number;
+            /** Requestedcount */
+            requestedCount: number;
+            /** Skippedcount */
+            skippedCount: number;
+            /** Timelinesucceededcount */
+            timelineSucceededCount: number;
+        };
+        /** ProcessToPublishStageResponse */
+        ProcessToPublishStageResponse: {
+            /** Artifactid */
+            artifactId?: number | null;
+            /** Errormessage */
+            errorMessage?: string | null;
+            /** Errortype */
+            errorType?: string | null;
+            /** Jobattemptid */
+            jobAttemptId?: number | null;
+            /** Jobid */
+            jobId?: number | null;
+            /** Publicurl */
+            publicUrl?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Sourcemicroeventtaskid */
+            sourceMicroEventTaskId?: number | null;
+            /** Sourcetimelinecompositionid */
+            sourceTimelineCompositionId?: number | null;
+            /** Sourcetimelinetaskid */
+            sourceTimelineTaskId?: number | null;
+            /** Status */
+            status?: string | null;
+            /** Videotaskid */
+            videoTaskId?: number | null;
         };
         /** PromptBodyResponse */
         PromptBodyResponse: {
@@ -5175,6 +5449,76 @@ export interface operations {
             };
         };
     };
+    list_ops_micro_event_ready_candidates_ops_candidates_micro_event_ready_get: {
+        parameters: {
+            query?: {
+                channelId?: number | null;
+                search?: string | null;
+                category?: ("readyNoHistory" | "retryableCanceled" | "failed" | "active" | "blocked") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsMicroEventReadyCandidateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ops_timeline_ready_candidates_ops_candidates_timeline_ready_get: {
+        parameters: {
+            query?: {
+                channelId?: number | null;
+                search?: string | null;
+                category?: ("readyNoHistory" | "retryableCanceled" | "failed" | "active" | "blocked") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsTimelineReadyCandidateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_ops_channels_ops_channels_get: {
         parameters: {
             query?: never;
@@ -6180,6 +6524,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MicroEventEnqueueResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    process_video_tasks_to_publish_video_tasks_process_to_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessToPublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessToPublishResponse"];
                 };
             };
             /** @description Validation Error */

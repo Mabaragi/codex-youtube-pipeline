@@ -30,6 +30,7 @@ from codex_sdk_cli.infra.database.session import (
 from codex_sdk_cli.infra.domain_knowledge.repository import (
     SqlAlchemyDomainKnowledgeRepository,
 )
+from codex_sdk_cli.infra.llm_traces.factory import create_llm_trace_recorder
 from codex_sdk_cli.infra.micro_events.extractor import CodexMicroEventExtractor
 from codex_sdk_cli.infra.micro_events.repository import (
     SqlAlchemyMicroEventExtractionRepository,
@@ -161,6 +162,7 @@ def _use_case(
         events=BestEffortOperationEventRecorder(
             SQLAlchemyOperationEventRepository(session)
         ),
+        llm_traces=create_llm_trace_recorder(settings),
     )
 
 

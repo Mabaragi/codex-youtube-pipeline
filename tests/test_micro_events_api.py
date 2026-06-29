@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from httpx import ASGITransport, AsyncClient
@@ -11,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from codex_sdk_cli.api.dependencies import (
     get_channel_repository,
     get_domain_knowledge_repository,
+    get_llm_trace_recorder,
     get_micro_event_extraction_repository,
     get_micro_event_extractor,
     get_operation_event_recorder,
@@ -45,6 +47,10 @@ from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainKnowledgePromptEntryRecord,
     DomainKnowledgeRepositoryPort,
 )
+from codex_sdk_cli.domains.llm_traces.ports import (
+    LlmTraceRecorderPort,
+    NoopLlmTraceRecorder,
+)
 from codex_sdk_cli.domains.micro_events.ports import (
     AsrCorrectionCandidateRecord,
     MicroEventCandidateRecord,
@@ -56,6 +62,7 @@ from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionWindowCreate,
     MicroEventExtractionWindowRecord,
     MicroEventExtractorPort,
+    MicroEventRepairRequest,
 )
 from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 from codex_sdk_cli.domains.operation_events.ports import (
@@ -103,6 +110,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptRecord,
     YouTubeTranscriptRepositoryPort,
 )
+from codex_sdk_cli.infra.llm_traces.writer import FileLlmTraceRecorder
 from codex_sdk_cli.settings import CliSettings
 
 NOW = datetime(2026, 6, 23, 1, 2, tzinfo=UTC)
@@ -1038,10 +1046,14 @@ class FakeMicroEventExtractor(MicroEventExtractorPort):
     def __init__(self) -> None:
         self.responses: list[str] = []
         self.responses_by_window: dict[int, str] = {}
+        self.repair_responses: list[str] = []
+        self.repair_failures_by_window: dict[int, Exception] = {}
         self.delays_by_window: dict[int, float] = {}
         self.failures_by_window: dict[int, Exception] = {}
         self.prompts: list[str] = []
+        self.repair_prompts: list[str] = []
         self.requests: list[MicroEventExtractionRequest] = []
+        self.repair_requests: list[MicroEventRepairRequest] = []
         self.active_count = 0
         self.max_active_count = 0
         self.started_window_indices: list[int | None] = []
@@ -1077,6 +1089,22 @@ class FakeMicroEventExtractor(MicroEventExtractorPort):
             )
         finally:
             self.active_count -= 1
+
+    async def repair_window(
+        self,
+        request: MicroEventRepairRequest,
+    ) -> MicroEventExtractionResult:
+        self.repair_requests.append(request)
+        self.repair_prompts.append(request.prompt)
+        if request.window_index in self.repair_failures_by_window:
+            raise self.repair_failures_by_window[request.window_index]
+        response = self.repair_responses.pop(0) if self.repair_responses else _extractor_json()
+        return MicroEventExtractionResult(
+            thread_id=f"repair-thread-{request.window_index}",
+            turn_id=f"repair-turn-{request.window_index}",
+            status="completed",
+            final_response=response,
+        )
 
 
 class FakeOperationEventRecorder(OperationEventRecorderPort):
@@ -1138,6 +1166,7 @@ class _Fakes:
         )
         self.extractor = FakeMicroEventExtractor()
         self.events = FakeOperationEventRecorder()
+        self.llm_traces: LlmTraceRecorderPort = NoopLlmTraceRecorder()
         self.prompt_resolver = FakePromptResolver()
         self.settings = CliSettings(
             micro_event_extract_timeout_seconds=60,
@@ -1540,6 +1569,46 @@ def test_micro_event_enqueue_selected_video_creates_pending_task() -> None:
     assert fakes.extractor.prompts == []
 
 
+def test_micro_event_enqueue_retries_canceled_only_when_requested() -> None:
+    fakes = _seed_ready_fakes()
+    first = asyncio.run(
+        _enqueue(fakes, json={"target": "selected_videos", "videoIds": [1]})
+    )
+    task_id = first["items"][0]["videoTaskId"]
+    asyncio.run(
+        fakes.video_tasks.cancel_pending_tasks(
+            [task_id],
+            error_type="ManualQueueCancel",
+            error_message="Canceled by operator.",
+        )
+    )
+
+    skipped = asyncio.run(
+        _enqueue(fakes, json={"target": "selected_videos", "videoIds": [1]})
+    )
+    retried = asyncio.run(
+        _enqueue(
+            fakes,
+            json={
+                "target": "selected_videos",
+                "videoIds": [1],
+                "retryFailed": True,
+            },
+        )
+    )
+
+    task = fakes.video_tasks.tasks[task_id]
+    assert skipped["ineligibleCount"] == 1
+    assert skipped["items"][0]["reason"] == "not_retryable"
+    assert retried["enqueuedCount"] == 1
+    assert retried["items"][0]["status"] == "pending"
+    assert retried["items"][0]["reason"] == "requeued"
+    assert task.status == "pending"
+    assert task.error_type is None
+    assert task.error_message is None
+    assert task.completed_at is None
+
+
 def test_micro_event_enqueue_current_filters_skips_succeeded_and_finds_next() -> None:
     fakes = _seed_ready_fakes()
     asyncio.run(_extract(fakes))
@@ -1659,18 +1728,138 @@ def test_micro_event_extract_records_invalid_json_as_failed_task() -> None:
     assert fakes.video_tasks.tasks[2].status == "failed"
     assert detail["windows"][0]["status"] == "failed"
     assert detail["windows"][0]["validationError"] == "Extractor returned invalid JSON."
+    assert fakes.extractor.repair_requests == []
 
 
-def test_micro_event_extract_rejects_output_that_leaves_owned_cue_gap() -> None:
+def test_micro_event_trace_records_invalid_json_response(tmp_path: Path) -> None:
+    fakes = _seed_ready_fakes()
+    fakes.llm_traces = FileLlmTraceRecorder(
+        base_dir=tmp_path,
+        clock=lambda: datetime(2026, 6, 29, 12, tzinfo=UTC),
+    )
+    fakes.extractor.responses = ["not json"]
+
+    response = asyncio.run(_extract(fakes))
+    events = _llm_trace_events(tmp_path, "micro_event_extract")
+
+    assert response["status"] == "failed"
+    phases = [event["phase"] for event in events]
+    assert "window_started" in phases
+    assert "llm_response_received" in phases
+    assert "parse_failed" in phases
+    response_event = next(
+        event for event in events if event["phase"] == "llm_response_received"
+    )
+    assert response_event["windowIndex"] == 1
+    assert response_event["windowCount"] == 1
+    assert response_event["rawResponseLength"] == len(b"not json")
+    assert Path(str(response_event["rawResponsePath"])).read_text(
+        encoding="utf-8"
+    ) == "not json"
+    assert "rawResponseText" not in response_event
+    assert "promptText" not in response_event
+
+
+def test_micro_event_extract_repairs_out_of_range_cue_with_llm_repair() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[0, 1_000, 2_000])
+    fakes.extractor.responses = [
+        _extractor_json("tr1-c000001", "tr1-c000010")
+    ]
+    fakes.extractor.repair_responses = [
+        _extractor_json("tr1-c000001", "tr1-c000003")
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert len(fakes.extractor.repair_requests) == 1
+    repair_request = fakes.extractor.repair_requests[0]
+    assert repair_request.validation_error == (
+        "Extractor referenced cue_id outside OWNED_RANGE: tr1-c000010"
+    )
+    assert repair_request.owned_start_cue_id == "tr1-c000001"
+    assert repair_request.owned_end_cue_id == "tr1-c000003"
+    assert detail["windows"][0]["status"] == "succeeded"
+    assert detail["windows"][0]["microEvents"][0]["endCueId"] == "tr1-c000003"
+    assert "llm_repaired_window" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
+    event_types = {event.event_type for event in fakes.events.events}
+    assert "micro_event_extract.window_repair_requested" in event_types
+    assert "micro_event_extract.window_repaired" in event_types
+
+
+def test_micro_event_trace_records_window_repair_success(tmp_path: Path) -> None:
+    fakes = _seed_ready_fakes()
+    fakes.llm_traces = FileLlmTraceRecorder(
+        base_dir=tmp_path,
+        clock=lambda: datetime(2026, 6, 29, 12, tzinfo=UTC),
+    )
+    _seed_cues(fakes, cue_starts_ms=[0, 1_000, 2_000])
+    fakes.extractor.responses = [
+        _extractor_json("tr1-c000001", "tr1-c000010")
+    ]
+    fakes.extractor.repair_responses = [
+        _extractor_json("tr1-c000001", "tr1-c000003")
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    events = _llm_trace_events(tmp_path, "micro_event_extract")
+
+    assert response["status"] == "succeeded"
+    phases = [event["phase"] for event in events]
+    assert "repair_requested" in phases
+    assert "repair_response_received" in phases
+    assert "repair_succeeded" in phases
+    repair_response = next(
+        event for event in events if event["phase"] == "repair_response_received"
+    )
+    assert repair_response["operation"] == "repair_window"
+    assert repair_response["repairIndex"] == 1
+    assert Path(str(repair_response["rawResponsePath"])).exists()
+
+
+def test_micro_event_extract_fails_when_llm_repair_output_is_invalid() -> None:
     fakes = _seed_ready_fakes()
     fakes.extractor.responses = [_extractor_json("tr1-c000001", "tr1-c000001")]
+    fakes.extractor.repair_responses = [
+        _extractor_json("tr1-c000001", "tr1-c000001")
+    ]
 
     response = asyncio.run(_extract(fakes))
     detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
 
     assert response["status"] == "failed"
+    assert len(fakes.extractor.repair_requests) == 1
     assert detail["windows"][0]["status"] == "failed"
     assert "cover every owned cue" in detail["windows"][0]["validationError"]
+    event_types = {event.event_type for event in fakes.events.events}
+    assert "micro_event_extract.window_repair_requested" in event_types
+    assert "micro_event_extract.window_repair_failed" in event_types
+
+
+def test_micro_event_extract_fails_when_llm_repair_raises() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [_extractor_json("tr1-c000001", "tr1-c000001")]
+    fakes.extractor.repair_failures_by_window = {1: RuntimeError("repair unavailable")}
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "failed"
+    assert len(fakes.extractor.repair_requests) == 1
+    assert detail["windows"][0]["status"] == "failed"
+    assert "cover every owned cue" in detail["windows"][0]["validationError"]
+    repair_failed_events = [
+        event
+        for event in fakes.events.events
+        if event.event_type == "micro_event_extract.window_repair_failed"
+    ]
+    assert len(repair_failed_events) == 1
+    assert repair_failed_events[0].error_type == "RuntimeError"
+    assert repair_failed_events[0].metadata_json["repairError"] == "repair unavailable"
 
 
 def test_micro_event_extract_accepts_excluded_ranges_for_owned_coverage() -> None:
@@ -1940,6 +2129,61 @@ def test_micro_event_extract_normalizes_loose_enum_values() -> None:
     )
     warning_types = _warning_types(detail["windows"][0]["validationError"])
     assert "normalized_enum" in warning_types
+
+
+def test_micro_event_extract_moves_events_continued_to_events() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.extractor.responses = [
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "start_cue_id": "tr1-c000001",
+                        "end_cue_id": "tr1-c000001",
+                        "event": "방송 주제를 설명한다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "NEW_TOPIC",
+                        "continues_to_next": True,
+                        "evidence_cue_ids": ["tr1-c000001"],
+                        "support_level": "DIRECT",
+                    }
+                ],
+                "events_continued": [
+                    {
+                        "start_cue_id": "tr1-c000002",
+                        "end_cue_id": "tr1-c000002",
+                        "event": "다음 단서로 설명을 이어간다.",
+                        "program_mode": "JUST_CHATTING",
+                        "content_kind": "META_CHAT",
+                        "topics": ["방송 주제"],
+                        "relation_to_previous": "CONTINUATION",
+                        "continues_to_next": False,
+                        "evidence_cue_ids": ["tr1-c000002"],
+                        "support_level": "DIRECT",
+                    }
+                ],
+                "excluded_ranges": [],
+                "asr_correction_candidates": [],
+                "notes": "unexpected top-level field",
+            },
+            ensure_ascii=False,
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    window = detail["windows"][0]
+    assert [event["event"] for event in window["microEvents"]] == [
+        "방송 주제를 설명한다.",
+        "다음 단서로 설명을 이어간다.",
+    ]
+    warning_types = _warning_types(window["validationError"])
+    assert "moved_events_continued_to_events" in warning_types
+    assert "ignored_unknown_top_level_field" in warning_types
 
 
 def test_micro_event_extract_moves_term_annotations_to_asr_candidates() -> None:
@@ -2426,6 +2670,7 @@ def _app(fakes: _Fakes) -> Any:
     )
     app.dependency_overrides[get_micro_event_extractor] = lambda: fakes.extractor
     app.dependency_overrides[get_operation_event_recorder] = lambda: fakes.events
+    app.dependency_overrides[get_llm_trace_recorder] = lambda: fakes.llm_traces
     app.dependency_overrides[get_prompt_resolver] = lambda: fakes.prompt_resolver
     app.dependency_overrides[get_settings] = lambda: fakes.settings
     return app
@@ -2449,7 +2694,18 @@ def _use_case(fakes: _Fakes) -> ExtractVideoMicroEventsUseCase:
         model=fakes.settings.model,
         reasoning_effort=fakes.settings.reasoning_effort,
         events=fakes.events,
+        llm_traces=fakes.llm_traces,
     )
+
+
+def _llm_trace_events(base_dir: Path, source: str) -> list[dict[str, object]]:
+    paths = list(base_dir.glob(f"*/{source}.jsonl"))
+    assert len(paths) == 1
+    return [
+        json.loads(line)
+        for line in paths[0].read_text(encoding="utf-8").splitlines()
+        if line
+    ]
 
 
 def _seed_ready_fakes() -> _Fakes:

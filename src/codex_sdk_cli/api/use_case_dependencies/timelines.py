@@ -7,6 +7,7 @@ from fastapi import Depends
 from codex_sdk_cli.api.dependencies import (
     ChannelRepositoryDep,
     DomainKnowledgeRepositoryDep,
+    LlmTraceRecorderDep,
     MicroEventExtractionRepositoryDep,
     OperationEventRecorderDep,
     PipelineJobRepositoryDep,
@@ -34,6 +35,7 @@ def get_compose_timeline_use_case(
     prompt_resolver: PromptResolverDep,
     settings: SettingsDep,
     events: OperationEventRecorderDep,
+    llm_traces: LlmTraceRecorderDep,
 ) -> ComposeTimelineUseCase:
     return ComposeTimelineUseCase(
         videos=videos,
@@ -50,6 +52,7 @@ def get_compose_timeline_use_case(
         model=settings.model,
         reasoning_effort=settings.reasoning_effort,
         events=events,
+        llm_traces=llm_traces,
     )
 
 

@@ -4,11 +4,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Path, Query, status
 
+from codex_sdk_cli.api.use_case_dependencies.process_publish import (
+    ProcessToPublishUseCaseDep,
+)
 from codex_sdk_cli.api.use_case_dependencies.video_tasks import (
     CancelVideoTasksUseCaseDep,
     CollectChannelTranscriptTasksUseCaseDep,
     GenerateTranscriptCueTasksUseCaseDep,
     ListChannelVideoTasksUseCaseDep,
+)
+from codex_sdk_cli.domains.process_publish.schemas import (
+    ProcessToPublishRequest,
+    ProcessToPublishResponse,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskStatus
 from codex_sdk_cli.domains.video_tasks.schemas import (
@@ -32,6 +39,17 @@ async def cancel_video_tasks(
     use_case: CancelVideoTasksUseCaseDep,
     request: CancelVideoTasksRequest,
 ) -> CancelVideoTasksResponse:
+    return await use_case.execute(request)
+
+
+@router.post(
+    "/video-tasks/process-to-publish",
+    response_model=ProcessToPublishResponse,
+)
+async def process_video_tasks_to_publish(
+    use_case: ProcessToPublishUseCaseDep,
+    request: ProcessToPublishRequest,
+) -> ProcessToPublishResponse:
     return await use_case.execute(request)
 
 

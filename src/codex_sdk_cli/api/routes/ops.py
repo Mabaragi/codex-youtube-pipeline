@@ -6,16 +6,21 @@ from fastapi import APIRouter, Path, Query
 
 from codex_sdk_cli.api.use_case_dependencies.ops import (
     ListOpsChannelsUseCaseDep,
+    ListOpsMicroEventReadyCandidatesUseCaseDep,
+    ListOpsTimelineReadyCandidatesUseCaseDep,
     ListOpsVideosUseCaseDep,
     ListOpsVideoTasksUseCaseDep,
     OpsSchemaGraphUseCaseDep,
     OpsSummaryUseCaseDep,
     OpsVideoDetailUseCaseDep,
 )
+from codex_sdk_cli.domains.ops.ports import OpsCandidateCategory
 from codex_sdk_cli.domains.ops.schemas import (
     OpsChannelListResponse,
+    OpsMicroEventReadyCandidateListResponse,
     OpsSchemaGraphResponse,
     OpsSummaryResponse,
+    OpsTimelineReadyCandidateListResponse,
     OpsVideoDetailResponse,
     OpsVideoListResponse,
     OpsVideoTaskListResponse,
@@ -75,6 +80,48 @@ async def list_ops_video_tasks(
         channel_id=channel_id,
         task_name=task_name,
         status=status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/candidates/micro-event-ready",
+    response_model=OpsMicroEventReadyCandidateListResponse,
+)
+async def list_ops_micro_event_ready_candidates(
+    use_case: ListOpsMicroEventReadyCandidatesUseCaseDep,
+    channel_id: int | None = Query(default=None, alias="channelId", ge=1),
+    search: str | None = Query(default=None, min_length=1, max_length=255),
+    category: Annotated[OpsCandidateCategory | None, Query()] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> OpsMicroEventReadyCandidateListResponse:
+    return await use_case.execute(
+        channel_id=channel_id,
+        search=search,
+        category=category,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/candidates/timeline-ready",
+    response_model=OpsTimelineReadyCandidateListResponse,
+)
+async def list_ops_timeline_ready_candidates(
+    use_case: ListOpsTimelineReadyCandidatesUseCaseDep,
+    channel_id: int | None = Query(default=None, alias="channelId", ge=1),
+    search: str | None = Query(default=None, min_length=1, max_length=255),
+    category: Annotated[OpsCandidateCategory | None, Query()] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> OpsTimelineReadyCandidateListResponse:
+    return await use_case.execute(
+        channel_id=channel_id,
+        search=search,
+        category=category,
         limit=limit,
         offset=offset,
     )

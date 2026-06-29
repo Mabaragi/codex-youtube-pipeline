@@ -8,6 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from codex_sdk_cli.domains.pipeline_jobs.ports import JsonObject
 from codex_sdk_cli.domains.youtube_transcripts.schemas import TranscriptMetadataResponse
 
+OpsCandidateCategoryLiteral = Literal[
+    "readyNoHistory",
+    "retryableCanceled",
+    "failed",
+    "active",
+    "blocked",
+]
+
 
 class OpsStatusCountResponse(BaseModel):
     status: str
@@ -169,6 +177,125 @@ class OpsVideoTaskListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class OpsTaskSummaryResponse(BaseModel):
+    video_task_id: int = Field(alias="videoTaskId")
+    status: str
+    worker_id: str | None = Field(alias="workerId")
+    job_id: int | None = Field(alias="jobId")
+    job_attempt_id: int | None = Field(alias="jobAttemptId")
+    error_type: str | None = Field(alias="errorType")
+    error_message: str | None = Field(alias="errorMessage")
+    updated_at: datetime = Field(alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsCandidateRecommendedEnqueueResponse(BaseModel):
+    target: Literal["selected_videos"] = Field(default="selected_videos")
+    video_ids: list[int] = Field(alias="videoIds")
+    retry_failed: bool = Field(alias="retryFailed")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsMicroEventReadyCandidateResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    channel_id: int = Field(alias="channelId")
+    channel_name: str = Field(alias="channelName")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    title: str
+    published_at: datetime = Field(alias="publishedAt")
+    transcript_id: int | None = Field(alias="transcriptId")
+    cue_count: int = Field(alias="cueCount")
+    latest_cue_task: OpsTaskSummaryResponse = Field(alias="latestCueTask")
+    latest_micro_task: OpsTaskSummaryResponse | None = Field(alias="latestMicroTask")
+    category: OpsCandidateCategoryLiteral
+    recommended_enqueue: OpsCandidateRecommendedEnqueueResponse = Field(
+        alias="recommendedEnqueue"
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsMicroEventReadyCandidateListResponse(BaseModel):
+    items: list[OpsMicroEventReadyCandidateResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class OpsTimelineReadyCandidateResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    channel_id: int = Field(alias="channelId")
+    channel_name: str = Field(alias="channelName")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    title: str
+    published_at: datetime = Field(alias="publishedAt")
+    source_micro_event_task_id: int = Field(alias="sourceMicroEventTaskId")
+    micro_event_count: int = Field(alias="microEventCount")
+    window_count: int = Field(alias="windowCount")
+    latest_timeline_task: OpsTaskSummaryResponse | None = Field(alias="latestTimelineTask")
+    category: OpsCandidateCategoryLiteral
+    recommended_enqueue: OpsCandidateRecommendedEnqueueResponse = Field(
+        alias="recommendedEnqueue"
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsTimelineReadyCandidateListResponse(BaseModel):
+    items: list[OpsTimelineReadyCandidateResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class OpsLatestEventResponse(BaseModel):
+    operation_event_id: int = Field(alias="operationEventId")
+    occurred_at: datetime = Field(alias="occurredAt")
+    event_type: str = Field(alias="eventType")
+    severity: str
+    message: str
+    error_type: str | None = Field(alias="errorType")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsStuckTaskResponse(BaseModel):
+    video_task_id: int = Field(alias="videoTaskId")
+    video_id: int = Field(alias="videoId")
+    channel_id: int = Field(alias="channelId")
+    channel_name: str = Field(alias="channelName")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    title: str
+    task_name: str = Field(alias="taskName")
+    status: str
+    worker_id: str | None = Field(alias="workerId")
+    worker_pid: int | None = Field(alias="workerPid")
+    job_id: int | None = Field(alias="jobId")
+    job_attempt_id: int | None = Field(alias="jobAttemptId")
+    job_attempt_status: str | None = Field(alias="jobAttemptStatus")
+    started_at: datetime | None = Field(alias="startedAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    stale_since: datetime = Field(alias="staleSince")
+    stale_age_seconds: int = Field(alias="staleAgeSeconds")
+    latest_event: OpsLatestEventResponse | None = Field(alias="latestEvent")
+    error_type: str | None = Field(alias="errorType")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsStuckTaskListResponse(BaseModel):
+    items: list[OpsStuckTaskResponse]
+    total: int
+    task_name: str = Field(alias="taskName")
+    minutes: int
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OpsVideoDetailResponse(BaseModel):

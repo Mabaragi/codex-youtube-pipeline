@@ -89,6 +89,25 @@ class MicroEventExtractionRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class MicroEventRepairRequest:
+    prompt: str
+    original_prompt: str
+    original_response: str
+    validation_error: str
+    owned_start_cue_id: str
+    owned_end_cue_id: str
+    owned_cue_ids: list[str]
+    video_id: int | None = None
+    video_task_id: int | None = None
+    job_id: int | None = None
+    job_attempt_id: int | None = None
+    transcript_id: int | None = None
+    window_index: int | None = None
+    model: CodexModelChoice | None = None
+    reasoning_effort: ReasoningEffortChoice | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class MicroEventExtractionResult:
     thread_id: str
     turn_id: str
@@ -102,6 +121,12 @@ class MicroEventExtractorPort(Protocol):
         request: MicroEventExtractionRequest,
     ) -> MicroEventExtractionResult:
         """Extract candidate events from one transcript cue window."""
+
+    async def repair_window(
+        self,
+        request: MicroEventRepairRequest,
+    ) -> MicroEventExtractionResult:
+        """Repair one invalid extraction response so it satisfies window invariants."""
 
 
 @dataclass(frozen=True, slots=True)
