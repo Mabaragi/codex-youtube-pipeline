@@ -150,6 +150,29 @@ class _EnqueueCounters:
     ineligible_count: int = 0
 
 
+_MICRO_EVENT_WINDOW_MAX_RETRY_ATTEMPTS = 2
+
+
+@dataclass(frozen=True, slots=True)
+class _MicroEventWindowRuntimeFailure:
+    cue_window: _CueWindow
+    error: Exception
+    failed_window: MicroEventExtractionWindowCreate
+
+
+@dataclass(frozen=True, slots=True)
+class _MicroEventWindowBatchResult:
+    windows: dict[int, MicroEventExtractionWindowCreate]
+    validation_failures: dict[int, _MicroEventWindowValidationFailure]
+    runtime_failures: dict[int, _MicroEventWindowRuntimeFailure]
+
+
+@dataclass(frozen=True, slots=True)
+class _MicroEventWindowFinalFailures:
+    validation_failures: dict[int, _MicroEventWindowValidationFailure]
+    runtime_failures: dict[int, _MicroEventWindowRuntimeFailure]
+
+
 class _MicroEventWindowValidationFailure(Exception):
     def __init__(
         self,
@@ -1216,10 +1239,102 @@ class ExtractVideoMicroEventsUseCase:
         )
         if not cue_windows:
             return []
+        results: dict[int, MicroEventExtractionWindowCreate] = {}
+        final_failures = _MicroEventWindowFinalFailures(
+            validation_failures={},
+            runtime_failures={},
+        )
+        pending_windows = list(cue_windows)
+        retry_attempt = 0
+        window_count = len(cue_windows)
+
+        while pending_windows:
+            batch = await self._extract_window_batch(
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_windows=pending_windows,
+                window_count=window_count,
+                retry_attempt=retry_attempt,
+            )
+            results.update(batch.windows)
+            final_failures.validation_failures.update(batch.validation_failures)
+
+            retry_windows: list[_CueWindow] = []
+            for failure in batch.runtime_failures.values():
+                if retry_attempt < _MICRO_EVENT_WINDOW_MAX_RETRY_ATTEMPTS:
+                    next_retry_attempt = retry_attempt + 1
+                    retry_windows.append(failure.cue_window)
+                    await self._record_window_retry_event(
+                        "micro_event_extract.window_retry_requested",
+                        "warning",
+                        "Micro-event extraction window retry requested.",
+                        task=task,
+                        job=job,
+                        attempt=attempt,
+                        execution_input=execution_input,
+                        failure=failure,
+                        window_count=window_count,
+                        retry_attempt=next_retry_attempt,
+                        phase="window_retry_scheduled",
+                        reason="window_retry_scheduled",
+                    )
+                else:
+                    final_failures.runtime_failures[failure.cue_window.window_index] = (
+                        failure
+                    )
+                    await self._record_window_retry_event(
+                        "micro_event_extract.window_retry_failed",
+                        "error",
+                        "Micro-event extraction window retries were exhausted.",
+                        task=task,
+                        job=job,
+                        attempt=attempt,
+                        execution_input=execution_input,
+                        failure=failure,
+                        window_count=window_count,
+                        retry_attempt=retry_attempt,
+                        phase="window_retries_exhausted",
+                        reason="window_retries_exhausted",
+                    )
+
+            pending_windows = retry_windows
+            if pending_windows:
+                retry_attempt += 1
+
+        if final_failures.validation_failures or final_failures.runtime_failures:
+            failed_windows = [
+                failure.failed_window
+                for failure in final_failures.validation_failures.values()
+            ] + [
+                failure.failed_window
+                for failure in final_failures.runtime_failures.values()
+            ]
+            await self._micro_events.replace_extraction(
+                task.id,
+                _sorted_windows([*results.values(), *failed_windows]),
+            )
+            raise _first_window_failure(final_failures)
+        return _sorted_windows(results.values())
+
+    async def _extract_window_batch(
+        self,
+        *,
+        task: VideoTaskRecord,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+        execution_input: _ExtractionExecutionInput,
+        cue_windows: list[_CueWindow],
+        window_count: int,
+        retry_attempt: int,
+    ) -> _MicroEventWindowBatchResult:
         queue: asyncio.Queue[_CueWindow] = asyncio.Queue()
         for cue_window in cue_windows:
             queue.put_nowait(cue_window)
         results: dict[int, MicroEventExtractionWindowCreate] = {}
+        validation_failures: dict[int, _MicroEventWindowValidationFailure] = {}
+        runtime_failures: dict[int, _MicroEventWindowRuntimeFailure] = {}
         worker_count = min(self._concurrency_limit, len(cue_windows))
 
         async def worker() -> None:
@@ -1235,7 +1350,34 @@ class ExtractVideoMicroEventsUseCase:
                         attempt=attempt,
                         execution_input=execution_input,
                         cue_window=cue_window,
-                        window_count=len(cue_windows),
+                        window_count=window_count,
+                        retry_attempt=retry_attempt,
+                    )
+                    if retry_attempt > 0:
+                        await self._record_window_retry_success(
+                            task=task,
+                            execution_input=execution_input,
+                            cue_window=cue_window,
+                            window_count=window_count,
+                            retry_attempt=retry_attempt,
+                        )
+                except _MicroEventWindowValidationFailure as exc:
+                    validation_failures[cue_window.window_index] = exc
+                except Exception as exc:
+                    runtime_failures[cue_window.window_index] = (
+                        _MicroEventWindowRuntimeFailure(
+                            cue_window=cue_window,
+                            error=exc,
+                            failed_window=_runtime_failed_window(
+                                task=task,
+                                job=job,
+                                attempt=attempt,
+                                execution_input=execution_input,
+                                cue_window=cue_window,
+                                error_type=exc.__class__.__name__,
+                                error_message=str(exc) or exc.__class__.__name__,
+                            ),
+                        )
                     )
                 finally:
                     queue.task_done()
@@ -1243,23 +1385,17 @@ class ExtractVideoMicroEventsUseCase:
         worker_tasks = [asyncio.create_task(worker()) for _ in range(worker_count)]
         try:
             await asyncio.gather(*worker_tasks)
-        except _MicroEventWindowValidationFailure as exc:
-            for worker_task in worker_tasks:
-                if not worker_task.done():
-                    worker_task.cancel()
-            await asyncio.gather(*worker_tasks, return_exceptions=True)
-            await self._micro_events.replace_extraction(
-                task.id,
-                _sorted_windows([*results.values(), exc.failed_window]),
-            )
-            raise exc.error from exc
-        except Exception:
+        except BaseException:
             for worker_task in worker_tasks:
                 if not worker_task.done():
                     worker_task.cancel()
             await asyncio.gather(*worker_tasks, return_exceptions=True)
             raise
-        return _sorted_windows(results.values())
+        return _MicroEventWindowBatchResult(
+            windows=results,
+            validation_failures=validation_failures,
+            runtime_failures=runtime_failures,
+        )
 
     async def _extract_window(
         self,
@@ -1270,12 +1406,23 @@ class ExtractVideoMicroEventsUseCase:
         execution_input: _ExtractionExecutionInput,
         cue_window: _CueWindow,
         window_count: int,
+        retry_attempt: int = 0,
     ) -> MicroEventExtractionWindowCreate:
         prompt = _window_prompt(execution_input, cue_window)
+        retry_metadata = (
+            _window_retry_metadata(
+                cue_window,
+                window_count=window_count,
+                retry_attempt=retry_attempt,
+                max_retry_attempts=_MICRO_EVENT_WINDOW_MAX_RETRY_ATTEMPTS,
+            )
+            if retry_attempt > 0
+            else None
+        )
         await self._llm_traces.record_event(
             _micro_trace_event(
                 operation="extract_window",
-                phase="window_started",
+                phase="window_retry_started" if retry_attempt > 0 else "window_started",
                 task=task,
                 job=job,
                 attempt=attempt,
@@ -1283,6 +1430,7 @@ class ExtractVideoMicroEventsUseCase:
                 cue_window=cue_window,
                 window_count=window_count,
                 prompt_text=prompt,
+                metadata=retry_metadata,
             )
         )
         started_at = time.monotonic()
@@ -1301,10 +1449,12 @@ class ExtractVideoMicroEventsUseCase:
                 )
             )
         except Exception as exc:
+            error_type = exc.__class__.__name__
+            error_message = str(exc) or error_type
             await self._llm_traces.record_event(
                 _micro_trace_event(
                     operation="extract_window",
-                    phase="task_failed",
+                    phase="window_retry_failed",
                     task=task,
                     job=job,
                     attempt=attempt,
@@ -1312,8 +1462,16 @@ class ExtractVideoMicroEventsUseCase:
                     cue_window=cue_window,
                     window_count=window_count,
                     elapsed_ms=_elapsed_ms(started_at),
-                    error_type=exc.__class__.__name__,
-                    error_message=str(exc) or exc.__class__.__name__,
+                    error_type=error_type,
+                    error_message=error_message,
+                    metadata=_window_retry_metadata(
+                        cue_window,
+                        window_count=window_count,
+                        retry_attempt=retry_attempt,
+                        max_retry_attempts=_MICRO_EVENT_WINDOW_MAX_RETRY_ATTEMPTS,
+                        error_type=error_type,
+                        error_message=error_message,
+                    ),
                 )
             )
             raise
@@ -1344,7 +1502,11 @@ class ExtractVideoMicroEventsUseCase:
             await self._llm_traces.record_event(
                 _micro_trace_event(
                     operation="extract_window",
-                    phase="window_succeeded",
+                    phase=(
+                        "window_retry_succeeded"
+                        if retry_attempt > 0
+                        else "window_succeeded"
+                    ),
                     task=task,
                     job=job,
                     attempt=attempt,
@@ -1353,7 +1515,10 @@ class ExtractVideoMicroEventsUseCase:
                     window_count=window_count,
                     result=result,
                     elapsed_ms=_elapsed_ms(started_at),
-                    metadata={"microEventCount": len(window.micro_events)},
+                    metadata={
+                        "microEventCount": len(window.micro_events),
+                        **(retry_metadata or {}),
+                    },
                 )
             )
             return window
@@ -1390,7 +1555,11 @@ class ExtractVideoMicroEventsUseCase:
                 await self._llm_traces.record_event(
                     _micro_trace_event(
                         operation="extract_window",
-                        phase="window_succeeded",
+                        phase=(
+                            "window_retry_succeeded"
+                            if retry_attempt > 0
+                            else "window_succeeded"
+                        ),
                         task=task,
                         job=job,
                         attempt=attempt,
@@ -1401,6 +1570,7 @@ class ExtractVideoMicroEventsUseCase:
                         metadata={
                             "microEventCount": len(repaired.micro_events),
                             "repaired": True,
+                            **(retry_metadata or {}),
                         },
                     )
                 )
@@ -1628,6 +1798,83 @@ class ExtractVideoMicroEventsUseCase:
         )
         return repaired_window
 
+    async def _record_window_retry_event(
+        self,
+        event_type: str,
+        severity: OperationEventSeverity,
+        message: str,
+        *,
+        task: VideoTaskRecord,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+        execution_input: _ExtractionExecutionInput,
+        failure: _MicroEventWindowRuntimeFailure,
+        window_count: int,
+        retry_attempt: int,
+        phase: str,
+        reason: str,
+    ) -> None:
+        error_type = failure.error.__class__.__name__
+        error_message = str(failure.error) or error_type
+        metadata = _window_retry_metadata(
+            failure.cue_window,
+            window_count=window_count,
+            retry_attempt=retry_attempt,
+            max_retry_attempts=_MICRO_EVENT_WINDOW_MAX_RETRY_ATTEMPTS,
+            error_type=error_type,
+            error_message=error_message,
+        )
+        await self._llm_traces.record_event(
+            _micro_trace_event(
+                operation="extract_window",
+                phase=phase,
+                task=task,
+                job=job,
+                attempt=attempt,
+                execution_input=execution_input,
+                cue_window=failure.cue_window,
+                window_count=window_count,
+                error_type=error_type,
+                error_message=error_message,
+                metadata=metadata,
+            )
+        )
+        await self._record_task_event(
+            event_type,
+            severity,
+            message,
+            task=task,
+            execution_input=execution_input,
+            reason=reason,
+            error_type=error_type,
+            error_message=error_message,
+            metadata_json=metadata,
+        )
+
+    async def _record_window_retry_success(
+        self,
+        *,
+        task: VideoTaskRecord,
+        execution_input: _ExtractionExecutionInput,
+        cue_window: _CueWindow,
+        window_count: int,
+        retry_attempt: int,
+    ) -> None:
+        await self._record_task_event(
+            "micro_event_extract.window_retry_succeeded",
+            "info",
+            "Micro-event extraction window retry succeeded.",
+            task=task,
+            execution_input=execution_input,
+            reason="window_retry_succeeded",
+            metadata_json=_window_retry_metadata(
+                cue_window,
+                window_count=window_count,
+                retry_attempt=retry_attempt,
+                max_retry_attempts=_MICRO_EVENT_WINDOW_MAX_RETRY_ATTEMPTS,
+            ),
+        )
+
     async def _record_task_event(
         self,
         event_type: str,
@@ -1730,6 +1977,17 @@ def _micro_event_validation_failure_phase(
 
 def _elapsed_ms(started_at: float) -> int:
     return max(0, round((time.monotonic() - started_at) * 1000))
+
+
+def _first_window_failure(failures: _MicroEventWindowFinalFailures) -> Exception:
+    indexed_errors: list[tuple[int, Exception]] = [
+        (window_index, failure.error)
+        for window_index, failure in failures.validation_failures.items()
+    ] + [
+        (window_index, failure.error)
+        for window_index, failure in failures.runtime_failures.items()
+    ]
+    return min(indexed_errors, key=lambda item: item[0])[1]
 
 
 def _normalized_token(value: object) -> str | None:
@@ -2175,6 +2433,30 @@ def _repair_event_metadata(
     return metadata
 
 
+def _window_retry_metadata(
+    cue_window: _CueWindow,
+    *,
+    window_count: int,
+    retry_attempt: int,
+    max_retry_attempts: int,
+    error_type: str | None = None,
+    error_message: str | None = None,
+) -> JsonObject:
+    metadata: JsonObject = {
+        "windowIndex": cue_window.window_index,
+        "windowCount": window_count,
+        "retryAttempt": retry_attempt,
+        "maxRetryAttempts": max_retry_attempts,
+        "ownedStartCueId": cue_window.owned_cues[0].cue_id,
+        "ownedEndCueId": cue_window.owned_cues[-1].cue_id,
+    }
+    if error_type is not None:
+        metadata["errorType"] = error_type
+    if error_message is not None:
+        metadata["errorMessage"] = error_message
+    return metadata
+
+
 def _window_term_annotations(
     execution_input: _ExtractionExecutionInput,
     cue_window: _CueWindow,
@@ -2384,6 +2666,36 @@ def _failed_window(
         raw_response_text=result.final_response,
         parsed_response_json=parsed_response,
         validation_error=validation_error,
+        source_job_id=job.id,
+        source_job_attempt_id=attempt.id,
+    )
+
+
+def _runtime_failed_window(
+    *,
+    task: VideoTaskRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+    execution_input: _ExtractionExecutionInput,
+    cue_window: _CueWindow,
+    error_type: str,
+    error_message: str,
+) -> MicroEventExtractionWindowCreate:
+    return MicroEventExtractionWindowCreate(
+        video_task_id=task.id,
+        video_id=execution_input.video.id,
+        transcript_id=execution_input.metadata.id,
+        window_index=cue_window.window_index,
+        start_cue_id=cue_window.owned_cues[0].cue_id,
+        end_cue_id=cue_window.owned_cues[-1].cue_id,
+        cue_count=len(cue_window.owned_cues),
+        status="failed",
+        carry_out_unfinished=False,
+        codex_thread_id=None,
+        codex_turn_id=None,
+        raw_response_text=None,
+        parsed_response_json=None,
+        validation_error=f"{error_type}: {error_message}",
         source_job_id=job.id,
         source_job_attempt_id=attempt.id,
     )

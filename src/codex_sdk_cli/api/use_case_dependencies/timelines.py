@@ -15,10 +15,13 @@ from codex_sdk_cli.api.dependencies import (
     StreamerRepositoryDep,
     TimelineComposerDep,
     TimelineCompositionRepositoryDep,
+    TranscriptCueRepositoryDep,
     VideoRepositoryDep,
     VideoTaskRepositoryDep,
 )
+from codex_sdk_cli.api.use_case_dependencies.archive_publish import ArchivePublishUseCaseDep
 from codex_sdk_cli.api.use_case_dependencies.prompts import PromptResolverDep
+from codex_sdk_cli.domains.timelines.patch_use_cases import PatchTimelineUseCase
 from codex_sdk_cli.domains.timelines.use_cases import ComposeTimelineUseCase
 
 
@@ -59,4 +62,28 @@ def get_compose_timeline_use_case(
 ComposeTimelineUseCaseDep = Annotated[
     ComposeTimelineUseCase,
     Depends(get_compose_timeline_use_case),
+]
+
+
+def get_patch_timeline_use_case(
+    videos: VideoRepositoryDep,
+    timelines: TimelineCompositionRepositoryDep,
+    micro_events: MicroEventExtractionRepositoryDep,
+    transcript_cues: TranscriptCueRepositoryDep,
+    events: OperationEventRecorderDep,
+    archive_publish: ArchivePublishUseCaseDep,
+) -> PatchTimelineUseCase:
+    return PatchTimelineUseCase(
+        videos=videos,
+        timelines=timelines,
+        micro_events=micro_events,
+        transcript_cues=transcript_cues,
+        events=events,
+        archive_publish=archive_publish,
+    )
+
+
+PatchTimelineUseCaseDep = Annotated[
+    PatchTimelineUseCase,
+    Depends(get_patch_timeline_use_case),
 ]

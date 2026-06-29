@@ -19,5 +19,9 @@ class TimelineCompositionOutputInvalid(TimelineDomainError):
     """Raised when the composer returns unusable output."""
 
 
+class TimelinePatchInvalid(TimelineDomainError):
+    """Raised when a timeline patch cannot be applied safely."""
+
+
 class TimelineCompositionPersistenceError(TimelineDomainError):
     """Raised when timeline persistence fails."""

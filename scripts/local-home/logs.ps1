@@ -28,8 +28,8 @@ foreach ($path in $paths) {
     Write-Host ""
     Write-Host "== $path =="
     if ($Wait) {
-        Get-Content -LiteralPath $path -Tail $Tail -Wait
+        Get-Content -Encoding UTF8 -LiteralPath $path -Tail $Tail -Wait
     } else {
-        Get-Content -LiteralPath $path -Tail $Tail
+        Get-Content -Encoding UTF8 -LiteralPath $path -Tail $Tail
     }
 }

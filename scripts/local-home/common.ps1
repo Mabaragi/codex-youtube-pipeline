@@ -3,6 +3,20 @@ $script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $script:Utf8NoBom
 [Console]::InputEncoding = $script:Utf8NoBom
 [Console]::OutputEncoding = $script:Utf8NoBom
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$PSDefaultParameterValues["Get-Content:Encoding"] = "utf8"
+$PSDefaultParameterValues["Select-String:Encoding"] = "utf8"
+$PSDefaultParameterValues["Out-File:Encoding"] = "utf8"
+$PSDefaultParameterValues["Set-Content:Encoding"] = "utf8"
+$PSDefaultParameterValues["Add-Content:Encoding"] = "utf8"
+$PSDefaultParameterValues["Import-Csv:Encoding"] = "utf8"
+$PSDefaultParameterValues["Export-Csv:Encoding"] = "utf8"
+try {
+    chcp 65001 | Out-Null
+} catch {
+    # Keep local scripts usable in hosts that do not expose chcp.
+}
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $script:DeployDir = Join-Path $script:RepoRoot ".home-deploy"
@@ -34,7 +48,7 @@ function Import-LocalHomeEnv {
     Initialize-LocalHomeDirs
 
     if (Test-Path -LiteralPath $script:EnvFile) {
-        foreach ($line in Get-Content -LiteralPath $script:EnvFile) {
+        foreach ($line in Get-Content -Encoding UTF8 -LiteralPath $script:EnvFile) {
             $trimmed = $line.Trim()
             if (-not $trimmed -or $trimmed.StartsWith("#")) {
                 continue
@@ -83,6 +97,55 @@ function Invoke-Checked {
     }
 }
 
+function Invoke-JsonUtf8 {
+    param(
+        [ValidateSet("Get", "Post", "Put", "Patch", "Delete")]
+        [string]$Method = "Post",
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [object]$Body = $null,
+        [int]$Depth = 20,
+        [hashtable]$Headers = @{},
+        [int]$TimeoutSec = 100
+    )
+
+    $parameters = @{
+        Method = $Method
+        Uri = $Uri
+        Headers = $Headers
+        TimeoutSec = $TimeoutSec
+        UseBasicParsing = $true
+    }
+    if ($null -ne $Body) {
+        if ($Body -is [string]) {
+            $json = $Body
+        } else {
+            $json = $Body | ConvertTo-Json -Depth $Depth
+        }
+        $parameters["ContentType"] = "application/json; charset=utf-8"
+        $parameters["Body"] = [System.Text.Encoding]::UTF8.GetBytes($json)
+    }
+
+    $response = Invoke-WebRequest @parameters
+    if (-not $response.RawContentStream) {
+        return $null
+    }
+    $response.RawContentStream.Position = 0
+    $reader = New-Object System.IO.StreamReader(
+        $response.RawContentStream,
+        [System.Text.Encoding]::UTF8,
+        $true
+    )
+    try {
+        $content = $reader.ReadToEnd()
+    } finally {
+        $reader.Dispose()
+    }
+    if ([string]::IsNullOrWhiteSpace($content)) {
+        return $null
+    }
+    return $content | ConvertFrom-Json
+}
+
 function Get-PidPath {
     param([Parameter(Mandatory = $true)][string]$Name)
     return Join-Path $script:PidDir "$Name.pid"
@@ -95,7 +158,10 @@ function Get-ManagedProcess {
     if (-not (Test-Path -LiteralPath $pidPath)) {
         return $null
     }
-    $rawPid = (Get-Content -LiteralPath $pidPath -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $rawPid = (
+        Get-Content -Encoding UTF8 -LiteralPath $pidPath -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    )
     $processId = 0
     if (-not [int]::TryParse($rawPid, [ref]$processId)) {
         return $null

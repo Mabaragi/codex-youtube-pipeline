@@ -4,11 +4,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Path, status
 
-from codex_sdk_cli.api.use_case_dependencies.timelines import ComposeTimelineUseCaseDep
+from codex_sdk_cli.api.use_case_dependencies.timelines import (
+    ComposeTimelineUseCaseDep,
+    PatchTimelineUseCaseDep,
+)
 from codex_sdk_cli.domains.timelines.schemas import (
     TimelineComposeEnqueueRequest,
     TimelineComposeEnqueueResponse,
     TimelineCompositionResponse,
+    TimelinePatchRequest,
+    TimelinePatchResponse,
 )
 
 router = APIRouter()
@@ -47,3 +52,20 @@ async def get_video_timeline(
     use_case: ComposeTimelineUseCaseDep,
 ) -> TimelineCompositionResponse:
     return await use_case.get_detail(video_id=video_id, video_task_id=video_task_id)
+
+
+@router.post(
+    "/videos/{videoId}/timelines/{videoTaskId}/patch",
+    response_model=TimelinePatchResponse,
+)
+async def patch_video_timeline(
+    video_id: Annotated[int, Path(ge=1, alias="videoId")],
+    video_task_id: Annotated[int, Path(ge=1, alias="videoTaskId")],
+    use_case: PatchTimelineUseCaseDep,
+    request: TimelinePatchRequest,
+) -> TimelinePatchResponse:
+    return await use_case.execute(
+        video_id=video_id,
+        video_task_id=video_task_id,
+        request=request,
+    )

@@ -984,6 +984,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos/{videoId}/timelines/{videoTaskId}/patch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Patch Video Timeline */
+        post: operations["patch_video_timeline_videos__videoId__timelines__videoTaskId__patch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/videos/{video_id}/micro-event-extractions/latest": {
         parameters: {
             query?: never;
@@ -4126,6 +4143,213 @@ export interface components {
              */
             visibility: "DEFAULT" | "COLLAPSED" | "HIDDEN";
         };
+        /** TimelinePatchAnchorRequest */
+        TimelinePatchAnchorRequest: {
+            /** Displaysummary */
+            displaySummary?: string | null;
+            /** Displaytitle */
+            displayTitle?: string | null;
+            /** Timecode */
+            timecode?: string | null;
+        };
+        /** TimelinePatchBlockSummaryResponse */
+        TimelinePatchBlockSummaryResponse: {
+            /** Blockid */
+            blockId: string;
+            /** Blockindex */
+            blockIndex: number;
+            /**
+             * Blocktype
+             * @enum {string}
+             */
+            blockType: "PRE_ROLL" | "OPENING" | "JUST_CHATTING" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "GAME_SETUP" | "GAMEPLAY" | "BREAK" | "POST_GAME" | "CLOSING" | "MIXED";
+            /** Displaysummary */
+            displaySummary: string;
+            /** Displaytitle */
+            displayTitle: string;
+            /** Episodeids */
+            episodeIds: string[];
+        };
+        /** TimelinePatchDiffResponse */
+        TimelinePatchDiffResponse: {
+            /** Blocks */
+            blocks: components["schemas"]["TimelinePatchBlockSummaryResponse"][];
+            /** Episodes */
+            episodes: components["schemas"]["TimelinePatchEpisodeSummaryResponse"][];
+        };
+        /** TimelinePatchEpisodeSummaryResponse */
+        TimelinePatchEpisodeSummaryResponse: {
+            /** Displaysummary */
+            displaySummary: string;
+            /** Displaytitle */
+            displayTitle: string;
+            /** Episodeid */
+            episodeId: string;
+            /** Episodeindex */
+            episodeIndex: number;
+            /** Parentblockid */
+            parentBlockId: string;
+        };
+        /** TimelinePatchNewBlockRequest */
+        TimelinePatchNewBlockRequest: {
+            /** Blocktype */
+            blockType?: ("PRE_ROLL" | "OPENING" | "JUST_CHATTING" | "COMMUNITY_REVIEW" | "MEDIA_REVIEW" | "GAME_SETUP" | "GAMEPLAY" | "BREAK" | "POST_GAME" | "CLOSING" | "MIXED") | null;
+            /** Displaysummary */
+            displaySummary?: string | null;
+            /** Displaytitle */
+            displayTitle?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** TimelinePatchOperationRequest */
+        TimelinePatchOperationRequest: {
+            anchor?: components["schemas"]["TimelinePatchAnchorRequest"] | null;
+            /** Anchorepisodeid */
+            anchorEpisodeId?: string | null;
+            /** Displaysummary */
+            displaySummary?: string | null;
+            /** Displaytitle */
+            displayTitle?: string | null;
+            newBlock?: components["schemas"]["TimelinePatchNewBlockRequest"] | null;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "split_block_after_episode" | "edit_display_copy";
+            /** Targetid */
+            targetId?: string | null;
+            /** Targettype */
+            targetType?: ("video" | "block" | "episode") | null;
+        };
+        /** TimelinePatchOperationResultResponse */
+        TimelinePatchOperationResultResponse: {
+            /** Anchorepisodeid */
+            anchorEpisodeId?: string | null;
+            /** Changedblockids */
+            changedBlockIds?: string[];
+            /** Changedepisodeids */
+            changedEpisodeIds?: string[];
+            /** Message */
+            message: string;
+            /** Newblockid */
+            newBlockId?: string | null;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "split_block_after_episode" | "edit_display_copy";
+            /** Targetid */
+            targetId?: string | null;
+            /** Targettype */
+            targetType?: ("video" | "block" | "episode") | null;
+        };
+        /** TimelinePatchPublishRequest */
+        TimelinePatchPublishRequest: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /**
+             * Schemaversion
+             * @default 1
+             */
+            schemaVersion: number;
+            /**
+             * Variant
+             * @default control
+             */
+            variant: string;
+        };
+        /** TimelinePatchPublishSummaryResponse */
+        TimelinePatchPublishSummaryResponse: {
+            /** Artifactid */
+            artifactId?: number | null;
+            /** Errormessage */
+            errorMessage?: string | null;
+            /** Errortype */
+            errorType?: string | null;
+            /** Failedcount */
+            failedCount?: number | null;
+            /** Publicurl */
+            publicUrl?: string | null;
+            /** Publishedcount */
+            publishedCount?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Regeneratedcount */
+            regeneratedCount?: number | null;
+            /** Requestedcount */
+            requestedCount?: number | null;
+            /** Status */
+            status?: string | null;
+            /** Videotaskid */
+            videoTaskId?: number | null;
+        };
+        /**
+         * TimelinePatchRequest
+         * @example {
+         *       "dryRun": true,
+         *       "instruction": "Split the later post-game conversation into a new block.",
+         *       "operations": [
+         *         {
+         *           "anchorEpisodeId": "episode_012",
+         *           "newBlock": {
+         *             "blockType": "POST_GAME",
+         *             "displayTitle": "After the match"
+         *           },
+         *           "operation": "split_block_after_episode"
+         *         }
+         *       ]
+         *     }
+         */
+        TimelinePatchRequest: {
+            /**
+             * Dryrun
+             * @default true
+             */
+            dryRun: boolean;
+            /** Instruction */
+            instruction?: string | null;
+            /** Operations */
+            operations: components["schemas"]["TimelinePatchOperationRequest"][];
+            publish?: components["schemas"]["TimelinePatchPublishRequest"] | null;
+        };
+        /** TimelinePatchResponse */
+        TimelinePatchResponse: {
+            after: components["schemas"]["TimelinePatchDiffResponse"];
+            /** Applied */
+            applied: boolean;
+            before: components["schemas"]["TimelinePatchDiffResponse"];
+            /** Dryrun */
+            dryRun: boolean;
+            /** Operations */
+            operations: components["schemas"]["TimelinePatchOperationResultResponse"][];
+            /** Publishresult */
+            publishResult?: {
+                [key: string]: unknown;
+            } | null;
+            publishSummary?: components["schemas"]["TimelinePatchPublishSummaryResponse"] | null;
+            /** Sourcemicroeventtaskid */
+            sourceMicroEventTaskId: number;
+            /** Timelinecompositionid */
+            timelineCompositionId: number;
+            /** Validationwarnings */
+            validationWarnings: string[];
+            /** Videoid */
+            videoId: number;
+            /** Videotaskid */
+            videoTaskId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
         /** TimelineReviewFlagResponse */
         TimelineReviewFlagResponse: {
             /** Endmicroeventcandidateid */
@@ -6656,6 +6880,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GenerateAllTranscriptCueTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_video_timeline_videos__videoId__timelines__videoTaskId__patch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                videoId: number;
+                videoTaskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimelinePatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelinePatchResponse"];
                 };
             };
             /** @description Validation Error */

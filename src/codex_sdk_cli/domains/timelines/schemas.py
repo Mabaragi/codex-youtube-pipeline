@@ -19,6 +19,8 @@ from .ports import (
 )
 
 TimelineComposeEnqueueTarget = Literal["selected_videos", "current_filters", "next_eligible"]
+TimelinePatchOperationType = Literal["split_block_after_episode", "edit_display_copy"]
+TimelinePatchTargetType = Literal["video", "block", "episode"]
 
 
 class TimelineComposeEnqueueRequest(BaseModel):
@@ -176,5 +178,179 @@ class TimelineCompositionResponse(BaseModel):
     episodes: list[TimelineEpisodeResponse]
     topic_clusters: list[TimelineTopicClusterResponse] = Field(alias="topicClusters")
     review_flags: list[TimelineReviewFlagResponse] = Field(alias="reviewFlags")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TimelinePatchAnchorRequest(BaseModel):
+    timecode: str | None = Field(default=None, min_length=1, max_length=32)
+    display_title: str | None = Field(default=None, min_length=1, alias="displayTitle")
+    display_summary: str | None = Field(default=None, min_length=1, alias="displaySummary")
+
+    @model_validator(mode="after")
+    def _requires_matcher(self) -> TimelinePatchAnchorRequest:
+        if not (self.timecode or self.display_title or self.display_summary):
+            raise ValueError("At least one anchor matcher is required.")
+        return self
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class TimelinePatchNewBlockRequest(BaseModel):
+    block_type: TimelineBlockType | None = Field(default=None, alias="blockType")
+    title: str | None = Field(default=None, min_length=1)
+    summary: str | None = Field(default=None, min_length=1)
+    display_title: str | None = Field(default=None, min_length=1, alias="displayTitle")
+    display_summary: str | None = Field(default=None, min_length=1, alias="displaySummary")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class TimelinePatchOperationRequest(BaseModel):
+    operation: TimelinePatchOperationType
+    anchor_episode_id: str | None = Field(default=None, min_length=1, alias="anchorEpisodeId")
+    anchor: TimelinePatchAnchorRequest | None = None
+    new_block: TimelinePatchNewBlockRequest | None = Field(default=None, alias="newBlock")
+    target_type: TimelinePatchTargetType | None = Field(default=None, alias="targetType")
+    target_id: str | None = Field(default=None, min_length=1, alias="targetId")
+    display_title: str | None = Field(default=None, min_length=1, alias="displayTitle")
+    display_summary: str | None = Field(default=None, min_length=1, alias="displaySummary")
+
+    @model_validator(mode="after")
+    def _validate_operation_shape(self) -> TimelinePatchOperationRequest:
+        if self.operation == "split_block_after_episode":
+            if self.anchor_episode_id is None and self.anchor is None:
+                raise ValueError("split_block_after_episode requires anchorEpisodeId or anchor.")
+            return self
+        if self.target_type is None:
+            raise ValueError("edit_display_copy requires targetType.")
+        if self.target_type in {"block", "episode"} and self.target_id is None:
+            raise ValueError("edit_display_copy requires targetId for block or episode.")
+        if self.display_title is None and self.display_summary is None:
+            raise ValueError("edit_display_copy requires displayTitle or displaySummary.")
+        return self
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class TimelinePatchPublishRequest(BaseModel):
+    enabled: bool = False
+    environment: str = Field(default="prod", min_length=1, max_length=64)
+    variant: str = Field(default="control", min_length=1, max_length=64)
+    schema_version: int = Field(default=1, ge=1, le=100, alias="schemaVersion")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class TimelinePatchRequest(BaseModel):
+    dry_run: bool = Field(default=True, alias="dryRun")
+    instruction: str | None = Field(default=None, max_length=4000)
+    operations: list[TimelinePatchOperationRequest] = Field(min_length=1, max_length=20)
+    publish: TimelinePatchPublishRequest | None = None
+
+    @model_validator(mode="after")
+    def _validate_publish(self) -> TimelinePatchRequest:
+        if self.dry_run and self.publish is not None and self.publish.enabled:
+            raise ValueError("publish.enabled requires dryRun=false.")
+        return self
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "dryRun": True,
+                    "instruction": "Split the later post-game conversation into a new block.",
+                    "operations": [
+                        {
+                            "operation": "split_block_after_episode",
+                            "anchorEpisodeId": "episode_012",
+                            "newBlock": {
+                                "blockType": "POST_GAME",
+                                "displayTitle": "After the match",
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+
+class TimelinePatchBlockSummaryResponse(BaseModel):
+    block_id: str = Field(alias="blockId")
+    block_index: int = Field(alias="blockIndex")
+    block_type: TimelineBlockType = Field(alias="blockType")
+    display_title: str = Field(alias="displayTitle")
+    display_summary: str = Field(alias="displaySummary")
+    episode_ids: list[str] = Field(alias="episodeIds")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TimelinePatchEpisodeSummaryResponse(BaseModel):
+    episode_id: str = Field(alias="episodeId")
+    episode_index: int = Field(alias="episodeIndex")
+    parent_block_id: str = Field(alias="parentBlockId")
+    display_title: str = Field(alias="displayTitle")
+    display_summary: str = Field(alias="displaySummary")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TimelinePatchDiffResponse(BaseModel):
+    blocks: list[TimelinePatchBlockSummaryResponse]
+    episodes: list[TimelinePatchEpisodeSummaryResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TimelinePatchOperationResultResponse(BaseModel):
+    operation: TimelinePatchOperationType
+    anchor_episode_id: str | None = Field(default=None, alias="anchorEpisodeId")
+    target_type: TimelinePatchTargetType | None = Field(default=None, alias="targetType")
+    target_id: str | None = Field(default=None, alias="targetId")
+    changed_block_ids: list[str] = Field(default_factory=list, alias="changedBlockIds")
+    changed_episode_ids: list[str] = Field(default_factory=list, alias="changedEpisodeIds")
+    new_block_id: str | None = Field(default=None, alias="newBlockId")
+    message: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TimelinePatchPublishSummaryResponse(BaseModel):
+    requested_count: int | None = Field(default=None, alias="requestedCount")
+    published_count: int | None = Field(default=None, alias="publishedCount")
+    regenerated_count: int | None = Field(default=None, alias="regeneratedCount")
+    failed_count: int | None = Field(default=None, alias="failedCount")
+    status: str | None = None
+    reason: str | None = None
+    video_task_id: int | None = Field(default=None, alias="videoTaskId")
+    artifact_id: int | None = Field(default=None, alias="artifactId")
+    public_url: str | None = Field(default=None, alias="publicUrl")
+    error_type: str | None = Field(default=None, alias="errorType")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TimelinePatchResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    video_task_id: int = Field(alias="videoTaskId")
+    timeline_composition_id: int = Field(alias="timelineCompositionId")
+    source_micro_event_task_id: int = Field(alias="sourceMicroEventTaskId")
+    dry_run: bool = Field(alias="dryRun")
+    applied: bool
+    operations: list[TimelinePatchOperationResultResponse]
+    before: TimelinePatchDiffResponse
+    after: TimelinePatchDiffResponse
+    validation_warnings: list[str] = Field(alias="validationWarnings")
+    publish_result: JsonObject | None = Field(default=None, alias="publishResult")
+    publish_summary: TimelinePatchPublishSummaryResponse | None = Field(
+        default=None,
+        alias="publishSummary",
+    )
 
     model_config = ConfigDict(populate_by_name=True)

@@ -9059,6 +9059,738 @@
         "title": "TimelineEpisodeResponse",
         "type": "object"
       },
+      "TimelinePatchAnchorRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "displaySummary": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaysummary"
+          },
+          "displayTitle": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaytitle"
+          },
+          "timecode": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timecode"
+          }
+        },
+        "title": "TimelinePatchAnchorRequest",
+        "type": "object"
+      },
+      "TimelinePatchBlockSummaryResponse": {
+        "properties": {
+          "blockId": {
+            "title": "Blockid",
+            "type": "string"
+          },
+          "blockIndex": {
+            "title": "Blockindex",
+            "type": "integer"
+          },
+          "blockType": {
+            "enum": [
+              "PRE_ROLL",
+              "OPENING",
+              "JUST_CHATTING",
+              "COMMUNITY_REVIEW",
+              "MEDIA_REVIEW",
+              "GAME_SETUP",
+              "GAMEPLAY",
+              "BREAK",
+              "POST_GAME",
+              "CLOSING",
+              "MIXED"
+            ],
+            "title": "Blocktype",
+            "type": "string"
+          },
+          "displaySummary": {
+            "title": "Displaysummary",
+            "type": "string"
+          },
+          "displayTitle": {
+            "title": "Displaytitle",
+            "type": "string"
+          },
+          "episodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Episodeids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "blockId",
+          "blockIndex",
+          "blockType",
+          "displayTitle",
+          "displaySummary",
+          "episodeIds"
+        ],
+        "title": "TimelinePatchBlockSummaryResponse",
+        "type": "object"
+      },
+      "TimelinePatchDiffResponse": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePatchBlockSummaryResponse"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "episodes": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePatchEpisodeSummaryResponse"
+            },
+            "title": "Episodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "blocks",
+          "episodes"
+        ],
+        "title": "TimelinePatchDiffResponse",
+        "type": "object"
+      },
+      "TimelinePatchEpisodeSummaryResponse": {
+        "properties": {
+          "displaySummary": {
+            "title": "Displaysummary",
+            "type": "string"
+          },
+          "displayTitle": {
+            "title": "Displaytitle",
+            "type": "string"
+          },
+          "episodeId": {
+            "title": "Episodeid",
+            "type": "string"
+          },
+          "episodeIndex": {
+            "title": "Episodeindex",
+            "type": "integer"
+          },
+          "parentBlockId": {
+            "title": "Parentblockid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episodeId",
+          "episodeIndex",
+          "parentBlockId",
+          "displayTitle",
+          "displaySummary"
+        ],
+        "title": "TimelinePatchEpisodeSummaryResponse",
+        "type": "object"
+      },
+      "TimelinePatchNewBlockRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "blockType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PRE_ROLL",
+                  "OPENING",
+                  "JUST_CHATTING",
+                  "COMMUNITY_REVIEW",
+                  "MEDIA_REVIEW",
+                  "GAME_SETUP",
+                  "GAMEPLAY",
+                  "BREAK",
+                  "POST_GAME",
+                  "CLOSING",
+                  "MIXED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocktype"
+          },
+          "displaySummary": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaysummary"
+          },
+          "displayTitle": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaytitle"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "TimelinePatchNewBlockRequest",
+        "type": "object"
+      },
+      "TimelinePatchOperationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelinePatchAnchorRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchorEpisodeId": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchorepisodeid"
+          },
+          "displaySummary": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaysummary"
+          },
+          "displayTitle": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaytitle"
+          },
+          "newBlock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelinePatchNewBlockRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operation": {
+            "enum": [
+              "split_block_after_episode",
+              "edit_display_copy"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetid"
+          },
+          "targetType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "video",
+                  "block",
+                  "episode"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targettype"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "title": "TimelinePatchOperationRequest",
+        "type": "object"
+      },
+      "TimelinePatchOperationResultResponse": {
+        "properties": {
+          "anchorEpisodeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchorepisodeid"
+          },
+          "changedBlockIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changedblockids",
+            "type": "array"
+          },
+          "changedEpisodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changedepisodeids",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "newBlockId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newblockid"
+          },
+          "operation": {
+            "enum": [
+              "split_block_after_episode",
+              "edit_display_copy"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetid"
+          },
+          "targetType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "video",
+                  "block",
+                  "episode"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targettype"
+          }
+        },
+        "required": [
+          "operation",
+          "message"
+        ],
+        "title": "TimelinePatchOperationResultResponse",
+        "type": "object"
+      },
+      "TimelinePatchPublishRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "environment": {
+            "default": "prod",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "variant": {
+            "default": "control",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Variant",
+            "type": "string"
+          }
+        },
+        "title": "TimelinePatchPublishRequest",
+        "type": "object"
+      },
+      "TimelinePatchPublishSummaryResponse": {
+        "properties": {
+          "artifactId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifactid"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "failedCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failedcount"
+          },
+          "publicUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicurl"
+          },
+          "publishedCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishedcount"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "regeneratedCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regeneratedcount"
+          },
+          "requestedCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestedcount"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "videoTaskId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videotaskid"
+          }
+        },
+        "title": "TimelinePatchPublishSummaryResponse",
+        "type": "object"
+      },
+      "TimelinePatchRequest": {
+        "additionalProperties": false,
+        "examples": [
+          {
+            "dryRun": true,
+            "instruction": "Split the later post-game conversation into a new block.",
+            "operations": [
+              {
+                "anchorEpisodeId": "episode_012",
+                "newBlock": {
+                  "blockType": "POST_GAME",
+                  "displayTitle": "After the match"
+                },
+                "operation": "split_block_after_episode"
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "dryRun": {
+            "default": true,
+            "title": "Dryrun",
+            "type": "boolean"
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePatchOperationRequest"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Operations",
+            "type": "array"
+          },
+          "publish": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelinePatchPublishRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "title": "TimelinePatchRequest",
+        "type": "object"
+      },
+      "TimelinePatchResponse": {
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/TimelinePatchDiffResponse"
+          },
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "before": {
+            "$ref": "#/components/schemas/TimelinePatchDiffResponse"
+          },
+          "dryRun": {
+            "title": "Dryrun",
+            "type": "boolean"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePatchOperationResultResponse"
+            },
+            "title": "Operations",
+            "type": "array"
+          },
+          "publishResult": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishresult"
+          },
+          "publishSummary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelinePatchPublishSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceMicroEventTaskId": {
+            "title": "Sourcemicroeventtaskid",
+            "type": "integer"
+          },
+          "timelineCompositionId": {
+            "title": "Timelinecompositionid",
+            "type": "integer"
+          },
+          "validationWarnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validationwarnings",
+            "type": "array"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "videoTaskId": {
+            "title": "Videotaskid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "videoTaskId",
+          "timelineCompositionId",
+          "sourceMicroEventTaskId",
+          "dryRun",
+          "applied",
+          "operations",
+          "before",
+          "after",
+          "validationWarnings"
+        ],
+        "title": "TimelinePatchResponse",
+        "type": "object"
+      },
       "TimelineReviewFlagResponse": {
         "properties": {
           "endMicroEventCandidateId": {
@@ -14363,6 +15095,69 @@
         "summary": "Generate All Transcript Cue Tasks",
         "tags": [
           "video-tasks"
+        ]
+      }
+    },
+    "/videos/{videoId}/timelines/{videoTaskId}/patch": {
+      "post": {
+        "operationId": "patch_video_timeline_videos__videoId__timelines__videoTaskId__patch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "videoId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Videoid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "videoTaskId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Videotaskid",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelinePatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelinePatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Video Timeline",
+        "tags": [
+          "timelines"
         ]
       }
     },

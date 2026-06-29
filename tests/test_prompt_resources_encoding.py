@@ -46,6 +46,9 @@ def test_timeline_prompt_guides_display_summary_feed_caption_tone() -> None:
 
     assert "좋은 클립 목록 캡션처럼" in text
     assert "실제로 볼 장면 2~3개를 짧게 압축" in text
-    assert "`처음부터 끝까지`, `X에서 Y까지`, `X하다가 Y까지`, `X 뒤에 Y`" in text
-    assert "`~한다.`, `~했다.`, `~된다.`, `~이다.`로 끝나는 설명문보다" in text
+    assert "보고서형 종결과 문장 구조를 피한다" in text
+    assert "특정 어미나 종결 패턴을 정답처럼 반복하지 않는다" in text
+    assert "가볍고 귀엽고 장면감 있게" in text
+    assert "`처음부터 끝까지`, `X에서 Y까지`, `X하다가 Y까지`, `X 뒤에 Y`" not in text
+    assert "`~한다.`, `~했다.`, `~된다.`, `~이다.`로 끝나는 설명문보다" not in text
     assert "해라체/평서형 `~다` 문장" not in text

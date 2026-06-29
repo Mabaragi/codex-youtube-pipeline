@@ -1049,7 +1049,7 @@ class FakeMicroEventExtractor(MicroEventExtractorPort):
         self.repair_responses: list[str] = []
         self.repair_failures_by_window: dict[int, Exception] = {}
         self.delays_by_window: dict[int, float] = {}
-        self.failures_by_window: dict[int, Exception] = {}
+        self.failures_by_window: dict[int, Exception | list[Exception]] = {}
         self.prompts: list[str] = []
         self.repair_prompts: list[str] = []
         self.requests: list[MicroEventExtractionRequest] = []
@@ -1071,8 +1071,17 @@ class FakeMicroEventExtractor(MicroEventExtractorPort):
         try:
             if request.window_index in self.delays_by_window:
                 await asyncio.sleep(self.delays_by_window[request.window_index])
-            if request.window_index in self.failures_by_window:
-                raise self.failures_by_window[request.window_index]
+            window_index = request.window_index
+            failure = (
+                self.failures_by_window.get(window_index)
+                if window_index is not None
+                else None
+            )
+            if isinstance(failure, list):
+                if failure:
+                    raise failure.pop(0)
+            elif failure is not None:
+                raise failure
             response = (
                 self.responses_by_window[request.window_index]
                 if request.window_index in self.responses_by_window
@@ -2482,7 +2491,7 @@ def test_micro_event_extract_runs_windows_with_bounded_worker_pool() -> None:
     assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3, 4]
 
 
-def test_micro_event_extract_validation_failure_fails_entire_parallel_task() -> None:
+def test_micro_event_extract_validation_failure_keeps_completed_parallel_windows() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_extract_concurrency_limit": 3}
@@ -2506,19 +2515,63 @@ def test_micro_event_extract_validation_failure_fails_entire_parallel_task() -> 
     assert response["errorType"] == "MicroEventExtractionOutputInvalid"
     assert fakes.pipeline_jobs.jobs[1].status == "failed"
     assert fakes.video_tasks.tasks[2].status == "failed"
-    assert [window["windowIndex"] for window in detail["windows"]] == [2]
-    assert detail["windows"][0]["status"] == "failed"
-    assert detail["windows"][0]["validationError"] == "Extractor returned invalid JSON."
+    assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3, 4]
+    failed_window = detail["windows"][1]
+    assert failed_window["status"] == "failed"
+    assert failed_window["validationError"] == "Extractor returned invalid JSON."
 
 
-def test_micro_event_extract_runtime_failure_fails_entire_parallel_task() -> None:
+def test_micro_event_extract_runtime_failure_retries_failed_window_and_succeeds(
+    tmp_path: Path,
+) -> None:
     fakes = _seed_ready_fakes()
+    fakes.llm_traces = FileLlmTraceRecorder(
+        base_dir=tmp_path,
+        clock=lambda: datetime(2026, 6, 29, 12, tzinfo=UTC),
+    )
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_extract_concurrency_limit": 3}
     )
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
     fakes.extractor.delays_by_window = {1: 0.05, 3: 0.05}
-    fakes.extractor.failures_by_window = {2: RuntimeError("codex failed")}
+    fakes.extractor.failures_by_window = {2: [RuntimeError("codex failed")]}
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000001"),
+        2: _extractor_json("tr1-c000002", "tr1-c000002"),
+        3: _extractor_json("tr1-c000003", "tr1-c000003"),
+    }
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert fakes.pipeline_jobs.jobs[1].status == "succeeded"
+    assert fakes.video_tasks.tasks[2].status == "succeeded"
+    assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3]
+    assert fakes.extractor.started_window_indices.count(2) == 2
+    assert 3 in fakes.extractor.completed_window_indices
+    event_types = [event.event_type for event in fakes.events.events]
+    assert "micro_event_extract.window_retry_requested" in event_types
+    assert "micro_event_extract.window_retry_succeeded" in event_types
+    phases = [event["phase"] for event in _llm_trace_events(tmp_path, "micro_event_extract")]
+    assert "window_retry_scheduled" in phases
+    assert "window_retry_started" in phases
+    assert "window_retry_succeeded" in phases
+
+
+def test_micro_event_extract_runtime_retry_exhaustion_stores_partial_windows() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    fakes.extractor.failures_by_window = {
+        2: [
+            RuntimeError("codex failed 1"),
+            RuntimeError("codex failed 2"),
+            RuntimeError("codex failed 3"),
+        ]
+    }
     fakes.extractor.responses_by_window = {
         1: _extractor_json("tr1-c000001", "tr1-c000001"),
         3: _extractor_json("tr1-c000003", "tr1-c000003"),
@@ -2529,10 +2582,17 @@ def test_micro_event_extract_runtime_failure_fails_entire_parallel_task() -> Non
 
     assert response["status"] == "failed"
     assert response["errorType"] == "RuntimeError"
-    assert response["errorMessage"] == "codex failed"
+    assert response["errorMessage"] == "codex failed 3"
     assert fakes.pipeline_jobs.jobs[1].status == "failed"
     assert fakes.video_tasks.tasks[2].status == "failed"
-    assert detail["windows"] == []
+    assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3]
+    failed_window = detail["windows"][1]
+    assert failed_window["status"] == "failed"
+    assert failed_window["validationError"] == "RuntimeError: codex failed 3"
+    assert fakes.extractor.started_window_indices.count(2) == 3
+    event_types = [event.event_type for event in fakes.events.events]
+    assert event_types.count("micro_event_extract.window_retry_requested") == 2
+    assert "micro_event_extract.window_retry_failed" in event_types
 
 
 def test_micro_event_extract_openapi_paths_are_registered() -> None:

@@ -8,7 +8,7 @@
 
 상세 문서는 `vaults/INDEX.md`에서 라우팅한다. 루트 문서는 항상 지켜야 할 규칙만 담고, 구현 세부사항과 반복 workflow는 vault 문서를 읽는다.
 운영 UI 프론트엔드 작업은 `ops-ui/AGENTS.md`를 먼저 읽고, 백엔드 내부 문서는 API contract나 배포 경계를 바꿀 때만 추가로 읽는다.
-사용자가 코드베이스 탐색 없이 운영 API만 호출하라고 요청한 에이전트는 `docs/AGENT_API_OPERATIONS.md`를 먼저 읽고, 소스 코드 검색 대신 해당 문서와 `/openapi.json`만 사용한다.
+사용자가 코드베이스 탐색 없이 운영 API만 호출하라고 요청한 에이전트는 `docs/AGENT_API_OPERATIONS.md`를 먼저 읽고, 그 index가 가리키는 필요한 하위 guide 하나와 `/openapi.json`만 사용한다.
 
 ## Suggested Reading Order
 

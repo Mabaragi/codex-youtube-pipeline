@@ -10,8 +10,8 @@ remain in root `AGENTS.md` and `vaults/`.
 - `docs/YOUTUBE_DATA_PIPELINE_TODO.md`: remaining pipeline backlog.
 - `docs/LOCAL_NATIVE_DEPLOYMENT.md`: current Home PC deployment path. MinIO runs
   in Docker; API, workers, and Ops UI run as local Windows processes.
-- `docs/AGENT_API_OPERATIONS.md`: API-only runbook for agents that should
-  operate the local app without inspecting source code.
+- `docs/AGENT_API_OPERATIONS.md`: API-only operations index. Agents should read
+  it first, then load only the matching guide under `docs/agent-api-operations/`.
 - `docs/ARCHITECTURE_LINTING.md`: Import Linter clean architecture gate,
   layer rules, and violation repair guidance.
 - `docs/ARCHIVE_PUBLISH.md`: R2 archive publish API, worker, object layout,
