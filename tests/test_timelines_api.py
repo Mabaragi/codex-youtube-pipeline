@@ -32,6 +32,17 @@ def test_timeline_compose_openapi_paths_and_aliases() -> None:
     )
     patch_schema = schema["components"]["schemas"]["TimelinePatchResponse"]
     assert "publishSummary" in patch_schema["properties"]
+    operation_schema = schema["components"]["schemas"]["TimelinePatchOperationRequest"]
+    assert "edit_micro_event_copy" in operation_schema["properties"]["operation"]["enum"]
+    assert "edit_topic_cluster_copy" in operation_schema["properties"]["operation"]["enum"]
+    assert "targetMicroEventCandidateId" in operation_schema["properties"]
+    assert "expectedEpisodeId" in operation_schema["properties"]
+    assert "targetTopicId" in operation_schema["properties"]
+    operation_result_schema = schema["components"]["schemas"][
+        "TimelinePatchOperationResultResponse"
+    ]
+    assert "changedMicroEventCandidateIds" in operation_result_schema["properties"]
+    assert "changedTopicIds" in operation_result_schema["properties"]
     assert schema["paths"]["/video-tasks/timeline-compose/enqueue"]["post"][
         "responses"
     ]["201"]["content"]["application/json"]["schema"]["$ref"].endswith(
@@ -82,6 +93,18 @@ def test_timeline_patch_request_validation() -> None:
                     "targetId": "block_002",
                     "displaySummary": "A lighter display summary",
                 },
+                {
+                    "operation": "edit_micro_event_copy",
+                    "targetMicroEventCandidateId": 123,
+                    "expectedEpisodeId": "episode_002",
+                    "event": "The streamer cries over the scene.",
+                },
+                {
+                    "operation": "edit_topic_cluster_copy",
+                    "targetTopicId": "topic_001",
+                    "displayLabel": "Crying reaction flow",
+                    "summary": "The topic summary highlights the crying reaction.",
+                },
             ],
             "publish": {"enabled": True, "schemaVersion": 1},
         }
@@ -90,6 +113,10 @@ def test_timeline_patch_request_validation() -> None:
     assert request.dry_run is False
     assert request.operations[0].anchor_episode_id == "episode_001"
     assert request.operations[1].target_type == "block"
+    assert request.operations[2].target_micro_event_candidate_id == 123
+    assert request.operations[2].expected_episode_id == "episode_002"
+    assert request.operations[3].target_topic_id == "topic_001"
+    assert request.operations[3].display_label == "Crying reaction flow"
     assert request.publish is not None
     assert request.publish.enabled is True
 
@@ -116,6 +143,30 @@ def test_timeline_patch_request_validation() -> None:
                         "operation": "edit_display_copy",
                         "targetType": "episode",
                         "displaySummary": "Summary",
+                    }
+                ]
+            }
+        )
+
+    with pytest.raises(ValidationError, match="requires event"):
+        TimelinePatchRequest.model_validate(
+            {
+                "operations": [
+                    {
+                        "operation": "edit_micro_event_copy",
+                        "targetMicroEventCandidateId": 123,
+                    }
+                ]
+            }
+        )
+
+    with pytest.raises(ValidationError, match="requires displayLabel or summary"):
+        TimelinePatchRequest.model_validate(
+            {
+                "operations": [
+                    {
+                        "operation": "edit_topic_cluster_copy",
+                        "targetTopicId": "topic_001",
                     }
                 ]
             }

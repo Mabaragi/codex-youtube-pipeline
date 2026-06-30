@@ -9172,11 +9172,19 @@
             },
             "title": "Episodes",
             "type": "array"
+          },
+          "topicClusters": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePatchTopicClusterSummaryResponse"
+            },
+            "title": "Topicclusters",
+            "type": "array"
           }
         },
         "required": [
           "blocks",
-          "episodes"
+          "episodes",
+          "topicClusters"
         ],
         "title": "TimelinePatchDiffResponse",
         "type": "object"
@@ -9318,6 +9326,18 @@
             ],
             "title": "Anchorepisodeid"
           },
+          "displayLabel": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaylabel"
+          },
           "displaySummary": {
             "anyOf": [
               {
@@ -9342,6 +9362,30 @@
             ],
             "title": "Displaytitle"
           },
+          "event": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "expectedEpisodeId": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedepisodeid"
+          },
           "newBlock": {
             "anyOf": [
               {
@@ -9355,10 +9399,24 @@
           "operation": {
             "enum": [
               "split_block_after_episode",
-              "edit_display_copy"
+              "edit_display_copy",
+              "edit_micro_event_copy",
+              "edit_topic_cluster_copy"
             ],
             "title": "Operation",
             "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
           },
           "targetId": {
             "anyOf": [
@@ -9371,6 +9429,30 @@
               }
             ],
             "title": "Targetid"
+          },
+          "targetMicroEventCandidateId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetmicroeventcandidateid"
+          },
+          "targetTopicId": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targettopicid"
           },
           "targetType": {
             "anyOf": [
@@ -9397,6 +9479,17 @@
       },
       "TimelinePatchOperationResultResponse": {
         "properties": {
+          "afterEvent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Afterevent"
+          },
           "anchorEpisodeId": {
             "anyOf": [
               {
@@ -9407,6 +9500,17 @@
               }
             ],
             "title": "Anchorepisodeid"
+          },
+          "beforeEvent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beforeevent"
           },
           "changedBlockIds": {
             "items": {
@@ -9420,6 +9524,20 @@
               "type": "string"
             },
             "title": "Changedepisodeids",
+            "type": "array"
+          },
+          "changedMicroEventCandidateIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Changedmicroeventcandidateids",
+            "type": "array"
+          },
+          "changedTopicIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changedtopicids",
             "type": "array"
           },
           "message": {
@@ -9440,7 +9558,9 @@
           "operation": {
             "enum": [
               "split_block_after_episode",
-              "edit_display_copy"
+              "edit_display_copy",
+              "edit_micro_event_copy",
+              "edit_topic_cluster_copy"
             ],
             "title": "Operation",
             "type": "string"
@@ -9455,6 +9575,28 @@
               }
             ],
             "title": "Targetid"
+          },
+          "targetMicroEventCandidateId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetmicroeventcandidateid"
+          },
+          "targetTopicId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targettopicid"
           },
           "targetType": {
             "anyOf": [
@@ -9789,6 +9931,42 @@
           "validationWarnings"
         ],
         "title": "TimelinePatchResponse",
+        "type": "object"
+      },
+      "TimelinePatchTopicClusterSummaryResponse": {
+        "properties": {
+          "displayLabel": {
+            "title": "Displaylabel",
+            "type": "string"
+          },
+          "episodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Episodeids",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "topicId": {
+            "title": "Topicid",
+            "type": "string"
+          },
+          "topicIndex": {
+            "title": "Topicindex",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "topicId",
+          "topicIndex",
+          "displayLabel",
+          "summary",
+          "episodeIds"
+        ],
+        "title": "TimelinePatchTopicClusterSummaryResponse",
         "type": "object"
       },
       "TimelineReviewFlagResponse": {

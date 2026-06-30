@@ -318,3 +318,12 @@ class MicroEventExtractionRepositoryPort(Protocol):
         video_id: int,
     ) -> MicroEventExtractionDetailRecord | None:
         """Return the newest succeeded extraction for a video."""
+
+    async def update_candidate_event(
+        self,
+        *,
+        video_task_id: int,
+        candidate_id: int,
+        event: str,
+    ) -> MicroEventCandidateRecord | None:
+        """Update one candidate's public event text within an extraction task."""

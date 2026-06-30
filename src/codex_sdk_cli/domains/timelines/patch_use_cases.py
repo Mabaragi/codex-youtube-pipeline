@@ -8,6 +8,7 @@ from typing import Protocol, cast
 from codex_sdk_cli.domains.archive_publish.schemas import ArchivePublishRequest
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventCandidateRecord,
+    MicroEventExtractionDetailRecord,
     MicroEventExtractionRepositoryPort,
 )
 from codex_sdk_cli.domains.operation_events.ports import (
@@ -42,6 +43,7 @@ from codex_sdk_cli.domains.timelines.schemas import (
     TimelinePatchPublishSummaryResponse,
     TimelinePatchRequest,
     TimelinePatchResponse,
+    TimelinePatchTopicClusterSummaryResponse,
 )
 from codex_sdk_cli.domains.transcript_cues.ports import (
     TranscriptCueRecord,
@@ -64,6 +66,15 @@ class _PatchState:
     episodes: list[TimelineEpisodeCreate]
     topic_clusters: list[TimelineTopicClusterCreate]
     review_flags: list[TimelineReviewFlagCreate]
+
+
+@dataclass(slots=True)
+class _MicroEventPatchContext:
+    detail: MicroEventExtractionDetailRecord
+    candidates_by_id: dict[int, MicroEventCandidateRecord]
+    original_events_by_id: dict[int, str]
+    events_by_id: dict[int, str]
+    episode_id_by_candidate_id: dict[int, str]
 
 
 class PatchTimelineUseCase:
@@ -103,7 +114,13 @@ class PatchTimelineUseCase:
 
         state = _state_from_record(record)
         before = _diff_response(state)
-        episode_time_ranges = await self._episode_time_ranges_if_needed(record, request)
+        source_detail = await self._source_micro_event_detail_if_needed(record, request)
+        episode_time_ranges = await self._episode_time_ranges_if_needed(
+            record,
+            request,
+            source_detail,
+        )
+        micro_event_context = _micro_event_patch_context(record, request, source_detail)
         operation_results: list[TimelinePatchOperationResultResponse] = []
         for operation in request.operations:
             operation_results.append(
@@ -111,6 +128,7 @@ class PatchTimelineUseCase:
                     state,
                     operation,
                     episode_time_ranges=episode_time_ranges,
+                    micro_event_context=micro_event_context,
                 )
             )
         _validate_patch_invariants(state)
@@ -119,12 +137,16 @@ class PatchTimelineUseCase:
         publish_result: JsonObject | None = None
 
         if not request.dry_run:
-            create = _composition_create(record, state, output_json=output_json)
-            updated = await self._timelines.replace_composition(create)
-            if updated is None:
-                raise TimelineCompositionPersistenceError(
-                    "Timeline composition persistence failed."
-                )
+            updated = record
+            if _has_timeline_edits(request):
+                create = _composition_create(record, state, output_json=output_json)
+                replaced = await self._timelines.replace_composition(create)
+                if replaced is None:
+                    raise TimelineCompositionPersistenceError(
+                        "Timeline composition persistence failed."
+                    )
+                updated = replaced
+            await self._apply_micro_event_updates(micro_event_context)
             publish_result = await self._publish_if_requested(record, request)
             await self._record_patch_applied(
                 record=updated,
@@ -152,20 +174,35 @@ class PatchTimelineUseCase:
             publishSummary=_publish_response_summary(publish_result),
         )
 
+    async def _source_micro_event_detail_if_needed(
+        self,
+        record: TimelineCompositionRecord,
+        request: TimelinePatchRequest,
+    ) -> MicroEventExtractionDetailRecord | None:
+        if not any(
+            _operation_needs_source_micro_events(operation)
+            for operation in request.operations
+        ):
+            return None
+        detail = await self._micro_events.get_extraction(
+            video_id=record.video_id,
+            video_task_id=record.source_micro_event_task_id,
+        )
+        if detail is None:
+            raise TimelinePatchInvalid("Source micro-event extraction not found.")
+        return detail
+
     async def _episode_time_ranges_if_needed(
         self,
         record: TimelineCompositionRecord,
         request: TimelinePatchRequest,
+        detail: MicroEventExtractionDetailRecord | None,
     ) -> dict[str, tuple[int, int]]:
         if not any(
             operation.anchor is not None and operation.anchor.timecode is not None
             for operation in request.operations
         ):
             return {}
-        detail = await self._micro_events.get_extraction(
-            video_id=record.video_id,
-            video_task_id=record.source_micro_event_task_id,
-        )
         if detail is None:
             raise TimelinePatchInvalid("Source micro-event extraction not found.")
         if detail.transcript_id is None:
@@ -178,6 +215,23 @@ class PatchTimelineUseCase:
             for candidate in window.micro_events
         }
         return _episode_time_ranges(record, candidate_by_id, cue_by_id)
+
+    async def _apply_micro_event_updates(
+        self,
+        context: _MicroEventPatchContext | None,
+    ) -> None:
+        if context is None:
+            return
+        for candidate_id in _edited_micro_event_candidate_ids(context):
+            updated = await self._micro_events.update_candidate_event(
+                video_task_id=context.detail.video_task_id,
+                candidate_id=candidate_id,
+                event=context.events_by_id[candidate_id],
+            )
+            if updated is None:
+                raise TimelinePatchInvalid(
+                    f"Micro-event candidate not found in source extraction: {candidate_id}"
+                )
 
     async def _publish_if_requested(
         self,
@@ -241,6 +295,21 @@ class PatchTimelineUseCase:
                             for episode_id in result.changed_episode_ids
                         }
                     ),
+                    "changedTopicIds": sorted(
+                        {
+                            topic_id
+                            for result in operation_results
+                            for topic_id in result.changed_topic_ids
+                        }
+                    ),
+                    "changedMicroEventCandidateIds": sorted(
+                        {
+                            candidate_id
+                            for result in operation_results
+                            for candidate_id in result.changed_micro_event_candidate_ids
+                        }
+                    ),
+                    "microEventUpdates": _micro_event_event_updates(operation_results),
                     "before": _event_diff(before),
                     "after": _event_diff(after),
                     "publishResult": _publish_event_summary(publish_result),
@@ -260,11 +329,84 @@ def _state_from_record(record: TimelineCompositionRecord) -> _PatchState:
     )
 
 
+def _micro_event_patch_context(
+    record: TimelineCompositionRecord,
+    request: TimelinePatchRequest,
+    detail: MicroEventExtractionDetailRecord | None,
+) -> _MicroEventPatchContext | None:
+    if not any(operation.operation == "edit_micro_event_copy" for operation in request.operations):
+        return None
+    if detail is None:
+        raise TimelinePatchInvalid("Source micro-event extraction not found.")
+    ordered_candidates = [
+        candidate
+        for window in sorted(detail.windows, key=lambda item: item.window_index)
+        for candidate in sorted(window.micro_events, key=lambda item: item.candidate_index)
+    ]
+    candidates_by_id = {candidate.id: candidate for candidate in ordered_candidates}
+    original_events_by_id = {
+        candidate.id: candidate.event for candidate in ordered_candidates
+    }
+    return _MicroEventPatchContext(
+        detail=detail,
+        candidates_by_id=candidates_by_id,
+        original_events_by_id=original_events_by_id,
+        events_by_id=dict(original_events_by_id),
+        episode_id_by_candidate_id=_episode_id_by_candidate_id(
+            record,
+            ordered_candidates,
+        ),
+    )
+
+
+def _episode_id_by_candidate_id(
+    record: TimelineCompositionRecord,
+    ordered_candidates: list[MicroEventCandidateRecord],
+) -> dict[int, str]:
+    candidate_positions = {
+        candidate.id: index for index, candidate in enumerate(ordered_candidates)
+    }
+    result: dict[int, str] = {}
+    for episode in record.episodes:
+        start_candidate_id = episode.start_micro_event_candidate_id
+        end_candidate_id = episode.end_micro_event_candidate_id
+        if start_candidate_id is None or end_candidate_id is None:
+            continue
+        start_position = candidate_positions.get(start_candidate_id)
+        end_position = candidate_positions.get(end_candidate_id)
+        if start_position is None or end_position is None or start_position > end_position:
+            continue
+        for candidate in ordered_candidates[start_position : end_position + 1]:
+            result.setdefault(candidate.id, episode.episode_id)
+    return result
+
+
+def _operation_needs_source_micro_events(
+    operation: TimelinePatchOperationRequest,
+) -> bool:
+    return operation.operation == "edit_micro_event_copy" or (
+        operation.anchor is not None and operation.anchor.timecode is not None
+    )
+
+
+def _has_timeline_edits(request: TimelinePatchRequest) -> bool:
+    return any(operation.operation != "edit_micro_event_copy" for operation in request.operations)
+
+
+def _edited_micro_event_candidate_ids(context: _MicroEventPatchContext) -> list[int]:
+    return [
+        candidate_id
+        for candidate_id in sorted(context.events_by_id)
+        if context.events_by_id[candidate_id] != context.original_events_by_id[candidate_id]
+    ]
+
+
 def _apply_operation(
     state: _PatchState,
     operation: TimelinePatchOperationRequest,
     *,
     episode_time_ranges: dict[str, tuple[int, int]],
+    micro_event_context: _MicroEventPatchContext | None,
 ) -> TimelinePatchOperationResultResponse:
     if operation.operation == "split_block_after_episode":
         return _split_block_after_episode(
@@ -272,6 +414,10 @@ def _apply_operation(
             operation,
             episode_time_ranges=episode_time_ranges,
         )
+    if operation.operation == "edit_micro_event_copy":
+        return _edit_micro_event_copy(micro_event_context, operation)
+    if operation.operation == "edit_topic_cluster_copy":
+        return _edit_topic_cluster_copy(state, operation)
     return _edit_display_copy(state, operation)
 
 
@@ -400,6 +546,65 @@ def _edit_display_copy(
             message=f"Edited episode {episode.episode_id} display copy.",
         )
     raise TimelinePatchInvalid("Unsupported display copy target.")
+
+
+def _edit_micro_event_copy(
+    context: _MicroEventPatchContext | None,
+    operation: TimelinePatchOperationRequest,
+) -> TimelinePatchOperationResultResponse:
+    if context is None:
+        raise TimelinePatchInvalid("Source micro-event extraction not found.")
+    candidate_id = operation.target_micro_event_candidate_id
+    event = operation.event
+    if candidate_id is None or event is None:
+        raise TimelinePatchInvalid("Micro-event copy edit requires candidate id and event.")
+    candidate = context.candidates_by_id.get(candidate_id)
+    if candidate is None:
+        raise TimelinePatchInvalid(
+            f"Micro-event candidate not found in source extraction: {candidate_id}"
+        )
+    episode_id = context.episode_id_by_candidate_id.get(candidate_id)
+    if episode_id is None:
+        raise TimelinePatchInvalid(
+            f"Micro-event candidate is not covered by timeline episodes: {candidate_id}"
+        )
+    if operation.expected_episode_id is not None and operation.expected_episode_id != episode_id:
+        raise TimelinePatchInvalid(
+            f"Micro-event candidate {candidate_id} belongs to {episode_id}, "
+            f"not expected episode {operation.expected_episode_id}."
+        )
+    before = context.events_by_id[candidate.id]
+    context.events_by_id[candidate.id] = event
+    return TimelinePatchOperationResultResponse(
+        operation="edit_micro_event_copy",
+        targetMicroEventCandidateId=candidate.id,
+        changedMicroEventCandidateIds=[candidate.id],
+        beforeEvent=before,
+        afterEvent=event,
+        message=f"Edited micro-event candidate {candidate.id} event copy.",
+    )
+
+
+def _edit_topic_cluster_copy(
+    state: _PatchState,
+    operation: TimelinePatchOperationRequest,
+) -> TimelinePatchOperationResultResponse:
+    topic_id = operation.target_topic_id
+    if topic_id is None:
+        raise TimelinePatchInvalid("Topic cluster copy edit requires targetTopicId.")
+    index = _topic_index_by_id(state, topic_id)
+    topic = state.topic_clusters[index]
+    state.topic_clusters[index] = replace(
+        topic,
+        summary=operation.summary or topic.summary,
+        display_label=operation.display_label or topic.display_label,
+    )
+    return TimelinePatchOperationResultResponse(
+        operation="edit_topic_cluster_copy",
+        targetTopicId=topic.topic_id,
+        changedTopicIds=[topic.topic_id],
+        message=f"Edited topic cluster {topic.topic_id} copy.",
+    )
 
 
 def _resolve_anchor_episode(
@@ -601,6 +806,16 @@ def _diff_response(state: _PatchState) -> TimelinePatchDiffResponse:
             )
             for episode in state.episodes
         ],
+        topicClusters=[
+            TimelinePatchTopicClusterSummaryResponse(
+                topicId=topic.topic_id,
+                topicIndex=topic.topic_index,
+                displayLabel=topic.display_label,
+                summary=topic.summary,
+                episodeIds=topic.episode_ids,
+            )
+            for topic in state.topic_clusters
+        ],
     )
 
 
@@ -613,8 +828,30 @@ def _event_diff(diff: TimelinePatchDiffResponse) -> JsonObject:
                 "displayTitle": block.display_title,
             }
             for block in diff.blocks
-        ]
+        ],
+        "topicClusters": [
+            {
+                "topicId": topic.topic_id,
+                "displayLabel": topic.display_label,
+            }
+            for topic in diff.topic_clusters
+        ],
     }
+
+
+def _micro_event_event_updates(
+    operation_results: list[TimelinePatchOperationResultResponse],
+) -> list[JsonObject]:
+    return [
+        {
+            "candidateId": result.target_micro_event_candidate_id,
+            "beforeEvent": result.before_event,
+            "afterEvent": result.after_event,
+        }
+        for result in operation_results
+        if result.operation == "edit_micro_event_copy"
+        and result.target_micro_event_candidate_id is not None
+    ]
 
 
 def _publish_event_summary(publish_result: JsonObject | None) -> JsonObject | None:
@@ -742,6 +979,13 @@ def _episode_index_by_id(state: _PatchState, episode_id: str) -> int:
         if episode.episode_id == episode_id:
             return index
     raise TimelinePatchInvalid(f"Timeline episode not found: {episode_id}")
+
+
+def _topic_index_by_id(state: _PatchState, topic_id: str) -> int:
+    for index, topic in enumerate(state.topic_clusters):
+        if topic.topic_id == topic_id:
+            return index
+    raise TimelinePatchInvalid(f"Timeline topic cluster not found: {topic_id}")
 
 
 def _next_block_id(blocks: list[TimelineBlockCreate]) -> str:

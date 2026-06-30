@@ -403,6 +403,35 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
                 "Micro-event extraction persistence failed."
             ) from exc
 
+    @override
+    async def update_candidate_event(
+        self,
+        *,
+        video_task_id: int,
+        candidate_id: int,
+        event: str,
+    ) -> MicroEventCandidateRecord | None:
+        try:
+            model = (
+                await self._session.scalars(
+                    select(MicroEventCandidateModel).where(
+                        MicroEventCandidateModel.video_task_id == video_task_id,
+                        MicroEventCandidateModel.id == candidate_id,
+                    )
+                )
+            ).one_or_none()
+            if model is None:
+                return None
+            model.event = event
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _micro_event_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise MicroEventExtractionPersistenceError(
+                "Micro-event extraction persistence failed."
+            ) from exc
+
     async def _delete_extraction(self, video_task_id: int) -> None:
         window_ids = select(MicroEventExtractionWindowModel.id).where(
             MicroEventExtractionWindowModel.video_task_id == video_task_id

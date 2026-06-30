@@ -19,7 +19,12 @@ from .ports import (
 )
 
 TimelineComposeEnqueueTarget = Literal["selected_videos", "current_filters", "next_eligible"]
-TimelinePatchOperationType = Literal["split_block_after_episode", "edit_display_copy"]
+TimelinePatchOperationType = Literal[
+    "split_block_after_episode",
+    "edit_display_copy",
+    "edit_micro_event_copy",
+    "edit_topic_cluster_copy",
+]
 TimelinePatchTargetType = Literal["video", "block", "episode"]
 
 
@@ -213,14 +218,36 @@ class TimelinePatchOperationRequest(BaseModel):
     new_block: TimelinePatchNewBlockRequest | None = Field(default=None, alias="newBlock")
     target_type: TimelinePatchTargetType | None = Field(default=None, alias="targetType")
     target_id: str | None = Field(default=None, min_length=1, alias="targetId")
+    target_topic_id: str | None = Field(default=None, min_length=1, alias="targetTopicId")
+    target_micro_event_candidate_id: int | None = Field(
+        default=None,
+        ge=1,
+        alias="targetMicroEventCandidateId",
+    )
+    expected_episode_id: str | None = Field(default=None, min_length=1, alias="expectedEpisodeId")
     display_title: str | None = Field(default=None, min_length=1, alias="displayTitle")
     display_summary: str | None = Field(default=None, min_length=1, alias="displaySummary")
+    display_label: str | None = Field(default=None, min_length=1, alias="displayLabel")
+    summary: str | None = Field(default=None, min_length=1)
+    event: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def _validate_operation_shape(self) -> TimelinePatchOperationRequest:
         if self.operation == "split_block_after_episode":
             if self.anchor_episode_id is None and self.anchor is None:
                 raise ValueError("split_block_after_episode requires anchorEpisodeId or anchor.")
+            return self
+        if self.operation == "edit_micro_event_copy":
+            if self.target_micro_event_candidate_id is None:
+                raise ValueError("edit_micro_event_copy requires targetMicroEventCandidateId.")
+            if self.event is None:
+                raise ValueError("edit_micro_event_copy requires event.")
+            return self
+        if self.operation == "edit_topic_cluster_copy":
+            if self.target_topic_id is None:
+                raise ValueError("edit_topic_cluster_copy requires targetTopicId.")
+            if self.display_label is None and self.summary is None:
+                raise ValueError("edit_topic_cluster_copy requires displayLabel or summary.")
             return self
         if self.target_type is None:
             raise ValueError("edit_display_copy requires targetType.")
@@ -299,9 +326,22 @@ class TimelinePatchEpisodeSummaryResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class TimelinePatchTopicClusterSummaryResponse(BaseModel):
+    topic_id: str = Field(alias="topicId")
+    topic_index: int = Field(alias="topicIndex")
+    display_label: str = Field(alias="displayLabel")
+    summary: str
+    episode_ids: list[str] = Field(alias="episodeIds")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class TimelinePatchDiffResponse(BaseModel):
     blocks: list[TimelinePatchBlockSummaryResponse]
     episodes: list[TimelinePatchEpisodeSummaryResponse]
+    topic_clusters: list[TimelinePatchTopicClusterSummaryResponse] = Field(
+        alias="topicClusters",
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -311,9 +351,21 @@ class TimelinePatchOperationResultResponse(BaseModel):
     anchor_episode_id: str | None = Field(default=None, alias="anchorEpisodeId")
     target_type: TimelinePatchTargetType | None = Field(default=None, alias="targetType")
     target_id: str | None = Field(default=None, alias="targetId")
+    target_topic_id: str | None = Field(default=None, alias="targetTopicId")
+    target_micro_event_candidate_id: int | None = Field(
+        default=None,
+        alias="targetMicroEventCandidateId",
+    )
     changed_block_ids: list[str] = Field(default_factory=list, alias="changedBlockIds")
     changed_episode_ids: list[str] = Field(default_factory=list, alias="changedEpisodeIds")
+    changed_topic_ids: list[str] = Field(default_factory=list, alias="changedTopicIds")
+    changed_micro_event_candidate_ids: list[int] = Field(
+        default_factory=list,
+        alias="changedMicroEventCandidateIds",
+    )
     new_block_id: str | None = Field(default=None, alias="newBlockId")
+    before_event: str | None = Field(default=None, alias="beforeEvent")
+    after_event: str | None = Field(default=None, alias="afterEvent")
     message: str
 
     model_config = ConfigDict(populate_by_name=True)

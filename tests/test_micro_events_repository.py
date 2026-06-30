@@ -51,11 +51,14 @@ def test_micro_event_repository_replaces_and_reads_extraction(
     assert result["asr_count"] == 1
     assert result["latest_task_id"] == result["task_id"]
     assert result["pipeline_micro_event_count"] == 1
+    assert result["updated_event"] == "스트리머가 울면서 방송 주제를 설명한다."
+    assert result["parsed_response_json"] == {"micro_events": []}
+    assert result["missing_update_is_none"] is True
     assert result["replaced_window_count"] == 1
     assert result["replaced_micro_event_count"] == 0
 
 
-async def _exercise_repository(database_url: str) -> dict[str, int | None]:
+async def _exercise_repository(database_url: str) -> dict[str, object]:
     engine = create_database_engine(database_url)
     try:
         session_factory = create_session_factory(engine)
@@ -186,6 +189,21 @@ async def _exercise_repository(database_url: str) -> dict[str, int | None]:
             )
             latest = await micro_events.get_latest_succeeded_extraction(video_id=video.id)
             job_detail = await pipeline_jobs.get_job_detail(job.id)
+            candidate_id = detail.windows[0].micro_events[0].id
+            updated_candidate = await micro_events.update_candidate_event(
+                video_task_id=succeeded.id,
+                candidate_id=candidate_id,
+                event="스트리머가 울면서 방송 주제를 설명한다.",
+            )
+            reread = await micro_events.get_extraction(
+                video_id=video.id,
+                video_task_id=succeeded.id,
+            )
+            missing_update = await micro_events.update_candidate_event(
+                video_task_id=succeeded.id,
+                candidate_id=999_999,
+                event="없는 후보를 바꾼다.",
+            )
             await micro_events.replace_extraction(
                 succeeded.id,
                 [
@@ -207,6 +225,8 @@ async def _exercise_repository(database_url: str) -> dict[str, int | None]:
             assert detail is not None
             assert latest is not None
             assert job_detail is not None
+            assert updated_candidate is not None
+            assert reread is not None
             assert replaced is not None
             return {
                 "task_id": succeeded.id,
@@ -218,6 +238,9 @@ async def _exercise_repository(database_url: str) -> dict[str, int | None]:
                 "pipeline_micro_event_count": (
                     job_detail.micro_event_extractions[0].micro_event_count
                 ),
+                "updated_event": updated_candidate.event,
+                "parsed_response_json": reread.windows[0].parsed_response_json,
+                "missing_update_is_none": missing_update is None,
                 "replaced_window_count": len(replaced.windows),
                 "replaced_micro_event_count": len(replaced.windows[0].micro_events),
             }

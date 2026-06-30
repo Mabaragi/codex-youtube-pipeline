@@ -282,32 +282,16 @@ class SqlAlchemyTimelineCompositionRepository(TimelineCompositionRepositoryPort)
         create: TimelineCompositionCreate,
     ) -> TimelineCompositionRecord | None:
         try:
-            await self._session.execute(
-                delete(TimelineCompositionModel).where(
+            model = await self._session.scalar(
+                select(TimelineCompositionModel).where(
                     TimelineCompositionModel.video_task_id == create.video_task_id
                 )
             )
-            model = TimelineCompositionModel(
-                video_task_id=create.video_task_id,
-                video_id=create.video_id,
-                source_micro_event_task_id=create.source_micro_event_task_id,
-                source_micro_event_fingerprint=create.source_micro_event_fingerprint,
-                copy_style=create.copy_style,
-                model=create.model,
-                reasoning_effort=create.reasoning_effort,
-                title=create.title,
-                summary=create.summary,
-                display_title=create.display_title,
-                display_summary=create.display_summary,
-                main_topics=create.main_topics,
-                output_json=create.output_json,
-                validation_warnings=create.validation_warnings,
-                source_job_id=create.source_job_id,
-                source_job_attempt_id=create.source_job_attempt_id,
-                codex_thread_id=create.codex_thread_id,
-                codex_turn_id=create.codex_turn_id,
-                raw_response_text=create.raw_response_text,
-            )
+            if model is None:
+                model = TimelineCompositionModel(video_task_id=create.video_task_id)
+            else:
+                await self._delete_composition_children(model.id)
+            _update_composition_model(model, create)
             self._session.add(model)
             await self._session.flush()
             self._session.add_all(_block_model(model.id, item) for item in create.blocks)
@@ -328,6 +312,28 @@ class SqlAlchemyTimelineCompositionRepository(TimelineCompositionRepositoryPort)
             raise TimelineCompositionPersistenceError(
                 "Timeline composition persistence failed."
             ) from exc
+
+    async def _delete_composition_children(self, composition_id: int) -> None:
+        await self._session.execute(
+            delete(TimelineReviewFlagModel).where(
+                TimelineReviewFlagModel.composition_id == composition_id
+            )
+        )
+        await self._session.execute(
+            delete(TimelineTopicClusterModel).where(
+                TimelineTopicClusterModel.composition_id == composition_id
+            )
+        )
+        await self._session.execute(
+            delete(TimelineEpisodeModel).where(
+                TimelineEpisodeModel.composition_id == composition_id
+            )
+        )
+        await self._session.execute(
+            delete(TimelineBlockModel).where(
+                TimelineBlockModel.composition_id == composition_id
+            )
+        )
 
     @override
     async def get_composition(
@@ -462,6 +468,31 @@ def _block_model(composition_id: int, item: TimelineBlockCreate) -> TimelineBloc
         display_summary=item.display_summary,
         episode_ids=item.episode_ids,
     )
+
+
+def _update_composition_model(
+    model: TimelineCompositionModel,
+    create: TimelineCompositionCreate,
+) -> None:
+    model.video_task_id = create.video_task_id
+    model.video_id = create.video_id
+    model.source_micro_event_task_id = create.source_micro_event_task_id
+    model.source_micro_event_fingerprint = create.source_micro_event_fingerprint
+    model.copy_style = create.copy_style
+    model.model = create.model
+    model.reasoning_effort = create.reasoning_effort
+    model.title = create.title
+    model.summary = create.summary
+    model.display_title = create.display_title
+    model.display_summary = create.display_summary
+    model.main_topics = create.main_topics
+    model.output_json = create.output_json
+    model.validation_warnings = create.validation_warnings
+    model.source_job_id = create.source_job_id
+    model.source_job_attempt_id = create.source_job_attempt_id
+    model.codex_thread_id = create.codex_thread_id
+    model.codex_turn_id = create.codex_turn_id
+    model.raw_response_text = create.raw_response_text
 
 
 def _episode_model(composition_id: int, item: TimelineEpisodeCreate) -> TimelineEpisodeModel:

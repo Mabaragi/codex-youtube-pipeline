@@ -16,6 +16,7 @@
 - display_title은 분석 문장을 그대로 옮기지 말고, 목록에서 눌러보고 싶은 짧은 팬 피드 헤드라인으로 작성한다.
 - display_summary도 내부 summary를 줄인 보고문이 아니라, 실제로 볼 장면 2~3개를 짧게 압축한 팬 피드 캡션으로 작성한다.
 - display_summary는 구체적인 장면, 반응, 상황의 반전을 우선한다. 단, 입력에 없는 감정이나 사건은 만들지 않는다.
+- target_micro_events에서 우는 상황, 울상, 상처받은 반응, 삐진 리액션이 핵심이면 replacement episode의 title/summary/display copy에 그 장면 가치를 살린다.
 - display_summary는 `A가 B한다`, `A가 B를 진행한다`, `A로 이어진다`, `구간이다`, `확인한다`, `방송이다` 같은 보고서형 종결과 문장 구조를 피한다.
 - display_summary는 특정 어미나 종결 패턴을 정답처럼 반복하지 않는다. 같은 영상 안에서 비슷한 끝맺음과 나열 구조가 반복되면 실패로 본다.
 - display_title/display_summary는 건조한 보고문보다 가볍고 귀여운 팬 커뮤니티 톤으로 쓰되, 피드에서 보고 누르고 싶게 장면감 있게 작성한다.

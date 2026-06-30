@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -11,7 +12,11 @@ from codex_sdk_cli.domains.archive_publish.schemas import (
     ArchivePublishRequest,
     ArchivePublishResponse,
 )
-from codex_sdk_cli.domains.micro_events.ports import MicroEventExtractionDetailRecord
+from codex_sdk_cli.domains.micro_events.ports import (
+    MicroEventCandidateRecord,
+    MicroEventExtractionDetailRecord,
+    MicroEventExtractionWindowRecord,
+)
 from codex_sdk_cli.domains.operation_events.ports import OperationEventCreate
 from codex_sdk_cli.domains.timelines.exceptions import TimelinePatchInvalid
 from codex_sdk_cli.domains.timelines.patch_use_cases import PatchTimelineUseCase
@@ -23,6 +28,8 @@ from codex_sdk_cli.domains.timelines.ports import (
     TimelineCompositionRecord,
     TimelineEpisodeCreate,
     TimelineEpisodeRecord,
+    TimelineTopicClusterCreate,
+    TimelineTopicClusterRecord,
 )
 from codex_sdk_cli.domains.timelines.schemas import TimelinePatchRequest
 from codex_sdk_cli.domains.videos.ports import VideoRecord
@@ -109,6 +116,185 @@ def test_timeline_patch_apply_edits_display_copy_and_output_json() -> None:
     assert episode_002["display_summary"] == "이제 다음 얘기로 슥 넘어간다"
     assert fakes.events.items[0].event_type == "timeline_patch.applied"
     assert fakes.events.items[0].metadata_json["instruction"] == "Make this caption cuter."
+
+
+def test_timeline_patch_apply_edits_topic_cluster_copy_and_output_json() -> None:
+    fakes = _Fakes()
+    use_case = fakes.use_case()
+
+    response = asyncio.run(
+        use_case.execute(
+            video_id=71,
+            video_task_id=201,
+            request=TimelinePatchRequest.model_validate(
+                {
+                    "dryRun": False,
+                    "instruction": "Make the major flow searchable by crying reaction.",
+                    "operations": [
+                        {
+                            "operation": "edit_topic_cluster_copy",
+                            "targetTopicId": "topic_001",
+                            "displayLabel": "나오하 눈물 회의",
+                            "summary": "나오하 진화 장면에서 우는 반응까지 포함한 흐름",
+                        }
+                    ],
+                }
+            ),
+        )
+    )
+
+    assert response.applied is True
+    assert response.after.topic_clusters[0].display_label == "나오하 눈물 회의"
+    assert fakes.timelines.replaced is not None
+    replaced = fakes.timelines.replaced
+    assert replaced.topic_clusters[0].display_label == "나오하 눈물 회의"
+    topic_jsons = cast(list[JsonObject], replaced.output_json["topic_clusters"])
+    assert topic_jsons[0]["display_label"] == "나오하 눈물 회의"
+    assert topic_jsons[0]["summary"] == "나오하 진화 장면에서 우는 반응까지 포함한 흐름"
+    assert fakes.events.items[0].metadata_json["changedTopicIds"] == ["topic_001"]
+
+
+def test_timeline_patch_dry_run_edits_micro_event_copy_without_mutation() -> None:
+    fakes = _Fakes()
+    use_case = fakes.use_case()
+
+    response = asyncio.run(
+        use_case.execute(
+            video_id=71,
+            video_task_id=201,
+            request=TimelinePatchRequest.model_validate(
+                {
+                    "dryRun": True,
+                    "operations": [
+                        {
+                            "operation": "edit_micro_event_copy",
+                            "targetMicroEventCandidateId": 2,
+                            "expectedEpisodeId": "episode_002",
+                            "event": "중간 장면에서 울면서 반응한다.",
+                        }
+                    ],
+                }
+            ),
+        )
+    )
+
+    assert response.applied is False
+    assert fakes.timelines.replaced is None
+    assert fakes.micro_events.updates == []
+    result = response.operations[0]
+    assert result.changed_micro_event_candidate_ids == [2]
+    assert result.before_event == "중간 기존 이벤트"
+    assert result.after_event == "중간 장면에서 울면서 반응한다."
+    assert fakes.micro_events.events_by_id()[2] == "중간 기존 이벤트"
+
+
+def test_timeline_patch_apply_edits_micro_event_before_publish() -> None:
+    fakes = _Fakes()
+    use_case = fakes.use_case()
+
+    response = asyncio.run(
+        use_case.execute(
+            video_id=71,
+            video_task_id=201,
+            request=TimelinePatchRequest.model_validate(
+                {
+                    "dryRun": False,
+                    "instruction": "Make the crying reaction explicit.",
+                    "operations": [
+                        {
+                            "operation": "edit_display_copy",
+                            "targetType": "episode",
+                            "targetId": "episode_002",
+                            "displaySummary": "울면서 중간 장면을 찾는다.",
+                        },
+                        {
+                            "operation": "edit_micro_event_copy",
+                            "targetMicroEventCandidateId": 2,
+                            "expectedEpisodeId": "episode_002",
+                            "event": "중간 장면에서 울면서 반응한다.",
+                        },
+                    ],
+                    "publish": {"enabled": True, "environment": "prod"},
+                }
+            ),
+        )
+    )
+
+    assert response.applied is True
+    assert fakes.timelines.replaced is not None
+    replaced = fakes.timelines.replaced
+    assert replaced.raw_response_text == "RAW ORIGINAL"
+    assert replaced.episodes[1].display_summary == "울면서 중간 장면을 찾는다."
+    assert fakes.micro_events.updates == [(101, 2, "중간 장면에서 울면서 반응한다.")]
+    assert fakes.micro_events.events_by_id()[2] == "중간 장면에서 울면서 반응한다."
+    window = fakes.micro_events.detail.windows[0]
+    assert window.raw_response_text == "RAW MICRO"
+    assert window.parsed_response_json == {"events": [{"event": "중간 기존 이벤트"}]}
+    assert fakes.archive_publish.event_snapshots[-1][2] == "중간 장면에서 울면서 반응한다."
+    metadata = fakes.events.items[0].metadata_json
+    assert metadata["changedMicroEventCandidateIds"] == [2]
+    assert metadata["microEventUpdates"] == [
+        {
+            "candidateId": 2,
+            "beforeEvent": "중간 기존 이벤트",
+            "afterEvent": "중간 장면에서 울면서 반응한다.",
+        }
+    ]
+
+
+def test_timeline_patch_rejects_unknown_micro_event_candidate() -> None:
+    fakes = _Fakes()
+    use_case = fakes.use_case()
+
+    with pytest.raises(TimelinePatchInvalid, match="candidate not found"):
+        asyncio.run(
+            use_case.execute(
+                video_id=71,
+                video_task_id=201,
+                request=TimelinePatchRequest.model_validate(
+                    {
+                        "dryRun": False,
+                        "operations": [
+                            {
+                                "operation": "edit_micro_event_copy",
+                                "targetMicroEventCandidateId": 999,
+                                "event": "없는 이벤트를 바꾼다.",
+                            }
+                        ],
+                    }
+                ),
+            )
+        )
+
+    assert fakes.micro_events.updates == []
+
+
+def test_timeline_patch_rejects_micro_event_expected_episode_mismatch() -> None:
+    fakes = _Fakes()
+    use_case = fakes.use_case()
+
+    with pytest.raises(TimelinePatchInvalid, match="not expected episode"):
+        asyncio.run(
+            use_case.execute(
+                video_id=71,
+                video_task_id=201,
+                request=TimelinePatchRequest.model_validate(
+                    {
+                        "dryRun": False,
+                        "operations": [
+                            {
+                                "operation": "edit_micro_event_copy",
+                                "targetMicroEventCandidateId": 2,
+                                "expectedEpisodeId": "episode_003",
+                                "event": "중간 장면에서 울면서 반응한다.",
+                            }
+                        ],
+                    }
+                ),
+            )
+        )
+
+    assert fakes.micro_events.updates == []
 
 
 def test_timeline_patch_rejects_last_episode_split() -> None:
@@ -205,7 +391,7 @@ class _Fakes:
         self.micro_events = _MicroEventRepository()
         self.cues = _TranscriptCueRepository()
         self.events = _EventRecorder()
-        self.archive_publish = _ArchivePublisher()
+        self.archive_publish = _ArchivePublisher(self.micro_events)
 
     def use_case(self) -> PatchTimelineUseCase:
         return PatchTimelineUseCase(
@@ -276,13 +462,51 @@ class _TimelineRepository:
 
 
 class _MicroEventRepository:
+    def __init__(self) -> None:
+        self.detail = _micro_event_detail()
+        self.updates: list[tuple[int, int, str]] = []
+
     async def get_extraction(
         self,
         *,
         video_id: int,
         video_task_id: int,
     ) -> MicroEventExtractionDetailRecord | None:
+        if video_id == self.detail.video_id and video_task_id == self.detail.video_task_id:
+            return self.detail
         return None
+
+    async def update_candidate_event(
+        self,
+        *,
+        video_task_id: int,
+        candidate_id: int,
+        event: str,
+    ) -> MicroEventCandidateRecord | None:
+        if video_task_id != self.detail.video_task_id:
+            return None
+        self.updates.append((video_task_id, candidate_id, event))
+        updated_candidate: MicroEventCandidateRecord | None = None
+        windows: list[MicroEventExtractionWindowRecord] = []
+        for window in self.detail.windows:
+            candidates: list[MicroEventCandidateRecord] = []
+            for candidate in window.micro_events:
+                if candidate.id == candidate_id:
+                    candidate = replace(candidate, event=event, updated_at=NOW)
+                    updated_candidate = candidate
+                candidates.append(candidate)
+            windows.append(replace(window, micro_events=candidates, updated_at=NOW))
+        if updated_candidate is None:
+            return None
+        self.detail = replace(self.detail, windows=windows, updated_at=NOW)
+        return updated_candidate
+
+    def events_by_id(self) -> dict[int, str]:
+        return {
+            candidate.id: candidate.event
+            for window in self.detail.windows
+            for candidate in window.micro_events
+        }
 
 
 class _TranscriptCueRepository:
@@ -299,11 +523,14 @@ class _EventRecorder:
 
 
 class _ArchivePublisher:
-    def __init__(self) -> None:
+    def __init__(self, micro_events: _MicroEventRepository) -> None:
+        self._micro_events = micro_events
         self.requests: list[ArchivePublishRequest] = []
+        self.event_snapshots: list[dict[int, str]] = []
 
     async def publish(self, request: ArchivePublishRequest) -> ArchivePublishResponse:
         self.requests.append(request)
+        self.event_snapshots.append(self._micro_events.events_by_id())
         return ArchivePublishResponse(
             requestedCount=1,
             scannedCount=1,
@@ -335,6 +562,84 @@ class _ArchivePublisher:
         )
 
 
+def _micro_event_detail() -> MicroEventExtractionDetailRecord:
+    return MicroEventExtractionDetailRecord(
+        video_task_id=101,
+        video_id=71,
+        youtube_video_id="youtube-1",
+        transcript_id=88,
+        status="succeeded",
+        job_id=21,
+        job_attempt_id=22,
+        output_json={"microEventCount": 3},
+        error_type=None,
+        error_message=None,
+        started_at=NOW,
+        completed_at=NOW,
+        created_at=NOW,
+        updated_at=NOW,
+        windows=[
+            MicroEventExtractionWindowRecord(
+                id=901,
+                video_task_id=101,
+                video_id=71,
+                transcript_id=88,
+                window_index=1,
+                start_cue_id="tr1-c000001",
+                end_cue_id="tr1-c000009",
+                cue_count=9,
+                status="succeeded",
+                carry_out_unfinished=False,
+                codex_thread_id="thread-micro",
+                codex_turn_id="turn-micro",
+                raw_response_text="RAW MICRO",
+                parsed_response_json={"events": [{"event": "중간 기존 이벤트"}]},
+                validation_error=None,
+                source_job_id=21,
+                source_job_attempt_id=22,
+                created_at=NOW,
+                updated_at=NOW,
+                micro_events=[
+                    _micro_event_candidate(1, "시작 기존 이벤트"),
+                    _micro_event_candidate(2, "중간 기존 이벤트"),
+                    _micro_event_candidate(3, "끝 기존 이벤트"),
+                ],
+                excluded_ranges=[],
+                asr_correction_candidates=[],
+            )
+        ],
+    )
+
+
+def _micro_event_candidate(
+    candidate_id: int,
+    event: str,
+) -> MicroEventCandidateRecord:
+    return MicroEventCandidateRecord(
+        id=candidate_id,
+        window_id=901,
+        video_task_id=101,
+        transcript_id=88,
+        candidate_index=candidate_id,
+        activity="GAMEPLAY",
+        event=event,
+        start_cue_id=f"tr1-c00000{candidate_id}",
+        end_cue_id=f"tr1-c00000{candidate_id}",
+        evidence_cue_ids=[f"tr1-c00000{candidate_id}"],
+        boundary_before=True,
+        boundary_after=True,
+        confidence=0.9,
+        program_mode="GAMEPLAY",
+        content_kind="GAME_PROGRESS",
+        topics=["테스트"],
+        relation_to_previous="NEW_TOPIC",
+        continues_to_next=False,
+        support_level="DIRECT",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
 def _timeline_record(*, duplicate_anchor: bool = False) -> TimelineCompositionRecord:
     episodes = [
         _episode_record(1, "episode_001", "block_001", "시작", "같은 요약"),
@@ -363,6 +668,20 @@ def _timeline_record(*, duplicate_anchor: bool = False) -> TimelineCompositionRe
             updated_at=NOW,
         )
     ]
+    topic_clusters = [
+        TimelineTopicClusterRecord(
+            id=1,
+            composition_id=501,
+            topic_id="topic_001",
+            topic_index=1,
+            label="게임 진행",
+            summary="게임 진행 흐름",
+            display_label="게임 흐름",
+            episode_ids=[episode.episode_id for episode in episodes],
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    ]
     return TimelineCompositionRecord(
         id=501,
         video_task_id=201,
@@ -379,7 +698,7 @@ def _timeline_record(*, duplicate_anchor: bool = False) -> TimelineCompositionRe
         display_title="테스트 타임라인",
         display_summary="테스트 요약",
         main_topics=["게임"],
-        output_json=_output_json(blocks, episodes),
+        output_json=_output_json(blocks, episodes, topic_clusters),
         validation_warnings=[],
         source_job_id=11,
         source_job_attempt_id=12,
@@ -390,7 +709,7 @@ def _timeline_record(*, duplicate_anchor: bool = False) -> TimelineCompositionRe
         updated_at=NOW,
         blocks=blocks,
         episodes=episodes,
-        topic_clusters=[],
+        topic_clusters=topic_clusters,
         review_flags=[],
     )
 
@@ -433,7 +752,10 @@ def _record_from_create(
             _episode_record_from_create(index, composition_id, episode)
             for index, episode in enumerate(create.episodes, start=1)
         ],
-        topic_clusters=[],
+        topic_clusters=[
+            _topic_record_from_create(index, composition_id, topic)
+            for index, topic in enumerate(create.topic_clusters, start=1)
+        ],
         review_flags=[],
     )
 
@@ -487,6 +809,25 @@ def _episode_record_from_create(
     )
 
 
+def _topic_record_from_create(
+    index: int,
+    composition_id: int,
+    topic: TimelineTopicClusterCreate,
+) -> TimelineTopicClusterRecord:
+    return TimelineTopicClusterRecord(
+        id=index,
+        composition_id=composition_id,
+        topic_id=topic.topic_id,
+        topic_index=topic.topic_index,
+        label=topic.label,
+        summary=topic.summary,
+        display_label=topic.display_label,
+        episode_ids=topic.episode_ids,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+
 def _episode_record(
     index: int,
     episode_id: str,
@@ -520,6 +861,7 @@ def _episode_record(
 def _output_json(
     blocks: list[TimelineBlockRecord],
     episodes: list[TimelineEpisodeRecord],
+    topic_clusters: list[TimelineTopicClusterRecord],
 ) -> JsonObject:
     return {
         "video_summary": {
@@ -560,6 +902,15 @@ def _output_json(
             }
             for episode in episodes
         ],
-        "topic_clusters": [],
+        "topic_clusters": [
+            {
+                "topic_id": topic.topic_id,
+                "label": topic.label,
+                "summary": topic.summary,
+                "display_label": topic.display_label,
+                "episode_ids": topic.episode_ids,
+            }
+            for topic in topic_clusters
+        ],
         "review_flags": [],
     }
