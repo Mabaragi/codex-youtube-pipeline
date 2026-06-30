@@ -69,7 +69,7 @@ def test_youtube_data_client_resolves_channel_id_and_sends_api_key() -> None:
         params = request.url.params
         assert params["part"] == "id,snippet,contentDetails"
         assert params["forHandle"] == "@GoogleDevelopers"
-        assert params["key"] == "AIza-test"
+        assert params["key"] == "YOUTUBE_DATA_API_KEY_TEST"
         return httpx.Response(200, json=_channels_list_payload())
 
     result = asyncio.run(_resolve(handler, recorder=recorder))
@@ -154,7 +154,7 @@ def test_youtube_data_client_lists_upload_playlist_videos_and_sanitizes_api_key(
         assert params["playlistId"] == "UU_x5XG1OV2P6uZZ5FSM9Ttw"
         assert params["maxResults"] == "50"
         assert params["pageToken"] == "next"
-        assert params["key"] == "AIza-test"
+        assert params["key"] == "YOUTUBE_DATA_API_KEY_TEST"
         return httpx.Response(200, json=_playlist_items_list_payload())
 
     result = asyncio.run(_listing(handler, recorder=recorder, page_token="next"))
@@ -185,7 +185,7 @@ def test_youtube_data_client_fetches_video_details_projection() -> None:
         assert str(request.url).startswith("https://www.googleapis.com/youtube/v3/videos")
         assert params["part"] == "contentDetails"
         assert params["id"] == "video-1,video-2"
-        assert params["key"] == "AIza-test"
+        assert params["key"] == "YOUTUBE_DATA_API_KEY_TEST"
         return httpx.Response(200, json=_videos_list_payload())
 
     result = asyncio.run(_details(handler, recorder=recorder))
@@ -229,7 +229,7 @@ async def _resolve(
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = YouTubeDataClient(
             http_client,
-            api_key="AIza-test",
+            api_key="YOUTUBE_DATA_API_KEY_TEST",
             api_call_recorder=recorder,
         )
         return await client.resolve_youtube_channel_by_handle(
@@ -250,7 +250,7 @@ async def _listing(
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = YouTubeDataClient(
             http_client,
-            api_key="AIza-test",
+            api_key="YOUTUBE_DATA_API_KEY_TEST",
             api_call_recorder=recorder,
         )
         return await client.list_upload_playlist_videos(
@@ -271,7 +271,7 @@ async def _details(
     async with httpx.AsyncClient(transport=transport) as http_client:
         client = YouTubeDataClient(
             http_client,
-            api_key="AIza-test",
+            api_key="YOUTUBE_DATA_API_KEY_TEST",
             api_call_recorder=recorder,
         )
         return await client.get_video_details(

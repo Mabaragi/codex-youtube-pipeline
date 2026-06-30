@@ -6,12 +6,8 @@ Use:
 
 - `docs/LOCAL_NATIVE_DEPLOYMENT.md` for starting, stopping, deploying, and
   recovering the local runtime.
-- `docs/AGENT_API_OPERATIONS.md` for API-only operational work by agents that
-  should not inspect the codebase.
-
-The previous Docker Compose + Nginx + ngrok + GHCR deployment path is legacy.
-It is no longer the normal operating model because ngrok usage limits and image
-publish/pull cycles made it slow and brittle for this project.
+The previous Docker Compose + Nginx + ngrok + GHCR deployment path is not part
+of this public repository. The normal operating model is local native runtime.
 
 Current runtime summary:
 

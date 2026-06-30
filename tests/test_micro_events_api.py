@@ -1256,13 +1256,14 @@ def test_micro_event_extract_accepts_requested_model_and_reasoning_effort() -> N
     assert fakes.extractor.requests[0].reasoning_effort == "xhigh"
 
 
-def test_micro_event_extract_prompt_requires_verbatim_cue_ids() -> None:
+def test_micro_event_extract_prompt_uses_public_fallback_and_records_version() -> None:
     fakes = _seed_ready_fakes()
 
     asyncio.run(_extract(fakes))
 
     prompt = fakes.extractor.prompts[0]
-    assert "OWNED_RANGE의 모든 cue는 정확히 하나의 event 또는 excluded_range" in prompt
+    assert "공개 저장소용 샘플 fallback" in prompt
+    assert "반드시 JSON object만 출력한다" in prompt
     assert "CONTEXT_BEFORE" in prompt
     assert "OWNED_START_CUE_ID: tr1-c000001" in prompt
     resolved_prompt = fallback_prompt(MICRO_EVENT_EXTRACT_PROMPT_KEY)

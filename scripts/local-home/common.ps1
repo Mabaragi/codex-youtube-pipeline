@@ -65,8 +65,8 @@ function Import-LocalHomeEnv {
 
     Set-DefaultEnv "CODEX_CLI_DATABASE_URL" "sqlite+aiosqlite:///./data/app.db"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT" "127.0.0.1:9000"
-    Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY" "codex"
-    Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY" "codex-transcript-dev-password"
+    Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY" "CHANGE_ME_MINIO_ACCESS_KEY"
+    Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY" "CHANGE_ME_MINIO_SECRET"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_BUCKET" "raw"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_PREFIX" "youtube/transcripts"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_SECURE" "false"
@@ -312,33 +312,4 @@ function Start-LocalMinio {
         "-d",
         "minio"
     )
-}
-
-function Stop-LegacyHomeContainers {
-    $legacyCompose = Join-Path $script:RepoRoot "legacy\compose.home.yaml"
-    if (-not (Test-Path -LiteralPath $legacyCompose)) {
-        return
-    }
-
-    Push-Location $script:RepoRoot
-    try {
-        $previousErrorActionPreference = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        & docker compose `
-            --project-name $script:ComposeProjectName `
-            -f $legacyCompose `
-            stop api micro-event-worker timeline-compose-worker ops-ui nginx ngrok 2>&1 | Out-Null
-        $exitCode = $LASTEXITCODE
-        $ErrorActionPreference = $previousErrorActionPreference
-        if ($exitCode -eq 0) {
-            Write-Host "Stopped legacy Docker app/proxy/tunnel containers."
-        } else {
-            Write-Host "Legacy Docker app/proxy/tunnel containers were not running."
-        }
-    } finally {
-        if ($previousErrorActionPreference) {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
-        Pop-Location
-    }
 }

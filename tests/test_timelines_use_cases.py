@@ -192,22 +192,17 @@ def test_timeline_soft_verifier_adds_review_flags() -> None:
     assert "ASR_SEMANTIC_RISK" in flag_types
 
 
-def test_timeline_prompt_documents_output_limits_and_topic_cluster_keys() -> None:
+def test_timeline_prompt_uses_public_fallback_resources() -> None:
     compose_prompt = fallback_prompt(TIMELINE_COMPOSE_PROMPT_KEY)
     prompt_text = compose_prompt.body
     prompt_sha = compose_prompt.body_sha256
 
     assert compose_prompt.version_label == "timeline-compose-v3"
     assert len(prompt_sha) == 64
-    assert "topics는 episode마다 2~6개의 구체적인 명사구" in prompt_text
-    assert "highlight_micro_event_ids는 episode 안의 핵심 후보만 0~3개" in prompt_text
-    assert "META" in prompt_text
-    assert "QNA" in prompt_text
-    assert "OVERBROAD_EPISODE" in prompt_text
-    assert '"topic_id": "topic_001"' in prompt_text
-    assert '"display_label": "string"' in prompt_text
-    assert '"episode_ids": ["episode_001", "episode_003"]' in prompt_text
-    assert '"target_episode_id": "episode_001"' in fallback_prompt_text(
+    assert "공개 저장소용 샘플 fallback" in prompt_text
+    assert "반드시 JSON object만 출력한다" in prompt_text
+    assert "DB `prompt_versions` 또는 private prompt pack" in prompt_text
+    assert "공개 저장소용 샘플 fallback" in fallback_prompt_text(
         TIMELINE_EPISODE_REPAIR_PROMPT_KEY
     )
 

@@ -22,8 +22,6 @@ Browser UI
   the response status/body.
 - `scripts/local-home/start.ps1` and `.home-deploy/local.env`: local native
   runtime wiring for `CODEX_OPS_BACKEND_BASE_URL=http://127.0.0.1:8000`.
-- `legacy/compose.home.yaml`: archived Docker deployment wiring. It is not the
-  normal runtime path.
 
 ## Rules
 

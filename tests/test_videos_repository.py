@@ -71,7 +71,7 @@ async def _exercise_repository(database_url: str) -> None:
                     external_key="youtube-channel-test",
                     input_json={
                         "channelId": channel.id,
-                        "youtubeChannelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+                        "youtubeChannelId": "youtube-channel-test",
                     },
                     input_hash="0" * 64,
                 )

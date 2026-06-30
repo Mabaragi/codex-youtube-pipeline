@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any
 
@@ -72,14 +72,14 @@ class ApiKeyLoginRequest(BaseModel):
         alias="apiKey",
         min_length=1,
         description="OpenAI API key used for Codex authentication.",
-        examples=["sk-proj-example"],
+        examples=["OPENAI_API_KEY_EXAMPLE"],
     )
 
     model_config = ConfigDict(
         extra="forbid",
         populate_by_name=True,
         str_strip_whitespace=True,
-        json_schema_extra={"examples": [{"apiKey": "sk-proj-example"}]},
+        json_schema_extra={"examples": [{"apiKey": "OPENAI_API_KEY_EXAMPLE"}]},
     )
 
 

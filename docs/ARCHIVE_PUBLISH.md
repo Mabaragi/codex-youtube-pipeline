@@ -6,8 +6,8 @@ JSON artifacts on Cloudflare R2. It runs synchronously inside
 `archive_publish` video task/job/attempt, uploads the video timeline, rebuilds
 the index, updates the pointer, and then returns the per-video result.
 
-There is no active archive publish worker. The old worker implementation is kept
-under `legacy/` only as historical reference.
+There is no active archive publish worker. Archive publish is handled
+synchronously by the API request.
 
 ## Object Model
 

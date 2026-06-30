@@ -7,7 +7,6 @@ param(
 
 Set-Location $script:RepoRoot
 Import-LocalHomeEnv
-Stop-LegacyHomeContainers
 Start-LocalMinio
 
 if (Test-LocalHttp "http://127.0.0.1:8000/health" '"status"\s*:\s*"ok"') {

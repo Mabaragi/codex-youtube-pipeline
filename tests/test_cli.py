@@ -413,10 +413,10 @@ def test_login_device_command() -> None:
 def test_login_api_key_command_uses_hidden_prompt() -> None:
     codex = FakeCodexForCli()
 
-    result = invoke_with_fake(codex, ["login", "api-key"], input="sk-test\n")
+    result = invoke_with_fake(codex, ["login", "api-key"], input="OPENAI_API_KEY_TEST\n")
 
     assert result.exit_code == 0
-    assert codex.api_key == "sk-test"
+    assert codex.api_key == "OPENAI_API_KEY_TEST"
     assert "Login succeeded." in result.output
 
 

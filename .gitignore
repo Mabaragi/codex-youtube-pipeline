@@ -26,6 +26,10 @@ ops-ui/.next/
 ops-ui/coverage/
 ops-ui/*.log
 data/
+tmp/
+.home-deploy/logs/
+*.response.txt
+*.jsonl
 *.db
 *.db-*
 *.sqlite

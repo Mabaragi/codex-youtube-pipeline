@@ -8,14 +8,14 @@
         "additionalProperties": false,
         "examples": [
           {
-            "apiKey": "sk-proj-example"
+            "apiKey": "OPENAI_API_KEY_EXAMPLE"
           }
         ],
         "properties": {
           "apiKey": {
             "description": "OpenAI API key used for Codex authentication.",
             "examples": [
-              "sk-proj-example"
+              "OPENAI_API_KEY_EXAMPLE"
             ],
             "format": "password",
             "minLength": 1,

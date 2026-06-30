@@ -7,9 +7,6 @@ The Home PC runtime is local native. See `docs/LOCAL_NATIVE_DEPLOYMENT.md`.
 ## Current GitHub Actions Behavior
 
 - `.github/workflows/ci.yml` is manual-only through `workflow_dispatch`.
-- `legacy/.github/workflows/docker-publish.yml` is archived legacy image
-  publishing. Restore it to `.github/workflows/` only if that path is needed
-  again.
 - Pushes to `main` do not deploy the Home PC.
 - Pushes to `main` do not build or publish GHCR images.
 - Tag pushes do not publish release images automatically.
@@ -42,7 +39,5 @@ Run local deploy locally:
 Use GitHub Actions only when explicitly wanted:
 
 - `Manual Checks`: remote quality and frontend checks.
-- `Legacy Docker Publish`: archived under `legacy/.github/workflows/`; not
-  registered with GitHub Actions unless restored.
 
 These workflows are not part of the normal deployment loop.

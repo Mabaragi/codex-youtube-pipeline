@@ -258,13 +258,13 @@ def test_login_api_key_and_logout_endpoints() -> None:
             "POST",
             "/codex/login/api-key",
             runtime=fake,
-            json={"apiKey": "sk-test"},
+            json={"apiKey": "OPENAI_API_KEY_TEST"},
         )
     )
     logout_response = asyncio.run(_request("POST", "/codex/logout", runtime=fake))
 
     assert login_response == {"success": True, "error": None}
-    assert fake.api_key == "sk-test"
+    assert fake.api_key == "OPENAI_API_KEY_TEST"
     assert logout_response == {"success": True}
     assert fake.logged_out is True
 

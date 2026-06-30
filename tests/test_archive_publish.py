@@ -50,9 +50,8 @@ def test_archive_publish_openapi_paths_are_registered() -> None:
     assert "/ops/archive/videos" in schema["paths"]
 
 
-def test_archive_worker_is_kept_only_as_legacy_reference() -> None:
-    assert Path("legacy/src/codex_sdk_cli/workers/archive_publish.py").exists()
-    assert not Path("src/codex_sdk_cli/workers/archive_publish.py").exists()
+def test_archive_publish_has_no_active_worker_module() -> None:
+    assert not (Path("src/codex_sdk_cli/workers/archive_publish.py")).exists()
 
 
 def test_archive_publish_migration_creates_archive_tables(

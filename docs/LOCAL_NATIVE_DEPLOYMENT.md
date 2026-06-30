@@ -67,8 +67,6 @@ This performs:
 - local API, worker, and Ops UI process cleanup, including stale child processes
   that may keep `.next/standalone` locked
 - MinIO start through `compose.local-infra.yaml`
-- legacy Docker app/proxy/tunnel containers stop, including `api`, workers,
-  `ops-ui`, `nginx`, and `ngrok`
 - Docker-volume DB migration if needed
 - `uv run alembic upgrade head`
 - `pnpm -C ops-ui build`
@@ -88,9 +86,7 @@ After the first deploy, use idempotent start:
 .\scripts\local-home\start.ps1
 ```
 
-`start.ps1` also stops legacy Docker app/proxy/tunnel containers before starting
-the native processes, so ngrok is not kept alive by accident. It leaves MinIO
-running.
+`start.ps1` starts native app processes and leaves MinIO running.
 
 Check status:
 
@@ -197,20 +193,3 @@ pnpm --filter codex-sdk-ops-ui typecheck
 pnpm --filter codex-sdk-ops-ui test
 pnpm --filter codex-sdk-ops-ui build
 ```
-
-## Legacy Files
-
-These files remain for reference or emergency fallback, but are no longer the
-normal runtime path:
-
-- `legacy/compose.home.yaml`
-- `legacy/compose.home.build.yaml`
-- `legacy/compose.yaml`
-- `legacy/Dockerfile`
-- `legacy/ops-ui/Dockerfile`
-- `legacy/deploy/nginx/home.conf`
-- `legacy/docs/HOME_DEPLOYMENT_FLOW.md`
-- `legacy/docs/AWS_DEPLOYMENT.md`
-- `legacy/scripts/deploy_aws.ps1`
-- `legacy/infra/aws-codex-cli/`
-- `docs/CICD.md`

@@ -1200,7 +1200,7 @@ export interface components {
         /**
          * ApiKeyLoginRequest
          * @example {
-         *       "apiKey": "sk-proj-example"
+         *       "apiKey": "OPENAI_API_KEY_EXAMPLE"
          *     }
          */
         ApiKeyLoginRequest: {
@@ -1208,7 +1208,7 @@ export interface components {
              * Apikey
              * Format: password
              * @description OpenAI API key used for Codex authentication.
-             * @example sk-proj-example
+             * @example OPENAI_API_KEY_EXAMPLE
              */
             apiKey: string;
         };

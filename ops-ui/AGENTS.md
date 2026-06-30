@@ -54,8 +54,8 @@ pnpm --filter codex-sdk-ops-ui build
 
 ## Deployment Pitfalls
 
-- Home PC deployment is local native now. Docker/Compose deployment files are
-  archived under `legacy/` and are not the normal Ops UI validation path.
+- Home PC deployment is local native now. Docker is used only for local
+  infrastructure such as MinIO.
 - `pnpm --filter codex-sdk-ops-ui build` verifies the Next.js build. Runtime
   smoke checks should hit `/ops` and `/ops/api/backend/ops/summary` after
   `scripts/local-home/start.ps1` or `scripts/local-home/deploy.ps1`.

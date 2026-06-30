@@ -95,7 +95,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
 
     monkeypatch.setenv("CODEX_CLI_MODEL", "gpt-5.4-mini")
     monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", "xhigh")
-    monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", "AIza-test")
+    monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_API_KEY", "YOUTUBE_DATA_API_KEY_TEST")
     monkeypatch.setenv("CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS", "3.5")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_TIMEOUT_SECONDS", "300")
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_CONCURRENCY_LIMIT", "2")
@@ -110,7 +110,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
 
     assert settings.model == "gpt-5.4-mini"
     assert settings.reasoning_effort == "xhigh"
-    assert settings.youtube_data_api_key_value() == "AIza-test"
+    assert settings.youtube_data_api_key_value() == "YOUTUBE_DATA_API_KEY_TEST"
     assert settings.youtube_data_timeout_seconds == 3.5
     assert settings.transcript_collect_timeout_seconds == 300
     assert settings.transcript_collect_concurrency_limit == 2
