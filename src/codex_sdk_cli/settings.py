@@ -29,11 +29,21 @@ class CliSettings(BaseSettings):
     api_key: SecretStr | None = None
     youtube_http_proxy: str | None = None
     youtube_https_proxy: str | None = None
+    ytdlp_bin: Path | None = None
+    ffmpeg_bin: Path | None = None
+    ffprobe_bin: Path | None = None
     youtube_data_api_key: SecretStr | None = None
     youtube_data_timeout_seconds: float = 10.0
     transcript_collect_timeout_seconds: int = 600
     transcript_collect_concurrency_limit: int = 1
     transcript_collect_delay_seconds: int = 300
+    pipeline_scheduler_enabled: bool = True
+    pipeline_scheduler_poll_interval_seconds: int = 300
+    pipeline_scheduler_channel_interval_seconds: int = 86400
+    pipeline_scheduler_transcript_limit: int = 5
+    pipeline_scheduler_no_transcript_recheck_interval_seconds: int = 604800
+    pipeline_scheduler_no_transcript_limit: int = 2
+    pipeline_scheduler_id: str | None = None
     transcript_cue_generate_timeout_seconds: int = 600
     transcript_cue_generate_concurrency_limit: int = 1
     micro_event_extract_timeout_seconds: int = 3600
@@ -57,6 +67,18 @@ class CliSettings(BaseSettings):
     archive_publish_public_base_url: str | None = None
     archive_publish_prefix: str = "archive"
     archive_publish_environment: str = "prod"
+    archive_publish_dev_r2_endpoint: str | None = None
+    archive_publish_dev_r2_access_key: SecretStr | None = None
+    archive_publish_dev_r2_secret_key: SecretStr | None = None
+    archive_publish_dev_r2_bucket: str | None = None
+    archive_publish_dev_r2_secure: bool | None = None
+    archive_publish_dev_public_base_url: str | None = None
+    archive_publish_dev_prefix: str = "archive-dev"
+    archive_publish_dev_environment: str = "dev"
+    archive_public_catalog_sync_url: str | None = None
+    archive_public_catalog_sync_token: SecretStr | None = None
+    archive_public_catalog_sync_enabled: bool = True
+    archive_public_catalog_sync_timeout_seconds: float = 15.0
     prompt_cache_ttl_seconds: int = 60
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
@@ -75,7 +97,11 @@ class CliSettings(BaseSettings):
         "api_key",
         "youtube_http_proxy",
         "youtube_https_proxy",
+        "ytdlp_bin",
+        "ffmpeg_bin",
+        "ffprobe_bin",
         "youtube_data_api_key",
+        "pipeline_scheduler_id",
         "micro_event_worker_id",
         "timeline_compose_worker_id",
         "archive_publish_r2_endpoint",
@@ -83,6 +109,13 @@ class CliSettings(BaseSettings):
         "archive_publish_r2_secret_key",
         "archive_publish_r2_bucket",
         "archive_publish_public_base_url",
+        "archive_publish_dev_r2_endpoint",
+        "archive_publish_dev_r2_access_key",
+        "archive_publish_dev_r2_secret_key",
+        "archive_publish_dev_r2_bucket",
+        "archive_publish_dev_public_base_url",
+        "archive_public_catalog_sync_url",
+        "archive_public_catalog_sync_token",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
         "transcript_minio_secret_key",
@@ -123,6 +156,11 @@ class CliSettings(BaseSettings):
     @field_validator(
         "transcript_collect_timeout_seconds",
         "transcript_collect_concurrency_limit",
+        "pipeline_scheduler_poll_interval_seconds",
+        "pipeline_scheduler_channel_interval_seconds",
+        "pipeline_scheduler_transcript_limit",
+        "pipeline_scheduler_no_transcript_recheck_interval_seconds",
+        "pipeline_scheduler_no_transcript_limit",
         "transcript_cue_generate_timeout_seconds",
         "transcript_cue_generate_concurrency_limit",
         "micro_event_extract_timeout_seconds",
@@ -146,6 +184,13 @@ class CliSettings(BaseSettings):
     def _non_negative_int(cls, value: int) -> int:
         if value < 0:
             raise ValueError("value must be greater than or equal to 0")
+        return value
+
+    @field_validator("archive_public_catalog_sync_timeout_seconds")
+    @classmethod
+    def _positive_float(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("value must be greater than 0")
         return value
 
     def codex_config(self) -> CodexConfig:

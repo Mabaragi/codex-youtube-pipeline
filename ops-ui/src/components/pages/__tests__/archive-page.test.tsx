@@ -66,6 +66,7 @@ const channel: OpsChannel = {
 };
 
 const current: ArchiveCurrent = {
+  publishMode: "prod",
   environment: "prod",
   storage: {
     configured: true,
@@ -162,6 +163,7 @@ describe("ArchivePage", () => {
         target: "selected_videos",
         videoIds: [71],
         limit: 20,
+        publishMode: "prod",
         environment: "prod",
         variant: "control",
         schemaVersion: 1,

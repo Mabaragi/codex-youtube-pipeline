@@ -132,6 +132,11 @@ class ArchiveVideoArtifactModel(Base):
     topic_cluster_count: Mapped[int] = mapped_column(Integer, nullable=False)
     review_flag_count: Mapped[int] = mapped_column(Integer, nullable=False)
     micro_event_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    public_catalog_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    public_catalog_sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -327,6 +332,45 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
                 micro_event_count=create.micro_event_count,
             )
             self._session.add(model)
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _artifact_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise ArchivePublishPersistenceError("Archive publish persistence failed.") from exc
+
+    @override
+    async def mark_video_artifact_catalog_synced(
+        self,
+        artifact_id: int,
+        *,
+        synced_at: datetime,
+    ) -> ArchiveVideoArtifactRecord:
+        try:
+            model = await self._session.get(ArchiveVideoArtifactModel, artifact_id)
+            if model is None:
+                raise ArchivePublishPersistenceError("Archive video artifact not found.")
+            model.public_catalog_synced_at = synced_at
+            model.public_catalog_sync_error = None
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _artifact_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise ArchivePublishPersistenceError("Archive publish persistence failed.") from exc
+
+    @override
+    async def mark_video_artifact_catalog_sync_failed(
+        self,
+        artifact_id: int,
+        *,
+        error_message: str,
+    ) -> ArchiveVideoArtifactRecord:
+        try:
+            model = await self._session.get(ArchiveVideoArtifactModel, artifact_id)
+            if model is None:
+                raise ArchivePublishPersistenceError("Archive video artifact not found.")
+            model.public_catalog_sync_error = error_message[:2000]
             await self._session.commit()
             await self._session.refresh(model)
             return _artifact_record(model)
@@ -633,6 +677,8 @@ def _artifact_record(model: ArchiveVideoArtifactModel) -> ArchiveVideoArtifactRe
         topic_cluster_count=model.topic_cluster_count,
         review_flag_count=model.review_flag_count,
         micro_event_count=model.micro_event_count,
+        public_catalog_synced_at=model.public_catalog_synced_at,
+        public_catalog_sync_error=model.public_catalog_sync_error,
         created_at=model.created_at,
         updated_at=model.updated_at,
     )

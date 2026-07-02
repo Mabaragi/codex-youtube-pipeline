@@ -6,6 +6,10 @@ JSON artifacts on Cloudflare R2. It runs synchronously inside
 `archive_publish` video task/job/attempt, uploads the video timeline, rebuilds
 the index, updates the pointer, and then returns the per-video result.
 
+The default `publishMode` is `prod`. Dev review publishes use the same DB
+timeline/micro-event source data but write to a separate dev R2 profile, so data
+contract changes can be checked without touching the prod pointer or artifacts.
+
 There is no active archive publish worker. Archive publish is handled
 synchronously by the API request.
 
@@ -42,8 +46,44 @@ CODEX_CLI_ARCHIVE_PUBLISH_PREFIX=archive
 CODEX_CLI_ARCHIVE_PUBLISH_ENVIRONMENT=prod
 ```
 
+Optional dev review storage:
+
+```text
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_R2_BUCKET=...
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_PUBLIC_BASE_URL=https://<dev-public-bucket-or-domain>
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_PREFIX=archive-dev
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_ENVIRONMENT=dev
+
+# Optional. If omitted, dev mode reuses the prod endpoint/key/secret/secure
+# values above and only separates the bucket/base URL/prefix.
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_R2_ACCESS_KEY=...
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_R2_SECRET_KEY=...
+CODEX_CLI_ARCHIVE_PUBLISH_DEV_R2_SECURE=true
+```
+
 The app does not create R2 buckets. The bucket and public access must already be
 configured in Cloudflare. Secrets are not returned by Ops APIs.
+
+Optional public catalog sync for the user-facing Cloudflare Pages app:
+
+```text
+CODEX_CLI_ARCHIVE_PUBLIC_CATALOG_SYNC_ENABLED=true
+CODEX_CLI_ARCHIVE_PUBLIC_CATALOG_SYNC_URL=https://<pages-domain>/api/admin/archive/videos/upsert
+CODEX_CLI_ARCHIVE_PUBLIC_CATALOG_SYNC_TOKEN=...
+CODEX_CLI_ARCHIVE_PUBLIC_CATALOG_SYNC_TIMEOUT_SECONDS=15
+```
+
+When this is configured, publish first uploads the R2 timeline artifact, then
+upserts one public metadata row into the Pages project's D1 database. The D1 row
+is only for listing, search, filtering, and pagination. The timeline detail JSON
+continues to load from R2 via the published `timelineUrl`.
+
+Catalog sync failure marks the current publish item/task/job as failed. The
+already-created R2 artifact row records `public_catalog_sync_error`, and retry or
+regenerate can publish it again after the Pages admin API is fixed. If sync is
+disabled or URL/token is not configured, archive publish keeps the previous
+R2-only behavior.
 
 ## APIs
 
@@ -66,6 +106,7 @@ Useful body:
 {
   "target": "next_eligible",
   "limit": 20,
+  "publishMode": "prod",
   "environment": "prod",
   "variant": "control",
   "schemaVersion": 1,
@@ -78,17 +119,57 @@ The response includes `processedCount`, `publishedCount`,
 `alreadyPublishedCount`, `failedCount`, `failedSkippedCount`, and per-video
 items. A failed item does not stop later videos in the same request.
 
+Dev review publish:
+
+```json
+{
+  "target": "selected_videos",
+  "videoIds": [101, 102],
+  "publishMode": "dev",
+  "schemaVersion": 1,
+  "regenerateSucceeded": true
+}
+```
+
+When `publishMode` is `dev`, omitted values default to `environment=dev` and
+`variant=dev-preview`. `publishMode=dev` with `environment=prod` is rejected so
+dev artifacts cannot appear under a prod-looking namespace.
+
+Process through micro-event, timeline, and dev publish in one request:
+
+```json
+{
+  "videoIds": [101, 102],
+  "microReasoning": "medium",
+  "timelineReasoning": "medium",
+  "retryFailed": true,
+  "publishMode": "dev"
+}
+```
+
 Inspect current archive publication:
 
 ```http
 GET /ops/archive/current?environment=prod
 ```
 
+Inspect the dev pointer and frontend review URL:
+
+```http
+GET /ops/archive/current?publishMode=dev
+```
+
+Use `latestPublication.publicUrl` from that response as the frontend dev data
+pointer. It resolves to the dev bucket/base URL and does not modify the prod
+pointer.
+
 List video publish state:
 
 ```http
 GET /ops/archive/videos?environment=prod&publishStatus=ready&limit=50
 ```
+
+For dev artifacts, query `environment=dev`.
 
 ## Artifact Contents
 

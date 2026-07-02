@@ -66,6 +66,8 @@ from .ports import (
     ArchiveObjectSaveRequest,
     ArchiveOpsVideoListResult,
     ArchiveOpsVideoQuery,
+    ArchivePublicCatalogSyncPort,
+    ArchivePublicCatalogVideoRow,
     ArchivePublishCandidateQuery,
     ArchivePublishCandidateRecord,
     ArchivePublishRepositoryPort,
@@ -83,6 +85,7 @@ from .schemas import (
     ArchiveOpsVideoListResponse,
     ArchiveOpsVideoResponse,
     ArchivePublishItemResponse,
+    ArchivePublishModeLiteral,
     ArchivePublishRequest,
     ArchivePublishResponse,
     ArchiveStorageConfigResponse,
@@ -116,6 +119,17 @@ class _PreparedArchivePublish:
     existing_artifact: ArchiveVideoArtifactRecord | None
 
 
+@dataclass(frozen=True, slots=True)
+class _ArchivePublishProfile:
+    publish_mode: ArchivePublishModeLiteral
+    public_base_url: str | None
+    prefix: str
+    default_environment: str
+    storage_bucket: str | None
+    storage_endpoint: str | None
+    storage_factory: ArchivePublishStorageFactory | None
+
+
 class ArchivePublishUseCase:
     def __init__(
         self,
@@ -136,6 +150,14 @@ class ArchivePublishUseCase:
         storage_bucket: str | None = None,
         storage_endpoint: str | None = None,
         storage_factory: ArchivePublishStorageFactory | None = None,
+        dev_public_base_url: str | None = None,
+        dev_prefix: str = "archive-dev",
+        dev_default_environment: str = "dev",
+        dev_storage_bucket: str | None = None,
+        dev_storage_endpoint: str | None = None,
+        dev_storage_factory: ArchivePublishStorageFactory | None = None,
+        public_catalog_sync: ArchivePublicCatalogSyncPort | None = None,
+        public_catalog_sync_enabled: bool = False,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -146,13 +168,29 @@ class ArchivePublishUseCase:
         self._archive = archive
         self._events = events
         self._timeout_seconds = timeout_seconds
-        self._public_base_url = _normalized_public_base_url(public_base_url)
-        self._prefix = _clean_path_part(prefix) or "archive"
-        self._default_environment = default_environment
         self._default_schema_version = default_schema_version
-        self._storage_bucket = storage_bucket
-        self._storage_endpoint = storage_endpoint
-        self._storage_factory = storage_factory
+        self._public_catalog_sync = public_catalog_sync
+        self._public_catalog_sync_enabled = public_catalog_sync_enabled
+        self._profiles: dict[ArchivePublishModeLiteral, _ArchivePublishProfile] = {
+            "prod": _ArchivePublishProfile(
+                publish_mode="prod",
+                public_base_url=_normalized_public_base_url(public_base_url),
+                prefix=_clean_path_part(prefix) or "archive",
+                default_environment=default_environment,
+                storage_bucket=storage_bucket,
+                storage_endpoint=storage_endpoint,
+                storage_factory=storage_factory,
+            ),
+            "dev": _ArchivePublishProfile(
+                publish_mode="dev",
+                public_base_url=_normalized_public_base_url(dev_public_base_url),
+                prefix=_clean_path_part(dev_prefix) or "archive-dev",
+                default_environment=dev_default_environment,
+                storage_bucket=dev_storage_bucket,
+                storage_endpoint=dev_storage_endpoint,
+                storage_factory=dev_storage_factory,
+            ),
+        }
 
     async def publish(
         self,
@@ -191,19 +229,28 @@ class ArchivePublishUseCase:
                 break
         return _publish_response(request, counters, items)
 
-    async def get_current(self, *, environment: str | None) -> ArchiveCurrentResponse:
-        resolved_environment = environment or self._default_environment
+    async def get_current(
+        self,
+        *,
+        environment: str | None,
+        publish_mode: ArchivePublishModeLiteral = "prod",
+    ) -> ArchiveCurrentResponse:
+        profile = self._profile(publish_mode)
+        resolved_environment = environment or profile.default_environment
         publication = await self._archive.get_latest_index_publication(
             environment=resolved_environment
         )
         return ArchiveCurrentResponse(
+            publishMode=profile.publish_mode,
             environment=resolved_environment,
             storage=ArchiveStorageConfigResponse(
-                configured=self._public_base_url is not None and self._storage_factory is not None,
-                bucket=self._storage_bucket,
-                endpoint=self._storage_endpoint,
-                publicBaseUrl=self._public_base_url,
-                prefix=self._prefix,
+                configured=(
+                    profile.public_base_url is not None and profile.storage_factory is not None
+                ),
+                bucket=profile.storage_bucket,
+                endpoint=profile.storage_endpoint,
+                publicBaseUrl=profile.public_base_url,
+                prefix=profile.prefix,
             ),
             latestPublication=(
                 _index_publication_response(publication) if publication is not None else None
@@ -222,7 +269,7 @@ class ArchivePublishUseCase:
     ) -> ArchiveOpsVideoListResponse:
         result = await self._archive.list_ops_videos(
             ArchiveOpsVideoQuery(
-                environment=environment or self._default_environment,
+                environment=environment or self._profile("prod").default_environment,
                 channel_id=channel_id,
                 publish_status=_publish_status_filter(publish_status),
                 search=search,
@@ -328,6 +375,7 @@ class ArchivePublishUseCase:
                 environment=request.environment,
                 variant=request.variant,
                 schema_version=request.schema_version,
+                publish_mode=request.publish_mode,
                 error_type="VideoNotFound",
                 error_message="Video not found.",
             )
@@ -354,6 +402,7 @@ class ArchivePublishUseCase:
                 environment=request.environment,
                 variant=request.variant,
                 schema_version=request.schema_version,
+                publish_mode=request.publish_mode,
                 error_type=exc.__class__.__name__,
                 error_message=exc.message,
             )
@@ -420,6 +469,7 @@ class ArchivePublishUseCase:
                 environment=request.environment,
                 variant=request.variant,
                 schema_version=request.schema_version,
+                publish_mode=request.publish_mode,
                 error_type=exc.__class__.__name__,
                 error_message=str(exc) or exc.__class__.__name__,
             )
@@ -437,6 +487,7 @@ class ArchivePublishUseCase:
             environment=request.environment,
             variant=request.variant,
             schema_version=request.schema_version,
+            publish_mode=request.publish_mode,
             artifact_id=_int_output(output, "artifactId"),
             public_url=_str_output(output, "publicUrl"),
         )
@@ -468,6 +519,7 @@ class ArchivePublishUseCase:
                 environment=request.environment,
                 variant=request.variant,
                 schema_version=request.schema_version,
+                publish_mode=request.publish_mode,
             )
         elif task.status == "succeeded" and not request.regenerate_succeeded:
             counters.already_published_count += 1
@@ -485,6 +537,7 @@ class ArchivePublishUseCase:
                 environment=request.environment,
                 variant=request.variant,
                 schema_version=request.schema_version,
+                publish_mode=request.publish_mode,
                 error_type=task.error_type,
                 error_message=task.error_message,
             )
@@ -513,6 +566,7 @@ class ArchivePublishUseCase:
             environment=request.environment,
             variant=request.variant,
             schema_version=request.schema_version,
+            publish_mode=request.publish_mode,
         )
 
     def _prepare(
@@ -527,6 +581,7 @@ class ArchivePublishUseCase:
         input_hash = _task_input_hash(
             video=candidate.video,
             composition=candidate.composition,
+            publish_mode=request.publish_mode,
             environment=request.environment,
             variant=request.variant,
             schema_version=request.schema_version,
@@ -535,6 +590,7 @@ class ArchivePublishUseCase:
             video=candidate.video,
             composition=candidate.composition,
             input_hash=input_hash,
+            publish_mode=request.publish_mode,
             environment=request.environment,
             variant=request.variant,
             schema_version=request.schema_version,
@@ -557,7 +613,9 @@ class ArchivePublishUseCase:
         actor_type: OperationEventActorType = "manual_api",
     ) -> JsonObject:
         try:
-            storage = self._storage()
+            publish_mode = _publish_mode(job.input_json)
+            profile = self._profile(publish_mode)
+            storage = self._storage(profile)
             environment = _required_str(job.input_json, "environment")
             variant = _required_str(job.input_json, "variant")
             schema_version = _required_int(job.input_json, "schemaVersion")
@@ -590,8 +648,8 @@ class ArchivePublishUseCase:
                 composition=composition,
                 micro_events=_flatten_micro_events(micro_detail.windows),
                 cues=cues,
-                prefix=self._prefix,
-                public_base_url=_required_public_base_url(self._public_base_url),
+                prefix=profile.prefix,
+                public_base_url=_required_public_base_url(profile.public_base_url),
                 environment=environment,
                 variant=variant,
                 schema_version=schema_version,
@@ -626,13 +684,20 @@ class ArchivePublishUseCase:
                     micro_event_count=timeline_artifact.micro_event_count,
                 )
             )
+            artifact = await self._sync_public_catalog(
+                artifact=artifact,
+                video=video,
+                channel=candidate.channel,
+                streamer=candidate.streamer,
+                composition=composition,
+            )
             index_artifact = _index_artifact(
                 artifacts=await self._archive.list_latest_video_artifacts(
                     environment=environment,
                     schema_version=schema_version,
                 ),
-                prefix=self._prefix,
-                public_base_url=_required_public_base_url(self._public_base_url),
+                prefix=profile.prefix,
+                public_base_url=_required_public_base_url(profile.public_base_url),
                 environment=environment,
                 schema_version=schema_version,
             )
@@ -698,6 +763,7 @@ class ArchivePublishUseCase:
                 "videoTaskId": task.id,
                 "jobId": job.id,
                 "jobAttemptId": attempt.id,
+                "publishMode": _publish_mode(job.input_json),
                 "errorType": error_type,
                 "errorMessage": error_message,
             }
@@ -728,14 +794,49 @@ class ArchivePublishUseCase:
             )
             raise
 
-    def _storage(self) -> ArchivePublishStoragePort:
-        if self._storage_factory is None:
+    async def _sync_public_catalog(
+        self,
+        *,
+        artifact: ArchiveVideoArtifactRecord,
+        video: VideoRecord,
+        channel: ArchiveChannelRecord,
+        streamer: ArchiveStreamerRecord,
+        composition: TimelineCompositionRecord,
+    ) -> ArchiveVideoArtifactRecord:
+        if not self._public_catalog_sync_enabled or self._public_catalog_sync is None:
+            return artifact
+
+        row = _public_catalog_video_row(
+            artifact=artifact,
+            video=video,
+            channel=channel,
+            streamer=streamer,
+            composition=composition,
+        )
+        try:
+            await self._public_catalog_sync.upsert_video(row)
+        except Exception as exc:
+            await self._archive.mark_video_artifact_catalog_sync_failed(
+                artifact.id,
+                error_message=str(exc) or exc.__class__.__name__,
+            )
+            raise
+        return await self._archive.mark_video_artifact_catalog_synced(
+            artifact.id,
+            synced_at=datetime.now(UTC),
+        )
+
+    def _profile(self, publish_mode: ArchivePublishModeLiteral) -> _ArchivePublishProfile:
+        return self._profiles[publish_mode]
+
+    def _storage(self, profile: _ArchivePublishProfile) -> ArchivePublishStoragePort:
+        if profile.storage_factory is None:
             raise ArchivePublishConfigurationError("Archive publish storage is not configured.")
-        if self._public_base_url is None:
+        if profile.public_base_url is None:
             raise ArchivePublishConfigurationError(
                 "Archive publish public base URL is not configured."
             )
-        return self._storage_factory()
+        return profile.storage_factory()
 
     async def _record_event(
         self,
@@ -1092,6 +1193,70 @@ def _streamer_json(streamer: ArchiveStreamerRecord) -> JsonObject:
     return {"id": streamer.id, "name": streamer.name}
 
 
+def _public_catalog_video_row(
+    *,
+    artifact: ArchiveVideoArtifactRecord,
+    video: VideoRecord,
+    channel: ArchiveChannelRecord,
+    streamer: ArchiveStreamerRecord,
+    composition: TimelineCompositionRecord,
+) -> ArchivePublicCatalogVideoRow:
+    return ArchivePublicCatalogVideoRow(
+        environment=artifact.environment,
+        video_id=video.id,
+        youtube_video_id=video.youtube_video_id,
+        title=video.title,
+        streamer_id=_public_streamer_id(channel=channel, streamer=streamer),
+        streamer_name=streamer.name,
+        channel_id=channel.id,
+        channel_name=channel.name,
+        channel_handle=channel.handle,
+        youtube_channel_id=channel.youtube_channel_id,
+        published_at=video.published_at.isoformat() if video.published_at else None,
+        duration_text=video.duration,
+        duration_seconds=_duration_seconds(video.duration),
+        thumbnail_url=video.thumbnail_url,
+        display_title=composition.display_title,
+        display_summary=composition.display_summary,
+        main_topics=composition.main_topics,
+        episode_count=artifact.episode_count,
+        micro_event_count=artifact.micro_event_count,
+        topic_cluster_count=artifact.topic_cluster_count,
+        block_count=artifact.block_count,
+        variant=artifact.variant,
+        timeline_version=artifact.version,
+        timeline_url=artifact.public_url,
+        artifact_sha256=artifact.sha256,
+        artifact_byte_size=artifact.byte_size,
+        updated_at=datetime.now(UTC).isoformat(),
+    )
+
+
+def _public_streamer_id(
+    *,
+    channel: ArchiveChannelRecord,
+    streamer: ArchiveStreamerRecord,
+) -> str:
+    streamer_id_by_channel_handle = {
+        "nagireplay": "nagi",
+        "reireplay": "rei",
+        "chichireplay": "chichi",
+        "panyareplay": "panya",
+    }
+    streamer_id_by_youtube_channel_id = {
+        "UCRVIMEcKHurG42oTo4DQT5g": "nagi",
+        "UCfI0o-TiJknTPbDhjblPhzg": "rei",
+        "UCdQhiIMOTSoLdNjeQaeyFiA": "chichi",
+        "UC_0he5K-1W8sZTooz0tUoiA": "panya",
+    }
+    handle = channel.handle.strip().removeprefix("@").lower()
+    if handle in streamer_id_by_channel_handle:
+        return streamer_id_by_channel_handle[handle]
+    if channel.youtube_channel_id in streamer_id_by_youtube_channel_id:
+        return streamer_id_by_youtube_channel_id[channel.youtube_channel_id]
+    return str(streamer.id)
+
+
 def _channel_json(channel: ArchiveChannelRecord) -> JsonObject:
     return {
         "id": channel.id,
@@ -1135,12 +1300,14 @@ def _task_input_hash(
     *,
     video: VideoRecord,
     composition: TimelineCompositionRecord,
+    publish_mode: ArchivePublishModeLiteral,
     environment: str,
     variant: str,
     schema_version: int,
 ) -> str:
     payload = {
         "environment": environment,
+        "publishMode": publish_mode,
         "schemaVersion": schema_version,
         "sourceMicroEventTaskId": composition.source_micro_event_task_id,
         "sourceTimelineCompositionId": composition.id,
@@ -1160,6 +1327,7 @@ def _task_input_json(
     video: VideoRecord,
     composition: TimelineCompositionRecord,
     input_hash: str,
+    publish_mode: ArchivePublishModeLiteral,
     environment: str,
     variant: str,
     schema_version: int,
@@ -1173,6 +1341,7 @@ def _task_input_json(
         "sourceMicroEventTaskId": composition.source_micro_event_task_id,
         "taskVersion": ARCHIVE_PUBLISH_TASK_VERSION,
         "inputHash": input_hash,
+        "publishMode": publish_mode,
         "environment": environment,
         "variant": variant,
         "schemaVersion": schema_version,
@@ -1216,6 +1385,7 @@ def _publish_item(
     environment: str,
     variant: str,
     schema_version: int,
+    publish_mode: ArchivePublishModeLiteral = "prod",
     artifact_id: int | None = None,
     public_url: str | None = None,
     error_type: str | None = None,
@@ -1229,6 +1399,7 @@ def _publish_item(
         reason=reason,
         sourceTimelineTaskId=composition.video_task_id if composition is not None else None,
         sourceTimelineCompositionId=composition.id if composition is not None else None,
+        publishMode=publish_mode,
         environment=environment,
         variant=variant,
         schemaVersion=schema_version,
@@ -1316,6 +1487,8 @@ def _artifact_response(artifact: ArchiveVideoArtifactRecord) -> ArchiveVideoArti
         topicClusterCount=artifact.topic_cluster_count,
         reviewFlagCount=artifact.review_flag_count,
         microEventCount=artifact.micro_event_count,
+        publicCatalogSyncedAt=artifact.public_catalog_synced_at,
+        publicCatalogSyncError=artifact.public_catalog_sync_error,
         createdAt=artifact.created_at,
     )
 
@@ -1360,6 +1533,7 @@ def _publish_output_json(
         "indexUrl": index.public_url,
         "pointerKey": index.pointer_key,
         "pointerUrl": pointer_public_url,
+        "publishMode": _publish_mode(job.input_json),
         "jobId": job.id,
         "jobAttemptId": attempt.id,
     }
@@ -1437,6 +1611,10 @@ def _int_output(input_json: JsonObject, key: str) -> int | None:
 def _str_output(input_json: JsonObject, key: str) -> str | None:
     value = input_json.get(key)
     return value if isinstance(value, str) else None
+
+
+def _publish_mode(input_json: JsonObject) -> ArchivePublishModeLiteral:
+    return "dev" if _str_output(input_json, "publishMode") == "dev" else "prod"
 
 
 def _required_str(input_json: JsonObject, key: str) -> str:

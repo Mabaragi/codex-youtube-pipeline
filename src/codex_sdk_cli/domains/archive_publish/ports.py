@@ -65,8 +65,46 @@ class ArchiveVideoArtifactCreate:
 @dataclass(frozen=True, slots=True)
 class ArchiveVideoArtifactRecord(ArchiveVideoArtifactCreate):
     id: int
+    public_catalog_synced_at: datetime | None
+    public_catalog_sync_error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivePublicCatalogVideoRow:
+    environment: str
+    video_id: int
+    youtube_video_id: str
+    title: str
+    streamer_id: str | None
+    streamer_name: str | None
+    channel_id: int | None
+    channel_name: str | None
+    channel_handle: str | None
+    youtube_channel_id: str | None
+    published_at: str | None
+    duration_text: str | None
+    duration_seconds: float | None
+    thumbnail_url: str | None
+    display_title: str | None
+    display_summary: str | None
+    main_topics: list[str]
+    episode_count: int
+    micro_event_count: int
+    topic_cluster_count: int
+    block_count: int
+    variant: str
+    timeline_version: str
+    timeline_url: str
+    artifact_sha256: str
+    artifact_byte_size: int
+    updated_at: str
+
+
+class ArchivePublicCatalogSyncPort(Protocol):
+    async def upsert_video(self, row: ArchivePublicCatalogVideoRow) -> None:
+        """Synchronize one public catalog row to the user-facing Pages/D1 app."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,6 +229,22 @@ class ArchivePublishRepositoryPort(Protocol):
         create: ArchiveVideoArtifactCreate,
     ) -> ArchiveVideoArtifactRecord:
         """Persist one per-video archive artifact."""
+
+    async def mark_video_artifact_catalog_synced(
+        self,
+        artifact_id: int,
+        *,
+        synced_at: datetime,
+    ) -> ArchiveVideoArtifactRecord:
+        """Mark a public catalog sync as completed."""
+
+    async def mark_video_artifact_catalog_sync_failed(
+        self,
+        artifact_id: int,
+        *,
+        error_message: str,
+    ) -> ArchiveVideoArtifactRecord:
+        """Store a public catalog sync error for diagnostics."""
 
     async def list_latest_video_artifacts(
         self,

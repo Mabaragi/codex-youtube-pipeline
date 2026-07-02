@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .ports import ArchivePublishStatusFilter, ArchivePublishTarget
 
+ArchivePublishModeLiteral = Literal["prod", "dev"]
+
 
 class ArchivePublishRequest(BaseModel):
     target: ArchivePublishTarget = "next_eligible"
@@ -14,16 +16,33 @@ class ArchivePublishRequest(BaseModel):
     channel_id: int | None = Field(default=None, ge=1, alias="channelId")
     search: str | None = Field(default=None, min_length=1, max_length=200)
     limit: int = Field(default=20, ge=1, le=200)
+    publish_mode: ArchivePublishModeLiteral = Field(default="prod", alias="publishMode")
     environment: str = Field(default="prod", min_length=1, max_length=64)
     variant: str = Field(default="control", min_length=1, max_length=64)
     schema_version: int = Field(default=1, ge=1, le=100, alias="schemaVersion")
     retry_failed: bool = Field(default=False, alias="retryFailed")
     regenerate_succeeded: bool = Field(default=False, alias="regenerateSucceeded")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _dev_defaults(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        mode = normalized.get("publishMode", normalized.get("publish_mode", "prod"))
+        if mode == "dev":
+            if "environment" not in normalized:
+                normalized["environment"] = "dev"
+            if "variant" not in normalized:
+                normalized["variant"] = "dev-preview"
+        return normalized
+
     @model_validator(mode="after")
     def _selected_videos_require_ids(self) -> ArchivePublishRequest:
         if self.target == "selected_videos" and not self.video_ids:
             raise ValueError("videoIds is required when target is selected_videos.")
+        if self.publish_mode == "dev" and self.environment == "prod":
+            raise ValueError("publishMode=dev cannot publish to environment=prod.")
         return self
 
     model_config = ConfigDict(
@@ -34,6 +53,7 @@ class ArchivePublishRequest(BaseModel):
                 {
                     "target": "next_eligible",
                     "limit": 20,
+                    "publishMode": "prod",
                     "environment": "prod",
                     "variant": "control",
                     "schemaVersion": 1,
@@ -53,6 +73,7 @@ class ArchivePublishItemResponse(BaseModel):
     reason: str
     source_timeline_task_id: int | None = Field(alias="sourceTimelineTaskId")
     source_timeline_composition_id: int | None = Field(alias="sourceTimelineCompositionId")
+    publish_mode: ArchivePublishModeLiteral = Field(default="prod", alias="publishMode")
     environment: str
     variant: str
     schema_version: int = Field(alias="schemaVersion")
@@ -106,6 +127,7 @@ class ArchiveIndexPublicationResponse(BaseModel):
 
 
 class ArchiveCurrentResponse(BaseModel):
+    publish_mode: ArchivePublishModeLiteral = Field(alias="publishMode")
     environment: str
     storage: ArchiveStorageConfigResponse
     latest_publication: ArchiveIndexPublicationResponse | None = Field(alias="latestPublication")
@@ -133,6 +155,8 @@ class ArchiveVideoArtifactResponse(BaseModel):
     topic_cluster_count: int = Field(alias="topicClusterCount")
     review_flag_count: int = Field(alias="reviewFlagCount")
     micro_event_count: int = Field(alias="microEventCount")
+    public_catalog_synced_at: datetime | None = Field(alias="publicCatalogSyncedAt")
+    public_catalog_sync_error: str | None = Field(alias="publicCatalogSyncError")
     created_at: datetime = Field(alias="createdAt")
 
     model_config = ConfigDict(populate_by_name=True)

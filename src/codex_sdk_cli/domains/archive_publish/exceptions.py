@@ -25,3 +25,7 @@ class ArchivePublishPreconditionFailed(ArchivePublishDomainError):
 
 class ArchivePublishArtifactInvalid(ArchivePublishDomainError):
     """A publishable archive artifact cannot be built safely."""
+
+
+class ArchivePublishCatalogSyncError(ArchivePublishDomainError):
+    """Archive publish public catalog synchronization failed."""

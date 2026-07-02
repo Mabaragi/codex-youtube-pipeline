@@ -46,11 +46,20 @@
               }
             ]
           },
+          "publishMode": {
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          },
           "storage": {
             "$ref": "#/components/schemas/ArchiveStorageConfigResponse"
           }
         },
         "required": [
+          "publishMode",
           "environment",
           "storage",
           "latestPublication"
@@ -322,6 +331,15 @@
             ],
             "title": "Publicurl"
           },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -412,6 +430,7 @@
           {
             "environment": "prod",
             "limit": 20,
+            "publishMode": "prod",
             "regenerateSucceeded": false,
             "retryFailed": false,
             "schemaVersion": 1,
@@ -445,6 +464,15 @@
             "minimum": 1.0,
             "title": "Limit",
             "type": "integer"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
           },
           "regenerateSucceeded": {
             "default": false,
@@ -655,6 +683,29 @@
             "title": "Objectkey",
             "type": "string"
           },
+          "publicCatalogSyncError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publiccatalogsyncerror"
+          },
+          "publicCatalogSyncedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publiccatalogsyncedat"
+          },
           "publicUrl": {
             "title": "Publicurl",
             "type": "string"
@@ -724,6 +775,8 @@
           "topicClusterCount",
           "reviewFlagCount",
           "microEventCount",
+          "publicCatalogSyncedAt",
+          "publicCatalogSyncError",
           "createdAt"
         ],
         "title": "ArchiveVideoArtifactResponse",
@@ -7377,6 +7430,7 @@
             "environment": "prod",
             "microReasoning": "medium",
             "pollIntervalSeconds": 10,
+            "publishMode": "prod",
             "retryFailed": true,
             "schemaVersion": 1,
             "timelineReasoning": "high",
@@ -7426,6 +7480,15 @@
             "minimum": 1.0,
             "title": "Pollintervalseconds",
             "type": "integer"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
           },
           "retryFailed": {
             "default": false,
@@ -12510,6 +12573,20 @@
                 }
               ],
               "title": "Environment"
+            }
+          },
+          {
+            "in": "query",
+            "name": "publishMode",
+            "required": false,
+            "schema": {
+              "default": "prod",
+              "enum": [
+                "prod",
+                "dev"
+              ],
+              "title": "Publishmode",
+              "type": "string"
             }
           }
         ],

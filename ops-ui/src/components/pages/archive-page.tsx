@@ -55,6 +55,7 @@ type ArchivePageProps = {
 };
 
 type PublishDefaults = {
+  publishMode: "prod" | "dev";
   environment: string;
   variant: string;
   schemaVersion: number;
@@ -87,6 +88,7 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
   );
   const [lastResult, setLastResult] = useState<ArchivePublishResult | null>(null);
   const [defaults, setDefaults] = useState<PublishDefaults>({
+    publishMode: "prod",
     environment,
     variant: "control",
     schemaVersion: 1,
@@ -612,6 +614,7 @@ function baseRequest(
   return {
     target: "next_eligible",
     limit: defaults.limit,
+    publishMode: defaults.publishMode || "prod",
     environment: defaults.environment || "prod",
     variant: defaults.variant || "control",
     schemaVersion: defaults.schemaVersion,

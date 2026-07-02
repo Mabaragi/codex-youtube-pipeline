@@ -1217,6 +1217,11 @@ export interface components {
             /** Environment */
             environment: string;
             latestPublication: components["schemas"]["ArchiveIndexPublicationResponse"] | null;
+            /**
+             * Publishmode
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
             storage: components["schemas"]["ArchiveStorageConfigResponse"];
         };
         /** ArchiveIndexPublicationResponse */
@@ -1302,6 +1307,12 @@ export interface components {
             errorType: string | null;
             /** Publicurl */
             publicUrl: string | null;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
             /** Reason */
             reason: string;
             /** Schemaversion */
@@ -1326,6 +1337,7 @@ export interface components {
          * @example {
          *       "environment": "prod",
          *       "limit": 20,
+         *       "publishMode": "prod",
          *       "regenerateSucceeded": false,
          *       "retryFailed": false,
          *       "schemaVersion": 1,
@@ -1346,6 +1358,12 @@ export interface components {
              * @default 20
              */
             limit: number;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
             /**
              * Regeneratesucceeded
              * @default false
@@ -1434,6 +1452,10 @@ export interface components {
             microEventCount: number;
             /** Objectkey */
             objectKey: string;
+            /** Publiccatalogsyncerror */
+            publicCatalogSyncError: string | null;
+            /** Publiccatalogsyncedat */
+            publicCatalogSyncedAt: string | null;
             /** Publicurl */
             publicUrl: string;
             /** Publishjobid */
@@ -3575,6 +3597,7 @@ export interface components {
          *       "environment": "prod",
          *       "microReasoning": "medium",
          *       "pollIntervalSeconds": 10,
+         *       "publishMode": "prod",
          *       "retryFailed": true,
          *       "schemaVersion": 1,
          *       "timelineReasoning": "high",
@@ -3597,6 +3620,12 @@ export interface components {
              * @default 10
              */
             pollIntervalSeconds: number;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
             /**
              * Retryfailed
              * @default false
@@ -4176,6 +4205,8 @@ export interface components {
             blocks: components["schemas"]["TimelinePatchBlockSummaryResponse"][];
             /** Episodes */
             episodes: components["schemas"]["TimelinePatchEpisodeSummaryResponse"][];
+            /** Topicclusters */
+            topicClusters: components["schemas"]["TimelinePatchTopicClusterSummaryResponse"][];
         };
         /** TimelinePatchEpisodeSummaryResponse */
         TimelinePatchEpisodeSummaryResponse: {
@@ -4208,29 +4239,49 @@ export interface components {
             anchor?: components["schemas"]["TimelinePatchAnchorRequest"] | null;
             /** Anchorepisodeid */
             anchorEpisodeId?: string | null;
+            /** Displaylabel */
+            displayLabel?: string | null;
             /** Displaysummary */
             displaySummary?: string | null;
             /** Displaytitle */
             displayTitle?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Expectedepisodeid */
+            expectedEpisodeId?: string | null;
             newBlock?: components["schemas"]["TimelinePatchNewBlockRequest"] | null;
             /**
              * Operation
              * @enum {string}
              */
-            operation: "split_block_after_episode" | "edit_display_copy";
+            operation: "split_block_after_episode" | "edit_display_copy" | "edit_micro_event_copy" | "edit_topic_cluster_copy";
+            /** Summary */
+            summary?: string | null;
             /** Targetid */
             targetId?: string | null;
+            /** Targetmicroeventcandidateid */
+            targetMicroEventCandidateId?: number | null;
+            /** Targettopicid */
+            targetTopicId?: string | null;
             /** Targettype */
             targetType?: ("video" | "block" | "episode") | null;
         };
         /** TimelinePatchOperationResultResponse */
         TimelinePatchOperationResultResponse: {
+            /** Afterevent */
+            afterEvent?: string | null;
             /** Anchorepisodeid */
             anchorEpisodeId?: string | null;
+            /** Beforeevent */
+            beforeEvent?: string | null;
             /** Changedblockids */
             changedBlockIds?: string[];
             /** Changedepisodeids */
             changedEpisodeIds?: string[];
+            /** Changedmicroeventcandidateids */
+            changedMicroEventCandidateIds?: number[];
+            /** Changedtopicids */
+            changedTopicIds?: string[];
             /** Message */
             message: string;
             /** Newblockid */
@@ -4239,9 +4290,13 @@ export interface components {
              * Operation
              * @enum {string}
              */
-            operation: "split_block_after_episode" | "edit_display_copy";
+            operation: "split_block_after_episode" | "edit_display_copy" | "edit_micro_event_copy" | "edit_topic_cluster_copy";
             /** Targetid */
             targetId?: string | null;
+            /** Targetmicroeventcandidateid */
+            targetMicroEventCandidateId?: number | null;
+            /** Targettopicid */
+            targetTopicId?: string | null;
             /** Targettype */
             targetType?: ("video" | "block" | "episode") | null;
         };
@@ -4349,6 +4404,19 @@ export interface components {
             videoTaskId: number;
             /** Youtubevideoid */
             youtubeVideoId: string;
+        };
+        /** TimelinePatchTopicClusterSummaryResponse */
+        TimelinePatchTopicClusterSummaryResponse: {
+            /** Displaylabel */
+            displayLabel: string;
+            /** Episodeids */
+            episodeIds: string[];
+            /** Summary */
+            summary: string;
+            /** Topicid */
+            topicId: string;
+            /** Topicindex */
+            topicIndex: number;
         };
         /** TimelineReviewFlagResponse */
         TimelineReviewFlagResponse: {
@@ -5610,6 +5678,7 @@ export interface operations {
         parameters: {
             query?: {
                 environment?: string | null;
+                publishMode?: "prod" | "dev";
             };
             header?: never;
             path?: never;

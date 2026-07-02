@@ -4,14 +4,18 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from alembic.config import Config
+from pydantic import ValidationError
 from sqlalchemy import inspect
 
 from alembic import command
 from codex_sdk_cli.api.main import app
+from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
+    archive_publish_storage_factory,
+)
 from codex_sdk_cli.domains.archive_publish.exceptions import (
     ArchivePublishArtifactInvalid,
 )
@@ -21,9 +25,12 @@ from codex_sdk_cli.domains.archive_publish.ports import (
     ArchiveVideoArtifactRecord,
     ArchiveVideoArtifactWithVideoRecord,
 )
+from codex_sdk_cli.domains.archive_publish.schemas import ArchivePublishRequest
 from codex_sdk_cli.domains.archive_publish.use_cases import (
     _archive_micro_event_text,
     _index_artifact,
+    _task_input_hash,
+    _task_input_json,
     _timeline_artifact,
 )
 from codex_sdk_cli.domains.micro_events.ports import MicroEventCandidateRecord
@@ -36,7 +43,9 @@ from codex_sdk_cli.domains.timelines.ports import (
 )
 from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueRecord
 from codex_sdk_cli.domains.videos.ports import VideoRecord
+from codex_sdk_cli.infra.archive_publish.storage import R2ArchivePublishStorage
 from codex_sdk_cli.infra.database.session import create_database_engine
+from codex_sdk_cli.settings import CliSettings
 
 NOW = datetime(2026, 6, 27, tzinfo=UTC)
 
@@ -48,10 +57,110 @@ def test_archive_publish_openapi_paths_are_registered() -> None:
     assert "/video-tasks/archive-publish/enqueue" not in schema["paths"]
     assert "/ops/archive/current" in schema["paths"]
     assert "/ops/archive/videos" in schema["paths"]
+    current_parameters = schema["paths"]["/ops/archive/current"]["get"]["parameters"]
+    assert any(parameter["name"] == "publishMode" for parameter in current_parameters)
+    assert "publishMode" in schema["components"]["schemas"]["ArchivePublishRequest"][
+        "properties"
+    ]
+    assert "publishMode" in schema["components"]["schemas"]["ProcessToPublishRequest"][
+        "properties"
+    ]
 
 
 def test_archive_publish_has_no_active_worker_module() -> None:
     assert not (Path("src/codex_sdk_cli/workers/archive_publish.py")).exists()
+
+
+def test_archive_publish_dev_mode_defaults_and_rejects_prod_environment() -> None:
+    request = ArchivePublishRequest.model_validate({"publishMode": "dev"})
+
+    assert request.publish_mode == "dev"
+    assert request.environment == "dev"
+    assert request.variant == "dev-preview"
+
+    with pytest.raises(ValidationError, match="environment=prod"):
+        ArchivePublishRequest.model_validate(
+            {
+                "publishMode": "dev",
+                "environment": "prod",
+            }
+        )
+
+
+def test_archive_publish_dev_storage_factory_uses_dev_bucket_and_public_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeStorage:
+        pass
+
+    def fake_from_values(cls: type[R2ArchivePublishStorage], **kwargs: object) -> Any:
+        captured.update(kwargs)
+        return FakeStorage()
+
+    monkeypatch.setattr(
+        R2ArchivePublishStorage,
+        "from_values",
+        classmethod(fake_from_values),
+    )
+    settings = CliSettings(
+        archive_publish_r2_endpoint="https://prod-r2.example",
+        archive_publish_r2_access_key="prod-access-key",
+        archive_publish_r2_secret_key="prod-secret-key",
+        archive_publish_r2_bucket="prod-bucket",
+        archive_publish_r2_secure=True,
+        archive_publish_public_base_url="https://prod-cdn.example",
+        archive_publish_dev_r2_bucket="dev-bucket",
+        archive_publish_dev_public_base_url="https://dev-cdn.example",
+    )
+
+    factory = archive_publish_storage_factory(settings, publish_mode="dev")
+
+    assert factory is not None
+    assert factory().__class__ is FakeStorage
+    assert captured == {
+        "endpoint": "https://prod-r2.example",
+        "access_key": "prod-access-key",
+        "secret_key": "prod-secret-key",
+        "bucket": "dev-bucket",
+        "public_base_url": "https://dev-cdn.example",
+        "secure": True,
+    }
+
+
+def test_archive_publish_task_input_separates_dev_and_prod_modes() -> None:
+    prod_hash = _task_input_hash(
+        video=_video(),
+        composition=_composition(),
+        publish_mode="prod",
+        environment="prod",
+        variant="control",
+        schema_version=1,
+    )
+    dev_hash = _task_input_hash(
+        video=_video(),
+        composition=_composition(),
+        publish_mode="dev",
+        environment="dev",
+        variant="dev-preview",
+        schema_version=1,
+    )
+    dev_input = _task_input_json(
+        video=_video(),
+        composition=_composition(),
+        input_hash=dev_hash,
+        publish_mode="dev",
+        environment="dev",
+        variant="dev-preview",
+        schema_version=1,
+        timeout_seconds=600,
+    )
+
+    assert prod_hash != dev_hash
+    assert dev_input["publishMode"] == "dev"
+    assert dev_input["environment"] == "dev"
+    assert dev_input["variant"] == "dev-preview"
 
 
 def test_archive_publish_migration_creates_archive_tables(
@@ -66,6 +175,9 @@ def test_archive_publish_migration_creates_archive_tables(
     tables = asyncio.run(_table_names(database_url))
     assert "archive_video_artifacts" in tables
     assert "archive_index_publications" in tables
+    artifact_columns = asyncio.run(_column_names(database_url, "archive_video_artifacts"))
+    assert "public_catalog_synced_at" in artifact_columns
+    assert "public_catalog_sync_error" in artifact_columns
 
 
 def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
@@ -221,6 +333,22 @@ async def _table_names(database_url: str) -> set[str]:
         await engine.dispose()
 
 
+async def _column_names(database_url: str, table_name: str) -> set[str]:
+    engine = create_database_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return set(
+                await connection.run_sync(
+                    lambda sync_conn: [
+                        column["name"]
+                        for column in inspect(sync_conn).get_columns(table_name)
+                    ]
+                )
+            )
+    finally:
+        await engine.dispose()
+
+
 def _alembic_config() -> Config:
     config = Config("alembic.ini")
     config.set_main_option("script_location", "alembic")
@@ -280,6 +408,8 @@ def _video_artifact() -> ArchiveVideoArtifactRecord:
         topic_cluster_count=1,
         review_flag_count=1,
         micro_event_count=2,
+        public_catalog_synced_at=None,
+        public_catalog_sync_error=None,
         created_at=NOW,
         updated_at=NOW,
     )
