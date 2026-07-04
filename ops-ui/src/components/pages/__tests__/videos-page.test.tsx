@@ -41,6 +41,12 @@ const queryMocks = vi.hoisted(() => ({
     data: undefined as TimelineComposeEnqueueResult | undefined,
     error: null as Error | null,
   },
+  refreshEmbedStatus: {
+    mutate: vi.fn(),
+    isPending: false,
+    data: undefined,
+    error: null as Error | null,
+  },
   promptDetails: {} as Record<
     string,
     { data: PromptDetail | undefined; isLoading: boolean; error: Error | null }
@@ -58,6 +64,7 @@ vi.mock("@/lib/queries", () => ({
     return queryMocks.videos;
   },
   usePromptDetail: (promptKey: string) => queryMocks.promptDetails[promptKey],
+  useRefreshVideoEmbedStatusMutation: () => queryMocks.refreshEmbedStatus,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -95,6 +102,8 @@ const videoList: OpsVideoList = {
       publishedAt: "2026-06-18T00:00:00Z",
       duration: "PT1M",
       thumbnailUrl: null,
+      isEmbeddable: true,
+      embedStatusCheckedAt: "2026-06-18T00:50:00Z",
       latestTaskId: 9,
       latestTaskName: "transcript_collect",
       latestTaskStatus: "succeeded",
@@ -231,6 +240,10 @@ describe("VideosPage", () => {
     queryMocks.enqueueTimelineCompose.isPending = false;
     queryMocks.enqueueTimelineCompose.data = undefined;
     queryMocks.enqueueTimelineCompose.error = null;
+    queryMocks.refreshEmbedStatus.mutate.mockReset();
+    queryMocks.refreshEmbedStatus.isPending = false;
+    queryMocks.refreshEmbedStatus.data = undefined;
+    queryMocks.refreshEmbedStatus.error = null;
     queryMocks.promptDetails = {
       micro_event_extract: {
         data: microEventPromptDetail,
@@ -356,6 +369,7 @@ describe("VideosPage", () => {
       limit: 1,
       model: "gpt-5.4",
       reasoningEffort: "high",
+      includeNonEmbeddable: false,
       retryFailed: true,
       regenerateSucceeded: false,
       windowMinutes: 30,
@@ -386,6 +400,7 @@ describe("VideosPage", () => {
       limit: 3,
       model: "gpt-5.4",
       reasoningEffort: "high",
+      includeNonEmbeddable: false,
       retryFailed: true,
       regenerateSucceeded: false,
       windowMinutes: 30,
@@ -417,6 +432,7 @@ describe("VideosPage", () => {
       limit: 20,
       model: "gpt-5.5",
       reasoningEffort: "medium",
+      includeNonEmbeddable: false,
       retryFailed: false,
       regenerateSucceeded: false,
       windowMinutes: 30,
@@ -449,6 +465,7 @@ describe("VideosPage", () => {
       limit: 1,
       model: "gpt-5.4-mini",
       reasoningEffort: "low",
+      includeNonEmbeddable: false,
       retryFailed: true,
       regenerateSucceeded: false,
       copyStyle: "LIGHT_FANDOM_V1",

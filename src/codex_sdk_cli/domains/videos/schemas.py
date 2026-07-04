@@ -20,9 +20,12 @@ class VideoResponse(BaseModel):
     description: str
     published_at: datetime = Field(alias="publishedAt")
     duration: str | None
+    is_embeddable: bool | None = Field(alias="isEmbeddable")
+    embed_status_checked_at: datetime | None = Field(alias="embedStatusCheckedAt")
     thumbnail_url: str | None = Field(alias="thumbnailUrl")
     source_listing_api_call_id: int | None = Field(alias="sourceListingApiCallId")
     source_details_api_call_id: int | None = Field(alias="sourceDetailsApiCallId")
+    source_embed_status_api_call_id: int | None = Field(alias="sourceEmbedStatusApiCallId")
     source_job_id: int | None = Field(alias="sourceJobId")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

@@ -241,6 +241,12 @@ class ComposeTimelineUseCase:
         )
         for candidate in candidates:
             counters.scanned_count += 1
+            if (
+                candidate.video.is_embeddable is False
+                and not request.include_non_embeddable
+            ):
+                counters.ineligible_count += 1
+                continue
             action = await self._batch_candidate_action(candidate, request)
             if action == "skip":
                 continue
@@ -396,6 +402,19 @@ class ComposeTimelineUseCase:
         request: TimelineComposeEnqueueRequest,
         counters: _EnqueueCounters,
     ) -> TimelineComposeEnqueueItemResponse:
+        if video.is_embeddable is False and not request.include_non_embeddable:
+            counters.ineligible_count += 1
+            return _enqueue_item(
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                task=None,
+                status="skipped",
+                reason="not_embeddable",
+                source_task_id=None,
+                model=request.model,
+                reasoning_effort=request.reasoning_effort,
+                copy_style=request.copy_style,
+            )
         try:
             prepared = await self._prepare(video, request)
         except TimelineCompositionPreconditionFailed as exc:
@@ -1165,6 +1184,8 @@ _MAX_EPISODE_TOPICS = 6
 _MAX_EPISODE_HIGHLIGHTS = 3
 _OVERBROAD_MICRO_EVENT_COUNT = 9
 _OVERBROAD_LARGE_MICRO_EVENT_COUNT = 12
+_DETERMINISTIC_COVERAGE_REPAIR_CHUNK_SIZE = 4
+_DETERMINISTIC_COVERAGE_REPAIR_LIMIT = 32
 _SHORT_BREAK_EPISODE_COUNT = 2
 _POST_GAME_DAILY_CONTENT_KINDS = frozenset({"PERSONAL_STORY", "OPINION", "QNA", "META_CHAT"})
 _GAME_RELATED_CONTENT_KINDS = frozenset({"GAME_PROGRESS", "GAME_DISCUSSION"})
@@ -2104,7 +2125,150 @@ async def _repair_episode_coverage(
                 metadata={"replacementCount": len(replacement)},
             )
         )
+    for fallback_index in range(1, _DETERMINISTIC_COVERAGE_REPAIR_LIMIT + 1):
+        plan = _coverage_repair_plan(
+            repaired_episodes,
+            repaired_blocks,
+            composer_input,
+            repair_index=TIMELINE_COMPOSE_MAX_COVERAGE_REPAIRS + fallback_index,
+        )
+        if plan is None:
+            break
+        replacement = _deterministic_coverage_repair_replacement(
+            plan,
+            fallback_index=fallback_index,
+        )
+        repaired_episodes, repaired_blocks, repaired_topics = _apply_coverage_repair(
+            episodes=repaired_episodes,
+            blocks=repaired_blocks,
+            topics=repaired_topics,
+            plan=plan,
+            replacement=replacement,
+        )
+        warnings.append(
+            f"deterministic coverage repair {plan.target_episode.episode_id} inserted "
+            f"{len(replacement)} episode(s)"
+        )
     return repaired_episodes, repaired_blocks, repaired_topics, repaired_flags
+
+
+def _deterministic_coverage_repair_replacement(
+    plan: _CoverageRepairPlan,
+    *,
+    fallback_index: int,
+) -> list[TimelineEpisodeCreate]:
+    replacement: list[TimelineEpisodeCreate] = []
+    for chunk_index, start in enumerate(
+        range(0, len(plan.target_candidates), _DETERMINISTIC_COVERAGE_REPAIR_CHUNK_SIZE),
+        start=1,
+    ):
+        candidates = plan.target_candidates[
+            start : start + _DETERMINISTIC_COVERAGE_REPAIR_CHUNK_SIZE
+        ]
+        first_candidate = candidates[0]
+        last_candidate = candidates[-1]
+        episode_id = (
+            plan.target_episode.episode_id
+            if chunk_index == 1
+            else f"{plan.target_episode.episode_id}_coverage_{fallback_index:03d}_{chunk_index:03d}"
+        )
+        program_mode = _candidate_timeline_block_type(candidates)
+        primary_content_kind = _candidate_timeline_content_kind(candidates)
+        title = _deterministic_coverage_title(candidates)
+        summary = _deterministic_coverage_summary(candidates)
+        replacement.append(
+            TimelineEpisodeCreate(
+                episode_id=episode_id,
+                episode_index=plan.target_episode.episode_index + chunk_index - 1,
+                parent_block_id=plan.target_episode.parent_block_id,
+                start_micro_event_candidate_id=first_candidate.id,
+                end_micro_event_candidate_id=last_candidate.id,
+                program_mode=program_mode,
+                primary_content_kind=primary_content_kind,
+                title=title,
+                summary=summary,
+                display_title=title,
+                display_summary=summary,
+                topics=_candidate_topics(candidates),
+                viewer_tags=_candidate_viewer_tags(primary_content_kind),
+                highlight_micro_event_candidate_ids=[first_candidate.id],
+                visibility="DEFAULT",
+            )
+        )
+    return replacement
+
+
+def _candidate_timeline_block_type(
+    candidates: list[MicroEventCandidateRecord],
+) -> TimelineBlockType:
+    first_candidate = candidates[0]
+    program_modes = {candidate.program_mode for candidate in candidates}
+    if (
+        len(program_modes) == 1
+        and first_candidate.program_mode is not None
+        and first_candidate.program_mode in _TIMELINE_BLOCK_TYPES
+    ):
+        return cast(TimelineBlockType, first_candidate.program_mode)
+    return "MIXED"
+
+
+def _candidate_timeline_content_kind(
+    candidates: list[MicroEventCandidateRecord],
+) -> TimelineContentKind:
+    first_candidate = candidates[0]
+    content_kinds = {candidate.content_kind for candidate in candidates}
+    if (
+        len(content_kinds) == 1
+        and first_candidate.content_kind is not None
+        and first_candidate.content_kind in _TIMELINE_CONTENT_KINDS
+    ):
+        return cast(TimelineContentKind, first_candidate.content_kind)
+    return "OTHER"
+
+
+def _candidate_topics(candidates: list[MicroEventCandidateRecord]) -> list[str]:
+    topics = [
+        topic
+        for candidate in candidates
+        for topic in (candidate.topics or [])
+        if topic.strip()
+    ]
+    return list(dict.fromkeys(topics))[:_MAX_EPISODE_TOPICS]
+
+
+def _candidate_viewer_tags(
+    primary_content_kind: TimelineContentKind,
+) -> list[TimelineViewerTag]:
+    if primary_content_kind in _TIMELINE_VIEWER_TAGS:
+        return [cast(TimelineViewerTag, primary_content_kind)]
+    replacement = _VIEWER_TAG_CONTENT_KIND_ALIASES.get(primary_content_kind)
+    if replacement is None:
+        return []
+    return [replacement]
+
+
+def _deterministic_coverage_title(
+    candidates: list[MicroEventCandidateRecord],
+) -> str:
+    return _short_text(candidates[0].event, max_length=35)
+
+
+def _deterministic_coverage_summary(
+    candidates: list[MicroEventCandidateRecord],
+) -> str:
+    if len(candidates) == 1:
+        return _short_text(candidates[0].event, max_length=120)
+    return _short_text(
+        f"{candidates[0].event} / {candidates[-1].event}",
+        max_length=120,
+    )
+
+
+def _short_text(value: str, *, max_length: int) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= max_length:
+        return normalized
+    return f"{normalized[: max(0, max_length - 3)].rstrip()}..."
 
 
 def _coverage_repair_plan(
@@ -2947,11 +3111,25 @@ def _episode_repair_prompt(
 
 
 def _parse_episode_repair(text: str) -> _TimelineEpisodeRepairOutput:
-    payload = _loads_output_json(text)
+    payload = _normalized_episode_repair_payload(_loads_output_json(text))
     try:
         return _TimelineEpisodeRepairOutput.model_validate(payload)
     except ValidationError as exc:
         raise TimelineCompositionOutputInvalid(str(exc)) from exc
+
+
+def _normalized_episode_repair_payload(payload: JsonObject) -> JsonObject:
+    if "replacement_episodes" in payload or "episodes" not in payload:
+        return payload
+    episodes = payload["episodes"]
+    if not isinstance(episodes, list):
+        return payload
+    return {
+        **payload,
+        "action": payload.get("action") or "SPLIT",
+        "target_episode_id": payload.get("target_episode_id") or "",
+        "replacement_episodes": episodes,
+    }
 
 
 def _validated_repair_replacement(

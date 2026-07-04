@@ -17,6 +17,9 @@ class VideoCreate:
     source_listing_api_call_id: int
     source_details_api_call_id: int
     source_job_id: int
+    is_embeddable: bool | None = None
+    embed_status_checked_at: datetime | None = None
+    source_embed_status_api_call_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +37,9 @@ class VideoRecord:
     source_job_id: int | None
     created_at: datetime
     updated_at: datetime
+    is_embeddable: bool | None = None
+    embed_status_checked_at: datetime | None = None
+    source_embed_status_api_call_id: int | None = None
 
 
 class VideoRepositoryPort(Protocol):
@@ -52,6 +58,14 @@ class VideoRepositoryPort(Protocol):
     async def list_videos(self, *, channel_id: int) -> list[VideoRecord]:
         """List stored videos for one channel."""
 
+    async def list_videos_for_embed_status_refresh(
+        self,
+        *,
+        video_ids: tuple[int, ...] | None,
+        limit: int,
+    ) -> list[VideoRecord]:
+        """List stored videos whose embed status should be refreshed."""
+
     async def find_existing_youtube_video_id(
         self,
         *,
@@ -62,3 +76,13 @@ class VideoRepositoryPort(Protocol):
 
     async def create_videos(self, videos: list[VideoCreate]) -> list[VideoRecord]:
         """Create normalized video rows after all upstream API calls succeed."""
+
+    async def update_embed_status(
+        self,
+        video_id: int,
+        *,
+        is_embeddable: bool | None,
+        checked_at: datetime,
+        source_api_call_id: int | None,
+    ) -> VideoRecord:
+        """Update YouTube embed status metadata for one stored video."""

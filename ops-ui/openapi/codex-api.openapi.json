@@ -183,6 +183,17 @@
             ],
             "title": "Duration"
           },
+          "isEmbeddable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isembeddable"
+          },
           "latestArtifact": {
             "anyOf": [
               {
@@ -271,6 +282,7 @@
           "publishedAt",
           "duration",
           "thumbnailUrl",
+          "isEmbeddable",
           "timelineReady",
           "timelineCompositionId",
           "timelineTaskId",
@@ -429,6 +441,7 @@
         "examples": [
           {
             "environment": "prod",
+            "includeNonEmbeddable": false,
             "limit": 20,
             "publishMode": "prod",
             "regenerateSucceeded": false,
@@ -457,6 +470,11 @@
             "minLength": 1,
             "title": "Environment",
             "type": "string"
+          },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
           },
           "limit": {
             "default": 20,
@@ -1865,6 +1883,7 @@
         "examples": [
           {
             "collectNew": true,
+            "includeNonEmbeddable": false,
             "languages": [
               "ko",
               "en"
@@ -1878,6 +1897,11 @@
           "collectNew": {
             "default": true,
             "title": "Collectnew",
+            "type": "boolean"
+          },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
             "type": "boolean"
           },
           "languages": {
@@ -1965,6 +1989,7 @@
         "examples": [
           {
             "collectNew": true,
+            "includeNonEmbeddable": false,
             "languages": [
               "ko",
               "en"
@@ -1979,6 +2004,11 @@
           "collectNew": {
             "default": true,
             "title": "Collectnew",
+            "type": "boolean"
+          },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
             "type": "boolean"
           },
           "languages": {
@@ -3243,12 +3273,18 @@
         "additionalProperties": false,
         "examples": [
           {
+            "includeNonEmbeddable": false,
             "limit": 20,
             "regenerateSucceeded": false,
             "retryFailed": false
           }
         ],
         "properties": {
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
           "limit": {
             "default": 20,
             "maximum": 100.0,
@@ -3363,6 +3399,11 @@
           }
         ],
         "properties": {
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
           "limit": {
             "default": 1,
             "maximum": 5.0,
@@ -3834,6 +3875,11 @@
             ],
             "title": "Channelid"
           },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
           "limit": {
             "default": 20,
             "maximum": 200.0,
@@ -4078,6 +4124,7 @@
         "additionalProperties": false,
         "examples": [
           {
+            "includeNonEmbeddable": false,
             "model": "gpt-5.5",
             "overlapMinutes": 5,
             "promptVersionId": 1,
@@ -4088,6 +4135,11 @@
           }
         ],
         "properties": {
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
           "model": {
             "anyOf": [
               {
@@ -5150,7 +5202,14 @@
             "type": "integer"
           },
           "latestCueTask": {
-            "$ref": "#/components/schemas/OpsTaskSummaryResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsTaskSummaryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "latestMicroTask": {
             "anyOf": [
@@ -5277,6 +5336,145 @@
           "updatedAt"
         ],
         "title": "OpsRecentFailureResponse",
+        "type": "object"
+      },
+      "OpsRefreshVideoEmbedStatusItemResponse": {
+        "properties": {
+          "canceledPendingTaskCount": {
+            "title": "Canceledpendingtaskcount",
+            "type": "integer"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "isEmbeddable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isembeddable"
+          },
+          "sourceApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceapicallid"
+          },
+          "status": {
+            "enum": [
+              "updated",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "youtubeVideoId": {
+            "title": "Youtubevideoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "status",
+          "isEmbeddable",
+          "sourceApiCallId",
+          "canceledPendingTaskCount",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "OpsRefreshVideoEmbedStatusItemResponse",
+        "type": "object"
+      },
+      "OpsRefreshVideoEmbedStatusRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 200,
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "videoIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videoids"
+          }
+        },
+        "title": "OpsRefreshVideoEmbedStatusRequest",
+        "type": "object"
+      },
+      "OpsRefreshVideoEmbedStatusResponse": {
+        "properties": {
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpsRefreshVideoEmbedStatusItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "scannedCount": {
+            "title": "Scannedcount",
+            "type": "integer"
+          },
+          "updatedCount": {
+            "title": "Updatedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scannedCount",
+          "updatedCount",
+          "failedCount",
+          "items"
+        ],
+        "title": "OpsRefreshVideoEmbedStatusResponse",
         "type": "object"
       },
       "OpsSchemaColumnResponse": {
@@ -5951,6 +6149,29 @@
             ],
             "title": "Duration"
           },
+          "embedStatusCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedstatuscheckedat"
+          },
+          "isEmbeddable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isembeddable"
+          },
           "latestTaskId": {
             "anyOf": [
               {
@@ -6011,6 +6232,17 @@
               }
             ],
             "title": "Sourcedetailsapicallid"
+          },
+          "sourceEmbedStatusApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceembedstatusapicallid"
           },
           "sourceJobId": {
             "anyOf": [
@@ -6097,9 +6329,12 @@
           "description",
           "publishedAt",
           "duration",
+          "isEmbeddable",
+          "embedStatusCheckedAt",
           "thumbnailUrl",
           "sourceListingApiCallId",
           "sourceDetailsApiCallId",
+          "sourceEmbedStatusApiCallId",
           "sourceJobId",
           "createdAt",
           "updatedAt",
@@ -6258,8 +6493,31 @@
             ],
             "title": "Duration"
           },
+          "embedStatusCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedstatuscheckedat"
+          },
           "generation": {
             "$ref": "#/components/schemas/OpsVideoGenerationResponse"
+          },
+          "isEmbeddable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isembeddable"
           },
           "latestTaskId": {
             "anyOf": [
@@ -6354,6 +6612,8 @@
           "title",
           "publishedAt",
           "duration",
+          "isEmbeddable",
+          "embedStatusCheckedAt",
           "thumbnailUrl",
           "latestTaskId",
           "latestTaskName",
@@ -8604,6 +8864,7 @@
         "examples": [
           {
             "copyStyle": "LIGHT_FANDOM_V1",
+            "includeNonEmbeddable": false,
             "limit": 5,
             "model": "gpt-5.5",
             "promptVersionId": 1,
@@ -8631,6 +8892,11 @@
             "default": "LIGHT_FANDOM_V1",
             "title": "Copystyle",
             "type": "string"
+          },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
           },
           "limit": {
             "default": 20,
@@ -10976,6 +11242,29 @@
             ],
             "title": "Duration"
           },
+          "embedStatusCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedstatuscheckedat"
+          },
+          "isEmbeddable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isembeddable"
+          },
           "publishedAt": {
             "format": "date-time",
             "title": "Publishedat",
@@ -10991,6 +11280,17 @@
               }
             ],
             "title": "Sourcedetailsapicallid"
+          },
+          "sourceEmbedStatusApiCallId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceembedstatusapicallid"
           },
           "sourceJobId": {
             "anyOf": [
@@ -11051,9 +11351,12 @@
           "description",
           "publishedAt",
           "duration",
+          "isEmbeddable",
+          "embedStatusCheckedAt",
           "thumbnailUrl",
           "sourceListingApiCallId",
           "sourceDetailsApiCallId",
+          "sourceEmbedStatusApiCallId",
           "sourceJobId",
           "createdAt",
           "updatedAt"
@@ -13930,6 +14233,27 @@
           },
           {
             "in": "query",
+            "name": "embedStatus",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "embeddable",
+                    "no_embed",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Embedstatus"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -13975,6 +14299,54 @@
           }
         },
         "summary": "List Ops Videos",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/videos/embed-status/refresh": {
+      "post": {
+        "operationId": "refresh_ops_video_embed_status_ops_videos_embed_status_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OpsRefreshVideoEmbedStatusRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsRefreshVideoEmbedStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh Ops Video Embed Status",
         "tags": [
           "ops"
         ]

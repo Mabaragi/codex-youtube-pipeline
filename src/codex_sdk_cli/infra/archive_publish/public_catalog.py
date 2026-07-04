@@ -65,6 +65,7 @@ def _row_json(row: ArchivePublicCatalogVideoRow) -> dict[str, object]:
         "durationText": row.duration_text,
         "durationSeconds": row.duration_seconds,
         "thumbnailUrl": row.thumbnail_url,
+        "isEmbeddable": row.is_embeddable,
         "displayTitle": row.display_title,
         "displaySummary": row.display_summary,
         "mainTopics": row.main_topics,

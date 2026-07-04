@@ -221,6 +221,12 @@ class ArchivePublishUseCase:
         )
         for candidate in candidates:
             counters.scanned_count += 1
+            if (
+                candidate.video.is_embeddable is False
+                and not request.include_non_embeddable
+            ):
+                counters.ineligible_count += 1
+                continue
             item = await self._publish_candidate(candidate, request, counters)
             if request.target == "next_eligible" and item.reason in {
                 "already_running",
@@ -392,6 +398,21 @@ class ArchivePublishUseCase:
         request: ArchivePublishRequest,
         counters: _PublishCounters,
     ) -> ArchivePublishItemResponse:
+        if candidate.video.is_embeddable is False and not request.include_non_embeddable:
+            counters.ineligible_count += 1
+            return _publish_item(
+                video_id=candidate.video.id,
+                youtube_video_id=candidate.video.youtube_video_id,
+                task=None,
+                status="skipped",
+                reason="not_embeddable",
+                composition=candidate.composition,
+                artifact=candidate.latest_artifact,
+                environment=request.environment,
+                variant=request.variant,
+                schema_version=request.schema_version,
+                publish_mode=request.publish_mode,
+            )
         try:
             prepared = self._prepare(candidate, request)
         except ArchivePublishPreconditionFailed as exc:
@@ -583,6 +604,10 @@ class ArchivePublishUseCase:
             raise ArchivePublishPreconditionFailed(
                 "Latest succeeded timeline composition is required before archive publish."
             )
+        if candidate.video.is_embeddable is False and not request.include_non_embeddable:
+            raise ArchivePublishPreconditionFailed(
+                "Video is not embeddable and is excluded from archive publish."
+            )
         input_hash = _task_input_hash(
             video=candidate.video,
             composition=candidate.composition,
@@ -633,6 +658,10 @@ class ArchivePublishUseCase:
             if candidate is None:
                 raise VideoNotFound("Video not found.")
             video = candidate.video
+            if video.is_embeddable is False:
+                raise ArchivePublishPreconditionFailed(
+                    "Video is not embeddable and is excluded from archive publish."
+                )
             composition = await self._timelines.get_composition(
                 video_id=video.id,
                 video_task_id=_required_int(job.input_json, "sourceTimelineTaskId"),
@@ -935,6 +964,7 @@ def _timeline_artifact(
             "duration": video.duration,
             "durationSec": _duration_seconds(video.duration),
             "thumbnailUrl": video.thumbnail_url,
+            "isEmbeddable": video.is_embeddable,
             "summary": composition.summary,
             "displayTitle": composition.display_title,
             "displaySummary": composition.display_summary,
@@ -1147,6 +1177,7 @@ def _index_artifact(
                 "channel": _channel_json(item.channel),
                 "publishedAt": video.published_at.isoformat(),
                 "durationText": video.duration,
+                "isEmbeddable": video.is_embeddable,
                 "episodeCount": artifact.episode_count,
                 "eventCount": artifact.micro_event_count,
                 "thumbnailUrl": video.thumbnail_url,
@@ -1231,6 +1262,7 @@ def _public_catalog_video_row(
         duration_text=video.duration,
         duration_seconds=_duration_seconds(video.duration),
         thumbnail_url=video.thumbnail_url,
+        is_embeddable=video.is_embeddable,
         display_title=composition.display_title,
         display_summary=composition.display_summary,
         main_topics=composition.main_topics,
@@ -1594,6 +1626,7 @@ def _ops_video_list_response(
                 publishedAt=item.video.published_at,
                 duration=item.video.duration,
                 thumbnailUrl=item.video.thumbnail_url,
+                isEmbeddable=item.video.is_embeddable,
                 timelineReady=item.timeline_composition_id is not None,
                 timelineCompositionId=item.timeline_composition_id,
                 timelineTaskId=item.timeline_task_id,

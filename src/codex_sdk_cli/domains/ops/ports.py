@@ -17,6 +17,7 @@ OpsCandidateCategory = Literal[
     "active",
     "blocked",
 ]
+OpsEmbedStatusFilter = Literal["embeddable", "no_embed", "unknown"]
 OpsSchemaRelationKind = Literal[
     "one_to_many",
     "one_to_one",
@@ -78,6 +79,7 @@ class OpsVideoListQuery:
     search: str | None
     limit: int
     offset: int
+    embed_status: OpsEmbedStatusFilter | None = None
 
 
 @dataclass(frozen=True)
@@ -135,6 +137,8 @@ class OpsVideoRecord:
     latest_task_updated_at: datetime | None
     transcript_id: int | None
     generation: OpsVideoGenerationRecord
+    is_embeddable: bool | None = None
+    embed_status_checked_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -160,6 +164,9 @@ class OpsVideoDetailRecord:
     transcript_id: int | None
     tasks: tuple[OpsVideoTaskRecord, ...]
     transcripts: tuple[YouTubeTranscriptMetadataRecord, ...]
+    is_embeddable: bool | None = None
+    embed_status_checked_at: datetime | None = None
+    source_embed_status_api_call_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -238,7 +245,7 @@ class OpsMicroEventReadyCandidateRecord:
     published_at: datetime
     transcript_id: int | None
     cue_count: int
-    latest_cue_task: OpsTaskSummaryRecord
+    latest_cue_task: OpsTaskSummaryRecord | None
     latest_micro_task: OpsTaskSummaryRecord | None
     category: OpsCandidateCategory
     recommended_retry_failed: bool

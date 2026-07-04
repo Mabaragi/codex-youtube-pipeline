@@ -118,6 +118,7 @@ class GenerateTranscriptCueTasksUseCase:
             candidates,
             retry_failed=request.retry_failed,
             regenerate_succeeded=request.regenerate_succeeded,
+            include_non_embeddable=request.include_non_embeddable,
             parent_job_id=None,
         )
         counts = _cue_response_counts(items)
@@ -144,6 +145,7 @@ class GenerateTranscriptCueTasksUseCase:
             candidates,
             retry_failed=request.retry_failed,
             regenerate_succeeded=request.regenerate_succeeded,
+            include_non_embeddable=request.include_non_embeddable,
             parent_job_id=None,
         )
         counts = _cue_response_counts(items)
@@ -309,10 +311,20 @@ class GenerateTranscriptCueTasksUseCase:
         *,
         retry_failed: bool,
         regenerate_succeeded: bool,
+        include_non_embeddable: bool,
         parent_job_id: int | None,
     ) -> list[TranscriptCueTaskItemResponse]:
         items: list[TranscriptCueTaskItemResponse] = []
         for candidate in candidates:
+            if candidate.video.is_embeddable is False and not include_non_embeddable:
+                items.append(
+                    _missing_cue_item_response(
+                        candidate.video,
+                        status="skipped",
+                        reason="not_embeddable",
+                    )
+                )
+                continue
             transcript_id = candidate.task.output_transcript_id
             if transcript_id is None:
                 items.append(

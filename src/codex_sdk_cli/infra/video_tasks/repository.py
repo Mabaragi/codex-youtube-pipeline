@@ -250,6 +250,46 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
 
     @override
+    async def list_no_transcript_tasks_due_for_recheck(
+        self,
+        *,
+        task_name: str,
+        completed_before: datetime,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        from codex_sdk_cli.infra.videos.repository import VideoModel
+
+        try:
+            rows = (
+                await self._session.execute(
+                    select(VideoTaskModel, VideoModel)
+                    .join(VideoModel, VideoTaskModel.video_id == VideoModel.id)
+                    .where(
+                        VideoTaskModel.task_name == task_name,
+                        VideoTaskModel.status == "no_transcript",
+                        VideoTaskModel.completed_at.is_not(None),
+                        VideoTaskModel.completed_at <= completed_before,
+                        VideoModel.is_embeddable.is_not(False),
+                    )
+                    .order_by(
+                        VideoTaskModel.completed_at.asc(),
+                        VideoTaskModel.updated_at.asc(),
+                        VideoTaskModel.id.asc(),
+                    )
+                    .limit(limit)
+                )
+            ).all()
+            return [
+                VideoTaskWithVideoRecord(
+                    task=_task_record(task),
+                    video=_video_record(video),
+                )
+                for task, video in rows
+            ]
+        except SQLAlchemyError as exc:
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
     async def get_latest_succeeded_task_for_video(
         self,
         *,
@@ -595,6 +635,50 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             await self._session.rollback()
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
 
+    @override
+    async def cancel_pending_tasks_for_video(
+        self,
+        *,
+        video_id: int,
+        task_names: tuple[str, ...],
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        if not task_names:
+            return []
+        try:
+            now = datetime.now(UTC)
+            updated_ids = list(
+                await self._session.scalars(
+                    update(VideoTaskModel)
+                    .where(
+                        VideoTaskModel.video_id == video_id,
+                        VideoTaskModel.task_name.in_(task_names),
+                        VideoTaskModel.status == "pending",
+                    )
+                    .values(
+                        status="canceled",
+                        error_type=error_type,
+                        error_message=error_message,
+                        completed_at=now,
+                        updated_at=now,
+                    )
+                    .returning(VideoTaskModel.id)
+                )
+            )
+            await self._session.commit()
+            if not updated_ids:
+                return []
+            models = (
+                await self._session.scalars(
+                    select(VideoTaskModel).where(VideoTaskModel.id.in_(updated_ids))
+                )
+            ).all()
+            return [_task_record(model) for model in models]
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
     async def _get_task_model_for_input(
         self,
         *,
@@ -703,9 +787,12 @@ def _video_record(model: object) -> VideoRecord:
         description=video.description,
         published_at=video.published_at,
         duration=video.duration,
+        is_embeddable=video.is_embeddable,
+        embed_status_checked_at=video.embed_status_checked_at,
         thumbnail_url=video.thumbnail_url,
         source_listing_api_call_id=video.source_listing_api_call_id,
         source_details_api_call_id=video.source_details_api_call_id,
+        source_embed_status_api_call_id=video.source_embed_status_api_call_id,
         source_job_id=video.source_job_id,
         created_at=video.created_at,
         updated_at=video.updated_at,

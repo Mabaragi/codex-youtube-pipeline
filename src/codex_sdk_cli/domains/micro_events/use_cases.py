@@ -5,7 +5,7 @@ import hashlib
 import json
 import time
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -59,6 +59,7 @@ from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
     YouTubeTranscriptMetadataNotFound,
 )
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
+    YouTubeTranscriptMetadataFilters,
     YouTubeTranscriptMetadataRecord,
     YouTubeTranscriptRepositoryPort,
 )
@@ -86,6 +87,7 @@ from .ports import (
     MicroEventExtractionRequest,
     MicroEventExtractionResult,
     MicroEventExtractionWindowCreate,
+    MicroEventExtractionWindowRecord,
     MicroEventExtractorPort,
     MicroEventRepairRequest,
     ProgramMode,
@@ -173,6 +175,20 @@ class _MicroEventWindowFinalFailures:
     runtime_failures: dict[int, _MicroEventWindowRuntimeFailure]
 
 
+@dataclass(slots=True)
+class _MicroEventWindowRunStats:
+    resumed_window_indices: set[int] = field(default_factory=set)
+    executed_window_indices: set[int] = field(default_factory=set)
+    failed_window_indices: set[int] = field(default_factory=set)
+
+
+@dataclass(frozen=True, slots=True)
+class _MicroEventPartialResumePlan:
+    resumed_windows: dict[int, MicroEventExtractionWindowCreate]
+    pending_windows: list[_CueWindow]
+    skip_reason: str | None
+
+
 class _MicroEventWindowValidationFailure(Exception):
     def __init__(
         self,
@@ -229,6 +245,16 @@ class ExtractVideoMicroEventsUseCase:
         video_id: int,
         request: MicroEventExtractRequest,
     ) -> MicroEventExtractResponse:
+        video = await self._videos.get_video(video_id)
+        if video is None:
+            raise VideoNotFound("Video not found.")
+        if video.is_embeddable is False and not request.include_non_embeddable:
+            return _skipped_extract_response(
+                video,
+                reason="not_embeddable",
+                model=request.model or self._model,
+                reasoning_effort=request.reasoning_effort or self._reasoning_effort,
+            )
         prepared = await self._prepare_extraction(
             video_id,
             request,
@@ -292,6 +318,12 @@ class ExtractVideoMicroEventsUseCase:
             if len(items) >= request.limit:
                 break
             scanned_count += 1
+            if (
+                candidate.video.is_embeddable is False
+                and not request.include_non_embeddable
+            ):
+                ineligible_count += 1
+                continue
             action = await self._batch_candidate_action(
                 candidate,
                 request,
@@ -445,6 +477,7 @@ class ExtractVideoMicroEventsUseCase:
             task=task,
             execution_input=execution_input,
             timeout_seconds=timeout_seconds,
+            resume_partial=True,
         )
         return response.model_dump(by_alias=True)
 
@@ -516,12 +549,17 @@ class ExtractVideoMicroEventsUseCase:
             execution_input=execution_input,
             metadata_json={"attemptId": attempt.id, "workerId": worker_id},
         )
+        existing_detail = await self._micro_events.get_extraction(
+            video_id=execution_input.video.id,
+            video_task_id=task.id,
+        )
         return await self._execute_job_attempt(
             job,
             attempt,
             task=task,
             execution_input=execution_input,
             timeout_seconds=timeout_seconds,
+            resume_partial=bool(existing_detail and existing_detail.windows),
         )
 
     async def _enqueue_video_id(
@@ -552,6 +590,19 @@ class ExtractVideoMicroEventsUseCase:
         request: MicroEventEnqueueRequest,
         counters: _EnqueueCounters,
     ) -> MicroEventEnqueueItemResponse:
+        if video.is_embeddable is False and not request.include_non_embeddable:
+            counters.ineligible_count += 1
+            return _enqueue_item(
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                task=None,
+                status="skipped",
+                reason="not_embeddable",
+                request=request,
+                transcript_id=None,
+                error_type=None,
+                error_message=None,
+            )
         try:
             prepared = await self._prepare_extraction(
                 video.id,
@@ -905,8 +956,11 @@ class ExtractVideoMicroEventsUseCase:
             task_name=TRANSCRIPT_CUE_GENERATE_TASK_NAME,
         )
         if cue_task is None or cue_task.output_transcript_id is None:
+            loaded = await self._load_latest_transcript_with_cues(video)
+            if loaded is not None:
+                return video, loaded[0], loaded[1]
             raise MicroEventExtractionPreconditionFailed(
-                "Succeeded transcript cue generation task is required."
+                "Transcript cues are required."
             )
         metadata = await self._transcripts.get_transcript_metadata(
             cue_task.output_transcript_id
@@ -917,6 +971,23 @@ class ExtractVideoMicroEventsUseCase:
         if not cues:
             raise MicroEventExtractionPreconditionFailed("Transcript cues are required.")
         return video, metadata, cues
+
+    async def _load_latest_transcript_with_cues(
+        self,
+        video: VideoRecord,
+    ) -> tuple[YouTubeTranscriptMetadataRecord, list[TranscriptCueRecord]] | None:
+        metadata_records = await self._transcripts.list_transcript_metadata(
+            YouTubeTranscriptMetadataFilters(
+                video_id=video.youtube_video_id,
+                limit=10,
+                offset=0,
+            )
+        )
+        for metadata in metadata_records:
+            cues = await self._transcript_cues.list_cues(metadata.id)
+            if cues:
+                return metadata, cues
+        return None
 
     async def _load_domain_knowledge_entries(
         self,
@@ -1015,13 +1086,20 @@ class ExtractVideoMicroEventsUseCase:
                 model=execution_input.model,
                 reasoning_effort=execution_input.reasoning_effort,
             )
-        return await self._execute_task(task, execution_input, input_hash)
+        return await self._execute_task(
+            task,
+            execution_input,
+            input_hash,
+            resume_partial=task.status in {"failed", "timed_out"} and retry_failed,
+        )
 
     async def _execute_task(
         self,
         task: VideoTaskRecord,
         execution_input: _ExtractionExecutionInput,
         input_hash: str,
+        *,
+        resume_partial: bool = False,
     ) -> MicroEventExtractResponse:
         input_json: JsonObject = {
             "videoTaskId": task.id,
@@ -1076,6 +1154,7 @@ class ExtractVideoMicroEventsUseCase:
             task=task,
             execution_input=execution_input,
             timeout_seconds=self._timeout_seconds,
+            resume_partial=resume_partial,
         )
 
     async def _execute_job_attempt(
@@ -1086,15 +1165,18 @@ class ExtractVideoMicroEventsUseCase:
         task: VideoTaskRecord,
         execution_input: _ExtractionExecutionInput,
         timeout_seconds: int,
+        resume_partial: bool,
     ) -> MicroEventExtractResponse:
+        run_stats = _MicroEventWindowRunStats()
         try:
-            await self._micro_events.delete_extraction(task.id)
             windows = await asyncio.wait_for(
                 self._extract_windows(
                     task=task,
                     job=job,
                     attempt=attempt,
                     execution_input=execution_input,
+                    resume_partial=resume_partial,
+                    run_stats=run_stats,
                 ),
                 timeout=timeout_seconds,
             )
@@ -1121,7 +1203,12 @@ class ExtractVideoMicroEventsUseCase:
             updated = await self._video_tasks.mark_task_timed_out(
                 task.id,
                 error_message=message,
-                output_json=_attempt_output_json(execution_input, job=job, attempt=attempt),
+                output_json=_attempt_output_json(
+                    execution_input,
+                    job=job,
+                    attempt=attempt,
+                    run_stats=run_stats,
+                ),
             )
             await self._record_task_event(
                 "micro_event_extract.task_timed_out",
@@ -1161,7 +1248,12 @@ class ExtractVideoMicroEventsUseCase:
                 task.id,
                 error_type=error_type,
                 error_message=error_message,
-                output_json=_attempt_output_json(execution_input, job=job, attempt=attempt),
+                output_json=_attempt_output_json(
+                    execution_input,
+                    job=job,
+                    attempt=attempt,
+                    run_stats=run_stats,
+                ),
             )
             await self._pipeline_jobs.mark_attempt_failed(
                 attempt.id,
@@ -1194,7 +1286,13 @@ class ExtractVideoMicroEventsUseCase:
             )
 
         detail = await self._micro_events.replace_extraction(task.id, windows)
-        output_json = _output_json(execution_input, detail, job=job, attempt=attempt)
+        output_json = _output_json(
+            execution_input,
+            detail,
+            job=job,
+            attempt=attempt,
+            run_stats=run_stats,
+        )
         await self._pipeline_jobs.mark_attempt_succeeded(
             attempt.id,
             output_json=output_json,
@@ -1231,6 +1329,8 @@ class ExtractVideoMicroEventsUseCase:
         job: PipelineJobRecord,
         attempt: PipelineJobAttemptRecord,
         execution_input: _ExtractionExecutionInput,
+        resume_partial: bool,
+        run_stats: _MicroEventWindowRunStats,
     ) -> list[MicroEventExtractionWindowCreate]:
         cue_windows = _cue_windows(
             execution_input.cues,
@@ -1239,14 +1339,62 @@ class ExtractVideoMicroEventsUseCase:
         )
         if not cue_windows:
             return []
+        window_count = len(cue_windows)
         results: dict[int, MicroEventExtractionWindowCreate] = {}
         final_failures = _MicroEventWindowFinalFailures(
             validation_failures={},
             runtime_failures={},
         )
         pending_windows = list(cue_windows)
+        if resume_partial:
+            existing_detail = await self._micro_events.get_extraction(
+                video_id=execution_input.video.id,
+                video_task_id=task.id,
+            )
+            resume_plan = _partial_resume_plan(
+                existing_detail,
+                cue_windows,
+                execution_input=execution_input,
+                job=job,
+                attempt=attempt,
+            )
+            results.update(resume_plan.resumed_windows)
+            run_stats.resumed_window_indices.update(resume_plan.resumed_windows)
+            pending_windows = resume_plan.pending_windows
+            if resume_plan.skip_reason is None:
+                await self._record_task_event(
+                    "micro_event_extract.partial_resume_used",
+                    "info",
+                    "Micro-event extraction reused partial window results.",
+                    task=task,
+                    execution_input=execution_input,
+                    reason="partial_resume_used",
+                    metadata_json=_partial_resume_metadata(
+                        resumed_window_indices=resume_plan.resumed_windows,
+                        scheduled_windows=pending_windows,
+                        window_count=window_count,
+                    ),
+                )
+            else:
+                await self._micro_events.delete_extraction(task.id)
+                await self._record_task_event(
+                    "micro_event_extract.partial_resume_skipped",
+                    "info",
+                    "Micro-event extraction partial resume was skipped.",
+                    task=task,
+                    execution_input=execution_input,
+                    reason="partial_resume_skipped",
+                    metadata_json=_partial_resume_metadata(
+                        resumed_window_indices={},
+                        scheduled_windows=pending_windows,
+                        window_count=window_count,
+                        skip_reason=resume_plan.skip_reason,
+                    ),
+                )
+        else:
+            await self._micro_events.delete_extraction(task.id)
         retry_attempt = 0
-        window_count = len(cue_windows)
+        persist_lock = asyncio.Lock()
 
         while pending_windows:
             batch = await self._extract_window_batch(
@@ -1257,6 +1405,8 @@ class ExtractVideoMicroEventsUseCase:
                 cue_windows=pending_windows,
                 window_count=window_count,
                 retry_attempt=retry_attempt,
+                persist_lock=persist_lock,
+                run_stats=run_stats,
             )
             results.update(batch.windows)
             final_failures.validation_failures.update(batch.validation_failures)
@@ -1311,6 +1461,9 @@ class ExtractVideoMicroEventsUseCase:
                 failure.failed_window
                 for failure in final_failures.runtime_failures.values()
             ]
+            run_stats.failed_window_indices.update(
+                window.window_index for window in failed_windows
+            )
             await self._micro_events.replace_extraction(
                 task.id,
                 _sorted_windows([*results.values(), *failed_windows]),
@@ -1328,6 +1481,8 @@ class ExtractVideoMicroEventsUseCase:
         cue_windows: list[_CueWindow],
         window_count: int,
         retry_attempt: int,
+        persist_lock: asyncio.Lock,
+        run_stats: _MicroEventWindowRunStats,
     ) -> _MicroEventWindowBatchResult:
         queue: asyncio.Queue[_CueWindow] = asyncio.Queue()
         for cue_window in cue_windows:
@@ -1344,7 +1499,8 @@ class ExtractVideoMicroEventsUseCase:
                 except asyncio.QueueEmpty:
                     return
                 try:
-                    results[cue_window.window_index] = await self._extract_window(
+                    run_stats.executed_window_indices.add(cue_window.window_index)
+                    window = await self._extract_window(
                         task=task,
                         job=job,
                         attempt=attempt,
@@ -1353,6 +1509,10 @@ class ExtractVideoMicroEventsUseCase:
                         window_count=window_count,
                         retry_attempt=retry_attempt,
                     )
+                    async with persist_lock:
+                        await self._micro_events.upsert_window(task.id, window)
+                    results[cue_window.window_index] = window
+                    run_stats.failed_window_indices.discard(cue_window.window_index)
                     if retry_attempt > 0:
                         await self._record_window_retry_success(
                             task=task,
@@ -1360,23 +1520,33 @@ class ExtractVideoMicroEventsUseCase:
                             cue_window=cue_window,
                             window_count=window_count,
                             retry_attempt=retry_attempt,
-                        )
+                    )
                 except _MicroEventWindowValidationFailure as exc:
+                    run_stats.failed_window_indices.add(cue_window.window_index)
+                    async with persist_lock:
+                        await self._micro_events.upsert_window(
+                            task.id,
+                            exc.failed_window,
+                        )
                     validation_failures[cue_window.window_index] = exc
                 except Exception as exc:
+                    failed_window = _runtime_failed_window(
+                        task=task,
+                        job=job,
+                        attempt=attempt,
+                        execution_input=execution_input,
+                        cue_window=cue_window,
+                        error_type=exc.__class__.__name__,
+                        error_message=str(exc) or exc.__class__.__name__,
+                    )
+                    async with persist_lock:
+                        await self._micro_events.upsert_window(task.id, failed_window)
+                    run_stats.failed_window_indices.add(cue_window.window_index)
                     runtime_failures[cue_window.window_index] = (
                         _MicroEventWindowRuntimeFailure(
                             cue_window=cue_window,
                             error=exc,
-                            failed_window=_runtime_failed_window(
-                                task=task,
-                                job=job,
-                                attempt=attempt,
-                                execution_input=execution_input,
-                                cue_window=cue_window,
-                                error_type=exc.__class__.__name__,
-                                error_message=str(exc) or exc.__class__.__name__,
-                            ),
+                            failed_window=failed_window,
                         )
                     )
                 finally:
@@ -1988,6 +2158,187 @@ def _first_window_failure(failures: _MicroEventWindowFinalFailures) -> Exception
         for window_index, failure in failures.runtime_failures.items()
     ]
     return min(indexed_errors, key=lambda item: item[0])[1]
+
+
+def _partial_resume_plan(
+    detail: MicroEventExtractionDetailRecord | None,
+    cue_windows: list[_CueWindow],
+    *,
+    execution_input: _ExtractionExecutionInput,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+) -> _MicroEventPartialResumePlan:
+    if detail is None or not detail.windows:
+        return _MicroEventPartialResumePlan(
+            resumed_windows={},
+            pending_windows=list(cue_windows),
+            skip_reason="no_partial_windows",
+        )
+
+    expected_by_index = {window.window_index: window for window in cue_windows}
+    existing_by_index: dict[int, MicroEventExtractionWindowRecord] = {}
+    for window in detail.windows:
+        if window.window_index in existing_by_index:
+            return _MicroEventPartialResumePlan(
+                resumed_windows={},
+                pending_windows=list(cue_windows),
+                skip_reason="duplicate_window_indices",
+            )
+        existing_by_index[window.window_index] = window
+
+    if set(existing_by_index) - set(expected_by_index):
+        return _MicroEventPartialResumePlan(
+            resumed_windows={},
+            pending_windows=list(cue_windows),
+            skip_reason="stale_extra_windows",
+        )
+
+    for window_index, record in existing_by_index.items():
+        if not _window_record_matches_current_input(
+            record,
+            expected_by_index[window_index],
+            execution_input=execution_input,
+        ):
+            return _MicroEventPartialResumePlan(
+                resumed_windows={},
+                pending_windows=list(cue_windows),
+                skip_reason="stale_window_shape",
+            )
+
+    resumed_windows = {
+        record.window_index: _window_create_from_record(
+            record,
+            source_job_id=record.source_job_id or job.id,
+            source_job_attempt_id=record.source_job_attempt_id or attempt.id,
+        )
+        for record in detail.windows
+        if record.status == "succeeded"
+    }
+    pending_windows = [
+        window
+        for window in cue_windows
+        if window.window_index not in resumed_windows
+    ]
+    return _MicroEventPartialResumePlan(
+        resumed_windows=resumed_windows,
+        pending_windows=pending_windows,
+        skip_reason=None,
+    )
+
+
+def _window_record_matches_current_input(
+    record: MicroEventExtractionWindowRecord,
+    cue_window: _CueWindow,
+    *,
+    execution_input: _ExtractionExecutionInput,
+) -> bool:
+    return (
+        record.video_id == execution_input.video.id
+        and record.transcript_id == execution_input.metadata.id
+        and record.window_index == cue_window.window_index
+        and record.start_cue_id == cue_window.owned_cues[0].cue_id
+        and record.end_cue_id == cue_window.owned_cues[-1].cue_id
+        and record.cue_count == len(cue_window.owned_cues)
+    )
+
+
+def _window_create_from_record(
+    record: MicroEventExtractionWindowRecord,
+    *,
+    source_job_id: int,
+    source_job_attempt_id: int,
+) -> MicroEventExtractionWindowCreate:
+    return MicroEventExtractionWindowCreate(
+        video_task_id=record.video_task_id,
+        video_id=record.video_id,
+        transcript_id=record.transcript_id,
+        window_index=record.window_index,
+        start_cue_id=record.start_cue_id,
+        end_cue_id=record.end_cue_id,
+        cue_count=record.cue_count,
+        status=record.status,
+        carry_out_unfinished=record.carry_out_unfinished,
+        codex_thread_id=record.codex_thread_id,
+        codex_turn_id=record.codex_turn_id,
+        raw_response_text=record.raw_response_text,
+        parsed_response_json=record.parsed_response_json,
+        validation_error=record.validation_error,
+        source_job_id=source_job_id,
+        source_job_attempt_id=source_job_attempt_id,
+        micro_events=[
+            MicroEventCandidateCreate(
+                candidate_index=candidate.candidate_index,
+                activity=candidate.activity,
+                event=candidate.event,
+                start_cue_id=candidate.start_cue_id,
+                end_cue_id=candidate.end_cue_id,
+                evidence_cue_ids=candidate.evidence_cue_ids,
+                boundary_before=candidate.boundary_before,
+                boundary_after=candidate.boundary_after,
+                confidence=candidate.confidence,
+                program_mode=candidate.program_mode,
+                content_kind=candidate.content_kind,
+                topics=candidate.topics,
+                relation_to_previous=candidate.relation_to_previous,
+                continues_to_next=candidate.continues_to_next,
+                support_level=candidate.support_level,
+            )
+            for candidate in record.micro_events
+        ],
+        excluded_ranges=[
+            MicroEventExcludedRangeCreate(
+                range_index=excluded_range.range_index,
+                start_cue_id=excluded_range.start_cue_id,
+                end_cue_id=excluded_range.end_cue_id,
+                reason=excluded_range.reason,
+            )
+            for excluded_range in record.excluded_ranges
+        ],
+        asr_correction_candidates=[
+            AsrCorrectionCandidateCreate(
+                candidate_index=candidate.candidate_index,
+                original=candidate.original,
+                suggested=candidate.suggested,
+                correction_type=candidate.correction_type,
+                apply_scope=candidate.apply_scope,
+                confidence=candidate.confidence,
+            )
+            for candidate in record.asr_correction_candidates
+        ],
+    )
+
+
+def _partial_resume_metadata(
+    *,
+    resumed_window_indices: dict[int, MicroEventExtractionWindowCreate],
+    scheduled_windows: list[_CueWindow],
+    window_count: int,
+    skip_reason: str | None = None,
+) -> JsonObject:
+    metadata: JsonObject = {
+        "resumedWindowIndices": sorted(resumed_window_indices),
+        "scheduledWindowIndices": [
+            window.window_index for window in scheduled_windows
+        ],
+        "resumedWindowCount": len(resumed_window_indices),
+        "scheduledWindowCount": len(scheduled_windows),
+        "windowCount": window_count,
+    }
+    if skip_reason is not None:
+        metadata["skipReason"] = skip_reason
+    return metadata
+
+
+def _window_run_stats_json(
+    run_stats: _MicroEventWindowRunStats | None,
+) -> JsonObject:
+    if run_stats is None:
+        return {}
+    return {
+        "resumedWindowCount": len(run_stats.resumed_window_indices),
+        "executedWindowCount": len(run_stats.executed_window_indices),
+        "failedWindowCount": len(run_stats.failed_window_indices),
+    }
 
 
 def _normalized_token(value: object) -> str | None:
@@ -3544,6 +3895,7 @@ def _attempt_output_json(
     *,
     job: PipelineJobRecord,
     attempt: PipelineJobAttemptRecord,
+    run_stats: _MicroEventWindowRunStats | None = None,
 ) -> JsonObject:
     return {
         "videoId": execution_input.video.id,
@@ -3555,6 +3907,7 @@ def _attempt_output_json(
         "domainKnowledgeFingerprint": execution_input.domain_knowledge_fingerprint,
         "jobId": job.id,
         "jobAttemptId": attempt.id,
+        **_window_run_stats_json(run_stats),
     }
 
 
@@ -3564,6 +3917,7 @@ def _output_json(
     *,
     job: PipelineJobRecord,
     attempt: PipelineJobAttemptRecord,
+    run_stats: _MicroEventWindowRunStats | None = None,
 ) -> JsonObject:
     return {
         "videoId": execution_input.video.id,
@@ -3581,6 +3935,7 @@ def _output_json(
         "lastCueId": _last_cue_id(detail),
         "jobId": job.id,
         "jobAttemptId": attempt.id,
+        **_window_run_stats_json(run_stats),
     }
 
 
@@ -3638,6 +3993,34 @@ def _extract_response(
         lastCueId=last_cue_id,
         errorType=task.error_type,
         errorMessage=task.error_message,
+    )
+
+
+def _skipped_extract_response(
+    video: VideoRecord,
+    *,
+    reason: str,
+    model: CodexModelChoice | None,
+    reasoning_effort: ReasoningEffortChoice | None,
+) -> MicroEventExtractResponse:
+    return MicroEventExtractResponse(
+        videoId=video.id,
+        youtubeVideoId=video.youtube_video_id,
+        videoTaskId=None,
+        status="skipped",
+        reason=reason,
+        model=model,
+        reasoningEffort=reasoning_effort,
+        jobId=None,
+        jobAttemptId=None,
+        transcriptId=None,
+        windowCount=None,
+        microEventCount=None,
+        asrCorrectionCandidateCount=None,
+        firstCueId=None,
+        lastCueId=None,
+        errorType=None,
+        errorMessage=None,
     )
 
 

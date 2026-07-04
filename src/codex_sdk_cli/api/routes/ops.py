@@ -13,11 +13,14 @@ from codex_sdk_cli.api.use_case_dependencies.ops import (
     OpsSchemaGraphUseCaseDep,
     OpsSummaryUseCaseDep,
     OpsVideoDetailUseCaseDep,
+    RefreshOpsVideoEmbedStatusUseCaseDep,
 )
-from codex_sdk_cli.domains.ops.ports import OpsCandidateCategory
+from codex_sdk_cli.domains.ops.ports import OpsCandidateCategory, OpsEmbedStatusFilter
 from codex_sdk_cli.domains.ops.schemas import (
     OpsChannelListResponse,
     OpsMicroEventReadyCandidateListResponse,
+    OpsRefreshVideoEmbedStatusRequest,
+    OpsRefreshVideoEmbedStatusResponse,
     OpsSchemaGraphResponse,
     OpsSummaryResponse,
     OpsTimelineReadyCandidateListResponse,
@@ -47,6 +50,10 @@ async def list_ops_videos(
     channel_id: int | None = Query(default=None, alias="channelId", ge=1),
     task_status: str | None = Query(default=None, alias="taskStatus", min_length=1),
     search: str | None = Query(default=None, min_length=1, max_length=255),
+    embed_status: Annotated[
+        OpsEmbedStatusFilter | None,
+        Query(alias="embedStatus"),
+    ] = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> OpsVideoListResponse:
@@ -54,9 +61,21 @@ async def list_ops_videos(
         channel_id=channel_id,
         task_status=task_status,
         search=search,
+        embed_status=embed_status,
         limit=limit,
         offset=offset,
     )
+
+
+@router.post(
+    "/videos/embed-status/refresh",
+    response_model=OpsRefreshVideoEmbedStatusResponse,
+)
+async def refresh_ops_video_embed_status(
+    use_case: RefreshOpsVideoEmbedStatusUseCaseDep,
+    request: OpsRefreshVideoEmbedStatusRequest | None = None,
+) -> OpsRefreshVideoEmbedStatusResponse:
+    return await use_case.execute(request or OpsRefreshVideoEmbedStatusRequest())
 
 
 @router.get("/videos/{video_id}", response_model=OpsVideoDetailResponse)

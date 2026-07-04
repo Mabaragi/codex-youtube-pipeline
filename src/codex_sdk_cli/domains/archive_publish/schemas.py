@@ -22,6 +22,7 @@ class ArchivePublishRequest(BaseModel):
     schema_version: int = Field(default=1, ge=1, le=100, alias="schemaVersion")
     retry_failed: bool = Field(default=False, alias="retryFailed")
     regenerate_succeeded: bool = Field(default=False, alias="regenerateSucceeded")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
 
     @model_validator(mode="before")
     @classmethod
@@ -59,6 +60,7 @@ class ArchivePublishRequest(BaseModel):
                     "schemaVersion": 1,
                     "retryFailed": False,
                     "regenerateSucceeded": False,
+                    "includeNonEmbeddable": False,
                 }
             ]
         },
@@ -183,6 +185,7 @@ class ArchiveOpsVideoResponse(BaseModel):
     published_at: datetime = Field(alias="publishedAt")
     duration: str | None
     thumbnail_url: str | None = Field(alias="thumbnailUrl")
+    is_embeddable: bool | None = Field(alias="isEmbeddable")
     timeline_ready: bool = Field(alias="timelineReady")
     timeline_composition_id: int | None = Field(alias="timelineCompositionId")
     timeline_task_id: int | None = Field(alias="timelineTaskId")

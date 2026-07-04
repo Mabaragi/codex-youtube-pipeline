@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from datetime import UTC, datetime
 
 from codex_sdk_cli.domains.channels.exceptions import ChannelNotFound
 from codex_sdk_cli.domains.channels.ports import ChannelRecord, ChannelRepositoryPort
@@ -62,7 +63,12 @@ class CollectChannelVideosUseCase:
         self._pipeline_jobs = pipeline_jobs
         self._events = events
 
-    async def execute(self, channel_id: int) -> CollectChannelVideosResponse:
+    async def execute(
+        self,
+        channel_id: int,
+        *,
+        actor_type: OperationEventActorType = "manual_api",
+    ) -> CollectChannelVideosResponse:
         channel = await _get_channel_or_raise(self._channels, channel_id)
         youtube_channel_id = _required_youtube_channel_id(channel)
         await self._record_event(
@@ -70,7 +76,7 @@ class CollectChannelVideosUseCase:
                 event_type="video_collect.requested",
                 severity="info",
                 message="Channel video collection was requested.",
-                actor_type="manual_api",
+                actor_type=actor_type,
                 source="videos.collect",
                 channel_id=channel_id,
                 subject_type="channel",
@@ -100,7 +106,7 @@ class CollectChannelVideosUseCase:
                 event_type="video_collect.started",
                 severity="info",
                 message="Channel video collection started.",
-                actor_type="manual_api",
+                actor_type=actor_type,
                 source="videos.collect",
                 job_id=job.id,
                 job_attempt_id=attempt.id,
@@ -116,6 +122,7 @@ class CollectChannelVideosUseCase:
             attempt,
             channel_id=channel_id,
             youtube_channel_id=youtube_channel_id,
+            actor_type=actor_type,
         )
 
     async def execute_job_attempt(
@@ -422,9 +429,12 @@ def _video_create(
         description=listing.description,
         published_at=listing.published_at,
         duration=details.duration,
+        is_embeddable=details.is_embeddable,
+        embed_status_checked_at=datetime.now(UTC),
         thumbnail_url=listing.thumbnail_url,
         source_listing_api_call_id=listing.source_api_call_id,
         source_details_api_call_id=details.source_api_call_id,
+        source_embed_status_api_call_id=details.source_api_call_id,
         source_job_id=source_job_id,
     )
 
@@ -438,9 +448,12 @@ def _video_response(record: VideoRecord) -> VideoResponse:
         description=record.description,
         publishedAt=record.published_at,
         duration=record.duration,
+        isEmbeddable=record.is_embeddable,
+        embedStatusCheckedAt=record.embed_status_checked_at,
         thumbnailUrl=record.thumbnail_url,
         sourceListingApiCallId=record.source_listing_api_call_id,
         sourceDetailsApiCallId=record.source_details_api_call_id,
+        sourceEmbedStatusApiCallId=record.source_embed_status_api_call_id,
         sourceJobId=record.source_job_id,
         createdAt=record.created_at,
         updatedAt=record.updated_at,

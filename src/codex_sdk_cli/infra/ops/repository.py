@@ -301,6 +301,12 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                     VideoModel.youtube_video_id.ilike(like),
                 )
             )
+        if query.embed_status == "embeddable":
+            conditions.append(VideoModel.is_embeddable.is_(True))
+        if query.embed_status == "no_embed":
+            conditions.append(VideoModel.is_embeddable.is_(False))
+        if query.embed_status == "unknown":
+            conditions.append(VideoModel.is_embeddable.is_(None))
 
         base = (
             select(VideoModel.id)
@@ -385,8 +391,23 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
         except SQLAlchemyError as exc:
             raise OpsPersistenceError("Ops metadata read failed.") from exc
 
-        return OpsVideoListResult(
-            items=tuple(
+        records: list[OpsVideoRecord] = []
+        for row in rows:
+            video = row[0]
+            channel_name = row[1]
+            task = cast(VideoTaskModel | None, row[2])
+            transcript_id = cast(int | None, row[3])
+            cue_count = cast(int | None, row[4])
+            cue_task = cast(VideoTaskModel | None, row[5])
+            micro_task = cast(VideoTaskModel | None, row[6])
+            micro_video_task_id = cast(int | None, row[7])
+            window_count = cast(int | None, row[8])
+            micro_event_count = cast(int | None, row[9])
+            timeline_task = cast(VideoTaskModel | None, row[10])
+            composition_id = cast(int | None, row[11])
+            timeline_video_task_id = cast(int | None, row[12])
+            episode_count = cast(int | None, row[13])
+            records.append(
                 OpsVideoRecord(
                     video_id=video.id,
                     channel_id=video.channel_id,
@@ -395,6 +416,8 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                     title=video.title,
                     published_at=video.published_at,
                     duration=video.duration,
+                    is_embeddable=video.is_embeddable,
+                    embed_status_checked_at=video.embed_status_checked_at,
                     thumbnail_url=video.thumbnail_url,
                     latest_task_id=task.id if task is not None else None,
                     latest_task_name=task.task_name if task is not None else None,
@@ -415,23 +438,10 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                         episode_count=episode_count,
                     ),
                 )
-                for (
-                    video,
-                    channel_name,
-                    task,
-                    transcript_id,
-                    cue_count,
-                    cue_task,
-                    micro_task,
-                    micro_video_task_id,
-                    window_count,
-                    micro_event_count,
-                    timeline_task,
-                    composition_id,
-                    timeline_video_task_id,
-                    episode_count,
-                ) in rows
-            ),
+            )
+
+        return OpsVideoListResult(
+            items=tuple(records),
             total=total or 0,
         )
 
@@ -482,9 +492,12 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             description=video.description,
             published_at=video.published_at,
             duration=video.duration,
+            is_embeddable=video.is_embeddable,
+            embed_status_checked_at=video.embed_status_checked_at,
             thumbnail_url=video.thumbnail_url,
             source_listing_api_call_id=video.source_listing_api_call_id,
             source_details_api_call_id=video.source_details_api_call_id,
+            source_embed_status_api_call_id=video.source_embed_status_api_call_id,
             source_job_id=video.source_job_id,
             created_at=video.created_at,
             updated_at=video.updated_at,
@@ -572,15 +585,26 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
         latest_micro_task = self._latest_task_subquery(
             task_name=MICRO_EVENT_EXTRACT_TASK_NAME,
         )
+        latest_transcript = self._latest_transcript_subquery()
         micro_summary = self._micro_event_summary_subquery()
-        cue_summary = self._cue_summary_subquery()
+        task_cue_summary = self._cue_summary_subquery()
+        video_cue_summary = self._cue_summary_subquery()
         cue_task_alias = aliased(VideoTaskModel)
         micro_task_alias = aliased(VideoTaskModel)
         category_expr = _candidate_category_expr(micro_task_alias.status)
+        transcript_id_expr = func.coalesce(
+            cue_task_alias.output_transcript_id,
+            latest_transcript.c.transcript_id,
+        )
+        cue_count_expr = func.coalesce(
+            task_cue_summary.c.cue_count,
+            video_cue_summary.c.cue_count,
+            0,
+        )
         conditions = [
-            cue_task_alias.id.is_not(None),
-            func.coalesce(cue_summary.c.cue_count, 0) > 0,
+            cue_count_expr > 0,
             micro_summary.c.video_task_id.is_(None),
+            VideoModel.is_embeddable.is_not(False),
         ]
         conditions.extend(_candidate_filter_conditions(query))
         if query.category is not None:
@@ -592,8 +616,16 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             .outerjoin(latest_cue_task, latest_cue_task.c.video_id == VideoModel.id)
             .outerjoin(cue_task_alias, cue_task_alias.id == latest_cue_task.c.task_id)
             .outerjoin(
-                cue_summary,
-                cue_summary.c.transcript_id == cue_task_alias.output_transcript_id,
+                latest_transcript,
+                latest_transcript.c.youtube_video_id == VideoModel.youtube_video_id,
+            )
+            .outerjoin(
+                task_cue_summary,
+                task_cue_summary.c.transcript_id == cue_task_alias.output_transcript_id,
+            )
+            .outerjoin(
+                video_cue_summary,
+                video_cue_summary.c.transcript_id == latest_transcript.c.transcript_id,
             )
             .outerjoin(latest_micro_task, latest_micro_task.c.video_id == VideoModel.id)
             .outerjoin(micro_task_alias, micro_task_alias.id == latest_micro_task.c.task_id)
@@ -608,8 +640,8 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                         VideoModel,
                         ChannelModel.name,
                         cue_task_alias,
-                        cue_task_alias.output_transcript_id,
-                        cue_summary.c.cue_count,
+                        transcript_id_expr.label("transcript_id"),
+                        cue_count_expr.label("cue_count"),
                         micro_task_alias,
                         category_expr.label("category"),
                     )
@@ -617,8 +649,17 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                     .outerjoin(latest_cue_task, latest_cue_task.c.video_id == VideoModel.id)
                     .outerjoin(cue_task_alias, cue_task_alias.id == latest_cue_task.c.task_id)
                     .outerjoin(
-                        cue_summary,
-                        cue_summary.c.transcript_id == cue_task_alias.output_transcript_id,
+                        latest_transcript,
+                        latest_transcript.c.youtube_video_id == VideoModel.youtube_video_id,
+                    )
+                    .outerjoin(
+                        task_cue_summary,
+                        task_cue_summary.c.transcript_id == cue_task_alias.output_transcript_id,
+                    )
+                    .outerjoin(
+                        video_cue_summary,
+                        video_cue_summary.c.transcript_id
+                        == latest_transcript.c.transcript_id,
                     )
                     .outerjoin(latest_micro_task, latest_micro_task.c.video_id == VideoModel.id)
                     .outerjoin(
@@ -646,7 +687,11 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
                     published_at=video.published_at,
                     transcript_id=transcript_id,
                     cue_count=int(cue_count or 0),
-                    latest_cue_task=_task_summary_record(cue_task),
+                    latest_cue_task=(
+                        _task_summary_record(cue_task)
+                        if cue_task is not None
+                        else None
+                    ),
                     latest_micro_task=(
                         _task_summary_record(micro_task)
                         if micro_task is not None
@@ -684,6 +729,7 @@ class SqlAlchemyOpsRepository(OpsRepositoryPort):
             micro_summary.c.video_task_id.is_not(None),
             micro_summary.c.micro_event_count > 0,
             timeline_summary.c.video_task_id.is_(None),
+            VideoModel.is_embeddable.is_not(False),
         ]
         conditions.extend(_candidate_filter_conditions(query))
         if query.category is not None:
@@ -1277,10 +1323,10 @@ def _ops_video_generation_record(
     timeline_video_task_id: int | None,
     episode_count: int | None,
 ) -> OpsVideoGenerationRecord:
-    cue_total = int(cue_count or 0)
-    window_total = int(window_count or 0)
-    micro_event_total = int(micro_event_count or 0)
-    episode_total = int(episode_count or 0)
+    cue_total = cue_count or 0
+    window_total = window_count or 0
+    micro_event_total = micro_event_count or 0
+    episode_total = episode_count or 0
     return OpsVideoGenerationRecord(
         cues=OpsVideoCueGenerationRecord(
             generated=cue_total > 0,

@@ -47,6 +47,7 @@ class TimelineComposeEnqueueRequest(BaseModel):
         alias="copyStyle",
     )
     prompt_version_id: int | None = Field(default=None, ge=1, alias="promptVersionId")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
 
     @model_validator(mode="after")
     def _selected_videos_require_ids(self) -> TimelineComposeEnqueueRequest:
@@ -68,6 +69,7 @@ class TimelineComposeEnqueueRequest(BaseModel):
                     "model": "gpt-5.5",
                     "reasoningEffort": "high",
                     "promptVersionId": 1,
+                    "includeNonEmbeddable": False,
                 }
             ]
         },

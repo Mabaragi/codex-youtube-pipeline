@@ -103,6 +103,15 @@ class VideoTaskRepositoryPort(Protocol):
     ) -> list[VideoTaskWithVideoRecord]:
         """List the latest succeeded task per video for newest stored videos."""
 
+    async def list_no_transcript_tasks_due_for_recheck(
+        self,
+        *,
+        task_name: str,
+        completed_before: datetime,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        """List no-transcript tasks whose completed timestamp is old enough to recheck."""
+
     async def get_latest_succeeded_task_for_video(
         self,
         *,
@@ -207,3 +216,13 @@ class VideoTaskRepositoryPort(Protocol):
         error_message: str,
     ) -> list[VideoTaskRecord]:
         """Cancel pending tasks atomically and return updated records."""
+
+    async def cancel_pending_tasks_for_video(
+        self,
+        *,
+        video_id: int,
+        task_names: tuple[str, ...],
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        """Cancel pending tasks for one video and selected task names."""

@@ -43,6 +43,7 @@ class YouTubeVideoDetails:
     youtube_video_id: str
     duration: str | None
     source_api_call_id: int
+    is_embeddable: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)

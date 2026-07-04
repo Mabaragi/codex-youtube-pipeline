@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -45,6 +46,11 @@ class VideoModel(Base):
         nullable=False,
     )
     duration: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_embeddable: Mapped[bool | None] = mapped_column(Boolean, index=True, nullable=True)
+    embed_status_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_listing_api_call_id: Mapped[int | None] = mapped_column(
         ForeignKey("external_api_calls.id", ondelete="SET NULL"),
@@ -52,6 +58,11 @@ class VideoModel(Base):
         nullable=True,
     )
     source_details_api_call_id: Mapped[int | None] = mapped_column(
+        ForeignKey("external_api_calls.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    source_embed_status_api_call_id: Mapped[int | None] = mapped_column(
         ForeignKey("external_api_calls.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
@@ -125,6 +136,28 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
             raise VideoPersistenceError("Video persistence failed.") from exc
 
     @override
+    async def list_videos_for_embed_status_refresh(
+        self,
+        *,
+        video_ids: tuple[int, ...] | None,
+        limit: int,
+    ) -> list[VideoRecord]:
+        try:
+            statement = select(VideoModel).order_by(
+                VideoModel.embed_status_checked_at.asc().nullsfirst(),
+                VideoModel.published_at.desc(),
+                VideoModel.id.desc(),
+            )
+            if video_ids is not None:
+                if not video_ids:
+                    return []
+                statement = statement.where(VideoModel.id.in_(video_ids))
+            rows = await self._session.scalars(statement.limit(limit))
+            return [_video_record(row) for row in rows]
+        except SQLAlchemyError as exc:
+            raise VideoPersistenceError("Video persistence failed.") from exc
+
+    @override
     async def find_existing_youtube_video_id(
         self,
         *,
@@ -165,9 +198,14 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
                     description=video.description,
                     published_at=video.published_at,
                     duration=video.duration,
+                    is_embeddable=video.is_embeddable,
+                    embed_status_checked_at=video.embed_status_checked_at,
                     thumbnail_url=video.thumbnail_url,
                     source_listing_api_call_id=video.source_listing_api_call_id,
                     source_details_api_call_id=video.source_details_api_call_id,
+                    source_embed_status_api_call_id=(
+                        video.source_embed_status_api_call_id
+                    ),
                     source_job_id=video.source_job_id,
                 )
                 for video in videos
@@ -184,6 +222,32 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
             await self._session.rollback()
             raise VideoPersistenceError("Video persistence failed.") from exc
 
+    @override
+    async def update_embed_status(
+        self,
+        video_id: int,
+        *,
+        is_embeddable: bool | None,
+        checked_at: datetime,
+        source_api_call_id: int | None,
+    ) -> VideoRecord:
+        try:
+            model = await self._session.get(VideoModel, video_id)
+            if model is None:
+                raise VideoPersistenceError("Video not found.")
+            model.is_embeddable = is_embeddable
+            model.embed_status_checked_at = checked_at
+            model.source_embed_status_api_call_id = source_api_call_id
+            await self._session.commit()
+            await self._session.refresh(model)
+            return _video_record(model)
+        except VideoPersistenceError:
+            await self._session.rollback()
+            raise
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoPersistenceError("Video persistence failed.") from exc
+
 
 def _video_record(model: VideoModel) -> VideoRecord:
     return VideoRecord(
@@ -194,9 +258,12 @@ def _video_record(model: VideoModel) -> VideoRecord:
         description=model.description,
         published_at=model.published_at,
         duration=model.duration,
+        is_embeddable=model.is_embeddable,
+        embed_status_checked_at=model.embed_status_checked_at,
         thumbnail_url=model.thumbnail_url,
         source_listing_api_call_id=model.source_listing_api_call_id,
         source_details_api_call_id=model.source_details_api_call_id,
+        source_embed_status_api_call_id=model.source_embed_status_api_call_id,
         source_job_id=model.source_job_id,
         created_at=model.created_at,
         updated_at=model.updated_at,

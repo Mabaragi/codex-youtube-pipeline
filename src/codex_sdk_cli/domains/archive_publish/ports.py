@@ -149,6 +149,7 @@ class ArchivePublicCatalogVideoRow:
     duration_text: str | None
     duration_seconds: float | None
     thumbnail_url: str | None
+    is_embeddable: bool | None
     display_title: str | None
     display_summary: str | None
     main_topics: list[str]

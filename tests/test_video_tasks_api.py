@@ -163,6 +163,37 @@ class FakeVideoRepository(VideoRepositoryPort):
     async def create_videos(self, videos: list[VideoCreate]) -> list[VideoRecord]:
         return []
 
+    async def list_videos_for_embed_status_refresh(
+        self,
+        *,
+        video_ids: tuple[int, ...] | None,
+        limit: int,
+    ) -> list[VideoRecord]:
+        records = list(self.videos.values())
+        if video_ids is not None:
+            requested = set(video_ids)
+            records = [record for record in records if record.id in requested]
+        return records[:limit]
+
+    async def update_embed_status(
+        self,
+        video_id: int,
+        *,
+        is_embeddable: bool | None,
+        checked_at: datetime,
+        source_api_call_id: int | None,
+    ) -> VideoRecord:
+        record = self.videos[video_id]
+        updated = replace(
+            record,
+            is_embeddable=is_embeddable,
+            embed_status_checked_at=checked_at,
+            source_embed_status_api_call_id=source_api_call_id,
+            updated_at=checked_at,
+        )
+        self.videos[video_id] = updated
+        return updated
+
 
 class FakeVideoTaskRepository(VideoTaskRepositoryPort):
     def __init__(self, videos: FakeVideoRepository) -> None:
@@ -258,6 +289,32 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             records,
             key=lambda record: (record.video.published_at, record.video.id),
             reverse=True,
+        )[:limit]
+
+    async def list_no_transcript_tasks_due_for_recheck(
+        self,
+        *,
+        task_name: str,
+        completed_before: datetime,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        records = [
+            VideoTaskWithVideoRecord(task=task, video=video)
+            for task in self.tasks.values()
+            if task.task_name == task_name
+            and task.status == "no_transcript"
+            and task.completed_at is not None
+            and task.completed_at <= completed_before
+            for video in [self.videos.videos.get(task.video_id)]
+            if video is not None
+        ]
+        return sorted(
+            records,
+            key=lambda record: (
+                record.task.completed_at or datetime.max.replace(tzinfo=UTC),
+                record.task.updated_at,
+                record.task.id,
+            ),
         )[:limit]
 
     async def get_latest_succeeded_task_for_video(
@@ -474,6 +531,32 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
         tasks = [self.tasks[task_id] for task_id in task_ids]
         if any(task.status != "pending" for task in tasks):
             return []
+        return [
+            self._update(
+                task.id,
+                status="canceled",
+                error_type=error_type,
+                error_message=error_message,
+                completed_at=NOW,
+            )
+            for task in tasks
+        ]
+
+    async def cancel_pending_tasks_for_video(
+        self,
+        *,
+        video_id: int,
+        task_names: tuple[str, ...],
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        tasks = [
+            task
+            for task in self.tasks.values()
+            if task.video_id == video_id
+            and task.task_name in task_names
+            and task.status == "pending"
+        ]
         return [
             self._update(
                 task.id,
@@ -924,6 +1007,21 @@ def test_channel_transcript_collect_creates_video_task_job_and_metadata() -> Non
         "transcript_cue_generate.task_succeeded",
         "transcript_collect.batch_succeeded",
     ]
+
+
+def test_channel_transcript_collect_skips_non_embeddable_video() -> None:
+    fakes = _fakes()
+    _seed_channel(fakes.channels)
+    _seed_video(fakes.videos, is_embeddable=False)
+
+    response = asyncio.run(_collect(fakes))
+
+    assert response["requestedCount"] == 1
+    assert response["succeededCount"] == 0
+    assert response["skippedCount"] == 1
+    assert response["items"][0]["status"] == "skipped"
+    assert response["items"][0]["reason"] == "not_embeddable"
+    assert fakes.transcript_client.requests == []
 
 
 def test_all_transcript_collect_creates_tasks_for_all_stored_videos() -> None:
@@ -1751,6 +1849,7 @@ def _seed_video(
     video_id: int = 1,
     channel_id: int = 1,
     youtube_video_id: str = YOUTUBE_VIDEO_ID,
+    is_embeddable: bool | None = None,
 ) -> None:
     videos.videos[video_id] = VideoRecord(
         id=video_id,
@@ -1764,6 +1863,9 @@ def _seed_video(
         source_listing_api_call_id=None,
         source_details_api_call_id=None,
         source_job_id=None,
+        is_embeddable=is_embeddable,
+        embed_status_checked_at=NOW if is_embeddable is not None else None,
+        source_embed_status_api_call_id=123 if is_embeddable is not None else None,
         created_at=NOW,
         updated_at=NOW,
     )

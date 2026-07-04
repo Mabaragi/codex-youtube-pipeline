@@ -93,12 +93,19 @@ class YouTubeVideoContentDetails(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
+class YouTubeVideoStatus(BaseModel):
+    embeddable: bool | None = None
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+
 class YouTubeVideoResource(BaseModel):
     youtube_video_id: str = Field(alias="id", min_length=1)
     content_details: YouTubeVideoContentDetails | None = Field(
         default=None,
         alias="contentDetails",
     )
+    status: YouTubeVideoStatus | None = None
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 

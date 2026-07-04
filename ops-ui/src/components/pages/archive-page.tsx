@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import type { ChangeEvent } from "react";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
+import { EmbedStatusBadge } from "@/components/embed-status-badge";
 import {
   ChannelFilterSelect,
   FilterActions,
@@ -97,7 +98,9 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
     regenerateSucceeded: false,
   });
 
-  const visibleVideoIds = videos.map((video) => video.videoId);
+  const visibleVideoIds = videos
+    .filter((video) => video.isEmbeddable !== false)
+    .map((video) => video.videoId);
   const selectedVisibleCount = visibleVideoIds.filter((videoId) =>
     selectedVideoIds.has(videoId),
   ).length;
@@ -127,6 +130,10 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
   };
 
   const toggleVideoSelection = (videoId: number) => {
+    const video = videos.find((item) => item.videoId === videoId);
+    if (video?.isEmbeddable === false) {
+      return;
+    }
     setSelectedVideoIds((currentSelection) => {
       const next = new Set(currentSelection);
       if (next.has(videoId)) {
@@ -197,6 +204,7 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
       ),
       cell: ({ row }) => {
         const selected = selectedVideoIds.has(row.original.videoId);
+        const noEmbed = row.original.isEmbeddable === false;
         return (
           <button
             aria-label={
@@ -205,7 +213,13 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
                 : `Select video ${row.original.videoId}`
             }
             className="inline-flex"
+            disabled={noEmbed}
             onClick={() => toggleVideoSelection(row.original.videoId)}
+            title={
+              noEmbed
+                ? "External playback is disabled for this video."
+                : "Toggle video selection"
+            }
             type="button"
           >
             {selected ? (
@@ -231,6 +245,7 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
             <span>#{row.original.videoId}</span>
             <span>{compactId(row.original.youtubeVideoId)}</span>
             <span>{row.original.channelName}</span>
+            <EmbedStatusBadge isEmbeddable={row.original.isEmbeddable} />
           </div>
         </div>
       ),
@@ -618,6 +633,7 @@ function baseRequest(
     environment: defaults.environment || "prod",
     variant: defaults.variant || "control",
     schemaVersion: defaults.schemaVersion,
+    includeNonEmbeddable: false,
     retryFailed: defaults.retryFailed,
     regenerateSucceeded: defaults.regenerateSucceeded,
     ...override,

@@ -589,6 +589,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/videos/embed-status/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Ops Video Embed Status */
+        post: operations["refresh_ops_video_embed_status_ops_videos_embed_status_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/videos/{video_id}": {
         parameters: {
             query?: never;
@@ -1271,6 +1288,8 @@ export interface components {
             channelName: string;
             /** Duration */
             duration: string | null;
+            /** Isembeddable */
+            isEmbeddable: boolean | null;
             latestArtifact: components["schemas"]["ArchiveVideoArtifactResponse"] | null;
             latestTask: components["schemas"]["ArchiveVideoTaskSummaryResponse"] | null;
             /**
@@ -1336,6 +1355,7 @@ export interface components {
          * ArchivePublishRequest
          * @example {
          *       "environment": "prod",
+         *       "includeNonEmbeddable": false,
          *       "limit": 20,
          *       "publishMode": "prod",
          *       "regenerateSucceeded": false,
@@ -1353,6 +1373,11 @@ export interface components {
              * @default prod
              */
             environment: string;
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /**
              * Limit
              * @default 20
@@ -1821,6 +1846,7 @@ export interface components {
          * CollectAllTranscriptTasksRequest
          * @example {
          *       "collectNew": true,
+         *       "includeNonEmbeddable": false,
          *       "languages": [
          *         "ko",
          *         "en"
@@ -1836,6 +1862,11 @@ export interface components {
              * @default true
              */
             collectNew: boolean;
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /**
              * Languages
              * @description Preferred transcript language codes, tried in order.
@@ -1878,6 +1909,7 @@ export interface components {
          * CollectChannelTranscriptTasksRequest
          * @example {
          *       "collectNew": true,
+         *       "includeNonEmbeddable": false,
          *       "languages": [
          *         "ko",
          *         "en"
@@ -1894,6 +1926,11 @@ export interface components {
              * @default true
              */
             collectNew: boolean;
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /**
              * Languages
              * @description Preferred transcript language codes, tried in order.
@@ -2297,12 +2334,18 @@ export interface components {
         /**
          * GenerateTranscriptCueTasksRequest
          * @example {
+         *       "includeNonEmbeddable": false,
          *       "limit": 20,
          *       "regenerateSucceeded": false,
          *       "retryFailed": false
          *     }
          */
         GenerateTranscriptCueTasksRequest: {
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /**
              * Limit
              * @default 20
@@ -2357,6 +2400,11 @@ export interface components {
          *     }
          */
         MicroEventBatchExtractRequest: {
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /**
              * Limit
              * @default 1
@@ -2505,6 +2553,11 @@ export interface components {
             /** Channelid */
             channelId?: number | null;
             /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
+            /**
              * Limit
              * @default 20
              */
@@ -2598,6 +2651,7 @@ export interface components {
         /**
          * MicroEventExtractRequest
          * @example {
+         *       "includeNonEmbeddable": false,
          *       "model": "gpt-5.5",
          *       "overlapMinutes": 5,
          *       "promptVersionId": 1,
@@ -2608,6 +2662,11 @@ export interface components {
          *     }
          */
         MicroEventExtractRequest: {
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /** Model */
             model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
             /**
@@ -2913,7 +2972,7 @@ export interface components {
             channelName: string;
             /** Cuecount */
             cueCount: number;
-            latestCueTask: components["schemas"]["OpsTaskSummaryResponse"];
+            latestCueTask: components["schemas"]["OpsTaskSummaryResponse"] | null;
             latestMicroTask: components["schemas"]["OpsTaskSummaryResponse"] | null;
             /**
              * Publishedat
@@ -2957,6 +3016,49 @@ export interface components {
              * Format: date-time
              */
             updatedAt: string;
+        };
+        /** OpsRefreshVideoEmbedStatusItemResponse */
+        OpsRefreshVideoEmbedStatusItemResponse: {
+            /** Canceledpendingtaskcount */
+            canceledPendingTaskCount: number;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Isembeddable */
+            isEmbeddable: boolean | null;
+            /** Sourceapicallid */
+            sourceApiCallId: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "updated" | "failed";
+            /** Videoid */
+            videoId: number;
+            /** Youtubevideoid */
+            youtubeVideoId: string;
+        };
+        /** OpsRefreshVideoEmbedStatusRequest */
+        OpsRefreshVideoEmbedStatusRequest: {
+            /**
+             * Limit
+             * @default 200
+             */
+            limit: number;
+            /** Videoids */
+            videoIds?: number[] | null;
+        };
+        /** OpsRefreshVideoEmbedStatusResponse */
+        OpsRefreshVideoEmbedStatusResponse: {
+            /** Failedcount */
+            failedCount: number;
+            /** Items */
+            items: components["schemas"]["OpsRefreshVideoEmbedStatusItemResponse"][];
+            /** Scannedcount */
+            scannedCount: number;
+            /** Updatedcount */
+            updatedCount: number;
         };
         /** OpsSchemaColumnResponse */
         OpsSchemaColumnResponse: {
@@ -3185,6 +3287,10 @@ export interface components {
             description: string;
             /** Duration */
             duration: string | null;
+            /** Embedstatuscheckedat */
+            embedStatusCheckedAt: string | null;
+            /** Isembeddable */
+            isEmbeddable: boolean | null;
             /** Latesttaskid */
             latestTaskId: number | null;
             /** Latesttaskname */
@@ -3200,6 +3306,8 @@ export interface components {
             publishedAt: string;
             /** Sourcedetailsapicallid */
             sourceDetailsApiCallId: number | null;
+            /** Sourceembedstatusapicallid */
+            sourceEmbedStatusApiCallId: number | null;
             /** Sourcejobid */
             sourceJobId: number | null;
             /** Sourcelistingapicallid */
@@ -3266,7 +3374,11 @@ export interface components {
             channelName: string;
             /** Duration */
             duration: string | null;
+            /** Embedstatuscheckedat */
+            embedStatusCheckedAt: string | null;
             generation: components["schemas"]["OpsVideoGenerationResponse"];
+            /** Isembeddable */
+            isEmbeddable: boolean | null;
             /** Latesttaskid */
             latestTaskId: number | null;
             /** Latesttaskname */
@@ -4002,6 +4114,7 @@ export interface components {
          * TimelineComposeEnqueueRequest
          * @example {
          *       "copyStyle": "LIGHT_FANDOM_V1",
+         *       "includeNonEmbeddable": false,
          *       "limit": 5,
          *       "model": "gpt-5.5",
          *       "promptVersionId": 1,
@@ -4020,6 +4133,11 @@ export interface components {
              * @constant
              */
             copyStyle: "LIGHT_FANDOM_V1";
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
             /**
              * Limit
              * @default 20
@@ -4736,6 +4854,10 @@ export interface components {
             description: string;
             /** Duration */
             duration: string | null;
+            /** Embedstatuscheckedat */
+            embedStatusCheckedAt: string | null;
+            /** Isembeddable */
+            isEmbeddable: boolean | null;
             /**
              * Publishedat
              * Format: date-time
@@ -4743,6 +4865,8 @@ export interface components {
             publishedAt: string;
             /** Sourcedetailsapicallid */
             sourceDetailsApiCallId: number | null;
+            /** Sourceembedstatusapicallid */
+            sourceEmbedStatusApiCallId: number | null;
             /** Sourcejobid */
             sourceJobId: number | null;
             /** Sourcelistingapicallid */
@@ -6068,6 +6192,7 @@ export interface operations {
                 channelId?: number | null;
                 taskStatus?: string | null;
                 search?: string | null;
+                embedStatus?: ("embeddable" | "no_embed" | "unknown") | null;
                 limit?: number;
                 offset?: number;
             };
@@ -6084,6 +6209,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpsVideoListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_ops_video_embed_status_ops_videos_embed_status_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpsRefreshVideoEmbedStatusRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsRefreshVideoEmbedStatusResponse"];
                 };
             };
             /** @description Validation Error */

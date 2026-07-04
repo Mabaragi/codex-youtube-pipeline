@@ -275,7 +275,7 @@ class YouTubeDataClient(YouTubeDataClientPort):
             return YouTubeVideoDetailsBatch(videos=(), source_api_call_id=0)
 
         request_params: dict[str, str] = {
-            "part": "contentDetails",
+            "part": "contentDetails,status",
             "id": ",".join(youtube_video_ids),
         }
         response, duration_ms = await self._get_response(
@@ -473,9 +473,11 @@ def _video_details(
     source_api_call_id: int,
 ) -> YouTubeVideoDetails:
     content_details = video.content_details
+    status = video.status
     return YouTubeVideoDetails(
         youtube_video_id=video.youtube_video_id,
         duration=content_details.duration if content_details is not None else None,
+        is_embeddable=status.embeddable if status is not None else None,
         source_api_call_id=source_api_call_id,
     )
 

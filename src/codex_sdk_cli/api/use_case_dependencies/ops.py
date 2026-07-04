@@ -4,7 +4,13 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from codex_sdk_cli.api.dependencies import OpsRepositoryDep
+from codex_sdk_cli.api.dependencies import (
+    OperationEventRecorderDep,
+    OpsRepositoryDep,
+    VideoRepositoryDep,
+    VideoTaskRepositoryDep,
+    YouTubeDataClientDep,
+)
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.domains.ops.use_cases import (
     DetectOpsStuckTasksUseCase,
@@ -16,6 +22,7 @@ from codex_sdk_cli.domains.ops.use_cases import (
     ListOpsTimelineReadyCandidatesUseCase,
     ListOpsVideosUseCase,
     ListOpsVideoTasksUseCase,
+    RefreshOpsVideoEmbedStatusUseCase,
 )
 
 
@@ -38,6 +45,20 @@ def get_list_ops_videos_use_case(
     repository: OpsRepositoryDep,
 ) -> ListOpsVideosUseCase:
     return ListOpsVideosUseCase(repository)
+
+
+def get_refresh_ops_video_embed_status_use_case(
+    videos: VideoRepositoryDep,
+    video_tasks: VideoTaskRepositoryDep,
+    youtube_data: YouTubeDataClientDep,
+    events: OperationEventRecorderDep,
+) -> RefreshOpsVideoEmbedStatusUseCase:
+    return RefreshOpsVideoEmbedStatusUseCase(
+        videos=videos,
+        video_tasks=video_tasks,
+        youtube_data=youtube_data,
+        events=events,
+    )
 
 
 def get_ops_video_detail_use_case(
@@ -87,6 +108,10 @@ ListOpsChannelsUseCaseDep = Annotated[
 ListOpsVideosUseCaseDep = Annotated[
     ListOpsVideosUseCase,
     Depends(get_list_ops_videos_use_case),
+]
+RefreshOpsVideoEmbedStatusUseCaseDep = Annotated[
+    RefreshOpsVideoEmbedStatusUseCase,
+    Depends(get_refresh_ops_video_embed_status_use_case),
 ]
 OpsVideoDetailUseCaseDep = Annotated[
     GetOpsVideoDetailUseCase,

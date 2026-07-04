@@ -124,6 +124,8 @@ class CollectChannelTranscriptTasksUseCase:
         self,
         channel_id: int,
         request: CollectChannelTranscriptTasksRequest,
+        *,
+        actor_type: OperationEventActorType = "manual_api",
     ) -> CollectChannelTranscriptTasksResponse:
         await _get_channel_or_raise(self._channels, channel_id)
         languages = normalize_languages(request.languages)
@@ -136,6 +138,7 @@ class CollectChannelTranscriptTasksUseCase:
             "collectNew": request.collect_new,
             "retryFailed": request.retry_failed,
             "recheckNoTranscript": request.recheck_no_transcript,
+            "includeNonEmbeddable": request.include_non_embeddable,
             "timeoutSeconds": self._timeout_seconds,
             "concurrencyLimit": self._concurrency_limit,
             "delaySeconds": self._delay_seconds,
@@ -155,7 +158,7 @@ class CollectChannelTranscriptTasksUseCase:
                 event_type="transcript_collect.batch_requested",
                 severity="info",
                 message="Channel transcript collection batch was requested.",
-                actor_type="manual_api",
+                actor_type=actor_type,
                 source="video_tasks.transcript_collect",
                 job_id=batch.job.id,
                 job_attempt_id=batch.attempt.id,
@@ -173,18 +176,26 @@ class CollectChannelTranscriptTasksUseCase:
                 collect_new=request.collect_new,
                 retry_failed=request.retry_failed,
                 recheck_no_transcript=request.recheck_no_transcript,
+                include_non_embeddable=request.include_non_embeddable,
                 parent_job_id=batch.job.id,
+                actor_type=actor_type,
             )
             response = _collect_response(channel_id, items)
         except Exception as exc:
-            await self._finish_batch_failed(batch, exc)
+            await self._finish_batch_failed(batch, exc, actor_type=actor_type)
             raise
-        await self._finish_batch_succeeded(batch, _collect_response_output(response))
+        await self._finish_batch_succeeded(
+            batch,
+            _collect_response_output(response),
+            actor_type=actor_type,
+        )
         return response
 
     async def execute_all(
         self,
         request: CollectAllTranscriptTasksRequest,
+        *,
+        actor_type: OperationEventActorType = "manual_api",
     ) -> CollectAllTranscriptTasksResponse:
         languages = normalize_languages(request.languages)
         videos = await self._videos.list_all_videos()
@@ -195,6 +206,7 @@ class CollectChannelTranscriptTasksUseCase:
             "collectNew": request.collect_new,
             "retryFailed": request.retry_failed,
             "recheckNoTranscript": request.recheck_no_transcript,
+            "includeNonEmbeddable": request.include_non_embeddable,
             "timeoutSeconds": self._timeout_seconds,
             "concurrencyLimit": self._concurrency_limit,
             "delaySeconds": self._delay_seconds,
@@ -213,7 +225,7 @@ class CollectChannelTranscriptTasksUseCase:
                 event_type="transcript_collect.batch_requested",
                 severity="info",
                 message="All stored videos transcript collection batch was requested.",
-                actor_type="manual_api",
+                actor_type=actor_type,
                 source="video_tasks.transcript_collect",
                 job_id=batch.job.id,
                 job_attempt_id=batch.attempt.id,
@@ -229,13 +241,89 @@ class CollectChannelTranscriptTasksUseCase:
                 collect_new=request.collect_new,
                 retry_failed=request.retry_failed,
                 recheck_no_transcript=request.recheck_no_transcript,
+                include_non_embeddable=request.include_non_embeddable,
                 parent_job_id=batch.job.id,
+                actor_type=actor_type,
             )
             response = _collect_all_response(items)
         except Exception as exc:
-            await self._finish_batch_failed(batch, exc)
+            await self._finish_batch_failed(batch, exc, actor_type=actor_type)
             raise
-        await self._finish_batch_succeeded(batch, _collect_response_output(response))
+        await self._finish_batch_succeeded(
+            batch,
+            _collect_response_output(response),
+            actor_type=actor_type,
+        )
+        return response
+
+    async def execute_selected(
+        self,
+        videos: list[VideoRecord],
+        request: CollectAllTranscriptTasksRequest,
+        *,
+        subject_type: str,
+        subject_id: int | None,
+        external_key: str | None,
+        actor_type: OperationEventActorType = "manual_api",
+    ) -> CollectAllTranscriptTasksResponse:
+        languages = normalize_languages(request.languages)
+        metadata_json: JsonObject = {
+            "selectedVideoCount": len(videos),
+            "languages": list(languages),
+            "preserveFormatting": request.preserve_formatting,
+            "collectNew": request.collect_new,
+            "retryFailed": request.retry_failed,
+            "recheckNoTranscript": request.recheck_no_transcript,
+            "includeNonEmbeddable": request.include_non_embeddable,
+            "timeoutSeconds": self._timeout_seconds,
+            "concurrencyLimit": self._concurrency_limit,
+            "delaySeconds": self._delay_seconds,
+        }
+        batch = await self._start_batch_job(
+            subject_type=subject_type,
+            subject_id=subject_id,
+            external_key=external_key,
+            input_json={
+                "scope": "selected_videos",
+                **metadata_json,
+            },
+        )
+        await self._record_event(
+            OperationEventCreate(
+                event_type="transcript_collect.batch_requested",
+                severity="info",
+                message="Selected videos transcript collection batch was requested.",
+                actor_type=actor_type,
+                source="video_tasks.transcript_collect",
+                job_id=batch.job.id,
+                job_attempt_id=batch.attempt.id,
+                subject_type=subject_type,
+                subject_id=subject_id,
+                external_key=external_key,
+                metadata_json=metadata_json,
+            )
+        )
+        try:
+            items = await self._process_videos(
+                videos,
+                languages=languages,
+                preserve_formatting=request.preserve_formatting,
+                collect_new=request.collect_new,
+                retry_failed=request.retry_failed,
+                recheck_no_transcript=request.recheck_no_transcript,
+                include_non_embeddable=request.include_non_embeddable,
+                parent_job_id=batch.job.id,
+                actor_type=actor_type,
+            )
+            response = _collect_all_response(items)
+        except Exception as exc:
+            await self._finish_batch_failed(batch, exc, actor_type=actor_type)
+            raise
+        await self._finish_batch_succeeded(
+            batch,
+            _collect_response_output(response),
+            actor_type=actor_type,
+        )
         return response
 
     async def _process_videos(
@@ -247,7 +335,9 @@ class CollectChannelTranscriptTasksUseCase:
         collect_new: bool,
         retry_failed: bool,
         recheck_no_transcript: bool,
+        include_non_embeddable: bool,
         parent_job_id: int,
+        actor_type: OperationEventActorType,
     ) -> list[TranscriptCollectItemResponse]:
         items: list[TranscriptCollectItemResponse] = []
         for index, video in enumerate(videos):
@@ -258,7 +348,9 @@ class CollectChannelTranscriptTasksUseCase:
                 collect_new=collect_new,
                 retry_failed=retry_failed,
                 recheck_no_transcript=recheck_no_transcript,
+                include_non_embeddable=include_non_embeddable,
                 parent_job_id=parent_job_id,
+                actor_type=actor_type,
             )
             items.append(processed.response)
             if (
@@ -279,8 +371,19 @@ class CollectChannelTranscriptTasksUseCase:
         collect_new: bool,
         retry_failed: bool,
         recheck_no_transcript: bool,
+        include_non_embeddable: bool,
         parent_job_id: int,
+        actor_type: OperationEventActorType,
     ) -> _ProcessedTranscriptCollectItem:
+        if video.is_embeddable is False and not include_non_embeddable:
+            return _processed_response(
+                _missing_task_item_response(
+                    video,
+                    status="skipped",
+                    reason="not_embeddable",
+                ),
+                attempted_fetch=False,
+            )
         input_hash = _task_input_hash(
             youtube_video_id=video.youtube_video_id,
             languages=languages,
@@ -318,6 +421,7 @@ class CollectChannelTranscriptTasksUseCase:
             task=task,
             video_id=video.id,
             youtube_video_id=video.youtube_video_id,
+            actor_type=actor_type,
             metadata_json={
                 "taskStatus": task.status,
                 "collectNew": collect_new,
@@ -345,6 +449,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=succeeded,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="existing_transcript",
                 transcript_id=existing_metadata.id,
             )
@@ -361,6 +466,7 @@ class CollectChannelTranscriptTasksUseCase:
                 transcript_id=existing_metadata.id,
                 parent_job_id=parent_job_id,
                 retry_failed=retry_failed,
+                actor_type=actor_type,
             )
             return _processed_response(
                 response,
@@ -377,6 +483,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="not_selected",
                 metadata_json={
                     "collectNew": collect_new,
@@ -397,6 +504,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="already_succeeded",
             )
             response = await self._with_generated_cues(
@@ -412,6 +520,7 @@ class CollectChannelTranscriptTasksUseCase:
                 transcript_id=task.output_transcript_id,
                 parent_job_id=parent_job_id,
                 retry_failed=retry_failed,
+                actor_type=actor_type,
             )
             return _processed_response(
                 response,
@@ -425,6 +534,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="already_running",
             )
             return _processed_response(
@@ -439,6 +549,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="previously_no_transcript",
             )
             return _processed_response(
@@ -459,6 +570,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason=f"previously_{task.status}",
             )
             return _processed_response(
@@ -479,6 +591,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="not_retryable",
             )
             return _processed_response(
@@ -497,6 +610,7 @@ class CollectChannelTranscriptTasksUseCase:
                 task=task,
                 video_id=video.id,
                 youtube_video_id=video.youtube_video_id,
+                actor_type=actor_type,
                 reason="concurrency_limit",
                 metadata_json={"runningCount": running_count},
             )
@@ -514,6 +628,7 @@ class CollectChannelTranscriptTasksUseCase:
                 input_hash=input_hash,
                 parent_job_id=parent_job_id,
                 retry_failed=retry_failed,
+                actor_type=actor_type,
             ),
             attempted_fetch=True,
         )
@@ -528,6 +643,7 @@ class CollectChannelTranscriptTasksUseCase:
         input_hash: str,
         parent_job_id: int,
         retry_failed: bool,
+        actor_type: OperationEventActorType,
     ) -> TranscriptCollectItemResponse:
         input_json: JsonObject = {
             "videoTaskId": task.id,
@@ -566,6 +682,7 @@ class CollectChannelTranscriptTasksUseCase:
             task=task,
             video_id=video.id,
             youtube_video_id=video.youtube_video_id,
+            actor_type=actor_type,
             metadata_json={"attemptId": attempt.id},
         )
         return await self.execute_job_attempt(
@@ -578,6 +695,7 @@ class CollectChannelTranscriptTasksUseCase:
             preserve_formatting=preserve_formatting,
             timeout_seconds=self._timeout_seconds,
             retry_failed=retry_failed,
+            actor_type=actor_type,
         )
 
     async def execute_job_attempt(
@@ -869,6 +987,8 @@ class CollectChannelTranscriptTasksUseCase:
         self,
         batch: _TranscriptCollectBatch,
         output_json: JsonObject,
+        *,
+        actor_type: OperationEventActorType,
     ) -> None:
         await self._pipeline_jobs.mark_attempt_succeeded(
             batch.attempt.id,
@@ -880,6 +1000,7 @@ class CollectChannelTranscriptTasksUseCase:
             "info",
             "Transcript collection batch finished.",
             batch=batch,
+            actor_type=actor_type,
             metadata_json=output_json,
         )
 
@@ -887,6 +1008,8 @@ class CollectChannelTranscriptTasksUseCase:
         self,
         batch: _TranscriptCollectBatch,
         exc: Exception,
+        *,
+        actor_type: OperationEventActorType,
     ) -> None:
         error_type = exc.__class__.__name__
         error_message = str(exc) or error_type
@@ -902,6 +1025,7 @@ class CollectChannelTranscriptTasksUseCase:
                 "error",
                 "Transcript collection batch failed.",
                 batch=batch,
+                actor_type=actor_type,
                 error_type=error_type,
                 error_message=error_message,
             )
@@ -915,6 +1039,7 @@ class CollectChannelTranscriptTasksUseCase:
         message: str,
         *,
         batch: _TranscriptCollectBatch,
+        actor_type: OperationEventActorType,
         metadata_json: JsonObject | None = None,
         error_type: str | None = None,
         error_message: str | None = None,
@@ -924,7 +1049,7 @@ class CollectChannelTranscriptTasksUseCase:
                 event_type=event_type,
                 severity=severity,
                 message=message,
-                actor_type="manual_api",
+                actor_type=actor_type,
                 source="video_tasks.transcript_collect",
                 job_id=batch.job.id,
                 job_attempt_id=batch.attempt.id,

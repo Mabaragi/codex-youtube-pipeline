@@ -42,11 +42,11 @@ def test_ops_repository_lists_operational_views(
     result = asyncio.run(_exercise_repository(database_file))
 
     assert result["counts"].channels == 1
-    assert result["counts"].videos == 6
-    assert result["channels"][0].video_count == 6
+    assert result["counts"].videos == 7
+    assert result["channels"][0].video_count == 7
     assert result["channels"][0].transcript_succeeded_count == 1
     assert result["channels"][0].task_no_transcript_count == 1
-    assert result["videos"].total == 6
+    assert result["videos"].total == 7
     assert result["videos"].items[0].latest_task_status == "succeeded"
     assert result["videos"].items[0].transcript_id == result["transcript_id"]
     assert result["videos"].items[0].generation.cues.generated is True
@@ -59,12 +59,21 @@ def test_ops_repository_lists_operational_views(
         "composition_id"
     ]
     assert result["videos"].items[0].generation.timeline.episode_count == 2
-    assert result["micro_candidates"].total == 3
+    assert result["micro_candidates"].total == 4
     assert {item.category for item in result["micro_candidates"].items} == {
         "readyNoHistory",
         "failed",
         "active",
     }
+    asr_candidate = next(
+        item
+        for item in result["micro_candidates"].items
+        if item.video_id == result["asr_cue_ready_video_id"]
+    )
+    assert asr_candidate.transcript_id == result["asr_cue_ready_transcript_id"]
+    assert asr_candidate.cue_count == 2
+    assert asr_candidate.latest_cue_task is None
+    assert asr_candidate.category == "readyNoHistory"
     assert result["timeline_candidates"].total == 2
     assert {item.source_micro_event_task_id for item in result["timeline_candidates"].items} == {
         result["timeline_ready_micro_task_id"],
@@ -384,11 +393,19 @@ async def _exercise_repository(database_file: Path):
                 )
             )
 
+            asr_cue_ready_video, asr_cue_ready_transcript = await _add_video_with_cues(
+                session,
+                channel.id,
+                7,
+                now - timedelta(minutes=5),
+                with_cue_task=False,
+            )
+
             stuck_video, stuck_transcript = await _add_video_with_cues(
                 session,
                 channel.id,
                 6,
-                now - timedelta(minutes=5),
+                now - timedelta(minutes=6),
             )
             old = now - timedelta(minutes=30)
             stuck_task = VideoTaskModel(
@@ -479,12 +496,21 @@ async def _exercise_repository(database_file: Path):
                 "composition_id": composition.id,
                 "timeline_ready_micro_task_id": timeline_ready_micro_task.id,
                 "timeline_failed_micro_task_id": timeline_failed_micro_task.id,
+                "asr_cue_ready_video_id": asr_cue_ready_video.id,
+                "asr_cue_ready_transcript_id": asr_cue_ready_transcript.id,
             }
     finally:
         await engine.dispose()
 
 
-async def _add_video_with_cues(session, channel_id: int, suffix: int, published_at: datetime):
+async def _add_video_with_cues(
+    session,
+    channel_id: int,
+    suffix: int,
+    published_at: datetime,
+    *,
+    with_cue_task: bool = True,
+):
     video = VideoModel(
         channel_id=channel_id,
         youtube_video_id=f"video{suffix:07d}",
@@ -511,18 +537,19 @@ async def _add_video_with_cues(session, channel_id: int, suffix: int, published_
     )
     session.add(transcript)
     await session.flush()
-    session.add(
-        VideoTaskModel(
-            video_id=video.id,
-            task_name="transcript_cue_generate",
-            task_version="v1",
-            input_hash=f"cue-{suffix}",
-            status="succeeded",
-            timeout_seconds=600,
-            output_transcript_id=transcript.id,
-            output_json={"cueCount": 2},
+    if with_cue_task:
+        session.add(
+            VideoTaskModel(
+                video_id=video.id,
+                task_name="transcript_cue_generate",
+                task_version="v1",
+                input_hash=f"cue-{suffix}",
+                status="succeeded",
+                timeout_seconds=600,
+                output_transcript_id=transcript.id,
+                output_json={"cueCount": 2},
+            )
         )
-    )
     session.add_all(
         [
             TranscriptCueModel(

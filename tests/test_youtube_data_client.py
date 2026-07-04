@@ -183,7 +183,7 @@ def test_youtube_data_client_fetches_video_details_projection() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         params = request.url.params
         assert str(request.url).startswith("https://www.googleapis.com/youtube/v3/videos")
-        assert params["part"] == "contentDetails"
+        assert params["part"] == "contentDetails,status"
         assert params["id"] == "video-1,video-2"
         assert params["key"] == "YOUTUBE_DATA_API_KEY_TEST"
         return httpx.Response(200, json=_videos_list_payload())
@@ -194,6 +194,7 @@ def test_youtube_data_client_fetches_video_details_projection() -> None:
     assert [video.youtube_video_id for video in result.videos] == ["video-1", "video-2"]
     first = result.videos[0]
     assert first.duration == "PT3M21S"
+    assert first.is_embeddable is True
     assert first.source_api_call_id == 1
     assert recorder.requests[0].operation == "videos.list"
     assert "key" not in recorder.requests[0].request_params
@@ -361,10 +362,12 @@ def _videos_list_payload() -> dict[str, object]:
             {
                 "id": "video-1",
                 "contentDetails": {"duration": "PT3M21S"},
+                "status": {"embeddable": True},
             },
             {
                 "id": "video-2",
                 "contentDetails": {"duration": "PT1M"},
+                "status": {"embeddable": False},
             },
         ],
     }

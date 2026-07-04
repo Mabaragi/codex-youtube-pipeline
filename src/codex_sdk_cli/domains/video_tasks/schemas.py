@@ -32,6 +32,7 @@ class CollectChannelTranscriptTasksRequest(BaseModel):
     collect_new: bool = Field(default=True, alias="collectNew")
     retry_failed: bool = Field(default=False, alias="retryFailed")
     recheck_no_transcript: bool = Field(default=False, alias="recheckNoTranscript")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -45,6 +46,7 @@ class CollectChannelTranscriptTasksRequest(BaseModel):
                     "collectNew": True,
                     "retryFailed": False,
                     "recheckNoTranscript": False,
+                    "includeNonEmbeddable": False,
                 }
             ]
         },
@@ -60,6 +62,7 @@ class CollectAllTranscriptTasksRequest(BaseModel):
     collect_new: bool = Field(default=True, alias="collectNew")
     retry_failed: bool = Field(default=False, alias="retryFailed")
     recheck_no_transcript: bool = Field(default=False, alias="recheckNoTranscript")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -72,6 +75,7 @@ class CollectAllTranscriptTasksRequest(BaseModel):
                     "collectNew": True,
                     "retryFailed": False,
                     "recheckNoTranscript": False,
+                    "includeNonEmbeddable": False,
                 }
             ]
         },
@@ -82,6 +86,7 @@ class GenerateTranscriptCueTasksRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=100)
     retry_failed: bool = Field(default=False, alias="retryFailed")
     regenerate_succeeded: bool = Field(default=False, alias="regenerateSucceeded")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -92,6 +97,7 @@ class GenerateTranscriptCueTasksRequest(BaseModel):
                     "limit": 20,
                     "retryFailed": False,
                     "regenerateSucceeded": False,
+                    "includeNonEmbeddable": False,
                 }
             ]
         },

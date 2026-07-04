@@ -248,6 +248,7 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
         statement = (
             select(VideoModel.id)
             .join(latest_timeline, latest_timeline.c.video_id == VideoModel.id)
+            .where(VideoModel.is_embeddable.is_not(False))
             .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
             .limit(query.limit)
         )
@@ -395,6 +396,7 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
             .join(VideoModel, ArchiveVideoArtifactModel.video_id == VideoModel.id)
             .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
             .join(StreamerModel, ChannelModel.streamer_id == StreamerModel.id)
+            .where(VideoModel.is_embeddable.is_not(False))
             .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
         )
         try:
@@ -710,9 +712,12 @@ def _video_record(model: VideoModel) -> VideoRecord:
         description=model.description,
         published_at=model.published_at,
         duration=model.duration,
+        is_embeddable=model.is_embeddable,
+        embed_status_checked_at=model.embed_status_checked_at,
         thumbnail_url=model.thumbnail_url,
         source_listing_api_call_id=model.source_listing_api_call_id,
         source_details_api_call_id=model.source_details_api_call_id,
+        source_embed_status_api_call_id=model.source_embed_status_api_call_id,
         source_job_id=model.source_job_id,
         created_at=model.created_at,
         updated_at=model.updated_at,

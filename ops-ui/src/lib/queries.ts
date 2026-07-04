@@ -43,6 +43,8 @@ import type {
   OperationEventFilters,
   OperationEventList,
   OpsChannelList,
+  OpsRefreshVideoEmbedStatusRequest,
+  OpsRefreshVideoEmbedStatusResponse,
   OpsSchemaGraph,
   OpsSummary,
   OpsVideoDetail,
@@ -141,6 +143,26 @@ export function useOpsVideoDetail(videoId: number) {
     queryKey: queryKeys.videoDetail(videoId),
     queryFn: () => requestJson<OpsVideoDetail>(`/ops/videos/${videoId}`),
     enabled: Number.isFinite(videoId) && videoId > 0,
+  });
+}
+
+export function useRefreshVideoEmbedStatusMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OpsRefreshVideoEmbedStatusRequest = { limit: 200 }) =>
+      requestJson<OpsRefreshVideoEmbedStatusResponse>(
+        "/ops/videos/embed-status/refresh",
+        {
+          method: "POST",
+          body,
+        },
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ops"] }),
+        queryClient.invalidateQueries({ queryKey: ["pipeline"] }),
+      ]);
+    },
   });
 }
 
@@ -842,6 +864,7 @@ export function useExtractMicroEventsMutation() {
             overlapMinutes,
             model,
             reasoningEffort,
+            includeNonEmbeddable: false,
             ...(promptVersionId ? { promptVersionId } : {}),
           },
         },
@@ -884,6 +907,7 @@ export function useExtractAllMicroEventsMutation() {
           overlapMinutes,
           model,
           reasoningEffort,
+          includeNonEmbeddable: false,
           ...(promptVersionId ? { promptVersionId } : {}),
         },
       }),

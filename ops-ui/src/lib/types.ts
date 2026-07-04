@@ -8,6 +8,10 @@ export type OpsVideo = components["schemas"]["OpsVideoResponse"];
 export type OpsVideoDetail = components["schemas"]["OpsVideoDetailResponse"];
 export type OpsVideoTaskList = components["schemas"]["OpsVideoTaskListResponse"];
 export type OpsVideoTask = components["schemas"]["OpsVideoTaskResponse"];
+export type OpsRefreshVideoEmbedStatusRequest =
+  components["schemas"]["OpsRefreshVideoEmbedStatusRequest"];
+export type OpsRefreshVideoEmbedStatusResponse =
+  components["schemas"]["OpsRefreshVideoEmbedStatusResponse"];
 export type TranscriptContent = components["schemas"]["TranscriptResponse"];
 export type TranscriptCueList = components["schemas"]["TranscriptCueListResponse"];
 export type TranscriptCue = components["schemas"]["TranscriptCueResponse"];

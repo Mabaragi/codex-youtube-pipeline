@@ -154,6 +154,37 @@ class FakeVideoRepository(VideoRepositoryPort):
     async def create_videos(self, videos: list[VideoCreate]) -> list[VideoRecord]:
         return []
 
+    async def list_videos_for_embed_status_refresh(
+        self,
+        *,
+        video_ids: tuple[int, ...] | None,
+        limit: int,
+    ) -> list[VideoRecord]:
+        records = list(self.videos.values())
+        if video_ids is not None:
+            requested = set(video_ids)
+            records = [record for record in records if record.id in requested]
+        return records[:limit]
+
+    async def update_embed_status(
+        self,
+        video_id: int,
+        *,
+        is_embeddable: bool | None,
+        checked_at: datetime,
+        source_api_call_id: int | None,
+    ) -> VideoRecord:
+        record = self.videos[video_id]
+        updated = replace(
+            record,
+            is_embeddable=is_embeddable,
+            embed_status_checked_at=checked_at,
+            source_embed_status_api_call_id=source_api_call_id,
+            updated_at=checked_at,
+        )
+        self.videos[video_id] = updated
+        return updated
+
 
 class FakeVideoTaskRepository(VideoTaskRepositoryPort):
     def __init__(self, videos: FakeVideoRepository) -> None:
@@ -256,6 +287,32 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             reverse=True,
         )
         return records[:limit]
+
+    async def list_no_transcript_tasks_due_for_recheck(
+        self,
+        *,
+        task_name: str,
+        completed_before: datetime,
+        limit: int,
+    ) -> list[VideoTaskWithVideoRecord]:
+        records = [
+            VideoTaskWithVideoRecord(task=task, video=video)
+            for task in self.tasks.values()
+            if task.task_name == task_name
+            and task.status == "no_transcript"
+            and task.completed_at is not None
+            and task.completed_at <= completed_before
+            for video in [self.videos.videos.get(task.video_id)]
+            if video is not None
+        ]
+        return sorted(
+            records,
+            key=lambda record: (
+                record.task.completed_at or datetime.max.replace(tzinfo=UTC),
+                record.task.updated_at,
+                record.task.id,
+            ),
+        )[:limit]
 
     async def get_latest_succeeded_task_for_video(
         self,
@@ -487,6 +544,32 @@ class FakeVideoTaskRepository(VideoTaskRepositoryPort):
             for task in tasks
         ]
 
+    async def cancel_pending_tasks_for_video(
+        self,
+        *,
+        video_id: int,
+        task_names: tuple[str, ...],
+        error_type: str,
+        error_message: str,
+    ) -> list[VideoTaskRecord]:
+        tasks = [
+            task
+            for task in self.tasks.values()
+            if task.video_id == video_id
+            and task.task_name in task_names
+            and task.status == "pending"
+        ]
+        return [
+            self._update(
+                task.id,
+                status="canceled",
+                error_type=error_type,
+                error_message=error_message,
+                completed_at=NOW,
+            )
+            for task in tasks
+        ]
+
     def _find(
         self,
         video_id: int,
@@ -535,7 +618,19 @@ class FakeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         self,
         filters: YouTubeTranscriptMetadataFilters,
     ) -> list[YouTubeTranscriptMetadataRecord]:
-        return list(self.records.values())
+        records = list(self.records.values())
+        if filters.video_id is not None:
+            records = [
+                record for record in records if record.video_id == filters.video_id
+            ]
+        if filters.language_code is not None:
+            records = [
+                record
+                for record in records
+                if record.language_code == filters.language_code
+            ]
+        records.sort(key=lambda record: (record.created_at, record.id), reverse=True)
+        return records[filters.offset : filters.offset + filters.limit]
 
     async def get_transcript_metadata(
         self,
@@ -888,6 +983,7 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
         self.next_micro_event_id = 1
         self.next_excluded_range_id = 1
         self.next_asr_id = 1
+        self.upserted_window_indices: list[int] = []
 
     async def delete_extraction(self, video_task_id: int) -> None:
         self.windows_by_task.pop(video_task_id, None)
@@ -897,104 +993,29 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
         video_task_id: int,
         windows: list[MicroEventExtractionWindowCreate],
     ) -> MicroEventExtractionDetailRecord | None:
-        records: list[MicroEventExtractionWindowRecord] = []
-        for window in windows:
-            micro_events: list[MicroEventCandidateRecord] = []
-            for candidate in window.micro_events:
-                micro_events.append(
-                    MicroEventCandidateRecord(
-                        id=self.next_micro_event_id,
-                        window_id=self.next_window_id,
-                        video_task_id=window.video_task_id,
-                        transcript_id=window.transcript_id,
-                        candidate_index=candidate.candidate_index,
-                        activity=candidate.activity,
-                        event=candidate.event,
-                        start_cue_id=candidate.start_cue_id,
-                        end_cue_id=candidate.end_cue_id,
-                        evidence_cue_ids=candidate.evidence_cue_ids,
-                        boundary_before=candidate.boundary_before,
-                        boundary_after=candidate.boundary_after,
-                        confidence=candidate.confidence,
-                        program_mode=candidate.program_mode,
-                        content_kind=candidate.content_kind,
-                        topics=candidate.topics,
-                        relation_to_previous=candidate.relation_to_previous,
-                        continues_to_next=candidate.continues_to_next,
-                        support_level=candidate.support_level,
-                        created_at=NOW,
-                        updated_at=NOW,
-                    )
-                )
-                self.next_micro_event_id += 1
-            excluded_ranges: list[MicroEventExcludedRangeRecord] = []
-            for excluded_range in window.excluded_ranges:
-                excluded_ranges.append(
-                    MicroEventExcludedRangeRecord(
-                        id=self.next_excluded_range_id,
-                        window_id=self.next_window_id,
-                        video_task_id=window.video_task_id,
-                        transcript_id=window.transcript_id,
-                        range_index=excluded_range.range_index,
-                        start_cue_id=excluded_range.start_cue_id,
-                        end_cue_id=excluded_range.end_cue_id,
-                        reason=excluded_range.reason,
-                        created_at=NOW,
-                        updated_at=NOW,
-                    )
-                )
-                self.next_excluded_range_id += 1
-            asr_candidates: list[AsrCorrectionCandidateRecord] = []
-            for candidate in window.asr_correction_candidates:
-                asr_candidates.append(
-                    AsrCorrectionCandidateRecord(
-                        id=self.next_asr_id,
-                        window_id=self.next_window_id,
-                        video_task_id=window.video_task_id,
-                        transcript_id=window.transcript_id,
-                        candidate_index=candidate.candidate_index,
-                        original=candidate.original,
-                        suggested=candidate.suggested,
-                        correction_type=candidate.correction_type,
-                        apply_scope=candidate.apply_scope,
-                        confidence=candidate.confidence,
-                        created_at=NOW,
-                        updated_at=NOW,
-                    )
-                )
-                self.next_asr_id += 1
-            records.append(
-                MicroEventExtractionWindowRecord(
-                    id=self.next_window_id,
-                    video_task_id=window.video_task_id,
-                    video_id=window.video_id,
-                    transcript_id=window.transcript_id,
-                    window_index=window.window_index,
-                    start_cue_id=window.start_cue_id,
-                    end_cue_id=window.end_cue_id,
-                    cue_count=window.cue_count,
-                    status=window.status,
-                    carry_out_unfinished=window.carry_out_unfinished,
-                    codex_thread_id=window.codex_thread_id,
-                    codex_turn_id=window.codex_turn_id,
-                    raw_response_text=window.raw_response_text,
-                    parsed_response_json=window.parsed_response_json,
-                    validation_error=window.validation_error,
-                    source_job_id=window.source_job_id,
-                    source_job_attempt_id=window.source_job_attempt_id,
-                    created_at=NOW,
-                    updated_at=NOW,
-                    micro_events=micro_events,
-                    excluded_ranges=excluded_ranges,
-                    asr_correction_candidates=asr_candidates,
-                )
-            )
-            self.next_window_id += 1
+        records = [self._record_from_window(window) for window in windows]
         self.windows_by_task[video_task_id] = records
         first = windows[0] if windows else None
         if first is None:
             return None
         return await self.get_extraction(video_id=first.video_id, video_task_id=video_task_id)
+
+    async def upsert_window(
+        self,
+        video_task_id: int,
+        window: MicroEventExtractionWindowCreate,
+    ) -> MicroEventExtractionWindowRecord:
+        self.upserted_window_indices.append(window.window_index)
+        record = self._record_from_window(window)
+        records = [
+            existing
+            for existing in self.windows_by_task.get(video_task_id, [])
+            if existing.window_index != window.window_index
+        ]
+        records.append(record)
+        records.sort(key=lambda item: item.window_index)
+        self.windows_by_task[video_task_id] = records
+        return record
 
     async def get_extraction(
         self,
@@ -1040,6 +1061,125 @@ class FakeMicroEventExtractionRepository(MicroEventExtractionRepositoryPort):
         if task is None:
             return None
         return await self.get_extraction(video_id=video_id, video_task_id=task.id)
+
+    async def update_candidate_event(
+        self,
+        *,
+        video_task_id: int,
+        candidate_id: int,
+        event: str,
+    ) -> MicroEventCandidateRecord | None:
+        windows = self.windows_by_task.get(video_task_id, [])
+        for window_index, window in enumerate(windows):
+            for candidate_index, candidate in enumerate(window.micro_events):
+                if candidate.id != candidate_id:
+                    continue
+                updated_candidate = replace(candidate, event=event, updated_at=NOW)
+                updated_micro_events = list(window.micro_events)
+                updated_micro_events[candidate_index] = updated_candidate
+                windows[window_index] = replace(
+                    window,
+                    micro_events=updated_micro_events,
+                    updated_at=NOW,
+                )
+                return updated_candidate
+        return None
+
+    def _record_from_window(
+        self,
+        window: MicroEventExtractionWindowCreate,
+    ) -> MicroEventExtractionWindowRecord:
+        window_id = self.next_window_id
+        micro_events: list[MicroEventCandidateRecord] = []
+        for candidate in window.micro_events:
+            micro_events.append(
+                MicroEventCandidateRecord(
+                    id=self.next_micro_event_id,
+                    window_id=window_id,
+                    video_task_id=window.video_task_id,
+                    transcript_id=window.transcript_id,
+                    candidate_index=candidate.candidate_index,
+                    activity=candidate.activity,
+                    event=candidate.event,
+                    start_cue_id=candidate.start_cue_id,
+                    end_cue_id=candidate.end_cue_id,
+                    evidence_cue_ids=candidate.evidence_cue_ids,
+                    boundary_before=candidate.boundary_before,
+                    boundary_after=candidate.boundary_after,
+                    confidence=candidate.confidence,
+                    program_mode=candidate.program_mode,
+                    content_kind=candidate.content_kind,
+                    topics=candidate.topics,
+                    relation_to_previous=candidate.relation_to_previous,
+                    continues_to_next=candidate.continues_to_next,
+                    support_level=candidate.support_level,
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+            self.next_micro_event_id += 1
+        excluded_ranges: list[MicroEventExcludedRangeRecord] = []
+        for excluded_range in window.excluded_ranges:
+            excluded_ranges.append(
+                MicroEventExcludedRangeRecord(
+                    id=self.next_excluded_range_id,
+                    window_id=window_id,
+                    video_task_id=window.video_task_id,
+                    transcript_id=window.transcript_id,
+                    range_index=excluded_range.range_index,
+                    start_cue_id=excluded_range.start_cue_id,
+                    end_cue_id=excluded_range.end_cue_id,
+                    reason=excluded_range.reason,
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+            self.next_excluded_range_id += 1
+        asr_candidates: list[AsrCorrectionCandidateRecord] = []
+        for candidate in window.asr_correction_candidates:
+            asr_candidates.append(
+                AsrCorrectionCandidateRecord(
+                    id=self.next_asr_id,
+                    window_id=window_id,
+                    video_task_id=window.video_task_id,
+                    transcript_id=window.transcript_id,
+                    candidate_index=candidate.candidate_index,
+                    original=candidate.original,
+                    suggested=candidate.suggested,
+                    correction_type=candidate.correction_type,
+                    apply_scope=candidate.apply_scope,
+                    confidence=candidate.confidence,
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+            self.next_asr_id += 1
+        record = MicroEventExtractionWindowRecord(
+            id=window_id,
+            video_task_id=window.video_task_id,
+            video_id=window.video_id,
+            transcript_id=window.transcript_id,
+            window_index=window.window_index,
+            start_cue_id=window.start_cue_id,
+            end_cue_id=window.end_cue_id,
+            cue_count=window.cue_count,
+            status=window.status,
+            carry_out_unfinished=window.carry_out_unfinished,
+            codex_thread_id=window.codex_thread_id,
+            codex_turn_id=window.codex_turn_id,
+            raw_response_text=window.raw_response_text,
+            parsed_response_json=window.parsed_response_json,
+            validation_error=window.validation_error,
+            source_job_id=window.source_job_id,
+            source_job_attempt_id=window.source_job_attempt_id,
+            created_at=NOW,
+            updated_at=NOW,
+            micro_events=micro_events,
+            excluded_ranges=excluded_ranges,
+            asr_correction_candidates=asr_candidates,
+        )
+        self.next_window_id += 1
+        return record
 
 
 class FakeMicroEventExtractor(MicroEventExtractorPort):
@@ -1468,15 +1608,27 @@ def test_micro_event_extract_missing_video_returns_not_found() -> None:
     assert response == {"detail": "Video not found."}
 
 
-def test_micro_event_extract_requires_succeeded_cue_task() -> None:
+def test_micro_event_extract_uses_stored_cues_without_cue_task() -> None:
     fakes = _Fakes()
     _seed_video(fakes)
     _seed_transcript(fakes)
     _seed_cues(fakes)
 
+    response = asyncio.run(_extract(fakes))
+
+    assert response["status"] == "succeeded"
+    assert response["transcriptId"] == 1
+    assert fakes.pipeline_jobs.jobs[1].input_json["videoId"] == 1
+
+
+def test_micro_event_extract_requires_stored_cues() -> None:
+    fakes = _Fakes()
+    _seed_video(fakes)
+    _seed_transcript(fakes)
+
     response = asyncio.run(_extract(fakes, expected_status=409))
 
-    assert response == {"detail": "Succeeded transcript cue generation task is required."}
+    assert response == {"detail": "Transcript cues are required."}
     assert not fakes.pipeline_jobs.jobs
 
 
@@ -2594,6 +2746,115 @@ def test_micro_event_extract_runtime_retry_exhaustion_stores_partial_windows() -
     event_types = [event.event_type for event in fakes.events.events]
     assert event_types.count("micro_event_extract.window_retry_requested") == 2
     assert "micro_event_extract.window_retry_failed" in event_types
+    assert set(fakes.micro_events.upserted_window_indices) >= {1, 2, 3}
+
+
+def test_micro_event_retry_failed_task_resumes_successful_windows() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    fakes.extractor.failures_by_window = {
+        2: [
+            RuntimeError("codex failed 1"),
+            RuntimeError("codex failed 2"),
+            RuntimeError("codex failed 3"),
+        ]
+    }
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000001"),
+        2: _extractor_json("tr1-c000002", "tr1-c000002"),
+        3: _extractor_json("tr1-c000003", "tr1-c000003"),
+    }
+
+    failed = asyncio.run(_extract(fakes))
+    retried = asyncio.run(_extract(fakes, json={"retryFailed": True}))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=failed["videoTaskId"]))
+
+    assert retried["status"] == "succeeded"
+    assert [window["status"] for window in detail["windows"]] == [
+        "succeeded",
+        "succeeded",
+        "succeeded",
+    ]
+    assert fakes.extractor.started_window_indices.count(1) == 1
+    assert fakes.extractor.started_window_indices.count(2) == 4
+    assert fakes.extractor.started_window_indices.count(3) == 1
+    assert detail["outputJson"]["resumedWindowCount"] == 2
+    assert detail["outputJson"]["executedWindowCount"] == 1
+    assert detail["outputJson"]["failedWindowCount"] == 0
+    event_types = [event.event_type for event in fakes.events.events]
+    assert "micro_event_extract.partial_resume_used" in event_types
+
+
+def test_micro_event_retry_failed_task_runs_missing_windows_only() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000001"),
+        2: "not json",
+        3: _extractor_json("tr1-c000003", "tr1-c000003"),
+    }
+
+    failed = asyncio.run(_extract(fakes))
+    fakes.micro_events.windows_by_task[failed["videoTaskId"]] = [
+        window
+        for window in fakes.micro_events.windows_by_task[failed["videoTaskId"]]
+        if window.window_index == 1
+    ]
+    fakes.extractor.responses_by_window[2] = _extractor_json(
+        "tr1-c000002",
+        "tr1-c000002",
+    )
+
+    retried = asyncio.run(_extract(fakes, json={"retryFailed": True}))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=failed["videoTaskId"]))
+
+    assert retried["status"] == "succeeded"
+    assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3]
+    assert fakes.extractor.started_window_indices.count(1) == 1
+    assert fakes.extractor.started_window_indices.count(2) == 2
+    assert fakes.extractor.started_window_indices.count(3) == 2
+    assert detail["outputJson"]["resumedWindowCount"] == 1
+    assert detail["outputJson"]["executedWindowCount"] == 2
+
+
+def test_micro_event_retry_stale_partial_reexecutes_all_windows() -> None:
+    fakes = _seed_ready_fakes()
+    fakes.settings = fakes.settings.model_copy(
+        update={"micro_event_extract_concurrency_limit": 3}
+    )
+    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    fakes.extractor.responses_by_window = {
+        1: _extractor_json("tr1-c000001", "tr1-c000001"),
+        2: "not json",
+        3: _extractor_json("tr1-c000003", "tr1-c000003"),
+    }
+
+    failed = asyncio.run(_extract(fakes))
+    windows = fakes.micro_events.windows_by_task[failed["videoTaskId"]]
+    windows[0] = replace(windows[0], cue_count=999)
+    fakes.extractor.responses_by_window[2] = _extractor_json(
+        "tr1-c000002",
+        "tr1-c000002",
+    )
+
+    retried = asyncio.run(_extract(fakes, json={"retryFailed": True}))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=failed["videoTaskId"]))
+
+    assert retried["status"] == "succeeded"
+    assert [window["windowIndex"] for window in detail["windows"]] == [1, 2, 3]
+    assert fakes.extractor.started_window_indices.count(1) == 2
+    assert fakes.extractor.started_window_indices.count(2) == 2
+    assert fakes.extractor.started_window_indices.count(3) == 2
+    assert detail["outputJson"]["resumedWindowCount"] == 0
+    assert detail["outputJson"]["executedWindowCount"] == 3
+    event_types = [event.event_type for event in fakes.events.events]
+    assert "micro_event_extract.partial_resume_skipped" in event_types
 
 
 def test_micro_event_extract_openapi_paths_are_registered() -> None:

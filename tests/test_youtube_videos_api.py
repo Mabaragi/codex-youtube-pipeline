@@ -276,6 +276,9 @@ class FakeVideoRepository(VideoRepositoryPort):
                 source_listing_api_call_id=video.source_listing_api_call_id,
                 source_details_api_call_id=video.source_details_api_call_id,
                 source_job_id=video.source_job_id,
+                is_embeddable=video.is_embeddable,
+                embed_status_checked_at=video.embed_status_checked_at,
+                source_embed_status_api_call_id=video.source_embed_status_api_call_id,
                 created_at=now,
                 updated_at=now,
             )
@@ -283,6 +286,37 @@ class FakeVideoRepository(VideoRepositoryPort):
             records.append(record)
             self.next_video_id += 1
         return records
+
+    async def list_videos_for_embed_status_refresh(
+        self,
+        *,
+        video_ids: tuple[int, ...] | None,
+        limit: int,
+    ) -> list[VideoRecord]:
+        records = list(self.videos.values())
+        if video_ids is not None:
+            requested = set(video_ids)
+            records = [record for record in records if record.id in requested]
+        return records[:limit]
+
+    async def update_embed_status(
+        self,
+        video_id: int,
+        *,
+        is_embeddable: bool | None,
+        checked_at: datetime,
+        source_api_call_id: int | None,
+    ) -> VideoRecord:
+        record = self.videos[video_id]
+        updated = replace(
+            record,
+            is_embeddable=is_embeddable,
+            embed_status_checked_at=checked_at,
+            source_embed_status_api_call_id=source_api_call_id,
+            updated_at=checked_at,
+        )
+        self.videos[video_id] = updated
+        return updated
 
 
 class FakePipelineJobRepository(PipelineJobRepositoryPort):
@@ -464,6 +498,9 @@ def test_collect_channel_videos_stops_at_first_existing_video() -> None:
     assert response["listingApiCallIds"] == [10]
     assert response["videoDetailsApiCallIds"] == [100]
     assert client.detail_requests == [(("new-1", "new-2"), 1)]
+    assert videos.videos[2].is_embeddable is None
+    assert videos.videos[2].embed_status_checked_at is not None
+    assert videos.videos[2].source_embed_status_api_call_id == 100
     assert pipeline_jobs.jobs[1].step == "video_collect"
     assert pipeline_jobs.jobs[1].status == "succeeded"
     assert pipeline_jobs.attempts[1].output_json == response
@@ -472,6 +509,28 @@ def test_collect_channel_videos_stops_at_first_existing_video() -> None:
         "video_collect.started",
         "video_collect.succeeded",
     ]
+
+
+def test_collect_channel_videos_stores_embeddable_status() -> None:
+    client, channels, videos, pipeline_jobs = _fakes()
+    _seed_channel(channels)
+    client.listing_pages.append(
+        _listing_page(
+            ("no-embed",),
+            next_page_token=None,
+            source_api_call_id=10,
+        )
+    )
+    _seed_details(client, "no-embed", is_embeddable=False)
+
+    response = asyncio.run(_collect(client, channels, videos, pipeline_jobs))
+
+    assert response["createdCount"] == 1
+    created = videos.videos[1]
+    assert created.youtube_video_id == "no-embed"
+    assert created.is_embeddable is False
+    assert created.embed_status_checked_at is not None
+    assert created.source_embed_status_api_call_id == 100
 
 
 def test_collect_channel_videos_first_item_existing_skips_details_call() -> None:
@@ -795,12 +854,17 @@ def _seed_existing_video(videos: FakeVideoRepository) -> None:
     videos.next_video_id = 2
 
 
-def _seed_details(client: FakeYouTubeDataClient, *youtube_video_ids: str) -> None:
+def _seed_details(
+    client: FakeYouTubeDataClient,
+    *youtube_video_ids: str,
+    is_embeddable: bool | None = None,
+) -> None:
     for youtube_video_id in youtube_video_ids:
         client.details_by_id[youtube_video_id] = YouTubeVideoDetails(
             youtube_video_id=youtube_video_id,
             duration="PT1M",
             source_api_call_id=0,
+            is_embeddable=is_embeddable,
         )
 
 

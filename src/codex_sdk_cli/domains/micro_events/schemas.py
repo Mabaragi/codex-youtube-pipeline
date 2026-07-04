@@ -36,6 +36,7 @@ class MicroEventExtractRequest(BaseModel):
         alias="reasoningEffort",
     )
     prompt_version_id: int | None = Field(default=None, ge=1, alias="promptVersionId")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
 
     @model_validator(mode="after")
     def _overlap_must_be_shorter_than_window(self) -> MicroEventExtractRequest:
@@ -56,6 +57,7 @@ class MicroEventExtractRequest(BaseModel):
                     "model": "gpt-5.5",
                     "reasoningEffort": "medium",
                     "promptVersionId": 1,
+                    "includeNonEmbeddable": False,
                 }
             ]
         },

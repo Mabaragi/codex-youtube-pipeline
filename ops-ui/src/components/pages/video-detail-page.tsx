@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { DataTable } from "@/components/data-table";
+import { EmbedStatusBadge } from "@/components/embed-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { PromptVersionSelect } from "@/components/prompt-version-select";
 import { StatusBadge } from "@/components/status-badge";
@@ -142,6 +143,13 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
       {error ? <ErrorState message={String(error)} /> : null}
       {data ? (
         <div className="grid gap-4">
+          {data.isEmbeddable === false ? (
+            <div className="border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              This video is marked as external playback disabled. Default downstream
+              tasks are blocked, and the public archive should not expose an embedded
+              player for it.
+            </div>
+          ) : null}
           <section className="ops-panel p-4">
             <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
               {data.thumbnailUrl ? (
@@ -177,6 +185,15 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
                 <div className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-3">
                   <DetailRow label="Published" value={formatDateTime(data.publishedAt)} />
                   <DetailRow label="Duration" value={data.duration ?? "-"} />
+                  <div className="min-w-0 border-t border-slate-200 py-2">
+                    <div className="text-xs font-semibold text-slate-500">Embed</div>
+                    <div className="mt-1 flex min-w-0 items-center gap-2 break-words">
+                      <EmbedStatusBadge isEmbeddable={data.isEmbeddable} />
+                      <span className="text-xs text-slate-500">
+                        checked {formatDateTime(data.embedStatusCheckedAt)}
+                      </span>
+                    </div>
+                  </div>
                   <DetailRow
                     label="Latest task"
                     value={data.latestTaskName ?? "-"}
@@ -244,6 +261,7 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
             latestMicroEventTask={latestMicroEventTask}
             promptDetail={microEventPrompt.data}
             promptLoading={microEventPrompt.isLoading}
+            isEmbeddable={data.isEmbeddable}
             videoId={videoId}
           />
 
@@ -307,6 +325,7 @@ function MicroEventExtractionPanel({
   extractMicroEvents,
   promptDetail,
   promptLoading,
+  isEmbeddable,
 }: {
   videoId: number;
   latestCueTask: OpsVideoTask | undefined;
@@ -317,6 +336,7 @@ function MicroEventExtractionPanel({
   extractMicroEvents: ExtractMicroEventsMutation;
   promptDetail: PromptDetail | undefined;
   promptLoading: boolean;
+  isEmbeddable: boolean | null | undefined;
 }) {
   const [selectedModel, setSelectedModel] = useState<CodexModelOption | null>(null);
   const [selectedReasoningEffort, setSelectedReasoningEffort] =
@@ -338,15 +358,18 @@ function MicroEventExtractionPanel({
     latestMicroEventTask?.status === "failed" ||
     latestMicroEventTask?.status === "timed_out";
   const taskSucceeded = latestMicroEventTask?.status === "succeeded";
+  const noEmbed = isEmbeddable === false;
   const disabled =
-    !hasSucceededCueTask || taskIsRunning || extractMicroEvents.isPending;
+    noEmbed || !hasSucceededCueTask || taskIsRunning || extractMicroEvents.isPending;
   const actionLabel = taskFailed
     ? "Retry events"
     : taskSucceeded
       ? "Regenerate"
       : "Extract events";
-  const actionTitle = !hasSucceededCueTask
-    ? "Succeeded cue task required."
+  const actionTitle = noEmbed
+    ? "External playback is disabled for this video."
+    : !hasSucceededCueTask
+      ? "Succeeded cue task required."
     : taskIsRunning
       ? "Micro-event extraction is already running."
       : actionLabel;
@@ -407,6 +430,12 @@ function MicroEventExtractionPanel({
       {!hasSucceededCueTask ? (
         <div className="mb-3 text-xs text-slate-500">
           Succeeded transcript cues are required before extraction.
+        </div>
+      ) : null}
+      {noEmbed ? (
+        <div className="mb-3 text-xs text-rose-700">
+          External playback is disabled for this video, so default micro-event
+          extraction is blocked.
         </div>
       ) : null}
       <div className="mb-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">

@@ -9,6 +9,7 @@ import {
   ListPlus,
   ListTree,
   Play,
+  RefreshCw,
   ScrollText,
   Square,
   X,
@@ -16,6 +17,7 @@ import {
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
+import { EmbedStatusBadge } from "@/components/embed-status-badge";
 import {
   ChannelFilterSelect,
   FilterActions,
@@ -38,6 +40,7 @@ import {
   useOpsChannels,
   useOpsVideos,
   usePromptDetail,
+  useRefreshVideoEmbedStatusMutation,
 } from "@/lib/queries";
 import {
   CODEX_MODEL_OPTIONS,
@@ -51,6 +54,7 @@ import type {
   MicroEventEnqueueRequest,
   OpsVideo,
   OpsVideoFilters,
+  OpsRefreshVideoEmbedStatusResponse,
   PromptDetail,
   TimelineComposeEnqueueRequest,
 } from "@/lib/types";
@@ -96,6 +100,13 @@ const VIDEO_TASK_STATUS_OPTIONS = [
   { value: "canceled", label: "Canceled" },
 ];
 
+const EMBED_STATUS_OPTIONS = [
+  { value: "", label: "All embed states" },
+  { value: "embeddable", label: "Embeddable" },
+  { value: "no_embed", label: "No embed" },
+  { value: "unknown", label: "Unknown" },
+];
+
 export function VideosPage({ initialFilters }: VideosPageProps) {
   const router = useRouter();
   const { data: channelsData } = useOpsChannels();
@@ -103,6 +114,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const extractAllMicroEvents = useExtractAllMicroEventsMutation();
   const enqueueMicroEvents = useEnqueueMicroEventsMutation();
   const enqueueTimelineCompose = useEnqueueTimelineComposeMutation();
+  const refreshEmbedStatus = useRefreshVideoEmbedStatusMutation();
   const microEventPrompt = usePromptDetail("micro_event_extract");
   const timelinePrompt = usePromptDetail("timeline_compose");
   const videos = useMemo(() => data?.items ?? [], [data?.items]);
@@ -128,7 +140,9 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     copyStyle: "LIGHT_FANDOM_V1",
     promptVersionId: null,
   });
-  const visibleVideoIds = videos.map((video) => video.videoId);
+  const visibleVideoIds = videos
+    .filter((video) => video.isEmbeddable !== false)
+    .map((video) => video.videoId);
   const selectedVisibleCount = visibleVideoIds.filter((videoId) =>
     selectedVideoIds.has(videoId),
   ).length;
@@ -143,6 +157,10 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     applyFormFilters(event.currentTarget.form);
   };
   const toggleVideoSelection = (videoId: number) => {
+    const video = videos.find((item) => item.videoId === videoId);
+    if (video?.isEmbeddable === false) {
+      return;
+    }
     setSelectedVideoIds((current) => {
       const next = new Set(current);
       if (next.has(videoId)) {
@@ -212,10 +230,17 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       regenerateSucceeded: microEventDefaults.regenerateSucceeded,
       windowMinutes: microEventDefaults.windowMinutes,
       overlapMinutes: microEventDefaults.overlapMinutes,
+      includeNonEmbeddable: false,
       ...(microEventDefaults.promptVersionId
         ? { promptVersionId: microEventDefaults.promptVersionId }
         : {}),
     });
+  };
+  const refreshEmbedStatusNow = () => {
+    const videoIds = [...selectedVideoIds];
+    refreshEmbedStatus.mutate(
+      videoIds.length > 0 ? { videoIds, limit: videoIds.length } : { limit: 200 },
+    );
   };
 
   const columns: ColumnDef<OpsVideo>[] = [
@@ -237,6 +262,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       ),
       cell: ({ row }) => {
         const selected = selectedVideoIds.has(row.original.videoId);
+        const noEmbed = row.original.isEmbeddable === false;
         return (
           <button
             aria-label={
@@ -245,7 +271,13 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
                 : `Select video ${row.original.videoId}`
             }
             className="inline-flex"
+            disabled={noEmbed}
             onClick={() => toggleVideoSelection(row.original.videoId)}
+            title={
+              noEmbed
+                ? "External playback is disabled for this video."
+                : "Toggle video selection"
+            }
             type="button"
           >
             {selected ? (
@@ -262,7 +294,10 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       cell: ({ row }) => (
         <div>
           <div className="max-w-[520px] font-semibold">{row.original.title}</div>
-          <div className="text-xs text-slate-500">{compactId(row.original.youtubeVideoId)}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{compactId(row.original.youtubeVideoId)}</span>
+            <EmbedStatusBadge isEmbeddable={row.original.isEmbeddable} />
+          </div>
         </div>
       ),
     },
@@ -284,42 +319,50 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
     },
     {
       header: "Action",
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="ops-button"
-            disabled={enqueueMicroEvents.isPending}
-            onClick={() => queueOne(row.original.videoId)}
-            title={
-              enqueueMicroEvents.isPending
-                ? "Queue request is running"
-                : "Queue this video"
-            }
-            type="button"
-          >
-            <ListPlus aria-hidden="true" size={15} />
-            Queue
-          </button>
-          <Link className="ops-button" href={`/videos/${row.original.videoId}`}>
-            <Eye aria-hidden="true" size={15} />
-            Details
-          </Link>
-          <button
-            className="ops-button"
-            disabled={enqueueTimelineCompose.isPending}
-            onClick={() => queueOneTimeline(row.original.videoId)}
-            title={
-              enqueueTimelineCompose.isPending
-                ? "Timeline queue request is running"
-                : "Queue timeline compose for this video"
-            }
-            type="button"
-          >
-            <ListTree aria-hidden="true" size={15} />
-            Timeline
-          </button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const noEmbed = row.original.isEmbeddable === false;
+        const blockedTitle = "External playback is disabled for this video.";
+        return (
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="ops-button"
+              disabled={enqueueMicroEvents.isPending || noEmbed}
+              onClick={() => queueOne(row.original.videoId)}
+              title={
+                noEmbed
+                  ? blockedTitle
+                  : enqueueMicroEvents.isPending
+                    ? "Queue request is running"
+                    : "Queue this video"
+              }
+              type="button"
+            >
+              <ListPlus aria-hidden="true" size={15} />
+              Queue
+            </button>
+            <Link className="ops-button" href={`/videos/${row.original.videoId}`}>
+              <Eye aria-hidden="true" size={15} />
+              Details
+            </Link>
+            <button
+              className="ops-button"
+              disabled={enqueueTimelineCompose.isPending || noEmbed}
+              onClick={() => queueOneTimeline(row.original.videoId)}
+              title={
+                noEmbed
+                  ? blockedTitle
+                  : enqueueTimelineCompose.isPending
+                    ? "Timeline queue request is running"
+                    : "Queue timeline compose for this video"
+              }
+              type="button"
+            >
+              <ListTree aria-hidden="true" size={15} />
+              Timeline
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -328,6 +371,22 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
       <PageHeader
         title="Videos"
         description="Select stored videos, queue downstream work, and filter by task state."
+        actions={
+          <button
+            className="ops-button"
+            disabled={refreshEmbedStatus.isPending}
+            onClick={refreshEmbedStatusNow}
+            title={
+              selectedVideoIds.size > 0
+                ? "Refresh embed status for selected videos"
+                : "Refresh embed status for the next stored videos"
+            }
+            type="button"
+          >
+            <RefreshCw aria-hidden="true" size={15} />
+            {refreshEmbedStatus.isPending ? "Refreshing" : "Refresh embed status"}
+          </button>
+        }
       />
       <MicroEventBatchPanel
         allVisibleSelected={allVisibleSelected}
@@ -367,7 +426,7 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
           applyFormFilters(event.currentTarget);
         }}
       >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <ChannelFilterSelect
             channels={channelsData?.items ?? []}
             onChange={applySelectFilters}
@@ -386,10 +445,25 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
             onChange={applySelectFilters}
             options={VIDEO_TASK_STATUS_OPTIONS}
           />
+          <FilterSelect
+            label="Embed status"
+            name="embedStatus"
+            defaultValue={initialFilters.embedStatus}
+            onChange={applySelectFilters}
+            options={EMBED_STATUS_OPTIONS}
+          />
           <FilterInput label="Limit" name="limit" defaultValue={initialFilters.limit ?? 100} />
         </div>
         <FilterActions resetHref="/videos" />
       </form>
+      {refreshEmbedStatus.error ? (
+        <InlineNotice className="mb-4" tone="danger">
+          {formatUnknownError(refreshEmbedStatus.error)}
+        </InlineNotice>
+      ) : null}
+      {refreshEmbedStatus.data ? (
+        <EmbedRefreshResult result={refreshEmbedStatus.data} />
+      ) : null}
       {isLoading ? <LoadingState /> : null}
       {error ? <ErrorState message={String(error)} /> : null}
       <DataTable ariaLabel="Videos" columns={columns} data={videos} />
@@ -990,6 +1064,39 @@ function MicroEventRunNowResult({
   );
 }
 
+function EmbedRefreshResult({
+  result,
+}: {
+  result: OpsRefreshVideoEmbedStatusResponse;
+}) {
+  return (
+    <InlineNotice className="mb-4" tone={result.failedCount > 0 ? "warning" : "success"}>
+      <div className="grid gap-2 text-xs md:grid-cols-4">
+        <span>Scanned {result.scannedCount}</span>
+        <span>Updated {result.updatedCount}</span>
+        <span>Failed {result.failedCount}</span>
+        <span>
+          No embed{" "}
+          {result.items.filter((item) => item.isEmbeddable === false).length}
+        </span>
+      </div>
+      {result.items.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {result.items.slice(0, 8).map((item) => (
+            <span
+              className="rounded border border-slate-200 px-2 py-1"
+              key={item.videoId}
+            >
+              #{item.videoId} {item.status}
+              {item.isEmbeddable === false ? " / not embeddable" : ""}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </InlineNotice>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div>
@@ -1100,6 +1207,7 @@ function formFilters(formElement: HTMLFormElement): OpsVideoFilters {
     channelId: positiveNumberFormValue(form.get("channelId")),
     search: stringFormValue(form.get("search")),
     taskStatus: stringFormValue(form.get("taskStatus")),
+    embedStatus: embedStatusFormValue(form.get("embedStatus")),
     limit: positiveNumberFormValue(form.get("limit")) ?? 100,
   };
 }
@@ -1162,6 +1270,7 @@ function microEventRequestDefaults(
   defaults: MicroEventDefaults,
 ): Pick<
   MicroEventEnqueueRequest,
+  | "includeNonEmbeddable"
   | "limit"
   | "model"
   | "overlapMinutes"
@@ -1173,6 +1282,7 @@ function microEventRequestDefaults(
 > {
   return {
     limit: Math.min(Math.max(defaults.limit, 1), 200),
+    includeNonEmbeddable: false,
     model: defaults.model,
     reasoningEffort: defaults.reasoningEffort,
     retryFailed: defaults.retryFailed,
@@ -1188,6 +1298,7 @@ function timelineRequestDefaults(
 ): Pick<
   TimelineComposeEnqueueRequest,
   | "copyStyle"
+  | "includeNonEmbeddable"
   | "limit"
   | "model"
   | "reasoningEffort"
@@ -1197,6 +1308,7 @@ function timelineRequestDefaults(
 > {
   return {
     limit: Math.min(Math.max(defaults.limit, 1), 200),
+    includeNonEmbeddable: false,
     model: defaults.model,
     reasoningEffort: defaults.reasoningEffort,
     retryFailed: defaults.retryFailed,
@@ -1220,6 +1332,16 @@ function videoTaskStatusValue(
     status === "canceled"
   ) {
     return status;
+  }
+  return undefined;
+}
+
+function embedStatusFormValue(
+  value: FormDataEntryValue | null,
+): OpsVideoFilters["embedStatus"] {
+  const raw = stringFormValue(value);
+  if (raw === "embeddable" || raw === "no_embed" || raw === "unknown") {
+    return raw;
   }
   return undefined;
 }

@@ -129,6 +129,8 @@ class OpsVideoResponse(BaseModel):
     title: str
     published_at: datetime = Field(alias="publishedAt")
     duration: str | None
+    is_embeddable: bool | None = Field(alias="isEmbeddable")
+    embed_status_checked_at: datetime | None = Field(alias="embedStatusCheckedAt")
     thumbnail_url: str | None = Field(alias="thumbnailUrl")
     latest_task_id: int | None = Field(alias="latestTaskId")
     latest_task_name: str | None = Field(alias="latestTaskName")
@@ -145,6 +147,35 @@ class OpsVideoListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class OpsRefreshVideoEmbedStatusRequest(BaseModel):
+    video_ids: list[int] | None = Field(default=None, alias="videoIds")
+    limit: int = Field(default=200, ge=1, le=500)
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class OpsRefreshVideoEmbedStatusItemResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str = Field(alias="youtubeVideoId")
+    status: Literal["updated", "failed"]
+    is_embeddable: bool | None = Field(alias="isEmbeddable")
+    source_api_call_id: int | None = Field(alias="sourceApiCallId")
+    canceled_pending_task_count: int = Field(alias="canceledPendingTaskCount")
+    error_type: str | None = Field(alias="errorType")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OpsRefreshVideoEmbedStatusResponse(BaseModel):
+    scanned_count: int = Field(alias="scannedCount")
+    updated_count: int = Field(alias="updatedCount")
+    failed_count: int = Field(alias="failedCount")
+    items: list[OpsRefreshVideoEmbedStatusItemResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OpsVideoTaskResponse(BaseModel):
@@ -209,7 +240,7 @@ class OpsMicroEventReadyCandidateResponse(BaseModel):
     published_at: datetime = Field(alias="publishedAt")
     transcript_id: int | None = Field(alias="transcriptId")
     cue_count: int = Field(alias="cueCount")
-    latest_cue_task: OpsTaskSummaryResponse = Field(alias="latestCueTask")
+    latest_cue_task: OpsTaskSummaryResponse | None = Field(alias="latestCueTask")
     latest_micro_task: OpsTaskSummaryResponse | None = Field(alias="latestMicroTask")
     category: OpsCandidateCategoryLiteral
     recommended_enqueue: OpsCandidateRecommendedEnqueueResponse = Field(
@@ -307,9 +338,12 @@ class OpsVideoDetailResponse(BaseModel):
     description: str
     published_at: datetime = Field(alias="publishedAt")
     duration: str | None
+    is_embeddable: bool | None = Field(alias="isEmbeddable")
+    embed_status_checked_at: datetime | None = Field(alias="embedStatusCheckedAt")
     thumbnail_url: str | None = Field(alias="thumbnailUrl")
     source_listing_api_call_id: int | None = Field(alias="sourceListingApiCallId")
     source_details_api_call_id: int | None = Field(alias="sourceDetailsApiCallId")
+    source_embed_status_api_call_id: int | None = Field(alias="sourceEmbedStatusApiCallId")
     source_job_id: int | None = Field(alias="sourceJobId")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
