@@ -75,9 +75,15 @@ CODEX_CLI_ARCHIVE_PUBLIC_CATALOG_SYNC_TIMEOUT_SECONDS=15
 ```
 
 When this is configured, publish first uploads the R2 timeline artifact, then
-upserts one public metadata row into the Pages project's D1 database. The D1 row
-is only for listing, search, filtering, and pagination. The timeline detail JSON
+upserts one public metadata row and the public timeline hierarchy index into the
+Pages project's D1 database. The D1 video row is for listing, search, filtering,
+and pagination. The hierarchy index stores public block/episode/micro-event/topic
+ids so the frontend can record click aggregates. The timeline detail JSON
 continues to load from R2 via the published `timelineUrl`.
+
+The sync payload does not include transcript text, raw LLM output, cue text, or
+internal micro-event candidate ids. Public micro-event ids are generated in the
+artifact as `episode_id-event-NNN` and reused by the D1 analytics target index.
 
 Catalog sync failure marks the current publish item/task/job as failed. The
 already-created R2 artifact row records `public_catalog_sync_error`, and retry or

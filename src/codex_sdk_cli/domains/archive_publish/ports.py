@@ -72,6 +72,68 @@ class ArchiveVideoArtifactRecord(ArchiveVideoArtifactCreate):
 
 
 @dataclass(frozen=True, slots=True)
+class ArchivePublicCatalogTimelineIndexBlock:
+    block_id: str
+    block_index: int
+    block_type: str
+    title: str
+    display_title: str | None
+    start_ms: int
+    end_ms: int
+    episode_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivePublicCatalogTimelineIndexEpisode:
+    episode_id: str
+    block_id: str
+    episode_index: int
+    start_ms: int
+    end_ms: int
+    title: str
+    display_title: str | None
+    program_mode: str
+    content_kind: str
+    visibility: str
+    topics: list[str]
+    viewer_tags: list[str]
+    micro_event_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivePublicCatalogTimelineIndexMicroEvent:
+    micro_event_id: str
+    episode_id: str
+    event_index: int
+    start_ms: int
+    end_ms: int
+    text: str
+    program_mode: str
+    content_kind: str
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivePublicCatalogTimelineIndexTopicCluster:
+    topic_id: str
+    label: str
+    display_label: str | None
+    episode_ids: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivePublicCatalogTimelineIndex:
+    environment: str
+    video_id: int
+    variant: str
+    timeline_version: str
+    updated_at: str
+    blocks: list[ArchivePublicCatalogTimelineIndexBlock]
+    episodes: list[ArchivePublicCatalogTimelineIndexEpisode]
+    micro_events: list[ArchivePublicCatalogTimelineIndexMicroEvent]
+    topic_clusters: list[ArchivePublicCatalogTimelineIndexTopicCluster]
+
+
+@dataclass(frozen=True, slots=True)
 class ArchivePublicCatalogVideoRow:
     environment: str
     video_id: int
@@ -100,6 +162,7 @@ class ArchivePublicCatalogVideoRow:
     artifact_sha256: str
     artifact_byte_size: int
     updated_at: str
+    timeline_index: ArchivePublicCatalogTimelineIndex | None = None
 
 
 class ArchivePublicCatalogSyncPort(Protocol):

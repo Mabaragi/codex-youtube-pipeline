@@ -29,6 +29,7 @@ from codex_sdk_cli.domains.archive_publish.schemas import ArchivePublishRequest
 from codex_sdk_cli.domains.archive_publish.use_cases import (
     _archive_micro_event_text,
     _index_artifact,
+    _public_catalog_video_row,
     _task_input_hash,
     _task_input_json,
     _timeline_artifact,
@@ -216,6 +217,10 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
         "youtubeChannelId": "UC_NAGI",
     }
     micro_events = cast(list[dict[str, object]], episode["microEvents"])
+    assert [micro_event["id"] for micro_event in micro_events] == [
+        "episode_001-event-001",
+        "episode_001-event-002",
+    ]
     assert micro_events[0]["event"] == "게임 설정을 설명한다. 잠시 뒤 선택이 바뀐다."
     assert micro_events[1]["event"] == "채팅이 공략을 제안하고 받아들인다. 파냐가 옆에서 웃는다."
     assert micro_events[0]["startMs"] == 10_000
@@ -251,6 +256,49 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
         artifact.payload,
         ensure_ascii=False,
     )
+
+
+def test_public_catalog_row_includes_timeline_index() -> None:
+    artifact_payload = _timeline_artifact(
+        video=_video(),
+        channel=_channel(),
+        streamer=_streamer(),
+        composition=_composition(),
+        micro_events=[
+            _candidate(100, 1, "tr1-c000001", "tr1-c000002"),
+            _candidate(101, 2, "tr1-c000003", "tr1-c000004"),
+        ],
+        cues=[
+            _cue(1, "tr1-c000001", 10_000, 12_000),
+            _cue(2, "tr1-c000002", 12_000, 15_000),
+            _cue(3, "tr1-c000003", 15_000, 18_000),
+            _cue(4, "tr1-c000004", 18_000, 20_000),
+        ],
+        prefix="archive",
+        public_base_url="https://pub.example.dev",
+        environment="prod",
+        variant="control",
+        schema_version=1,
+    )
+
+    row = _public_catalog_video_row(
+        artifact=_video_artifact(),
+        video=_video(),
+        channel=_channel(),
+        streamer=_streamer(),
+        composition=_composition(),
+        timeline_artifact=artifact_payload,
+    )
+
+    assert row.timeline_index is not None
+    assert row.timeline_index.video_id == 71
+    assert row.timeline_index.blocks[0].block_id == "block_001"
+    assert row.timeline_index.blocks[0].start_ms == 10_000
+    assert row.timeline_index.episodes[0].episode_id == "episode_001"
+    assert row.timeline_index.micro_events[0].micro_event_id == (
+        "episode_001-event-001"
+    )
+    assert row.timeline_index.topic_clusters[0].topic_id == "topic_001"
 
 
 def test_timeline_artifact_rejects_missing_candidate_mapping() -> None:

@@ -67,6 +67,11 @@ from .ports import (
     ArchiveOpsVideoListResult,
     ArchiveOpsVideoQuery,
     ArchivePublicCatalogSyncPort,
+    ArchivePublicCatalogTimelineIndex,
+    ArchivePublicCatalogTimelineIndexBlock,
+    ArchivePublicCatalogTimelineIndexEpisode,
+    ArchivePublicCatalogTimelineIndexMicroEvent,
+    ArchivePublicCatalogTimelineIndexTopicCluster,
     ArchivePublicCatalogVideoRow,
     ArchivePublishCandidateQuery,
     ArchivePublishCandidateRecord,
@@ -686,6 +691,7 @@ class ArchivePublishUseCase:
             )
             artifact = await self._sync_public_catalog(
                 artifact=artifact,
+                timeline_artifact=timeline_artifact,
                 video=video,
                 channel=candidate.channel,
                 streamer=candidate.streamer,
@@ -798,6 +804,7 @@ class ArchivePublishUseCase:
         self,
         *,
         artifact: ArchiveVideoArtifactRecord,
+        timeline_artifact: ArchiveTimelineArtifact,
         video: VideoRecord,
         channel: ArchiveChannelRecord,
         streamer: ArchiveStreamerRecord,
@@ -812,6 +819,7 @@ class ArchivePublishUseCase:
             channel=channel,
             streamer=streamer,
             composition=composition,
+            timeline_artifact=timeline_artifact,
         )
         try:
             await self._public_catalog_sync.upsert_video(row)
@@ -1053,14 +1061,19 @@ def _micro_event_jsons(
         raise ArchivePublishArtifactInvalid(
             f"Timeline episode {episode.episode_id} references an invalid micro-event range."
         )
-    return [
-        _micro_event_json(
+    micro_events: list[JsonObject] = []
+    for event_index, candidate in enumerate(
+        ordered_candidates[start_position : end_position + 1],
+        start=1,
+    ):
+        event = _micro_event_json(
             candidate,
             cue_by_id=cue_by_id,
             streamer_subject_aliases=streamer_subject_aliases,
         )
-        for candidate in ordered_candidates[start_position : end_position + 1]
-    ]
+        event["id"] = f"{episode.episode_id}-event-{event_index:03d}"
+        micro_events.append(event)
+    return micro_events
 
 
 def _micro_event_json(
@@ -1200,7 +1213,9 @@ def _public_catalog_video_row(
     channel: ArchiveChannelRecord,
     streamer: ArchiveStreamerRecord,
     composition: TimelineCompositionRecord,
+    timeline_artifact: ArchiveTimelineArtifact,
 ) -> ArchivePublicCatalogVideoRow:
+    updated_at = datetime.now(UTC).isoformat()
     return ArchivePublicCatalogVideoRow(
         environment=artifact.environment,
         video_id=video.id,
@@ -1228,8 +1243,156 @@ def _public_catalog_video_row(
         timeline_url=artifact.public_url,
         artifact_sha256=artifact.sha256,
         artifact_byte_size=artifact.byte_size,
-        updated_at=datetime.now(UTC).isoformat(),
+        updated_at=updated_at,
+        timeline_index=_public_catalog_timeline_index(
+            artifact=artifact,
+            timeline_artifact=timeline_artifact,
+            updated_at=updated_at,
+        ),
     )
+
+
+def _public_catalog_timeline_index(
+    *,
+    artifact: ArchiveVideoArtifactRecord,
+    timeline_artifact: ArchiveTimelineArtifact,
+    updated_at: str,
+) -> ArchivePublicCatalogTimelineIndex:
+    payload = timeline_artifact.payload
+    episodes = _json_object_list(payload.get("episodes"))
+    episodes_by_id = {
+        _json_string(episode.get("episodeId"), ""): episode for episode in episodes
+    }
+    blocks = _json_object_list(payload.get("blocks"))
+    return ArchivePublicCatalogTimelineIndex(
+        environment=artifact.environment,
+        video_id=artifact.video_id,
+        variant=artifact.variant,
+        timeline_version=artifact.version,
+        updated_at=updated_at,
+        blocks=[
+            _public_catalog_block_index(block, episodes_by_id=episodes_by_id)
+            for block in blocks
+        ],
+        episodes=[
+            _public_catalog_episode_index(episode)
+            for episode in episodes
+        ],
+        micro_events=[
+            event
+            for episode in episodes
+            for event in _public_catalog_micro_event_indexes(episode)
+        ],
+        topic_clusters=[
+            _public_catalog_topic_index(topic)
+            for topic in _json_object_list(payload.get("topicClusters"))
+        ],
+    )
+
+
+def _public_catalog_block_index(
+    block: JsonObject,
+    *,
+    episodes_by_id: dict[str, JsonObject],
+) -> ArchivePublicCatalogTimelineIndexBlock:
+    episode_ids = _json_string_list(block.get("episodeIds"))
+    block_episodes = [
+        episodes_by_id[episode_id]
+        for episode_id in episode_ids
+        if episode_id in episodes_by_id
+    ]
+    start_ms = _json_int(block_episodes[0].get("startMs"), 0) if block_episodes else 0
+    end_ms = _json_int(block_episodes[-1].get("endMs"), start_ms) if block_episodes else 0
+    return ArchivePublicCatalogTimelineIndexBlock(
+        block_id=_json_string(block.get("blockId"), "block_unknown"),
+        block_index=_json_int(block.get("blockIndex"), 0),
+        block_type=_json_string(block.get("blockType"), "UNKNOWN"),
+        title=_json_string(block.get("title"), "Timeline block"),
+        display_title=_json_optional_string(block.get("displayTitle")),
+        start_ms=start_ms,
+        end_ms=end_ms,
+        episode_count=len(block_episodes),
+    )
+
+
+def _public_catalog_episode_index(
+    episode: JsonObject,
+) -> ArchivePublicCatalogTimelineIndexEpisode:
+    micro_events = _json_object_list(episode.get("microEvents"))
+    return ArchivePublicCatalogTimelineIndexEpisode(
+        episode_id=_json_string(episode.get("episodeId"), "episode_unknown"),
+        block_id=_json_string(episode.get("parentBlockId"), "block_unknown"),
+        episode_index=_json_int(episode.get("episodeIndex"), 0),
+        start_ms=_json_int(episode.get("startMs"), 0),
+        end_ms=_json_int(episode.get("endMs"), 0),
+        title=_json_string(episode.get("title"), "Timeline episode"),
+        display_title=_json_optional_string(episode.get("displayTitle")),
+        program_mode=_json_string(episode.get("programMode"), "UNKNOWN"),
+        content_kind=_json_string(episode.get("primaryContentKind"), "UNKNOWN"),
+        visibility=_json_string(episode.get("visibility"), "DEFAULT"),
+        topics=_json_string_list(episode.get("topics")),
+        viewer_tags=_json_string_list(episode.get("viewerTags")),
+        micro_event_count=len(micro_events),
+    )
+
+
+def _public_catalog_micro_event_indexes(
+    episode: JsonObject,
+) -> list[ArchivePublicCatalogTimelineIndexMicroEvent]:
+    episode_id = _json_string(episode.get("episodeId"), "episode_unknown")
+    events: list[ArchivePublicCatalogTimelineIndexMicroEvent] = []
+    for index, event in enumerate(_json_object_list(episode.get("microEvents")), start=1):
+        events.append(
+            ArchivePublicCatalogTimelineIndexMicroEvent(
+                micro_event_id=_json_string(
+                    event.get("id"),
+                    f"{episode_id}-event-{index:03d}",
+                ),
+                episode_id=episode_id,
+                event_index=index,
+                start_ms=_json_int(event.get("startMs"), 0),
+                end_ms=_json_int(event.get("endMs"), 0),
+                text=_json_string(event.get("event"), ""),
+                program_mode=_json_string(event.get("programMode"), "UNKNOWN"),
+                content_kind=_json_string(event.get("contentKind"), "UNKNOWN"),
+            )
+        )
+    return events
+
+
+def _public_catalog_topic_index(
+    topic: JsonObject,
+) -> ArchivePublicCatalogTimelineIndexTopicCluster:
+    return ArchivePublicCatalogTimelineIndexTopicCluster(
+        topic_id=_json_string(topic.get("topicId"), "topic_unknown"),
+        label=_json_string(topic.get("label"), "Topic"),
+        display_label=_json_optional_string(topic.get("displayLabel")),
+        episode_ids=_json_string_list(topic.get("episodeIds")),
+    )
+
+
+def _json_object_list(value: object) -> list[JsonObject]:
+    if not isinstance(value, list):
+        return []
+    return [cast(JsonObject, item) for item in value if isinstance(item, dict)]
+
+
+def _json_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _json_string(value: object, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
+
+def _json_optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _json_int(value: object, default: int) -> int:
+    return value if isinstance(value, int) else default
 
 
 def _public_streamer_id(

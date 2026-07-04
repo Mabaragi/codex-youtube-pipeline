@@ -7,6 +7,7 @@ from codex_sdk_cli.domains.archive_publish.exceptions import (
 )
 from codex_sdk_cli.domains.archive_publish.ports import (
     ArchivePublicCatalogSyncPort,
+    ArchivePublicCatalogTimelineIndex,
     ArchivePublicCatalogVideoRow,
 )
 
@@ -24,7 +25,9 @@ class HttpArchivePublicCatalogSync(ArchivePublicCatalogSyncPort):
         self._timeout_seconds = timeout_seconds
 
     async def upsert_video(self, row: ArchivePublicCatalogVideoRow) -> None:
-        payload = {"videos": [_row_json(row)]}
+        payload: dict[str, object] = {"videos": [_row_json(row)]}
+        if row.timeline_index is not None:
+            payload["timelineIndex"] = _timeline_index_json(row.timeline_index)
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(self._timeout_seconds)
@@ -75,6 +78,69 @@ def _row_json(row: ArchivePublicCatalogVideoRow) -> dict[str, object]:
         "artifactSha256": row.artifact_sha256,
         "artifactByteSize": row.artifact_byte_size,
         "updatedAt": row.updated_at,
+    }
+
+
+def _timeline_index_json(index: ArchivePublicCatalogTimelineIndex) -> dict[str, object]:
+    return {
+        "environment": index.environment,
+        "videoId": index.video_id,
+        "variant": index.variant,
+        "timelineVersion": index.timeline_version,
+        "updatedAt": index.updated_at,
+        "blocks": [
+            {
+                "blockId": block.block_id,
+                "blockIndex": block.block_index,
+                "blockType": block.block_type,
+                "title": block.title,
+                "displayTitle": block.display_title,
+                "startMs": block.start_ms,
+                "endMs": block.end_ms,
+                "episodeCount": block.episode_count,
+            }
+            for block in index.blocks
+        ],
+        "episodes": [
+            {
+                "episodeId": episode.episode_id,
+                "blockId": episode.block_id,
+                "episodeIndex": episode.episode_index,
+                "startMs": episode.start_ms,
+                "endMs": episode.end_ms,
+                "title": episode.title,
+                "displayTitle": episode.display_title,
+                "programMode": episode.program_mode,
+                "contentKind": episode.content_kind,
+                "visibility": episode.visibility,
+                "topics": episode.topics,
+                "viewerTags": episode.viewer_tags,
+                "microEventCount": episode.micro_event_count,
+            }
+            for episode in index.episodes
+        ],
+        "microEvents": [
+            {
+                "microEventId": event.micro_event_id,
+                "episodeId": event.episode_id,
+                "eventIndex": event.event_index,
+                "startMs": event.start_ms,
+                "endMs": event.end_ms,
+                "text": event.text,
+                "programMode": event.program_mode,
+                "contentKind": event.content_kind,
+            }
+            for event in index.micro_events
+        ],
+        "topicClusters": [
+            {
+                "topicId": topic.topic_id,
+                "label": topic.label,
+                "displayLabel": topic.display_label,
+                "episodeIds": topic.episode_ids,
+            }
+            for topic in index.topic_clusters
+        ],
     }
 
 
