@@ -5,12 +5,28 @@ from typing import Annotated
 from fastapi import APIRouter, Path, status
 
 from codex_sdk_cli.api.use_case_dependencies.videos import (
+    CollectAllChannelsVideosUseCaseDep,
     CollectChannelVideosUseCaseDep,
     ListChannelVideosUseCaseDep,
 )
-from codex_sdk_cli.domains.videos.schemas import CollectChannelVideosResponse, VideoResponse
+from codex_sdk_cli.domains.videos.schemas import (
+    CollectAllChannelsVideosResponse,
+    CollectChannelVideosResponse,
+    VideoResponse,
+)
 
 router = APIRouter()
+
+
+@router.post(
+    "/channels/videos/collect",
+    response_model=CollectAllChannelsVideosResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def collect_all_channels_videos(
+    use_case: CollectAllChannelsVideosUseCaseDep,
+) -> CollectAllChannelsVideosResponse:
+    return await use_case.execute()
 
 
 @router.get("/channels/{channel_id}/videos", response_model=list[VideoResponse])

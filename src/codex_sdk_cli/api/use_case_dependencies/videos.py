@@ -12,6 +12,7 @@ from codex_sdk_cli.api.dependencies import (
     YouTubeDataClientDep,
 )
 from codex_sdk_cli.domains.videos.use_cases import (
+    CollectAllChannelsVideosUseCase,
     CollectChannelVideosUseCase,
     ListChannelVideosUseCase,
 )
@@ -41,4 +42,17 @@ ListChannelVideosUseCaseDep = Annotated[
 CollectChannelVideosUseCaseDep = Annotated[
     CollectChannelVideosUseCase,
     Depends(get_collect_channel_videos_use_case),
+]
+
+
+def get_collect_all_channels_videos_use_case(
+    channels: ChannelRepositoryDep,
+    collect_channel_videos: CollectChannelVideosUseCaseDep,
+) -> CollectAllChannelsVideosUseCase:
+    return CollectAllChannelsVideosUseCase(channels, collect_channel_videos)
+
+
+CollectAllChannelsVideosUseCaseDep = Annotated[
+    CollectAllChannelsVideosUseCase,
+    Depends(get_collect_all_channels_videos_use_case),
 ]

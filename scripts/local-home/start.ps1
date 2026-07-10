@@ -12,8 +12,8 @@ Start-LocalMinio
 if (Test-LocalHttp "http://127.0.0.1:8000/health" '"status"\s*:\s*"ok"') {
     Write-Host "api already healthy on http://127.0.0.1:8000."
 } else {
-    Start-LoggedProcess "api" "uv" @(
-        "run",
+    Start-LoggedProcess "api" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+        "-m",
         "uvicorn",
         "codex_sdk_cli.api.main:app",
         "--host",
@@ -23,8 +23,18 @@ if (Test-LocalHttp "http://127.0.0.1:8000/health" '"status"\s*:\s*"ok"') {
     )
 }
 
-Start-LoggedProcess "micro-event-worker" "uv" @("run", "codex-micro-event-worker")
-Start-LoggedProcess "timeline-compose-worker" "uv" @("run", "codex-timeline-compose-worker")
+Start-LoggedProcess "micro-event-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    "-c",
+    '"from codex_sdk_cli.workers.micro_events import run; run()"'
+)
+Start-LoggedProcess "pipeline-scheduler" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    "-m",
+    "codex_sdk_cli.workers.pipeline_scheduler"
+)
+Start-LoggedProcess "timeline-compose-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    "-c",
+    '"from codex_sdk_cli.workers.timelines import run; run()"'
+)
 
 if ($NoUi) {
     Write-Host "Skipping ops-ui because -NoUi was provided."

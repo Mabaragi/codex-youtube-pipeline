@@ -708,6 +708,7 @@ def test_video_routes_are_in_openapi() -> None:
     schema = create_app().openapi()
 
     assert schema["paths"]["/channels/{channel_id}/videos"]["get"]["tags"] == ["videos"]
+    assert schema["paths"]["/channels/videos/collect"]["post"]["tags"] == ["videos"]
     assert schema["paths"]["/channels/{channel_id}/videos/collect"]["post"]["tags"] == [
         "videos"
     ]

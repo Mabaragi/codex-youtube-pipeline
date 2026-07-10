@@ -26,7 +26,13 @@ from codex_sdk_cli.domains.youtube_data.ports import (
 
 from .exceptions import ChannelMissingYouTubeId
 from .ports import VideoCreate, VideoRecord, VideoRepositoryPort
-from .schemas import CollectChannelVideosResponse, VideoCollectStoppedReason, VideoResponse
+from .schemas import (
+    CollectAllChannelsVideosResponse,
+    CollectAllChannelsVideosResult,
+    CollectChannelVideosResponse,
+    VideoCollectStoppedReason,
+    VideoResponse,
+)
 
 VIDEO_COLLECT_STEP = "video_collect"
 LISTING_PAGE_LIMIT = 10
@@ -46,6 +52,69 @@ class ListChannelVideosUseCase:
         await _get_channel_or_raise(self._channels, channel_id)
         records = await self._videos.list_videos(channel_id=channel_id)
         return [_video_response(record) for record in records]
+
+
+class CollectAllChannelsVideosUseCase:
+    def __init__(
+        self,
+        channels: ChannelRepositoryPort,
+        collect_channel_videos: CollectChannelVideosUseCase,
+    ) -> None:
+        self._channels = channels
+        self._collect_channel_videos = collect_channel_videos
+
+    async def execute(self) -> CollectAllChannelsVideosResponse:
+        channels = await self._channels.list_channels()
+        results: list[CollectAllChannelsVideosResult] = []
+        for channel in channels:
+            if channel.youtube_channel_id is None:
+                results.append(
+                    CollectAllChannelsVideosResult(
+                        channelId=channel.id,
+                        status="skipped",
+                        errorType="ChannelMissingYouTubeId",
+                        errorMessage="Channel does not have a YouTube channel ID.",
+                    )
+                )
+                continue
+
+            try:
+                collected = await self._collect_channel_videos.execute(
+                    channel.id,
+                    actor_type="manual_api",
+                )
+            except Exception as exc:
+                error_type = exc.__class__.__name__
+                results.append(
+                    CollectAllChannelsVideosResult(
+                        channelId=channel.id,
+                        status="failed",
+                        errorType=error_type,
+                        errorMessage=str(exc) or error_type,
+                    )
+                )
+                continue
+
+            results.append(
+                CollectAllChannelsVideosResult(
+                    channelId=channel.id,
+                    status="succeeded",
+                    createdCount=collected.created_count,
+                    createdVideoIds=collected.created_video_ids,
+                    jobId=collected.job_id,
+                    jobAttemptId=collected.job_attempt_id,
+                    collection=collected,
+                )
+            )
+
+        return CollectAllChannelsVideosResponse(
+            channelCount=len(channels),
+            processedCount=sum(result.status != "skipped" for result in results),
+            succeededCount=sum(result.status == "succeeded" for result in results),
+            failedCount=sum(result.status == "failed" for result in results),
+            skippedCount=sum(result.status == "skipped" for result in results),
+            results=results,
+        )
 
 
 class CollectChannelVideosUseCase:

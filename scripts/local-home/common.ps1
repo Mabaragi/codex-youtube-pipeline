@@ -71,6 +71,7 @@ function Import-LocalHomeEnv {
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_PREFIX" "youtube/transcripts"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_SECURE" "false"
     Set-DefaultEnv "CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX" "external-api-calls"
+    Set-DefaultEnv "CODEX_CLI_PIPELINE_SCHEDULER_ENABLED" "true"
     Set-DefaultEnv "CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT" "6"
     Set-DefaultEnv "CODEX_CLI_SANDBOX" "workspace-write"
     Set-DefaultEnv "CODEX_CLI_APPROVAL" "auto-review"
@@ -213,7 +214,11 @@ function Get-LocalHomeRuntimeProcesses {
         $isKnownRuntime = (
             $lowerCommandLine -match "codex_sdk_cli\.api\.main:app" -or
             $lowerCommandLine -match "codex-micro-event-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.micro_events" -or
+            $lowerCommandLine -match "codex-pipeline-scheduler" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_scheduler" -or
             $lowerCommandLine -match "codex-timeline-compose-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.timelines" -or
             $lowerCommandLine -match "ops-ui[\\/]\.next[\\/]standalone" -or
             $lowerCommandLine -match "scripts[\\/]start-standalone\.mjs" -or
             $lowerCommandLine -match "pnpm(?:\.cmd)?\s+-c\s+ops-ui\s+start"

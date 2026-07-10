@@ -1878,6 +1878,136 @@
         "title": "CodexUsageVideoSummaryResponse",
         "type": "object"
       },
+      "CollectAllChannelsVideosResponse": {
+        "properties": {
+          "channelCount": {
+            "title": "Channelcount",
+            "type": "integer"
+          },
+          "failedCount": {
+            "title": "Failedcount",
+            "type": "integer"
+          },
+          "processedCount": {
+            "title": "Processedcount",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/CollectAllChannelsVideosResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          },
+          "succeededCount": {
+            "title": "Succeededcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channelCount",
+          "processedCount",
+          "succeededCount",
+          "failedCount",
+          "skippedCount",
+          "results"
+        ],
+        "title": "CollectAllChannelsVideosResponse",
+        "type": "object"
+      },
+      "CollectAllChannelsVideosResult": {
+        "properties": {
+          "channelId": {
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "collection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CollectChannelVideosResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdCount": {
+            "default": 0,
+            "title": "Createdcount",
+            "type": "integer"
+          },
+          "createdVideoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Createdvideoids",
+            "type": "array"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "jobAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobattemptid"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId",
+          "status"
+        ],
+        "title": "CollectAllChannelsVideosResult",
+        "type": "object"
+      },
       "CollectAllTranscriptTasksRequest": {
         "additionalProperties": false,
         "examples": [
@@ -11576,6 +11706,27 @@
         "summary": "List Channels",
         "tags": [
           "channels"
+        ]
+      }
+    },
+    "/channels/videos/collect": {
+      "post": {
+        "operationId": "collect_all_channels_videos_channels_videos_collect_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectAllChannelsVideosResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Collect All Channels Videos",
+        "tags": [
+          "videos"
         ]
       }
     },

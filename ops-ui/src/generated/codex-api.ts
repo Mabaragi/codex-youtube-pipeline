@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/videos/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Collect All Channels Videos */
+        post: operations["collect_all_channels_videos_channels_videos_collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -1841,6 +1858,47 @@ export interface components {
             videoId: number;
             /** Youtubevideoid */
             youtubeVideoId: string | null;
+        };
+        /** CollectAllChannelsVideosResponse */
+        CollectAllChannelsVideosResponse: {
+            /** Channelcount */
+            channelCount: number;
+            /** Failedcount */
+            failedCount: number;
+            /** Processedcount */
+            processedCount: number;
+            /** Results */
+            results: components["schemas"]["CollectAllChannelsVideosResult"][];
+            /** Skippedcount */
+            skippedCount: number;
+            /** Succeededcount */
+            succeededCount: number;
+        };
+        /** CollectAllChannelsVideosResult */
+        CollectAllChannelsVideosResult: {
+            /** Channelid */
+            channelId: number;
+            collection?: components["schemas"]["CollectChannelVideosResponse"] | null;
+            /**
+             * Createdcount
+             * @default 0
+             */
+            createdCount: number;
+            /** Createdvideoids */
+            createdVideoIds?: number[];
+            /** Errormessage */
+            errorMessage?: string | null;
+            /** Errortype */
+            errorType?: string | null;
+            /** Jobattemptid */
+            jobAttemptId?: number | null;
+            /** Jobid */
+            jobId?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "failed" | "skipped";
         };
         /**
          * CollectAllTranscriptTasksRequest
@@ -4962,6 +5020,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChannelResponse"][];
+                };
+            };
+        };
+    };
+    collect_all_channels_videos_channels_videos_collect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectAllChannelsVideosResponse"];
                 };
             };
         };

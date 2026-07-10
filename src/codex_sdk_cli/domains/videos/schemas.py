@@ -50,3 +50,31 @@ class CollectChannelVideosResponse(BaseModel):
     )
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+VideoCollectAllChannelStatus = Literal["succeeded", "failed", "skipped"]
+
+
+class CollectAllChannelsVideosResult(BaseModel):
+    channel_id: int = Field(alias="channelId")
+    status: VideoCollectAllChannelStatus
+    created_count: int = Field(default=0, alias="createdCount")
+    created_video_ids: list[int] = Field(default_factory=list, alias="createdVideoIds")
+    job_id: int | None = Field(default=None, alias="jobId")
+    job_attempt_id: int | None = Field(default=None, alias="jobAttemptId")
+    error_type: str | None = Field(default=None, alias="errorType")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+    collection: CollectChannelVideosResponse | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CollectAllChannelsVideosResponse(BaseModel):
+    channel_count: int = Field(alias="channelCount")
+    processed_count: int = Field(alias="processedCount")
+    succeeded_count: int = Field(alias="succeededCount")
+    failed_count: int = Field(alias="failedCount")
+    skipped_count: int = Field(alias="skippedCount")
+    results: list[CollectAllChannelsVideosResult]
+
+    model_config = ConfigDict(populate_by_name=True)
