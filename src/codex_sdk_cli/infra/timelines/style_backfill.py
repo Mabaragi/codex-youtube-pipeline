@@ -116,8 +116,10 @@ async def normalize_timeline_style_backfill(
                 example_limit=example_limit,
             )
             if changed_count:
-                result["changedOutputJsonStrings"] = (
-                    int(result["changedOutputJsonStrings"]) + changed_count
+                _increment_result_counter(
+                    result,
+                    "changedOutputJsonStrings",
+                    changed_count,
                 )
                 if apply:
                     composition.output_json = changed_json
@@ -151,7 +153,7 @@ async def _normalize_models(
                 continue
             normalized = normalize_timeline_style_text(original)
             if normalized.changed:
-                result["changedFields"] = int(result["changedFields"]) + 1
+                _increment_result_counter(result, "changedFields", 1)
                 _append_example(
                     result,
                     table=table_name,
@@ -261,13 +263,20 @@ def _append_example(
     )
 
 
+def _increment_result_counter(result: JsonObject, key: str, amount: int) -> None:
+    current = result.get(key, 0)
+    if not isinstance(current, int):
+        current = 0
+    result[key] = current + amount
+
+
 def _append_unresolved(
     result: JsonObject,
     unresolved_items: list[JsonObject],
     *,
     example_limit: int,
 ) -> None:
-    result["unresolvedCount"] = int(result["unresolvedCount"]) + len(unresolved_items)
+    _increment_result_counter(result, "unresolvedCount", len(unresolved_items))
     unresolved = result["unresolved"]
     if not isinstance(unresolved, list):
         return

@@ -4,12 +4,18 @@
 
 이 저장소는 Python `codex-demo` CLI와 `codex-api` FastAPI 예제 프로젝트다. YouTube metadata/transcript 수집, cue 생성, micro-event 추출, timeline 구성, archive publish 흐름을 로컬에서 실험한다.
 
+## Context Vault
+
+반복 작업의 절차·검증·개선 기록은 [vaults/INDEX.md](vaults/INDEX.md)에서 작업에
+필요한 문서만 골라 읽는다. 사람을 위한 공개 설명은 [docs/INDEX.md](docs/INDEX.md)를
+따르며, private runbook과 worklog는 공개 저장소에 기록하지 않는다.
+
 ## Reading Order
 
 1. 이 `AGENTS.md`.
-2. [docs/INDEX.md](docs/INDEX.md).
-3. 작업과 직접 관련된 문서.
-4. 대상 코드와 관련 테스트.
+2. [vaults/INDEX.md](vaults/INDEX.md)에서 작업별 guide를 고른다.
+3. [docs/INDEX.md](docs/INDEX.md)와 선택한 작업 문서를 읽는다.
+4. 대상 코드와 관련 테스트를 읽는다.
 5. Ops UI 작업은 [ops-ui/AGENTS.md](ops-ui/AGENTS.md)를 먼저 추가로 읽는다.
 
 ## Always Follow
@@ -39,7 +45,15 @@
 
 1. 작업 성격에 맞는 검증을 실행하거나 명시적으로 생략한다.
 2. 변경 요약, 핵심 파일, 검증 결과를 정리한다.
-3. 반복되는 사용자 수정이나 개선사항은 chat에만 두지 말고 가장 작은 source of truth에 반영한다.
+3. substantial work라면 [completion workflow](vaults/workflows/completion.md)에 따라
+   worklog-ready 요약과 적절한 private 기록 위치를 결정한다.
+
+## Closing The Loop
+
+같은 사용자 수정이나 process gap이 두 번 이상 나타나면 chat에만 두지 않는다.
+[vaults/durable/INDEX.md](vaults/durable/INDEX.md)에 가장 작은 public-safe 개선 기록을
+남기고, root guide·task/workflow guide·decision note·재사용 skill 중 알맞은 더 좁은
+source of truth로 승격한다.
 
 ## Git Safety
 

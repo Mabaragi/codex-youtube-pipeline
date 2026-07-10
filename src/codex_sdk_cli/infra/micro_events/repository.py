@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import Select
 from typing_extensions import override
 
 from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
@@ -345,6 +346,49 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
             ) from exc
 
     @override
+    async def upsert_window(
+        self,
+        video_task_id: int,
+        window: MicroEventExtractionWindowCreate,
+    ) -> MicroEventExtractionWindowRecord:
+        try:
+            await self._delete_window(video_task_id, window.window_index)
+            model = _window_model(window)
+            self._session.add(model)
+            await self._session.flush()
+            self._session.add_all(
+                [
+                    _micro_event_model(model.id, window, candidate)
+                    for candidate in window.micro_events
+                ]
+            )
+            self._session.add_all(
+                [
+                    _excluded_range_model(model.id, window, excluded_range)
+                    for excluded_range in window.excluded_ranges
+                ]
+            )
+            self._session.add_all(
+                [
+                    _asr_correction_model(model.id, window, candidate)
+                    for candidate in window.asr_correction_candidates
+                ]
+            )
+            await self._session.commit()
+            records = await self._window_records(video_task_id)
+            for record in records:
+                if record.window_index == window.window_index:
+                    return record
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise MicroEventExtractionPersistenceError(
+                "Micro-event extraction persistence failed."
+            ) from exc
+        raise MicroEventExtractionPersistenceError(
+            "Micro-event extraction persistence failed."
+        )
+
+    @override
     async def get_extraction(
         self,
         *,
@@ -436,6 +480,27 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
         window_ids = select(MicroEventExtractionWindowModel.id).where(
             MicroEventExtractionWindowModel.video_task_id == video_task_id
         )
+        await self._delete_window_ids(window_ids)
+        await self._session.execute(
+            delete(MicroEventExtractionWindowModel).where(
+                MicroEventExtractionWindowModel.video_task_id == video_task_id
+            )
+        )
+
+    async def _delete_window(self, video_task_id: int, window_index: int) -> None:
+        window_ids = select(MicroEventExtractionWindowModel.id).where(
+            MicroEventExtractionWindowModel.video_task_id == video_task_id,
+            MicroEventExtractionWindowModel.window_index == window_index,
+        )
+        await self._delete_window_ids(window_ids)
+        await self._session.execute(
+            delete(MicroEventExtractionWindowModel).where(
+                MicroEventExtractionWindowModel.video_task_id == video_task_id,
+                MicroEventExtractionWindowModel.window_index == window_index,
+            )
+        )
+
+    async def _delete_window_ids(self, window_ids: Select[int]) -> None:
         await self._session.execute(
             delete(MicroEventCandidateModel).where(
                 MicroEventCandidateModel.window_id.in_(window_ids)
@@ -449,11 +514,6 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
         await self._session.execute(
             delete(MicroEventExcludedRangeModel).where(
                 MicroEventExcludedRangeModel.window_id.in_(window_ids)
-            )
-        )
-        await self._session.execute(
-            delete(MicroEventExtractionWindowModel).where(
-                MicroEventExtractionWindowModel.video_task_id == video_task_id
             )
         )
 

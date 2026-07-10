@@ -143,6 +143,7 @@ async def _test_process_to_publish_api_route() -> None:
                 "microReasoning": "high",
                 "timelineReasoning": "medium",
                 "retryFailed": True,
+                "publishMode": "dev",
             },
         )
 
@@ -152,6 +153,7 @@ async def _test_process_to_publish_api_route() -> None:
     assert use_case.request is not None
     assert use_case.request.micro_reasoning == "high"
     assert use_case.request.retry_failed is True
+    assert use_case.request.publish_mode == "dev"
 
 
 def test_process_to_publish_runs_successful_stages_and_publish() -> None:
@@ -164,6 +166,9 @@ def test_process_to_publish_runs_successful_stages_and_publish() -> None:
     assert result["timeline"].requests[0].reasoning_effort == "medium"
     assert result["archive"].requests[0].video_ids == [1]
     assert result["archive"].requests[0].retry_failed is True
+    assert result["archive"].requests[0].publish_mode == "dev"
+    assert result["archive"].requests[0].environment == "dev"
+    assert result["archive"].requests[0].variant == "dev-preview"
 
 
 async def _process_success():
@@ -270,6 +275,7 @@ async def _process_success():
             retryFailed=True,
             microReasoning="high",
             timelineReasoning="medium",
+            publishMode="dev",
         )
     )
     return {

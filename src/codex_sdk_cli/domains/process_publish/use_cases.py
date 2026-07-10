@@ -291,6 +291,7 @@ def _archive_publish_request(
         "videoIds": video_ids,
         "limit": len(video_ids),
         "retryFailed": request.retry_failed,
+        "publishMode": request.publish_mode,
     }
     if request.environment is not None:
         payload["environment"] = request.environment

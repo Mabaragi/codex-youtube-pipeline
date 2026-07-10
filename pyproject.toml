@@ -9,6 +9,7 @@ dependencies = [
     "alembic>=1.16,<2",
     "click>=8.1",
     "fastapi[standard]>=0.115",
+    "faster-whisper>=1.1,<2",
     "httpx>=0.27,<1",
     "minio>=7.2,<8",
     "openai-codex>=0.1.0b3,<0.2",
@@ -24,6 +25,7 @@ dependencies = [
 codex-api = "codex_sdk_cli.api.main:run"
 codex-demo = "codex_sdk_cli.cli:main"
 codex-micro-event-worker = "codex_sdk_cli.workers.micro_events:run"
+codex-pipeline-scheduler = "codex_sdk_cli.workers.pipeline_scheduler:run"
 codex-timeline-compose-worker = "codex_sdk_cli.workers.timelines:run"
 
 [dependency-groups]

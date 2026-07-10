@@ -10,6 +10,7 @@ from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
 from codex_sdk_cli.domains.archive_publish.schemas import (
     ArchiveCurrentResponse,
     ArchiveOpsVideoListResponse,
+    ArchivePublishModeLiteral,
     ArchivePublishRequest,
     ArchivePublishResponse,
     ArchivePublishStatusFilterLiteral,
@@ -36,8 +37,12 @@ async def publish_archive(
 async def get_current_archive_publication(
     use_case: ArchivePublishUseCaseDep,
     environment: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+    publish_mode: Annotated[
+        ArchivePublishModeLiteral,
+        Query(alias="publishMode"),
+    ] = "prod",
 ) -> ArchiveCurrentResponse:
-    return await use_case.get_current(environment=environment)
+    return await use_case.get_current(environment=environment, publish_mode=publish_mode)
 
 
 @router.get(

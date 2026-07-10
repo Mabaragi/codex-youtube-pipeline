@@ -304,6 +304,13 @@ class MicroEventExtractionRepositoryPort(Protocol):
     ) -> MicroEventExtractionDetailRecord | None:
         """Replace all extraction rows for one task."""
 
+    async def upsert_window(
+        self,
+        video_task_id: int,
+        window: MicroEventExtractionWindowCreate,
+    ) -> MicroEventExtractionWindowRecord:
+        """Replace one extraction window and its child rows for one task."""
+
     async def get_extraction(
         self,
         *,

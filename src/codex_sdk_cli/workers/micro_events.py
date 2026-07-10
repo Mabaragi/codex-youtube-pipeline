@@ -22,6 +22,7 @@ from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
 from codex_sdk_cli.infra.codex_usage.repository import (
     SessionFactoryCodexUsageRepository,
 )
+from codex_sdk_cli.infra.database import models as database_models
 from codex_sdk_cli.infra.database.recovery import recover_timed_out_worker_tasks
 from codex_sdk_cli.infra.database.session import (
     create_database_engine,
@@ -72,6 +73,7 @@ async def run_worker(
         resolved_settings.database_url,
         echo=resolved_settings.database_echo,
     )
+    _load_database_models()
     session_factory = create_session_factory(engine)
     worker_id = _worker_id(resolved_settings)
     logger.info("Starting micro-event worker id=%s", worker_id)
@@ -176,3 +178,8 @@ def _worker_recovery_prefix(worker_id: str) -> str:
     if worker_id.startswith("micro-event-worker:"):
         return "micro-event-worker:"
     return worker_id
+
+
+def _load_database_models() -> None:
+    # Ensure all FK target tables are registered when this worker runs standalone.
+    _ = database_models.__all__

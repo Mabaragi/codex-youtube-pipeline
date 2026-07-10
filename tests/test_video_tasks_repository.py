@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -47,6 +47,8 @@ def test_video_task_repository_lifecycle(
     assert result["failed_status"] == "failed"
     assert result["timed_out_status"] == "timed_out"
     assert result["no_transcript_status"] == "no_transcript"
+    assert result["due_no_transcript_video_ids"] == [1]
+    assert result["not_due_no_transcript_count"] == 0
     assert result["exclusive_claim_video_id"] == 2
     assert result["canceled_status"] == "canceled"
     assert result["canceled_error_type"] == "ManualQueueCancel"
@@ -223,6 +225,18 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 task.id,
                 error_message="No transcript.",
             )
+            due_no_transcript = await video_tasks.list_no_transcript_tasks_due_for_recheck(
+                task_name="transcript_collect",
+                completed_before=datetime.now(UTC) + timedelta(seconds=1),
+                limit=10,
+            )
+            not_due_no_transcript = await (
+                video_tasks.list_no_transcript_tasks_due_for_recheck(
+                    task_name="transcript_collect",
+                    completed_before=datetime(2020, 1, 1, tzinfo=UTC),
+                    limit=10,
+                )
+            )
             timeline_job = await pipeline_jobs.create_job(
                 PipelineJobCreate(
                     step="timeline_compose",
@@ -298,6 +312,10 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "failed_status": failed.status,
                 "timed_out_status": timed_out.status,
                 "no_transcript_status": no_transcript.status,
+                "due_no_transcript_video_ids": [
+                    record.video.id for record in due_no_transcript
+                ],
+                "not_due_no_transcript_count": len(not_due_no_transcript),
                 "exclusive_claim_video_id": exclusive_claim.video_id,
                 "canceled_status": canceled[0].status,
                 "canceled_error_type": canceled[0].error_type,

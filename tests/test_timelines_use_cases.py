@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -37,12 +38,17 @@ from codex_sdk_cli.domains.prompts.fallbacks import (
     fallback_prompt_text,
 )
 from codex_sdk_cli.domains.prompts.ports import ResolvedPrompt
-from codex_sdk_cli.domains.timelines.exceptions import TimelineCompositionOutputInvalid
 from codex_sdk_cli.domains.timelines.ports import (
+    TimelineBlockRecord,
     TimelineComposeRequest,
     TimelineComposeResult,
+    TimelineCompositionCreate,
+    TimelineCompositionRecord,
+    TimelineEpisodeRecord,
     TimelineEpisodeRepairRequest,
     TimelineEpisodeRepairResult,
+    TimelineReviewFlagRecord,
+    TimelineTopicClusterRecord,
 )
 from codex_sdk_cli.domains.timelines.schemas import TimelineComposeEnqueueRequest
 from codex_sdk_cli.domains.timelines.use_cases import (
@@ -63,7 +69,7 @@ NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 def test_timeline_composition_accepts_topic_cluster_title_aliases() -> None:
     composer_input = _composer_input(_candidates(4))
-    output_json = {
+    output_json: JsonObject = {
         "video_summary": {"title": "테스트 타임라인"},
         "blocks": [
             {
@@ -504,7 +510,7 @@ def test_timeline_composition_normalizes_internal_style_but_keeps_display_copy()
     display_video = "\uc774 \uac8c\uc784, \uc774\uc81c\ubd80\ud130 \uc2dc\uc791?"
     display_block = "\ub300\ud654\uac00 \uc774\ub807\uac8c \ud280\uc5b4\ub098\uc640?"
     display_episode = "\uc2dc\uc791\ubd80\ud130 \ubc14\ub85c \uc218\uc0c1\ud55c\ub370!"
-    output_json = {
+    output_json: JsonObject = {
         "video_summary": {
             "title": "\ud14c\uc2a4\ud2b8",
             "summary": polite_summary,
@@ -569,9 +575,11 @@ def test_timeline_composition_normalizes_internal_style_but_keeps_display_copy()
     assert create.episodes[0].display_summary == display_episode
     assert create.topic_clusters[0].summary == "\uad6c\uac04\uc774\ub2e4."
     assert create.review_flags[0].reason == "\uc790\ub8cc\uac00 \uc788\ub2e4."
-    assert create.output_json["episodes"][0]["summary"] == "\uc2dc\uc791\ud55c\ub2e4."
-    assert create.output_json["episodes"][0]["display_summary"] == display_episode
-    assert create.output_json["review_flags"][0]["reason"] == "\uc790\ub8cc\uac00 \uc788\ub2e4."
+    output_episodes = cast(list[JsonObject], create.output_json["episodes"])
+    output_review_flags = cast(list[JsonObject], create.output_json["review_flags"])
+    assert output_episodes[0]["summary"] == "\uc2dc\uc791\ud55c\ub2e4."
+    assert output_episodes[0]["display_summary"] == display_episode
+    assert output_review_flags[0]["reason"] == "\uc790\ub8cc\uac00 \uc788\ub2e4."
     assert create.raw_response_text == result.final_response
     assert create.raw_response_text is not None
     raw_output_json = json.loads(create.raw_response_text)
@@ -855,6 +863,62 @@ async def test_timeline_coverage_repair_rewrites_overlapping_episode_window() ->
 
 
 @pytest.mark.anyio
+async def test_timeline_coverage_repair_accepts_top_level_episodes_alias() -> None:
+    composer_input = _composer_input(_candidates(4))
+    output_json = _timeline_output(
+        blocks=[
+            _block_output(
+                "block_001",
+                "JUST_CHATTING",
+                ["episode_001", "episode_002"],
+            )
+        ],
+        episodes=[
+            _episode_output("episode_001", "me_0001", "me_0003"),
+            _episode_output("episode_002", "me_0003", "me_0004"),
+        ],
+    )
+    composer = _RepairComposer(
+        [
+            {
+                "episodes": [
+                    _repair_episode_output("me_0001", "me_0002", "first topic"),
+                    _repair_episode_output("me_0003", "me_0004", "second topic"),
+                ]
+            }
+        ]
+    )
+
+    create = await _composition_create_with_repairs(
+        composer_input,
+        _compose_result(output_json),
+        task=_video_task(),
+        job=_job(),
+        attempt=_attempt(),
+        composer=composer,
+        timeout_seconds=30,
+    )
+
+    assert len(composer.requests) == 1
+    assert composer.requests[0].target_episode_id == "episode_001"
+    assert [episode.episode_id for episode in create.episodes] == [
+        "episode_001",
+        "episode_001_split_002",
+    ]
+    assert [episode.start_micro_event_candidate_id for episode in create.episodes] == [1, 3]
+    assert [episode.end_micro_event_candidate_id for episode in create.episodes] == [2, 4]
+    assert create.blocks[0].episode_ids == [
+        "episode_001",
+        "episode_001_split_002",
+    ]
+    assert any(
+        "coverage repair episode_001 inserted 2 episode(s)" in item
+        for item in create.validation_warnings
+    )
+    assert not any("kept invalid coverage" in item for item in create.validation_warnings)
+
+
+@pytest.mark.anyio
 async def test_timeline_block_semantic_repair_preserves_episode_order() -> None:
     composer_input = _composer_input(_candidates(4))
     output_json = _timeline_output(
@@ -989,7 +1053,7 @@ async def test_timeline_coverage_repair_handles_more_than_three_gaps() -> None:
 
 
 @pytest.mark.anyio
-async def test_timeline_failure_stores_raw_response_only_on_failed_attempt(
+async def test_timeline_coverage_fallback_succeeds_with_warning(
     tmp_path: Path,
 ) -> None:
     composer_input = _composer_input(_candidates(3))
@@ -1013,45 +1077,41 @@ async def test_timeline_failure_stores_raw_response_only_on_failed_attempt(
         llm_traces=trace_recorder,
     )
 
-    with pytest.raises(TimelineCompositionOutputInvalid):
-        await use_case._execute_job_attempt(
-            _job(),
-            _attempt(),
-            task=_video_task(),
-            composer_input=composer_input,
-            timeout_seconds=30,
-        )
+    response = await use_case._execute_job_attempt(
+        _job(),
+        _attempt(),
+        task=_video_task(),
+        composer_input=composer_input,
+        timeout_seconds=30,
+    )
 
-    assert pipeline_jobs.failed_attempt_output_json is not None
-    assert video_tasks.failed_task_output_json is not None
-    raw_responses = pipeline_jobs.failed_attempt_output_json["rawResponses"]
-    assert isinstance(raw_responses, list)
-    assert len(raw_responses) == 1
-    raw_response = raw_responses[0]
-    assert isinstance(raw_response, dict)
-    assert raw_response["operation"] == "compose_video"
-    assert raw_response["threadId"] == "compose-thread"
-    assert raw_response["turnId"] == "compose-turn"
-    assert raw_response["rawResponseText"] == composer.compose_response_text
-    assert raw_response["rawResponseLength"] == len(composer.compose_response_text)
-    assert len(str(raw_response["rawResponseSha256"])) == 64
-    assert pipeline_jobs.failed_attempt_output_json["failure"] == {
-        "errorType": "TimelineCompositionOutputInvalid",
-        "errorMessage": "Timeline episodes must cover every micro-event exactly once in order.",
-        "stage": "compose_output_validation",
-    }
-    assert video_tasks.failed_task_output_json["rawResponseCount"] == 1
-    assert "rawResponses" not in video_tasks.failed_task_output_json
-    assert composer.compose_response_text not in json.dumps(video_tasks.failed_task_output_json)
-    assert events.items[0].metadata_json["rawResponseCount"] == 1
-    assert "rawResponses" not in events.items[0].metadata_json
-    assert composer.compose_response_text not in json.dumps(events.items[0].metadata_json)
+    assert [episode.start_micro_event_candidate_id for episode in response.episodes] == [
+        1,
+        2,
+    ]
+    assert [episode.end_micro_event_candidate_id for episode in response.episodes] == [
+        1,
+        3,
+    ]
+    assert pipeline_jobs.failed_attempt_output_json is None
+    assert pipeline_jobs.succeeded_attempt_output_json is not None
+    assert video_tasks.failed_task_output_json is None
+    assert video_tasks.succeeded_task_output_json is not None
+    warnings = pipeline_jobs.succeeded_attempt_output_json["validationWarnings"]
+    assert isinstance(warnings, list)
+    assert any("deterministic coverage repair" in str(item) for item in warnings)
+    assert "rawResponses" not in pipeline_jobs.succeeded_attempt_output_json
+    assert composer.compose_response_text not in json.dumps(
+        pipeline_jobs.succeeded_attempt_output_json
+    )
+    assert events.items[0].event_type == "timeline_compose.task_succeeded"
     trace_events = _llm_trace_events(tmp_path, "timeline_compose")
     phases = [event["phase"] for event in trace_events]
     assert "compose_started" in phases
     assert "compose_response_received" in phases
-    assert "compose_validation_failed" in phases
-    assert "compose_failed" in phases
+    assert "repair_requested" in phases
+    assert "repair_failed" in phases
+    assert "compose_succeeded" in phases
     response_event = next(
         event for event in trace_events if event["phase"] == "compose_response_received"
     )
@@ -1062,7 +1122,7 @@ async def test_timeline_failure_stores_raw_response_only_on_failed_attempt(
 
 
 @pytest.mark.anyio
-async def test_timeline_failure_stores_compose_and_repair_raw_responses(
+async def test_timeline_repair_trace_records_raw_response_before_fallback(
     tmp_path: Path,
 ) -> None:
     composer_input = _composer_input(_candidates(14))
@@ -1105,26 +1165,21 @@ async def test_timeline_failure_stores_compose_and_repair_raw_responses(
         llm_traces=trace_recorder,
     )
 
-    with pytest.raises(TimelineCompositionOutputInvalid):
-        await use_case._execute_job_attempt(
-            _job(),
-            _attempt(),
-            task=_video_task(),
-            composer_input=composer_input,
-            timeout_seconds=30,
-        )
+    response = await use_case._execute_job_attempt(
+        _job(),
+        _attempt(),
+        task=_video_task(),
+        composer_input=composer_input,
+        timeout_seconds=30,
+    )
 
-    assert pipeline_jobs.failed_attempt_output_json is not None
-    raw_responses = pipeline_jobs.failed_attempt_output_json["rawResponses"]
-    assert isinstance(raw_responses, list)
-    assert [item["operation"] for item in raw_responses if isinstance(item, dict)] == [
-        "compose_video",
-        "repair_episode",
-    ]
-    repair_response = raw_responses[1]
-    assert isinstance(repair_response, dict)
-    assert repair_response["targetEpisodeId"] == "episode_001"
-    assert repair_response["rawResponseText"] == composer.repair_response_texts[0]
+    assert response.status == "succeeded"
+    assert pipeline_jobs.failed_attempt_output_json is None
+    assert pipeline_jobs.succeeded_attempt_output_json is not None
+    warnings = pipeline_jobs.succeeded_attempt_output_json["validationWarnings"]
+    assert isinstance(warnings, list)
+    assert any("coverage repair episode_recovery" in str(item) for item in warnings)
+    assert any("deterministic coverage repair" in str(item) for item in warnings)
     trace_events = _llm_trace_events(tmp_path, "timeline_compose")
     phases = [event["phase"] for event in trace_events]
     assert "repair_requested" in phases
@@ -1445,6 +1500,7 @@ class _ComposeAndRepairComposer:
 class _TimelinePipelineJobsForFailure:
     def __init__(self) -> None:
         self.failed_attempt_output_json: JsonObject | None = None
+        self.succeeded_attempt_output_json: JsonObject | None = None
 
     async def mark_attempt_failed(
         self,
@@ -1471,10 +1527,34 @@ class _TimelinePipelineJobsForFailure:
     async def mark_job_failed(self, job_id: int) -> PipelineJobRecord:
         return _job()
 
+    async def mark_attempt_succeeded(
+        self,
+        attempt_id: int,
+        *,
+        output_json: JsonObject | None = None,
+    ) -> PipelineJobAttemptRecord:
+        self.succeeded_attempt_output_json = output_json
+        return PipelineJobAttemptRecord(
+            id=attempt_id,
+            job_id=12,
+            attempt_no=1,
+            status="succeeded",
+            started_at=NOW,
+            finished_at=NOW,
+            worker_id="timeline-worker",
+            error_type=None,
+            error_message=None,
+            output_json=output_json,
+        )
+
+    async def mark_job_succeeded(self, job_id: int) -> PipelineJobRecord:
+        return _job()
+
 
 class _TimelineVideoTasksForFailure:
     def __init__(self) -> None:
         self.failed_task_output_json: JsonObject | None = None
+        self.succeeded_task_output_json: JsonObject | None = None
 
     async def mark_task_failed(
         self,
@@ -1485,6 +1565,16 @@ class _TimelineVideoTasksForFailure:
         output_json: JsonObject | None = None,
     ) -> VideoTaskRecord:
         self.failed_task_output_json = output_json
+        return _video_task(task_id)
+
+    async def mark_task_succeeded(
+        self,
+        task_id: int,
+        *,
+        output_transcript_id: int | None = None,
+        output_json: JsonObject | None = None,
+    ) -> VideoTaskRecord:
+        self.succeeded_task_output_json = output_json
         return _video_task(task_id)
 
     async def mark_task_timed_out(
@@ -1501,6 +1591,83 @@ class _TimelineVideoTasksForFailure:
 class _TimelineStoreForFailure:
     async def delete_composition(self, video_task_id: int) -> None:
         return None
+
+    async def replace_composition(
+        self,
+        create: TimelineCompositionCreate,
+    ) -> TimelineCompositionRecord:
+        return _timeline_record_from_create(create)
+
+
+def _timeline_record_from_create(
+    create: TimelineCompositionCreate,
+) -> TimelineCompositionRecord:
+    return TimelineCompositionRecord(
+        id=123,
+        video_task_id=create.video_task_id,
+        video_id=create.video_id,
+        youtube_video_id="yt-71",
+        source_micro_event_task_id=create.source_micro_event_task_id,
+        source_micro_event_fingerprint=create.source_micro_event_fingerprint,
+        copy_style=create.copy_style,
+        status="succeeded",
+        model=create.model,
+        reasoning_effort=create.reasoning_effort,
+        title=create.title,
+        summary=create.summary,
+        display_title=create.display_title,
+        display_summary=create.display_summary,
+        main_topics=create.main_topics,
+        output_json=create.output_json,
+        validation_warnings=create.validation_warnings,
+        source_job_id=create.source_job_id,
+        source_job_attempt_id=create.source_job_attempt_id,
+        codex_thread_id=create.codex_thread_id,
+        codex_turn_id=create.codex_turn_id,
+        raw_response_text=create.raw_response_text,
+        created_at=NOW,
+        updated_at=NOW,
+        blocks=[
+            TimelineBlockRecord(
+                id=index,
+                composition_id=123,
+                created_at=NOW,
+                updated_at=NOW,
+                **asdict(block),
+            )
+            for index, block in enumerate(create.blocks, start=1)
+        ],
+        episodes=[
+            TimelineEpisodeRecord(
+                id=index,
+                composition_id=123,
+                created_at=NOW,
+                updated_at=NOW,
+                **asdict(episode),
+            )
+            for index, episode in enumerate(create.episodes, start=1)
+        ],
+        topic_clusters=[
+            TimelineTopicClusterRecord(
+                id=index,
+                composition_id=123,
+                created_at=NOW,
+                updated_at=NOW,
+                **asdict(topic),
+            )
+            for index, topic in enumerate(create.topic_clusters, start=1)
+        ],
+        review_flags=[
+            TimelineReviewFlagRecord(
+                id=index,
+                composition_id=123,
+                created_at=NOW,
+                updated_at=NOW,
+                **asdict(flag),
+            )
+            for index, flag in enumerate(create.review_flags, start=1)
+        ],
+    )
 
 
 class _TimelineEvents:

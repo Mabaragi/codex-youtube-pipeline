@@ -11,6 +11,11 @@ from typing import TypeVar, cast
 import click
 from pydantic import ValidationError
 
+from .domains.asr.use_cases import (
+    FasterWhisperTranscribeRequest,
+    FasterWhisperTranscribeResult,
+    TranscribeYouTubeAudioUseCase,
+)
 from .domains.domain_knowledge.ports import (
     DomainKnowledgeRepositoryPort,
     PromptPolicy,
@@ -27,10 +32,15 @@ from .domains.domain_knowledge.use_cases import (
 from .domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from .domains.ops.use_cases import DetectOpsStuckTasksUseCase
 from .domains.video_tasks.constants import TIMELINE_COMPOSE_TASK_NAME
+from .infra.asr.faster_whisper import FasterWhisperTranscriber
+from .infra.asr.local_audio import FfmpegAudioChunker, YtDlpAudioDownloader
 from .infra.database.session import create_database_engine, create_session_factory
 from .infra.domain_knowledge.repository import SqlAlchemyDomainKnowledgeRepository
 from .infra.ops.repository import SqlAlchemyOpsRepository
 from .infra.timelines.style_backfill import normalize_timeline_style_backfill
+from .infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
+from .infra.youtube_transcripts.repository import SqlAlchemyYouTubeTranscriptRepository
+from .infra.youtube_transcripts.storage import MinioTranscriptStorage
 from .runner import (
     BLANK_BASE_INSTRUCTIONS,
     BLANK_DEVELOPER_INSTRUCTIONS,
@@ -53,6 +63,10 @@ from .runner import (
 from .settings import ApprovalChoice, CliSettings, ReasoningEffortChoice, SandboxChoice
 
 CodexFactory = Callable[[CliSettings], AbstractAsyncContextManager[CodexLike]]
+AsrTranscribeRunner = Callable[
+    [FasterWhisperTranscribeRequest],
+    Awaitable[FasterWhisperTranscribeResult],
+]
 T = TypeVar("T")
 
 
@@ -297,6 +311,104 @@ async def _logout_async(ctx: click.Context) -> None:
     settings = _settings()
     async with _codex(ctx, settings) as codex:
         await logout_codex(codex)
+
+
+@main.group()
+def asr() -> None:
+    """Run local audio transcription experiments."""
+
+
+@asr.command("transcribe")
+@click.option("--model-size", default="turbo", show_default=True)
+@click.option("--language", default="ko", show_default=True)
+@click.option(
+    "--device",
+    type=click.Choice(["auto", "cpu", "cuda"], case_sensitive=True),
+    default="auto",
+    show_default=True,
+)
+@click.option("--compute-type", default="auto", show_default=True)
+@click.option("--chunk-minutes", type=click.IntRange(min=1), default=15, show_default=True)
+@click.option("--overlap-seconds", type=click.IntRange(min=0), default=3, show_default=True)
+@click.option("--beam-size", type=click.IntRange(min=1), default=5, show_default=True)
+@click.option("--vad-filter/--no-vad-filter", default=True, show_default=True)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Optional path for the stored transcript JSON payload.",
+)
+@click.option("--keep-temp", is_flag=True, help="Keep downloaded/chunked audio files.")
+@click.argument("video")
+@click.pass_context
+def asr_transcribe(
+    ctx: click.Context,
+    model_size: str,
+    language: str,
+    device: str,
+    compute_type: str,
+    chunk_minutes: int,
+    overlap_seconds: int,
+    beam_size: int,
+    vad_filter: bool,
+    output: Path | None,
+    keep_temp: bool,
+    video: str,
+) -> None:
+    """Transcribe YouTube VIDEO with faster-whisper and store transcript/cues."""
+    request = FasterWhisperTranscribeRequest(
+        video=video,
+        model_size=model_size,
+        language=language,
+        device=device,
+        compute_type=compute_type,
+        chunk_minutes=chunk_minutes,
+        overlap_seconds=overlap_seconds,
+        beam_size=beam_size,
+        vad_filter=vad_filter,
+        keep_temp=keep_temp,
+    )
+    result = _handle_errors(lambda: asyncio.run(_asr_transcribe_async(ctx, request)))
+    if output is not None:
+        output.write_text(
+            result.transcript.model_dump_json(by_alias=True, indent=2),
+            encoding="utf-8",
+        )
+    click.echo(json.dumps(result.summary_json(), indent=2, ensure_ascii=False))
+
+
+async def _asr_transcribe_async(
+    ctx: click.Context,
+    request: FasterWhisperTranscribeRequest,
+) -> FasterWhisperTranscribeResult:
+    injected = _asr_transcribe_runner(ctx)
+    if injected is not None:
+        return await injected(request)
+
+    settings = _settings()
+    engine = create_database_engine(settings.database_url, echo=settings.database_echo)
+    session_factory = create_session_factory(engine)
+    try:
+        async with session_factory() as session:
+            use_case = TranscribeYouTubeAudioUseCase(
+                downloader=YtDlpAudioDownloader(settings.ytdlp_bin),
+                chunker=FfmpegAudioChunker(
+                    ffmpeg_bin=settings.ffmpeg_bin,
+                    ffprobe_bin=settings.ffprobe_bin,
+                ),
+                transcriber=FasterWhisperTranscriber(),
+                storage=MinioTranscriptStorage.from_settings(settings),
+                transcripts=SqlAlchemyYouTubeTranscriptRepository(session),
+                cues=SqlAlchemyTranscriptCueRepository(session),
+                storage_prefix=settings.transcript_minio_prefix,
+            )
+            return await use_case.execute(request)
+    finally:
+        await engine.dispose()
+
+
+def _asr_transcribe_runner(ctx: click.Context) -> AsrTranscribeRunner | None:
+    runner = ctx.obj.get("asr_transcribe_runner") if isinstance(ctx.obj, dict) else None
+    return cast(AsrTranscribeRunner | None, runner)
 
 
 @main.group()

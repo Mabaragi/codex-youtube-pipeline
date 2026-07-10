@@ -18,7 +18,7 @@ Run checks locally:
 
 ```powershell
 uv run pytest
-uv run ruff check src tests
+uv run ruff check .
 uv run pyrefly check --min-severity warn
 uv run python scripts/export_openapi.py --check
 pnpm --filter codex-sdk-ops-ui api:check

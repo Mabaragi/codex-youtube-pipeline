@@ -59,20 +59,40 @@ class R2ArchivePublishStorage(ArchivePublishStoragePort):
             or settings.archive_publish_public_base_url is None
         ):
             raise ArchivePublishConfigurationError("Archive publish R2 storage is not configured.")
+        return cls.from_values(
+            endpoint=settings.archive_publish_r2_endpoint,
+            access_key=settings.archive_publish_r2_access_key.get_secret_value(),
+            secret_key=settings.archive_publish_r2_secret_key.get_secret_value(),
+            bucket=settings.archive_publish_r2_bucket,
+            public_base_url=settings.archive_publish_public_base_url,
+            secure=settings.archive_publish_r2_secure,
+        )
+
+    @classmethod
+    def from_values(
+        cls,
+        *,
+        endpoint: str,
+        access_key: str,
+        secret_key: str,
+        bucket: str,
+        public_base_url: str,
+        secure: bool,
+    ) -> R2ArchivePublishStorage:
         endpoint, secure = _endpoint_and_secure(
-            settings.archive_publish_r2_endpoint,
-            default_secure=settings.archive_publish_r2_secure,
+            endpoint,
+            default_secure=secure,
         )
         return cls(
             client=Minio(
                 endpoint,
-                access_key=settings.archive_publish_r2_access_key.get_secret_value(),
-                secret_key=settings.archive_publish_r2_secret_key.get_secret_value(),
+                access_key=access_key,
+                secret_key=secret_key,
                 secure=secure,
                 region="auto",
             ),
-            bucket=settings.archive_publish_r2_bucket,
-            public_base_url=settings.archive_publish_public_base_url,
+            bucket=bucket,
+            public_base_url=public_base_url,
         )
 
     @override

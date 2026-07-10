@@ -40,3 +40,7 @@ tmp/
 dist/
 build/
 *.egg-info/
+
+# Private fallback worklogs for agent documentation. Keep the template tracked.
+/vaults/worklogs/*.md
+!/vaults/worklogs/README.md

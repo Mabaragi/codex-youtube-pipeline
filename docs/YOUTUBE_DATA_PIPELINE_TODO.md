@@ -1,6 +1,6 @@
 # YouTube Data Pipeline Backlog
 
-Last updated: 2026-06-25
+Last updated: 2026-07-10
 
 공통 설계 원칙은 `docs/YOUTUBE_DATA_PIPELINE.md`를 따른다. 이 문서는 구현 TODO와 완료 상태만 추적한다.
 
@@ -55,6 +55,9 @@ Last updated: 2026-06-25
 - [x] `codex-micro-event-worker`가 pending micro-event tasks를 DB polling으로 claim한다.
 - [x] `timeline_compose` domain을 추가해 video summary, blocks, episodes, topic clusters, review flags, validation warnings를 저장한다.
 - [x] `POST /video-tasks/timeline-compose/enqueue`와 `codex-timeline-compose-worker`를 추가한다.
+- [x] `archive_publish` task/job과 retry executor로 R2 archive artifact·index publication을 생성한다.
+- [x] `codex-pipeline-scheduler`를 별도 local process로 추가해 channel video collect, bounded transcript collect, 오래된 `no_transcript` 재확인을 주기적으로 시작한다.
+- [x] `codex-demo asr transcribe` 실험 CLI로 faster-whisper transcript/cue를 저장한다. 이 경로는 scheduler나 queued/batch 후보를 직접 만들지 않는다.
 - [x] `operation_events`로 작업 중심 append-only event log를 추가한다.
 - [x] `codex_run_usages`와 `/ops/codex-usage*`로 Codex token usage 조회를 추가한다.
 

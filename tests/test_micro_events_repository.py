@@ -54,6 +54,9 @@ def test_micro_event_repository_replaces_and_reads_extraction(
     assert result["updated_event"] == "스트리머가 울면서 방송 주제를 설명한다."
     assert result["parsed_response_json"] == {"micro_events": []}
     assert result["missing_update_is_none"] is True
+    assert result["upsert_window_count"] == 2
+    assert result["upsert_first_window_micro_event_count"] == 1
+    assert result["upsert_second_window_micro_event_count"] == 0
     assert result["replaced_window_count"] == 1
     assert result["replaced_micro_event_count"] == 0
 
@@ -189,6 +192,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             )
             latest = await micro_events.get_latest_succeeded_extraction(video_id=video.id)
             job_detail = await pipeline_jobs.get_job_detail(job.id)
+            assert detail is not None
             candidate_id = detail.windows[0].micro_events[0].id
             updated_candidate = await micro_events.update_candidate_event(
                 video_task_id=succeeded.id,
@@ -213,6 +217,43 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                         transcript_id=transcript.id,
                         job_id=job.id,
                         attempt_id=attempt.id,
+                        window_index=1,
+                    ),
+                    _window(
+                        video_task_id=succeeded.id,
+                        video_id=video.id,
+                        transcript_id=transcript.id,
+                        job_id=job.id,
+                        attempt_id=attempt.id,
+                        window_index=2,
+                    ),
+                ],
+            )
+            await micro_events.upsert_window(
+                succeeded.id,
+                _window(
+                    video_task_id=succeeded.id,
+                    video_id=video.id,
+                    transcript_id=transcript.id,
+                    job_id=job.id,
+                    attempt_id=attempt.id,
+                    window_index=2,
+                    with_candidates=False,
+                ),
+            )
+            upserted = await micro_events.get_extraction(
+                video_id=video.id,
+                video_task_id=succeeded.id,
+            )
+            await micro_events.replace_extraction(
+                succeeded.id,
+                [
+                    _window(
+                        video_task_id=succeeded.id,
+                        video_id=video.id,
+                        transcript_id=transcript.id,
+                        job_id=job.id,
+                        attempt_id=attempt.id,
                         with_candidates=False,
                     )
                 ],
@@ -227,6 +268,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             assert job_detail is not None
             assert updated_candidate is not None
             assert reread is not None
+            assert upserted is not None
             assert replaced is not None
             return {
                 "task_id": succeeded.id,
@@ -241,6 +283,13 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "updated_event": updated_candidate.event,
                 "parsed_response_json": reread.windows[0].parsed_response_json,
                 "missing_update_is_none": missing_update is None,
+                "upsert_window_count": len(upserted.windows),
+                "upsert_first_window_micro_event_count": len(
+                    upserted.windows[0].micro_events
+                ),
+                "upsert_second_window_micro_event_count": len(
+                    upserted.windows[1].micro_events
+                ),
                 "replaced_window_count": len(replaced.windows),
                 "replaced_micro_event_count": len(replaced.windows[0].micro_events),
             }
@@ -255,15 +304,18 @@ def _window(
     transcript_id: int,
     job_id: int,
     attempt_id: int,
+    window_index: int = 1,
     with_candidates: bool = True,
 ) -> MicroEventExtractionWindowCreate:
+    start_cue_id = f"tr{transcript_id}-c{window_index * 2 - 1:06d}"
+    end_cue_id = f"tr{transcript_id}-c{window_index * 2:06d}"
     return MicroEventExtractionWindowCreate(
         video_task_id=video_task_id,
         video_id=video_id,
         transcript_id=transcript_id,
-        window_index=1,
-        start_cue_id=f"tr{transcript_id}-c000001",
-        end_cue_id=f"tr{transcript_id}-c000002",
+        window_index=window_index,
+        start_cue_id=start_cue_id,
+        end_cue_id=end_cue_id,
         cue_count=2,
         status="succeeded",
         carry_out_unfinished=False,
@@ -279,9 +331,9 @@ def _window(
                 candidate_index=1,
                 activity="JUST_CHATTING",
                 event="스트리머가 방송 주제를 설명한다.",
-                start_cue_id=f"tr{transcript_id}-c000001",
-                end_cue_id=f"tr{transcript_id}-c000002",
-                evidence_cue_ids=[f"tr{transcript_id}-c000001"],
+                start_cue_id=start_cue_id,
+                end_cue_id=end_cue_id,
+                evidence_cue_ids=[start_cue_id],
                 boundary_before=True,
                 boundary_after=False,
                 confidence=0.9,
@@ -298,8 +350,8 @@ def _window(
         excluded_ranges=[
             MicroEventExcludedRangeCreate(
                 range_index=1,
-                start_cue_id=f"tr{transcript_id}-c000002",
-                end_cue_id=f"tr{transcript_id}-c000002",
+                start_cue_id=end_cue_id,
+                end_cue_id=end_cue_id,
                 reason="LOW_INFORMATION",
             )
         ]

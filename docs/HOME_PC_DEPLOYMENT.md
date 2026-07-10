@@ -4,8 +4,9 @@ The current Home PC deployment is local native.
 
 Use:
 
-- `docs/LOCAL_NATIVE_DEPLOYMENT.md` for starting, stopping, deploying, and
-  recovering the local runtime.
+- [docs/LOCAL_NATIVE_DEPLOYMENT.md](LOCAL_NATIVE_DEPLOYMENT.md) for starting,
+  stopping, deploying, and recovering the local runtime.
+
 The previous Docker Compose + Nginx + ngrok + GHCR deployment path is not part
 of this public repository. The normal operating model is local native runtime.
 

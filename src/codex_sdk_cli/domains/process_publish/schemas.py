@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from codex_sdk_cli.domains.archive_publish.schemas import ArchivePublishModeLiteral
 from codex_sdk_cli.domains.codex.choices import ReasoningEffortChoice
 
 
@@ -28,9 +29,16 @@ class ProcessToPublishRequest(BaseModel):
         le=60,
         alias="pollIntervalSeconds",
     )
+    publish_mode: ArchivePublishModeLiteral = Field(default="prod", alias="publishMode")
     environment: str | None = Field(default=None, min_length=1, max_length=64)
     variant: str | None = Field(default=None, min_length=1, max_length=64)
     schema_version: int | None = Field(default=None, ge=1, le=100, alias="schemaVersion")
+
+    @model_validator(mode="after")
+    def _dev_mode_cannot_use_prod_environment(self) -> ProcessToPublishRequest:
+        if self.publish_mode == "dev" and self.environment == "prod":
+            raise ValueError("publishMode=dev cannot publish to environment=prod.")
+        return self
 
     model_config = ConfigDict(
         extra="forbid",
@@ -44,6 +52,7 @@ class ProcessToPublishRequest(BaseModel):
                     "retryFailed": True,
                     "waitTimeoutMinutes": 30,
                     "pollIntervalSeconds": 10,
+                    "publishMode": "prod",
                     "environment": "prod",
                     "variant": "control",
                     "schemaVersion": 1,

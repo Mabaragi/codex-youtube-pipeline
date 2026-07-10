@@ -520,6 +520,18 @@ class _LazyArchivePublishRetryExecutor(PipelineRetryExecutor):
             storage_factory=archive_publish_storage_factory(self._settings),
             storage_bucket=self._settings.archive_publish_r2_bucket,
             storage_endpoint=self._settings.archive_publish_r2_endpoint,
+            dev_public_base_url=self._settings.archive_publish_dev_public_base_url,
+            dev_prefix=self._settings.archive_publish_dev_prefix,
+            dev_default_environment=self._settings.archive_publish_dev_environment,
+            dev_storage_factory=archive_publish_storage_factory(
+                self._settings,
+                publish_mode="dev",
+            ),
+            dev_storage_bucket=self._settings.archive_publish_dev_r2_bucket,
+            dev_storage_endpoint=(
+                self._settings.archive_publish_dev_r2_endpoint
+                or self._settings.archive_publish_r2_endpoint
+            ),
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
 

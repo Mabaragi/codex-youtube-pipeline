@@ -14,6 +14,7 @@ Python `codex-demo` CLI와 `codex-api` FastAPI 앱으로 구성된 로컬 YouTub
   - transcript 수집과 cue 생성
   - cue 기반 micro-event 후보 추출
   - micro-event 기반 timeline 구성
+  - channel video/transcript 수집을 주기적으로 시작하는 local scheduler
   - Cloudflare R2 compatible archive publish
 - Ops UI: Next.js 기반 로컬 운영 콘솔.
 - 관측성:
@@ -144,7 +145,7 @@ src/codex_sdk_cli/
 ├── api/                  # FastAPI app, routes, dependency composition
 ├── domains/              # use cases, DTOs, ports
 ├── infra/                # SQLAlchemy, external clients, Codex adapters
-├── workers/              # DB polling workers
+├── workers/              # DB polling workers와 local pipeline scheduler
 ├── cli.py                # Click command entrypoint
 ├── runner.py             # Codex SDK helper
 └── settings.py           # CODEX_CLI_ settings
@@ -167,6 +168,8 @@ Route handler는 얇게 유지하고, 업무 흐름은 domain use case에 둔다
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`
 - `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`
 - `CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT`
+- `CODEX_CLI_PIPELINE_SCHEDULER_*`
+- `CODEX_CLI_YTDLP_BIN`, `CODEX_CLI_FFMPEG_BIN`, `CODEX_CLI_FFPROBE_BIN`
 - `CODEX_CLI_LLM_TRACE_*`
 - `CODEX_CLI_ARCHIVE_PUBLISH_R2_*`
 
@@ -178,7 +181,7 @@ Route handler는 얇게 유지하고, 업무 흐름은 domain use case에 둔다
 
 ```powershell
 uv run pytest
-uv run ruff check src tests
+uv run ruff check .
 uv run pyrefly check --min-severity warn
 uv run python scripts/export_openapi.py --check
 ```
@@ -195,9 +198,5 @@ pnpm --filter codex-sdk-ops-ui build
 
 ## 문서
 
-- [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md): 프로젝트 구조와 API 목록.
-- [docs/YOUTUBE_DATA_PIPELINE.md](docs/YOUTUBE_DATA_PIPELINE.md): 파이프라인 상태와 데이터 수명주기.
-- [docs/LOCAL_NATIVE_DEPLOYMENT.md](docs/LOCAL_NATIVE_DEPLOYMENT.md): 로컬 네이티브 런타임.
-- [docs/ARCHIVE_PUBLISH.md](docs/ARCHIVE_PUBLISH.md): archive object layout과 publish API.
-- [docs/ARCHITECTURE_LINTING.md](docs/ARCHITECTURE_LINTING.md): import boundary 검증.
-- [ops-ui/docs/FRONTEND_ARCHITECTURE.md](ops-ui/docs/FRONTEND_ARCHITECTURE.md): Ops UI 구조.
+- [docs/INDEX.md](docs/INDEX.md): backend, pipeline, deployment, archive, API 운영 문서를 작업별로 찾는다.
+- [ops-ui/docs/INDEX.md](ops-ui/docs/INDEX.md): Ops UI 구조, BFF, API contract, UI style 문서를 작업별로 찾는다.

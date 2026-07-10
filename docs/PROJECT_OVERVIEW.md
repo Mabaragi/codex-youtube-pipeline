@@ -20,7 +20,8 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - 현재 Codex account 상태 JSON 출력.
 - Codex account logout.
 
-`codex-api`는 다음 REST endpoint 계열을 제공한다.
+`codex-api`는 다음 대표 REST endpoint 계열을 제공한다. 정확한 request/response
+schema와 전체 목록은 실행 중인 API의 `/openapi.json`을 source of truth로 사용한다.
 
 - `POST /codex/runs`: prompt와 optional instructions 요청으로 새 thread를 실행한다.
 - `GET /codex/account`: 현재 account 상태 확인.
@@ -28,7 +29,7 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `POST /codex/login/api-key`: API key 로그인.
 - `POST /codex/logout`: account logout.
 - `GET /pipeline/jobs`, `GET /pipeline/jobs/{id}`: pipeline job 목록과 상세 attempts/raw calls/domain outputs를 조회한다.
-- `POST /pipeline/jobs/{id}/retry`: 실패한 pipeline job을 같은 job 아래 새 attempt로 재시도한다. 현재 `channel_resolve`, `video_collect`, `transcript_collect`, `transcript_cue_generate`, `micro_event_extract`, `timeline_compose`를 지원한다.
+- `POST /pipeline/jobs/{id}/retry`: 실패한 pipeline job을 같은 job 아래 새 attempt로 재시도한다. 현재 `channel_resolve`, `video_collect`, `transcript_collect`, `transcript_cue_generate`, `micro_event_extract`, `timeline_compose`, `archive_publish`를 지원한다.
 - `POST /streamers`, `GET /streamers`, `GET/PATCH/DELETE /streamers/{id}`: streamer metadata CRUD.
 - `POST /streamers/{id}/channels`, `GET /streamers/{id}/channels`: 특정 streamer에 속한 channel 생성과 목록 조회.
 - `GET /channels`, `GET/PATCH/DELETE /channels/{id}`: channel metadata 조회/수정/삭제.
@@ -59,7 +60,17 @@ Codex SDK는 애플리케이션 안에서 Codex를 programmatic하게 제어할 
 - `GET /health`: API health check.
 - `GET /health/s3`: 컨테이너에서 보이는 `/data/s3` mount 상태 진단.
 
-DB persistence는 async SQLAlchemy와 Alembic으로 관리한다. 현재
+`codex-demo asr transcribe <youtube-url-or-id>`는 API와 scheduler에 연결되지 않은
+실험용 faster-whisper 전사 명령이다. `yt-dlp`로 YouTube audio를 임시 다운로드하고,
+`ffmpeg`로 16kHz mono chunk를 만든 뒤 faster-whisper로 전사한다. 결과는 기존
+`youtube_transcripts` JSON/metadata와 `transcript_cues` row로 저장한다. 다만 이 명령은
+local `videos` row나 succeeded `transcript_cue_generate` task를 만들지 않으므로, 결과만으로
+queued/batch micro-event·timeline 후보가 되지는 않는다. local video가 있는 단일-video
+micro-event 경로의 fallback 실험에는 사용할 수 있다. 실행 파일 사전조건은
+[Optional ASR Prerequisites](LOCAL_NATIVE_DEPLOYMENT.md#optional-asr-prerequisites)를
+따른다.
+
+DB persistence는 async SQLAlchemy와 Alembic으로 관리한다. 대표적으로
 `streamers`, `channels`, `videos`, `youtube_transcripts`, `transcript_cues`,
 `video_tasks`, `pipeline_jobs`, `pipeline_job_attempts`, `external_api_calls`,
 `operation_events`, `codex_run_usages`, `domain_entries`,
@@ -67,7 +78,9 @@ DB persistence는 async SQLAlchemy와 Alembic으로 관리한다. 현재
 `micro_event_extraction_windows`, `micro_event_candidates`,
 `micro_event_excluded_ranges`, `asr_correction_candidates`,
 `timeline_compositions`, `timeline_blocks`, `timeline_episodes`,
-`timeline_topic_clusters`, `timeline_review_flags` 테이블을 사용한다.
+`timeline_topic_clusters`, `timeline_review_flags`, `prompt_versions`,
+`prompt_active_versions`, `archive_video_artifacts`,
+`archive_index_publications` 테이블을 사용한다.
 Raw transcript, external API, and Codex response content는 필요한 경우 MinIO나
 raw response text/hash로 분리하고, SQLite에는 운영 조회와 재시도에 필요한 metadata와
 normalized domain row를 저장한다.
@@ -135,6 +148,11 @@ Home PC deployment is local native. MinIO runs in Docker, while the API,
 workers, and optional Ops UI run as Windows processes. There is no public ngrok
 URL or GitHub-driven deploy. See `docs/LOCAL_NATIVE_DEPLOYMENT.md`.
 
+The local runtime also includes `codex-pipeline-scheduler`, a periodic process
+that runs channel video collection, bounded transcript collection, and explicit
+old `no_transcript` rechecks using the same pipeline job/task records as the
+manual APIs.
+
 YouTube 자막 조회 API는 URL과 raw video ID를 모두 받는다.
 
 ```powershell
@@ -150,9 +168,13 @@ Invoke-RestMethod `
 
 ## 코드 구조
 
+아래는 주요 domain과 infrastructure 경계다. 전체 파일 목록은 source tree를 따른다.
+
 ```text
 src/codex_sdk_cli/
 ├── api/             # FastAPI app, dependency composition, exception handlers
+├── domains/archive_publish/ # R2 archive artifact/index publish API
+├── domains/asr/     # faster-whisper transcript experiment ports/use cases
 ├── domains/codex/   # Codex domain router, schemas, use cases, ports
 ├── domains/codex_usage/ # Codex runtime usage list/aggregate API
 ├── domains/domain_knowledge/ # LLM prompt domain entry/type/alias API
@@ -161,6 +183,8 @@ src/codex_sdk_cli/
 ├── domains/operation_events/ # 작업 중심 operation event log API
 ├── domains/ops/ # Ops UI read-model API
 ├── domains/pipeline_jobs/ # pipeline job/attempt 상태 ports/exceptions
+├── domains/pipeline_scheduler/ # periodic collect/recheck scheduler use case
+├── domains/prompts/ # DB prompt version/cache/fallback domain
 ├── domains/channels/ # Channel API router, schemas, use cases, ports
 ├── domains/videos/ # YouTube video 수집 API router, schemas, use cases, ports
 ├── domains/video_tasks/ # Video 단위 manual task API, schemas, use cases, ports
@@ -170,6 +194,8 @@ src/codex_sdk_cli/
 ├── domains/youtube_data/ # YouTube Data API client ports/exceptions
 ├── domains/youtube_transcripts/ # YouTube transcript API router, schemas, use cases, ports
 ├── infra/codex/     # 실제 Codex SDK client adapter
+├── infra/archive_publish/ # R2 storage, publication repository, public catalog sync
+├── infra/asr/       # yt-dlp/ffmpeg/faster-whisper adapter
 ├── infra/codex_usage/ # Codex usage SQLAlchemy repository
 ├── infra/database/  # SQLAlchemy Base, async engine/session factory
 ├── infra/domain_knowledge/ # Domain knowledge SQLAlchemy repository
@@ -178,6 +204,7 @@ src/codex_sdk_cli/
 ├── infra/operation_events/ # Operation event SQLAlchemy repository/recorder
 ├── infra/ops/ # Ops UI read-model SQLAlchemy queries
 ├── infra/pipeline_jobs/ # pipeline job/attempt SQLAlchemy repository
+├── infra/prompts/   # Prompt version SQLAlchemy repository
 ├── infra/channels/  # Channel SQLAlchemy repository
 ├── infra/videos/ # Video SQLAlchemy repository
 ├── infra/video_tasks/ # Video task SQLAlchemy repository
@@ -186,7 +213,7 @@ src/codex_sdk_cli/
 ├── infra/transcript_cues/ # Transcript cue SQLAlchemy repository
 ├── infra/youtube_data/ # official YouTube Data API HTTP client
 ├── infra/youtube_transcripts/   # youtube-transcript-api adapter, MinIO transcript storage
-├── workers/         # DB polling workers for queued micro-event and timeline tasks
+├── workers/         # DB polling workers and local scheduler processes
 ├── cli.py           # Click command 정의와 사용자 출력
 ├── runner.py        # Codex SDK 호출 helper와 adapter
 ├── settings.py      # CODEX_CLI_ 환경변수 설정
@@ -218,6 +245,7 @@ src/codex_sdk_cli/
 - `tests/test_youtube_transcripts_api.py`: YouTube transcript fetch와 metadata CRUD API를 검증한다.
 - `tests/test_youtube_transcripts_repository.py`: YouTube transcript metadata repository insert/update/list/get/patch/delete를 검증한다.
 - `tests/test_youtube_transcripts_storage.py`: MinIO transcript storage boundary를 검증한다.
+- `tests/test_asr_cli.py`, `tests/test_pipeline_scheduler.py`, `tests/test_worker_database_models.py`: ASR CLI, local scheduler, worker model wiring을 fake/DB boundary로 검증한다.
 
 ## 동작 흐름
 
@@ -233,7 +261,33 @@ src/codex_sdk_cli/
 
 `--empty-base-instructions`와 `--empty-developer-instructions`를 지정하면 `thread_start` 또는 `thread_resume`에 blank instruction override를 전달한다. 실제 빈 문자열은 turn 실행 시점에 SDK 서버가 거절하므로, CLI는 공백 override로 SDK 기본 instructions를 대체한다. 지정하지 않으면 `None`으로 두어 SDK 기본값을 그대로 사용한다.
 
-REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받고 use case를 호출한다. Codex use case는 `CodexRuntimePort` Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의 `CodexRuntimeClient`가 담당한다. Channel use case는 `ChannelRepositoryPort`, `StreamerRepositoryPort`, `PipelineJobRepositoryPort`, YouTube Data client projection에 의존해 `channel_resolve` job/attempt와 local channel row 하나를 연결한다. Video collect use case는 local channel row의 `uploads_playlist_id`로 `playlistItems.list` 최신순 page를 가져오고 기존 video를 만나면 중단한 뒤, 새 candidates를 `videos.list(part=contentDetails)` duration metadata로 보강해 `videos` row와 raw API call metadata를 연결한다. YouTube Data client는 official channel/playlist/video metadata를 조회하면서 raw 응답을 MinIO에 저장하고 `external_api_calls` metadata row를 남긴 뒤 projection만 반환한다. Transcript, cue, micro-event, timeline 단계는 `video_tasks`가 중복 방지와 durable status를 소유하고, `pipeline_jobs`/`pipeline_job_attempts`가 실행 이력을 기록한다. Micro-event와 timeline queue는 FastAPI 프로세스가 아니라 `workers/`의 별도 DB polling process가 pending task를 claim한다. Pipeline retry use case는 failed job의 저장된 입력을 step별 lazy executor registry로 넘겨 지원 step을 같은 job 아래 새 attempt로 재실행한다. YouTube transcript use case도 `YouTubeTranscriptPort`, `YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에 의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가 `youtube-transcript-api`를 통해 처리하고, 응답 JSON 저장은 `infra/youtube_transcripts/storage.py`가 MinIO에 기록하며, 저장 위치와 메타데이터 CRUD는 `infra/youtube_transcripts/repository.py`가 DB에 기록한다.
+REST API route handler는 `src/codex_sdk_cli/api/routes/*.py`에서 HTTP DTO를 받고
+use case를 호출하는 얇은 경계로 유지한다. Codex use case는 `CodexRuntimePort`
+Protocol에만 의존하고, 실제 SDK 호출은 `infra/codex/client.py`의
+`CodexRuntimeClient`가 담당한다.
+
+Channel use case는 `ChannelRepositoryPort`, `StreamerRepositoryPort`,
+`PipelineJobRepositoryPort`, YouTube Data client projection으로 `channel_resolve`
+job/attempt와 local channel row를 연결한다. Video collect는 local channel의
+`uploads_playlist_id`로 `playlistItems.list` 최신순 page를 가져오고, 기존 video를
+만나면 중단한 뒤 새 candidates를 `videos.list(part=contentDetails)` duration으로
+보강한다. YouTube Data client는 raw 응답을 MinIO와 `external_api_calls` metadata에
+기록한 뒤 projection만 반환한다.
+
+Transcript, cue, micro-event, timeline 단계는 `video_tasks`가 중복 방지와 durable
+status를 소유하고, `pipeline_jobs`/`pipeline_job_attempts`가 실행 이력을 기록한다.
+Micro-event와 timeline queue는 `workers/`의 별도 DB polling process가 pending task를
+claim한다. Pipeline scheduler도 FastAPI 안의 loop가 아닌 별도 local process로 실행되어
+channel video collect와 transcript collect를 주기적으로 트리거한다. Pipeline retry는
+failed job의 저장된 입력을 step별 lazy executor registry로 넘겨 같은 job 아래 새
+attempt를 만든다.
+
+YouTube transcript use case도 `YouTubeTranscriptPort`,
+`YouTubeTranscriptStoragePort`, `YouTubeTranscriptRepositoryPort` Protocol에
+의존한다. 실제 captions 조회는 `infra/youtube_transcripts/client.py`가
+`youtube-transcript-api`로 처리하고, 응답 JSON은
+`infra/youtube_transcripts/storage.py`가 MinIO에 기록한다. 저장 위치와 metadata CRUD는
+`infra/youtube_transcripts/repository.py`가 담당한다.
 
 ## 설정
 
@@ -247,6 +301,9 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_API_KEY`: `login api-key`의 기본 API key.
 - `CODEX_CLI_YOUTUBE_HTTP_PROXY`: YouTube transcript 요청에 사용할 HTTP proxy.
 - `CODEX_CLI_YOUTUBE_HTTPS_PROXY`: YouTube transcript 요청에 사용할 HTTPS proxy.
+- `CODEX_CLI_YTDLP_BIN`: faster-whisper ASR CLI에서 사용할 `yt-dlp` 실행 파일 경로. 비어 있으면 `PATH`에서 찾는다.
+- `CODEX_CLI_FFMPEG_BIN`: faster-whisper ASR CLI에서 사용할 `ffmpeg` 실행 파일 경로. 비어 있으면 `PATH`에서 찾는다.
+- `CODEX_CLI_FFPROBE_BIN`: faster-whisper ASR CLI에서 사용할 `ffprobe` 실행 파일 경로. 비어 있으면 `PATH`에서 찾는다.
 - `CODEX_CLI_YOUTUBE_DATA_API_KEY`: official YouTube Data API key.
 - `CODEX_CLI_YOUTUBE_DATA_TIMEOUT_SECONDS`: YouTube Data API timeout. 기본값은 `10`.
 - `CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT`: transcript JSON을 저장할 MinIO endpoint.
@@ -268,6 +325,13 @@ REST API는 route handler를 얇게 유지한다. `router.py`는 HTTP DTO를 받
 - `CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT`: `timeline_compose` worker가 동시에 처리할 video task 수. 기본값은 `3`.
 - `CODEX_CLI_TIMELINE_COMPOSE_WORKER_POLL_INTERVAL_SECONDS`: timeline compose worker DB polling interval. 기본값은 `5`.
 - `CODEX_CLI_TIMELINE_COMPOSE_WORKER_ID`: timeline compose worker id override.
+- `CODEX_CLI_PIPELINE_SCHEDULER_ENABLED`: channel video/transcript scheduler 실행 여부. 기본값은 `true`.
+- `CODEX_CLI_PIPELINE_SCHEDULER_POLL_INTERVAL_SECONDS`: scheduler tick interval. 기본값은 `300`.
+- `CODEX_CLI_PIPELINE_SCHEDULER_CHANNEL_INTERVAL_SECONDS`: 같은 channel의 `video_collect` 재실행 최소 간격. 기본값은 `86400`.
+- `CODEX_CLI_PIPELINE_SCHEDULER_TRANSCRIPT_LIMIT`: scheduler가 channel당 한 tick에서 처리할 transcript task 수. 기본값은 `5`.
+- `CODEX_CLI_PIPELINE_SCHEDULER_NO_TRANSCRIPT_RECHECK_INTERVAL_SECONDS`: `no_transcript` task를 다시 확인하기 전 대기 시간. 기본값은 `604800`.
+- `CODEX_CLI_PIPELINE_SCHEDULER_NO_TRANSCRIPT_LIMIT`: scheduler tick당 `no_transcript` 재확인 수. 기본값은 `2`.
+- `CODEX_CLI_PIPELINE_SCHEDULER_ID`: scheduler worker id override.
 - `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`: 외부 API raw response object key prefix. 기본값은 `external-api-calls`.
 - `CODEX_CLI_DATABASE_URL`: SQLAlchemy async DB URL. 앱 기본값과 local native 기본값은
   `sqlite+aiosqlite:///./data/app.db`다.
@@ -318,6 +382,18 @@ uv run codex-demo account
 uv run codex-demo run --sandbox read-only "이 저장소를 한 문장으로 설명해줘"
 uv run codex-demo run --persist --sandbox read-only "이 thread를 나중에 이어갈 수 있게 실행해줘"
 .\scripts\local-home\start.ps1
+```
+
+YouTube 자막이 없는 영상에 대해 faster-whisper CLI 전사를 실험한다.
+
+```powershell
+uv run codex-demo asr transcribe "https://www.youtube.com/watch?v=dQw4w9WgXcQ" `
+  --model-size turbo `
+  --language ko `
+  --device auto `
+  --chunk-minutes 15 `
+  --overlap-seconds 3 `
+  --output .home-deploy/transcript-asr.json
 ```
 
 ## 확장 아이디어
