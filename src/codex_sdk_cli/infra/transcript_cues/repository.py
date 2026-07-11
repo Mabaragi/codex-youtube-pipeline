@@ -73,6 +73,16 @@ class TranscriptCueModel(Base):
         index=True,
         nullable=True,
     )
+    source_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    source_work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -98,18 +108,14 @@ class SqlAlchemyTranscriptCueRepository(TranscriptCueRepositoryPort):
     ) -> list[TranscriptCueRecord]:
         try:
             await self._session.execute(
-                delete(TranscriptCueModel).where(
-                    TranscriptCueModel.transcript_id == transcript_id
-                )
+                delete(TranscriptCueModel).where(TranscriptCueModel.transcript_id == transcript_id)
             )
             self._session.add_all([_cue_model(cue) for cue in cues])
             await self._session.commit()
             return await self.list_cues(transcript_id)
         except SQLAlchemyError as exc:
             await self._session.rollback()
-            raise TranscriptCuePersistenceError(
-                "Transcript cue persistence failed."
-            ) from exc
+            raise TranscriptCuePersistenceError("Transcript cue persistence failed.") from exc
 
     @override
     async def list_cues(self, transcript_id: int) -> list[TranscriptCueRecord]:
@@ -121,9 +127,7 @@ class SqlAlchemyTranscriptCueRepository(TranscriptCueRepositoryPort):
             )
             return [_cue_record(row) for row in rows]
         except SQLAlchemyError as exc:
-            raise TranscriptCuePersistenceError(
-                "Transcript cue persistence failed."
-            ) from exc
+            raise TranscriptCuePersistenceError("Transcript cue persistence failed.") from exc
 
     @override
     async def summarize_cues(self, transcript_id: int) -> TranscriptCueSummaryRecord:

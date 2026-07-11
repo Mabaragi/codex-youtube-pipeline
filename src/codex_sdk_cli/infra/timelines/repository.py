@@ -65,6 +65,11 @@ class TimelineCompositionModel(Base):
         ForeignKey("video_tasks.id", ondelete="CASCADE"),
         nullable=False,
     )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     video_id: Mapped[int] = mapped_column(
         ForeignKey("videos.id", ondelete="CASCADE"),
         nullable=False,
@@ -72,6 +77,11 @@ class TimelineCompositionModel(Base):
     source_micro_event_task_id: Mapped[int] = mapped_column(
         ForeignKey("video_tasks.id", ondelete="RESTRICT"),
         nullable=False,
+    )
+    source_micro_event_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     source_micro_event_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     copy_style: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -91,6 +101,11 @@ class TimelineCompositionModel(Base):
     source_job_attempt_id: Mapped[int | None] = mapped_column(
         ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    source_work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     codex_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     codex_turn_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -330,9 +345,7 @@ class SqlAlchemyTimelineCompositionRepository(TimelineCompositionRepositoryPort)
             )
         )
         await self._session.execute(
-            delete(TimelineBlockModel).where(
-                TimelineBlockModel.composition_id == composition_id
-            )
+            delete(TimelineBlockModel).where(TimelineBlockModel.composition_id == composition_id)
         )
 
     @override

@@ -115,6 +115,16 @@ class CodexRunUsageModel(Base):
         ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
         nullable=True,
     )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     transcript_id: Mapped[int | None] = mapped_column(
         ForeignKey("youtube_transcripts.id", ondelete="SET NULL"),
         nullable=True,
@@ -185,11 +195,7 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
                 ).all()
             )
             summary_rows = list(
-                (
-                    await self._session.scalars(
-                        select(CodexRunUsageModel).where(*conditions)
-                    )
-                ).all()
+                (await self._session.scalars(select(CodexRunUsageModel).where(*conditions))).all()
             )
         except SQLAlchemyError as exc:
             raise CodexUsagePersistenceError("Codex usage persistence failed.") from exc
@@ -212,15 +218,9 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
         conditions.append(CodexRunUsageModel.video_id.is_not(None))
         try:
             models = list(
-                (
-                    await self._session.scalars(
-                        select(CodexRunUsageModel).where(*conditions)
-                    )
-                ).all()
+                (await self._session.scalars(select(CodexRunUsageModel).where(*conditions))).all()
             )
-            video_ids = {
-                model.video_id for model in models if model.video_id is not None
-            }
+            video_ids = {model.video_id for model in models if model.video_id is not None}
             videos = {
                 video.id: video
                 for video in (
@@ -270,11 +270,7 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
         conditions = _conditions(query, include_cursor=False)
         try:
             models = list(
-                (
-                    await self._session.scalars(
-                        select(CodexRunUsageModel).where(*conditions)
-                    )
-                ).all()
+                (await self._session.scalars(select(CodexRunUsageModel).where(*conditions))).all()
             )
             job_ids = {model.job_id for model in models if model.job_id is not None}
             jobs = {
@@ -335,9 +331,7 @@ class SessionFactoryCodexUsageRepository(CodexUsageRepositoryPort):
         query: CodexUsageListQuery,
     ) -> list[CodexUsageVideoSummaryRecord]:
         async with self._session_factory() as session:
-            return await SqlAlchemyCodexUsageRepository(session).list_usage_by_video(
-                query
-            )
+            return await SqlAlchemyCodexUsageRepository(session).list_usage_by_video(query)
 
     @override
     async def list_usage_by_job(
@@ -385,9 +379,7 @@ def _summary(models: list[CodexRunUsageModel]) -> CodexUsageSummaryRecord:
         output_tokens=sum(record.output_tokens or 0 for record in records),
         total_tokens=sum(record.total_tokens or 0 for record in records),
         cached_input_tokens=sum(record.cached_input_tokens or 0 for record in records),
-        reasoning_output_tokens=sum(
-            record.reasoning_output_tokens or 0 for record in records
-        ),
+        reasoning_output_tokens=sum(record.reasoning_output_tokens or 0 for record in records),
     )
 
 
@@ -435,11 +427,7 @@ def _resolved_usage_tokens(
         model.input_tokens if model.input_tokens is not None else extracted[0],
         model.output_tokens if model.output_tokens is not None else extracted[1],
         model.total_tokens if model.total_tokens is not None else extracted[2],
-        (
-            model.cached_input_tokens
-            if model.cached_input_tokens is not None
-            else extracted[3]
-        ),
+        (model.cached_input_tokens if model.cached_input_tokens is not None else extracted[3]),
         (
             model.reasoning_output_tokens
             if model.reasoning_output_tokens is not None

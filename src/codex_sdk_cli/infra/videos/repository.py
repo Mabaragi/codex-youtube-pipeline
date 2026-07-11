@@ -72,6 +72,11 @@ class VideoModel(Base):
         index=True,
         nullable=True,
     )
+    source_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -203,9 +208,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
                     thumbnail_url=video.thumbnail_url,
                     source_listing_api_call_id=video.source_listing_api_call_id,
                     source_details_api_call_id=video.source_details_api_call_id,
-                    source_embed_status_api_call_id=(
-                        video.source_embed_status_api_call_id
-                    ),
+                    source_embed_status_api_call_id=(video.source_embed_status_api_call_id),
                     source_job_id=video.source_job_id,
                 )
                 for video in videos

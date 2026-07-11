@@ -107,17 +107,37 @@ class ArchiveVideoArtifactModel(Base):
         ForeignKey("video_tasks.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    source_timeline_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     source_micro_event_task_id: Mapped[int] = mapped_column(
         ForeignKey("video_tasks.id", ondelete="RESTRICT"),
         nullable=False,
+    )
+    source_micro_event_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     publish_task_id: Mapped[int] = mapped_column(
         ForeignKey("video_tasks.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    publish_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     publish_job_id: Mapped[int] = mapped_column(
         ForeignKey("pipeline_jobs.id", ondelete="RESTRICT"),
         nullable=False,
+    )
+    publish_work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     environment: Mapped[str] = mapped_column(String(64), nullable=False)
     variant: Mapped[str] = mapped_column(String(64), nullable=False)

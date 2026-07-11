@@ -66,6 +66,11 @@ class ExternalApiCallModel(Base):
         index=True,
         nullable=True,
     )
+    work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

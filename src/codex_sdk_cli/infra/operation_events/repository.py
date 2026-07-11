@@ -82,6 +82,21 @@ class OperationEventModel(Base):
         ForeignKey("video_tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    work_batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_batches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     channel_id: Mapped[int | None] = mapped_column(
         ForeignKey("channels.id", ondelete="SET NULL"),
         nullable=True,
@@ -190,4 +205,3 @@ def _record_from_model(model: OperationEventModel) -> OperationEventRecord:
         error_type=model.error_type,
         error_message=model.error_message,
     )
-

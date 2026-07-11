@@ -82,6 +82,11 @@ class MicroEventExtractionWindowModel(Base):
         ForeignKey("video_tasks.id", ondelete="CASCADE"),
         nullable=False,
     )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     video_id: Mapped[int] = mapped_column(
         ForeignKey("videos.id", ondelete="CASCADE"),
         nullable=False,
@@ -107,6 +112,11 @@ class MicroEventExtractionWindowModel(Base):
     )
     source_job_attempt_id: Mapped[int | None] = mapped_column(
         ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    source_work_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
@@ -152,6 +162,11 @@ class MicroEventCandidateModel(Base):
     video_task_id: Mapped[int] = mapped_column(
         ForeignKey("video_tasks.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     transcript_id: Mapped[int] = mapped_column(
         ForeignKey("youtube_transcripts.id", ondelete="CASCADE"),
@@ -211,6 +226,11 @@ class MicroEventExcludedRangeModel(Base):
         ForeignKey("video_tasks.id", ondelete="CASCADE"),
         nullable=False,
     )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     transcript_id: Mapped[int] = mapped_column(
         ForeignKey("youtube_transcripts.id", ondelete="CASCADE"),
         nullable=False,
@@ -261,6 +281,11 @@ class AsrCorrectionCandidateModel(Base):
     video_task_id: Mapped[int] = mapped_column(
         ForeignKey("video_tasks.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     transcript_id: Mapped[int] = mapped_column(
         ForeignKey("youtube_transcripts.id", ondelete="CASCADE"),
@@ -384,9 +409,7 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
             raise MicroEventExtractionPersistenceError(
                 "Micro-event extraction persistence failed."
             ) from exc
-        raise MicroEventExtractionPersistenceError(
-            "Micro-event extraction persistence failed."
-        )
+        raise MicroEventExtractionPersistenceError("Micro-event extraction persistence failed.")
 
     @override
     async def get_extraction(
@@ -552,9 +575,7 @@ class SqlAlchemyMicroEventExtractionRepository(MicroEventExtractionRepositoryPor
                 )
             ).all()
             for candidate in micro_events:
-                micro_events_by_window[candidate.window_id].append(
-                    _micro_event_record(candidate)
-                )
+                micro_events_by_window[candidate.window_id].append(_micro_event_record(candidate))
             excluded_ranges = (
                 await self._session.scalars(
                     select(MicroEventExcludedRangeModel)
@@ -883,11 +904,7 @@ def _excluded_range_reason(value: str) -> ExcludedRangeReason:
         "LOW_INFORMATION",
         "TECHNICAL_NOISE",
     }
-    return (
-        cast(ExcludedRangeReason, value)
-        if value in allowed
-        else "LOW_INFORMATION"
-    )
+    return cast(ExcludedRangeReason, value) if value in allowed else "LOW_INFORMATION"
 
 
 def _correction_type(value: str) -> CorrectionType:

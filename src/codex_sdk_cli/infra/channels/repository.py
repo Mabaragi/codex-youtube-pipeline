@@ -47,6 +47,11 @@ class ChannelModel(Base):
         index=True,
         nullable=True,
     )
+    source_work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
 
 
 class SqlAlchemyChannelRepository(ChannelRepositoryPort):
@@ -104,9 +109,7 @@ class SqlAlchemyChannelRepository(ChannelRepositoryPort):
     ) -> ChannelRecord | None:
         try:
             model = await self._session.scalar(
-                select(ChannelModel).where(
-                    ChannelModel.youtube_channel_id == youtube_channel_id
-                )
+                select(ChannelModel).where(ChannelModel.youtube_channel_id == youtube_channel_id)
             )
         except SQLAlchemyError as exc:
             raise ChannelPersistenceError("Channel persistence failed.") from exc

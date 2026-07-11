@@ -72,6 +72,40 @@ def test_work_expand_migration_preserves_legacy_execution_history(
             "FROM work_item_dependencies WHERE work_item_id = 16"
         ).fetchone()
         assert tuple(dependency) == (16, 5)
+        assert (
+            connection.execute(
+                "SELECT work_attempt_id FROM external_api_calls WHERE id = 80"
+            ).fetchone()[0]
+            == 101
+        )
+        usage = connection.execute(
+            "SELECT work_item_id, work_attempt_id FROM codex_run_usages WHERE id = 70"
+        ).fetchone()
+        assert tuple(usage) == (5, 101)
+        event = connection.execute(
+            "SELECT work_item_id, work_attempt_id FROM operation_events WHERE id = 60"
+        ).fetchone()
+        assert tuple(event) == (5, 101)
+        cue = connection.execute(
+            "SELECT source_work_item_id, source_work_attempt_id FROM transcript_cues WHERE id = 50"
+        ).fetchone()
+        assert tuple(cue) == (5, 101)
+        window = connection.execute(
+            "SELECT work_item_id, source_work_attempt_id "
+            "FROM micro_event_extraction_windows WHERE id = 20"
+        ).fetchone()
+        assert tuple(window) == (5, 101)
+        composition = connection.execute(
+            "SELECT work_item_id, source_micro_event_work_item_id, "
+            "source_work_attempt_id FROM timeline_compositions WHERE id = 30"
+        ).fetchone()
+        assert tuple(composition) == (5, 5, 101)
+        artifact = connection.execute(
+            "SELECT source_timeline_work_item_id, source_micro_event_work_item_id, "
+            "publish_work_item_id, publish_work_attempt_id "
+            "FROM archive_video_artifacts WHERE id = 40"
+        ).fetchone()
+        assert tuple(artifact) == (5, 5, 5, 101)
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         connection.close()
@@ -158,9 +192,79 @@ def _insert_legacy_fixture(database_path: Path) -> None:
                 json.dumps({"transcriptId": 3}),
             ),
         )
+        _insert_provenance_fixture(connection)
         connection.commit()
     finally:
         connection.close()
+
+
+def _insert_provenance_fixture(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        "INSERT INTO external_api_calls(id, provider, operation, request_method, "
+        "request_url, request_params, response_headers, validation_status, duration_ms, "
+        "pipeline_job_attempt_id) VALUES "
+        "(80, 'youtube', 'test', 'GET', 'https://example.test', '{}', '{}', "
+        "'valid', 1, 101)"
+    )
+    connection.execute(
+        "INSERT INTO codex_run_usages(id, source, operation, status, duration_ms, "
+        "video_id, video_task_id, job_id, job_attempt_id) VALUES "
+        "(70, 'test', 'extract', 'succeeded', 1, 2, 5, 10, 101)"
+    )
+    connection.execute(
+        "INSERT INTO operation_events(id, event_type, severity, message, actor_type, "
+        "source, metadata_json, job_id, job_attempt_id, video_task_id, video_id) VALUES "
+        "(60, 'test.succeeded', 'info', 'done', 'system', 'test', '{}', 10, 101, 5, 2)"
+    )
+    connection.execute(
+        "INSERT INTO transcript_cues(id, transcript_id, cue_id, cue_index, text, start_ms, "
+        "end_ms, duration_ms, source_segment_index, source_job_id, source_job_attempt_id) "
+        "VALUES (50, 3, 'tr3-c000001', 1, 'test', 0, 1000, 1000, 0, 10, 101)"
+    )
+    connection.execute(
+        "INSERT INTO micro_event_extraction_windows(id, video_task_id, video_id, "
+        "transcript_id, window_index, start_cue_id, end_cue_id, cue_count, status, "
+        "carry_out_unfinished, source_job_id, source_job_attempt_id) VALUES "
+        "(20, 5, 2, 3, 1, 'tr3-c000001', 'tr3-c000001', 1, 'succeeded', 0, 10, 101)"
+    )
+    connection.execute(
+        "INSERT INTO micro_event_candidates(id, window_id, video_task_id, transcript_id, "
+        "candidate_index, activity, event, start_cue_id, end_cue_id, evidence_cue_ids, "
+        "boundary_before, boundary_after, confidence, program_mode, content_kind) VALUES "
+        "(21, 20, 5, 3, 1, 'JUST_CHATTING', 'test event', 'tr3-c000001', "
+        "'tr3-c000001', '[\"tr3-c000001\"]', 1, 1, 0.9, 'JUST_CHATTING', 'META_CHAT')"
+    )
+    connection.execute(
+        "INSERT INTO micro_event_excluded_ranges(id, window_id, video_task_id, "
+        "transcript_id, range_index, start_cue_id, end_cue_id, reason) VALUES "
+        "(22, 20, 5, 3, 1, 'tr3-c000001', 'tr3-c000001', 'LOW_INFORMATION')"
+    )
+    connection.execute(
+        "INSERT INTO asr_correction_candidates(id, window_id, video_task_id, "
+        "transcript_id, candidate_index, original, suggested, correction_type, "
+        "apply_scope, evidence_cue_ids, confidence) VALUES "
+        "(23, 20, 5, 3, 1, 'nagi', '나기', 'PROPER_NOUN', 'LOCAL', '[]', 0.9)"
+    )
+    connection.execute(
+        "INSERT INTO timeline_compositions(id, video_task_id, video_id, "
+        "source_micro_event_task_id, source_micro_event_fingerprint, copy_style, "
+        "title, summary, display_title, display_summary, main_topics, output_json, "
+        "validation_warnings, source_job_id, source_job_attempt_id) VALUES "
+        "(30, 5, 2, 5, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', "
+        "'LIGHT_FANDOM_V1', 'title', 'summary', 'display', 'display summary', '[]', "
+        "'{}', '[]', 10, 101)"
+    )
+    connection.execute(
+        "INSERT INTO archive_video_artifacts(id, video_id, source_timeline_composition_id, "
+        "source_timeline_task_id, source_micro_event_task_id, publish_task_id, "
+        "publish_job_id, environment, variant, schema_version, version, object_key, "
+        "public_url, sha256, byte_size, block_count, episode_count, topic_cluster_count, "
+        "review_flag_count, micro_event_count) VALUES "
+        "(40, 2, 30, 5, 5, 5, 10, 'prod', 'control', 1, 'v1', 'timeline.json', "
+        "'https://example.test/timeline.json', "
+        "'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', "
+        "1, 0, 0, 0, 0, 1)"
+    )
 
 
 def _alembic_config() -> Config:
