@@ -1,209 +1,84 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkItemFilters, WorkItemList } from "@/lib/types";
 import { TasksPage } from "../tasks-page";
-import type {
-  OpsChannel,
-  OpsVideoTaskFilters,
-  OpsVideoTaskList,
-  PipelineJobList,
-} from "@/lib/types";
 
 const routerPush = vi.hoisted(() => vi.fn());
-const queryMocks = vi.hoisted(() => ({
-  channels: {
-    data: undefined as { items: OpsChannel[] } | undefined,
-    isLoading: false,
-    error: null as Error | null,
-  },
-  tasks: {
-    data: undefined as OpsVideoTaskList | undefined,
-    isLoading: false,
-    error: null as Error | null,
-  },
-  taskFilters: undefined as OpsVideoTaskFilters | undefined,
-  retryJob: {
-    isPending: false,
-    mutate: vi.fn(),
-  },
-  runningTranscriptTasks: {
-    data: undefined as OpsVideoTaskList | undefined,
-    isLoading: false,
-    isError: false,
-  },
-  runningTranscriptBatches: {
-    data: undefined as PipelineJobList | undefined,
-    isLoading: false,
-    isError: false,
-  },
+const mocks = vi.hoisted(() => ({
+  filters: undefined as WorkItemFilters | undefined,
+  query: { data: undefined as WorkItemList | undefined, isLoading: false, error: null as Error | null },
+  retry: { isPending: false, mutate: vi.fn() },
+  cancel: { isPending: false, mutate: vi.fn() },
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: routerPush }),
-}));
-
-vi.mock("@/lib/queries", () => ({
-  useOpsChannels: () => queryMocks.channels,
-  useOpsVideoTasks: (filters: OpsVideoTaskFilters) => {
-    queryMocks.taskFilters = filters;
-    return queryMocks.tasks;
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: routerPush }) }));
+vi.mock("@/features/work/api", () => ({
+  useWorkItems: (filters: WorkItemFilters) => {
+    mocks.filters = filters;
+    return mocks.query;
   },
-  useRetryJobMutation: () => queryMocks.retryJob,
-  useRunningTranscriptBatches: () => queryMocks.runningTranscriptBatches,
-  useRunningTranscriptTasks: () => queryMocks.runningTranscriptTasks,
+  useRetryWorkItemMutation: () => mocks.retry,
+  useCancelWorkItemMutation: () => mocks.cancel,
 }));
 
-const channel: OpsChannel = {
-  channelId: 7,
-  streamerId: 1,
-  streamerName: "Streamer",
-  handle: "@channel",
-  name: "Channel",
-  youtubeChannelId: "UC123456789",
-  uploadsPlaylistId: "UU123456789",
-  videoCount: 1,
-  transcriptSucceededCount: 1,
-  taskNoTranscriptCount: 0,
-  taskFailedCount: 0,
-  taskRunningCount: 0,
-  latestVideoPublishedAt: "2026-06-18T00:00:00Z",
-  latestTaskUpdatedAt: null,
-};
+const failedWork = {
+  id: 41,
+  taskType: "transcript_collect",
+  subjectType: "video",
+  subjectId: 7,
+  externalKey: "yt-7",
+  taskVersion: "v1",
+  inputHash: "hash",
+  executionMode: "queued",
+  status: "failed",
+  outcomeCode: null,
+  priority: 0,
+  timeoutSeconds: 600,
+  input: {},
+  output: null,
+  outputTranscriptId: null,
+  errorCode: "upstream_error",
+  errorType: "UpstreamError",
+  errorMessage: "failed",
+  leaseOwner: null,
+  leaseExpiresAt: null,
+  availableAt: "2026-07-01T00:00:00Z",
+  startedAt: "2026-07-01T00:00:00Z",
+  completedAt: "2026-07-01T00:01:00Z",
+  createdAt: "2026-07-01T00:00:00Z",
+  updatedAt: "2026-07-01T00:01:00Z",
+} as const;
 
-const emptyRunningTasks: OpsVideoTaskList = {
-  items: [],
-  total: 0,
-  limit: 1,
-  offset: 0,
-};
-
-const emptyRunningBatches: PipelineJobList = {
-  items: [],
-  nextCursor: null,
-};
-
-const runningBatch: PipelineJobList["items"][number] = {
-  jobId: 44,
-  step: "transcript_collect_batch",
-  status: "running",
-  subjectType: "all_videos",
-  subjectId: null,
-  externalKey: null,
-  createdAt: "2026-06-18T00:00:00Z",
-  updatedAt: "2026-06-18T00:00:00Z",
-  completedAt: null,
-  latestAttemptId: 45,
-  latestAttemptStatus: "running",
-  attemptCount: 1,
-};
-
-describe("TasksPage filters", () => {
+describe("TasksPage", () => {
   beforeEach(() => {
     routerPush.mockReset();
-    queryMocks.channels.data = { items: [channel] };
-    queryMocks.tasks.data = { items: [], total: 0, limit: 100, offset: 0 };
-    queryMocks.tasks.isLoading = false;
-    queryMocks.tasks.error = null;
-    queryMocks.taskFilters = undefined;
-    queryMocks.retryJob.isPending = false;
-    queryMocks.retryJob.mutate.mockReset();
-    queryMocks.runningTranscriptTasks.data = emptyRunningTasks;
-    queryMocks.runningTranscriptTasks.isLoading = false;
-    queryMocks.runningTranscriptTasks.isError = false;
-    queryMocks.runningTranscriptBatches.data = emptyRunningBatches;
-    queryMocks.runningTranscriptBatches.isLoading = false;
-    queryMocks.runningTranscriptBatches.isError = false;
+    mocks.retry.mutate.mockReset();
+    mocks.cancel.mutate.mockReset();
+    mocks.query.data = { items: [failedWork], nextCursor: 40 };
+    mocks.query.error = null;
   });
 
-  it("passes initial URL filters to the tasks query", () => {
-    render(
-      <TasksPage
-        initialFilters={{
-          channelId: 7,
-          status: "failed",
-          taskName: "transcript_collect",
-          limit: 100,
-          offset: 0,
-        }}
-      />,
-    );
-
-    expect(queryMocks.taskFilters).toEqual({
-      channelId: 7,
-      status: "failed",
-      taskName: "transcript_collect",
-      limit: 100,
-      offset: 0,
-    });
+  it("queries and renders unified work items", () => {
+    const filters: WorkItemFilters = { taskType: "transcript_collect", status: "failed", limit: 50 };
+    render(<TasksPage initialFilters={filters} />);
+    expect(mocks.filters).toEqual(filters);
+    expect(screen.getByText("#41 transcript_collect")).toBeTruthy();
+    expect(screen.getByText(/UpstreamError/)).toBeTruthy();
   });
 
-  it("submits filters through the tasks route", () => {
-    render(<TasksPage initialFilters={{ limit: 100, offset: 0 }} />);
-
-    fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "7" } });
-    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "running" } });
-    fireEvent.change(screen.getByLabelText("Task name"), {
-      target: { value: "transcript_collect" },
-    });
+  it("submits work filters and keeps cursor pagination", () => {
+    render(<TasksPage initialFilters={{ limit: 50 }} />);
+    fireEvent.change(screen.getByLabelText("State"), { target: { value: "running" } });
+    fireEvent.change(screen.getByLabelText("Work type"), { target: { value: "micro_event_extract" } });
+    fireEvent.change(screen.getByLabelText("Subject type"), { target: { value: "video" } });
     fireEvent.click(screen.getByRole("button", { name: /Apply/i }));
-
-    expect(routerPush).toHaveBeenCalledWith(
-      "/tasks?channelId=7&status=running&taskName=transcript_collect&limit=100",
-    );
+    expect(routerPush).toHaveBeenCalledWith("/tasks?status=running&taskType=micro_event_extract&subjectType=video&limit=50");
+    expect(screen.getByRole("link", { name: "Older" }).getAttribute("href")).toBe("/tasks?limit=50&cursor=40");
   });
 
-  it("preserves an unknown selected channel option", () => {
-    queryMocks.channels.data = { items: [] };
-
-    render(<TasksPage initialFilters={{ channelId: 99, limit: 100, offset: 0 }} />);
-
-    expect(screen.getByRole("option", { name: "#99" })).toBeTruthy();
-  });
-
-  it("includes micro-event extraction in the task name filter", () => {
-    render(<TasksPage initialFilters={{ limit: 100, offset: 0 }} />);
-
-    expect(screen.getByRole("option", { name: "micro_event_extract" })).toBeTruthy();
-  });
-
-  it("disables transcript task retry while transcript collection is running", () => {
-    queryMocks.tasks.data = {
-      items: [
-        {
-          videoTaskId: 5,
-          videoId: 7,
-          youtubeVideoId: "abc123",
-          channelId: 7,
-          channelName: "Channel",
-          taskName: "transcript_collect",
-          taskVersion: "v1",
-          status: "failed",
-          workerId: null,
-          timeoutSeconds: 600,
-          jobId: 9,
-          jobAttemptId: 10,
-          outputTranscriptId: null,
-          outputJson: null,
-          errorType: "TimeoutError",
-          errorMessage: "timeout",
-          startedAt: "2026-06-18T00:00:00Z",
-          completedAt: "2026-06-18T00:10:00Z",
-          createdAt: "2026-06-18T00:00:00Z",
-          updatedAt: "2026-06-18T00:10:00Z",
-        },
-      ],
-      total: 1,
-      limit: 100,
-      offset: 0,
-    };
-    queryMocks.runningTranscriptBatches.data = {
-      items: [runningBatch],
-      nextCursor: null,
-    };
-
-    render(<TasksPage initialFilters={{ limit: 100, offset: 0 }} />);
-
-    const retryButton = screen.getByRole("button", { name: /Retry job/i });
-    expect((retryButton as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("Transcript collection running")).toBeTruthy();
+  it("retries failed work by work item id", () => {
+    render(<TasksPage initialFilters={{ limit: 50 }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mocks.retry.mutate).toHaveBeenCalledWith({ workItemId: 41 });
   });
 });

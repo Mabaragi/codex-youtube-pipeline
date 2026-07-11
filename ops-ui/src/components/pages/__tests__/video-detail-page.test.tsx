@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { VideoDetailPage } from "../video-detail-page";
 import type {
-  MicroEventExtractResult,
+  OperationBatchResult,
   MicroEventExtractionDetail,
   OpsVideoDetail,
   PromptDetail,
@@ -21,7 +21,7 @@ const queryMocks = vi.hoisted(() => {
     timelineError: null as Error | null,
   };
   const mutation = {
-    data: undefined as MicroEventExtractResult | undefined,
+    data: undefined as OperationBatchResult | undefined,
     error: null as Error | null,
     isPending: false,
     mutate: vi.fn(),
@@ -97,7 +97,7 @@ const queryMocks = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/queries", () => ({
-  useExtractMicroEventsMutation: () => queryMocks.extractMicroEventsMutation(),
+  useExtractMicroEventsOperation: () => queryMocks.extractMicroEventsMutation(),
   useMicroEventExtraction: (videoId: number, enabled: boolean) =>
     queryMocks.microEventExtraction(videoId, enabled),
   useTimelineComposition: (videoId: number, enabled: boolean) =>
@@ -655,9 +655,13 @@ describe("VideoDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Regenerate/i }));
 
     expect(queryMocks.mutation.mutate).toHaveBeenCalledWith({
-      videoId: 42,
+      selection: { type: "selected", videoIds: [42] },
       retryFailed: false,
-      regenerateSucceeded: true,
+      rerunSucceeded: true,
+      includeNonEmbeddable: false,
+      timeoutSeconds: 3600,
+      windowMinutes: 30,
+      overlapMinutes: 5,
       model: "gpt-5.4",
       reasoningEffort: "high",
       promptVersionId: 102,
@@ -677,9 +681,13 @@ describe("VideoDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Download JSON/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Extract events/i }));
     expect(queryMocks.mutation.mutate).toHaveBeenCalledWith({
-      videoId: 42,
+      selection: { type: "selected", videoIds: [42] },
       retryFailed: false,
-      regenerateSucceeded: false,
+      rerunSucceeded: false,
+      includeNonEmbeddable: false,
+      timeoutSeconds: 3600,
+      windowMinutes: 30,
+      overlapMinutes: 5,
       model: "gpt-5.5",
       reasoningEffort: "medium",
     });

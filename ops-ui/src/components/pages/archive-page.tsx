@@ -42,8 +42,8 @@ import {
 import type {
   ArchiveOpsVideo,
   ArchiveOpsVideoFilters,
-  ArchivePublishRequest,
-  ArchivePublishResult,
+  ArchivePublishOperationRequest,
+  OperationBatchResult,
 } from "@/lib/types";
 import {
   hrefWithQuery,
@@ -62,7 +62,7 @@ type PublishDefaults = {
   schemaVersion: number;
   limit: number;
   retryFailed: boolean;
-  regenerateSucceeded: boolean;
+  rerunSucceeded: boolean;
 };
 
 const PUBLISH_STATUS_OPTIONS = [
@@ -87,7 +87,7 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(
     () => new Set(),
   );
-  const [lastResult, setLastResult] = useState<ArchivePublishResult | null>(null);
+  const [lastResult, setLastResult] = useState<OperationBatchResult | null>(null);
   const [defaults, setDefaults] = useState<PublishDefaults>({
     publishMode: "prod",
     environment,
@@ -95,7 +95,7 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
     schemaVersion: 1,
     limit: 20,
     retryFailed: false,
-    regenerateSucceeded: false,
+    rerunSucceeded: false,
   });
 
   const visibleVideoIds = videos
@@ -147,7 +147,7 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
 
   const clearSelection = () => setSelectedVideoIds(new Set());
 
-  const publish = (body: ArchivePublishRequest) => {
+  const publish = (body: ArchivePublishOperationRequest) => {
     publishArchive.mutate(body, {
       onSuccess: (result) => {
         setLastResult(result);
@@ -160,26 +160,23 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
     if (!videoIds.length) {
       return;
     }
-    publish(baseRequest(defaults, { target: "selected_videos", videoIds }));
+    publish(baseRequest(defaults, { type: "selected", videoIds }));
   };
 
   const publishCurrentFilters = () => {
     publish(
       baseRequest(defaults, {
-        target: "current_filters",
+        type: "filter",
         channelId: initialFilters.channelId,
         search: initialFilters.search,
+        limit: defaults.limit,
       }),
     );
   };
 
   const publishNextEligible = () => {
     publish(
-      baseRequest(defaults, {
-        target: "next_eligible",
-        channelId: initialFilters.channelId,
-        search: initialFilters.search,
-      }),
+      baseRequest(defaults, { type: "nextEligible", limit: defaults.limit }),
     );
   };
 
@@ -483,12 +480,12 @@ export function ArchivePage({ initialFilters }: ArchivePageProps) {
           </label>
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
             <input
-              checked={defaults.regenerateSucceeded}
+              checked={defaults.rerunSucceeded}
               name="archiveRegenerateSucceeded"
               onChange={(event) =>
                 setDefaults((currentDefaults) => ({
                   ...currentDefaults,
-                  regenerateSucceeded: event.target.checked,
+                  rerunSucceeded: event.target.checked,
                 }))
               }
               type="checkbox"
@@ -605,18 +602,17 @@ function ArchiveResultSummary({
   result,
   className = "",
 }: {
-  result: ArchivePublishResult;
+  result: OperationBatchResult;
   className?: string;
 }) {
   return (
     <InlineNotice className={className} tone="success">
-      <div className="grid gap-2 md:grid-cols-6">
-        <span>Scanned {result.scannedCount}</span>
-        <span>Processed {result.processedCount}</span>
-        <span>Published {result.publishedCount}</span>
-        <span>Already published {result.alreadyPublishedCount}</span>
-        <span>Failed {result.failedCount + result.failedSkippedCount}</span>
-        <span>Ineligible {result.ineligibleCount}</span>
+      <div className="grid gap-2 md:grid-cols-5">
+        <span>Requested {result.requestedCount}</span>
+        <span>Created {result.createdCount}</span>
+        <span>Reused {result.reusedCount}</span>
+        <span>Skipped {result.skippedCount}</span>
+        <span>Failed {result.items.filter((item) => item.status === "failed").length}</span>
       </div>
     </InlineNotice>
   );
@@ -624,19 +620,18 @@ function ArchiveResultSummary({
 
 function baseRequest(
   defaults: PublishDefaults,
-  override: Partial<ArchivePublishRequest>,
-): ArchivePublishRequest {
+  selection: ArchivePublishOperationRequest["selection"],
+): ArchivePublishOperationRequest {
   return {
-    target: "next_eligible",
-    limit: defaults.limit,
+    selection,
     publishMode: defaults.publishMode || "prod",
     environment: defaults.environment || "prod",
     variant: defaults.variant || "control",
     schemaVersion: defaults.schemaVersion,
     includeNonEmbeddable: false,
     retryFailed: defaults.retryFailed,
-    regenerateSucceeded: defaults.regenerateSucceeded,
-    ...override,
+    rerunSucceeded: defaults.rerunSucceeded,
+    timeoutSeconds: 600,
   };
 }
 

@@ -34,9 +34,8 @@ import {
   LoadingState,
 } from "@/components/ui-primitives";
 import {
-  useEnqueueMicroEventsMutation,
-  useEnqueueTimelineComposeMutation,
-  useExtractAllMicroEventsMutation,
+  useComposeTimelinesOperation,
+  useExtractMicroEventsOperation,
   useOpsChannels,
   useOpsVideos,
   usePromptDetail,
@@ -50,13 +49,13 @@ import {
 } from "@/lib/codex-options";
 import { compactId, formatDateTime } from "@/lib/format";
 import type {
-  MicroEventBatchExtractRequest,
-  MicroEventEnqueueRequest,
+  MicroEventOperationRequest,
+  OperationBatchResult,
   OpsVideo,
   OpsVideoFilters,
   OpsRefreshVideoEmbedStatusResponse,
   PromptDetail,
-  TimelineComposeEnqueueRequest,
+  TimelineOperationRequest,
 } from "@/lib/types";
 import {
   hrefWithQuery,
@@ -70,8 +69,8 @@ type VideosPageProps = {
 
 type MicroEventDefaults = {
   limit: number;
-  model: NonNullable<MicroEventBatchExtractRequest["model"]>;
-  reasoningEffort: NonNullable<MicroEventBatchExtractRequest["reasoningEffort"]>;
+  model: MicroEventOperationRequest["model"];
+  reasoningEffort: MicroEventOperationRequest["reasoningEffort"];
   retryFailed: boolean;
   regenerateSucceeded: boolean;
   windowMinutes: number;
@@ -81,11 +80,11 @@ type MicroEventDefaults = {
 
 type TimelineComposeDefaults = {
   limit: number;
-  model: NonNullable<TimelineComposeEnqueueRequest["model"]>;
-  reasoningEffort: NonNullable<TimelineComposeEnqueueRequest["reasoningEffort"]>;
+  model: TimelineOperationRequest["model"];
+  reasoningEffort: TimelineOperationRequest["reasoningEffort"];
   retryFailed: boolean;
   regenerateSucceeded: boolean;
-  copyStyle: NonNullable<TimelineComposeEnqueueRequest["copyStyle"]>;
+  copyStyle: TimelineOperationRequest["copyStyle"];
   promptVersionId: number | null;
 };
 
@@ -111,9 +110,9 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   const router = useRouter();
   const { data: channelsData } = useOpsChannels();
   const { data, isLoading, error } = useOpsVideos(initialFilters);
-  const extractAllMicroEvents = useExtractAllMicroEventsMutation();
-  const enqueueMicroEvents = useEnqueueMicroEventsMutation();
-  const enqueueTimelineCompose = useEnqueueTimelineComposeMutation();
+  const extractAllMicroEvents = useExtractMicroEventsOperation();
+  const enqueueMicroEvents = useExtractMicroEventsOperation();
+  const enqueueTimelineCompose = useComposeTimelinesOperation();
   const refreshEmbedStatus = useRefreshVideoEmbedStatusMutation();
   const microEventPrompt = usePromptDetail("micro_event_extract");
   const timelinePrompt = usePromptDetail("timeline_compose");
@@ -223,14 +222,18 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   };
   const runNow = () => {
     extractAllMicroEvents.mutate({
-      limit: Math.min(Math.max(microEventDefaults.limit, 1), 5),
+      selection: {
+        type: "nextEligible",
+        limit: Math.min(Math.max(microEventDefaults.limit, 1), 5),
+      },
       model: microEventDefaults.model,
       reasoningEffort: microEventDefaults.reasoningEffort,
       retryFailed: microEventDefaults.retryFailed,
-      regenerateSucceeded: microEventDefaults.regenerateSucceeded,
+      rerunSucceeded: microEventDefaults.regenerateSucceeded,
       windowMinutes: microEventDefaults.windowMinutes,
       overlapMinutes: microEventDefaults.overlapMinutes,
       includeNonEmbeddable: false,
+      timeoutSeconds: 3600,
       ...(microEventDefaults.promptVersionId
         ? { promptVersionId: microEventDefaults.promptVersionId }
         : {}),
@@ -472,10 +475,10 @@ export function VideosPage({ initialFilters }: VideosPageProps) {
   );
 }
 
-type ExtractAllMicroEventsMutation = ReturnType<typeof useExtractAllMicroEventsMutation>;
-type EnqueueMicroEventsMutation = ReturnType<typeof useEnqueueMicroEventsMutation>;
+type ExtractAllMicroEventsMutation = ReturnType<typeof useExtractMicroEventsOperation>;
+type EnqueueMicroEventsMutation = ReturnType<typeof useExtractMicroEventsOperation>;
 type EnqueueTimelineComposeMutation = ReturnType<
-  typeof useEnqueueTimelineComposeMutation
+  typeof useComposeTimelinesOperation
 >;
 
 function MicroEventBatchPanel({
@@ -558,7 +561,7 @@ function MicroEventBatchPanel({
       actions={
         <Link
           className="ops-button"
-          href="/tasks?taskName=micro_event_extract&limit=100"
+          href="/tasks?taskType=micro_event_extract&limit=100"
         >
           <ScrollText aria-hidden="true" size={15} />
           Tasks
@@ -805,7 +808,7 @@ function TimelineComposePanel({
       actions={
         <Link
           className="ops-button"
-          href="/tasks?taskName=timeline_compose&limit=100"
+          href="/tasks?taskType=timeline_compose&limit=100"
         >
           <ScrollText aria-hidden="true" size={15} />
           Tasks
@@ -951,39 +954,7 @@ function TimelineComposeEnqueueResult({
 }: {
   result: NonNullable<EnqueueTimelineComposeMutation["data"]>;
 }) {
-  return (
-    <div aria-live="polite" className="mt-4 border-t border-slate-200 pt-4" role="status">
-      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
-        <Metric label="Queued" value={result.enqueuedCount} />
-        <Metric label="Pending" value={result.alreadyPendingCount} />
-        <Metric label="Running" value={result.alreadyRunningCount} />
-        <Metric label="Succeeded" value={result.alreadySucceededCount} />
-        <Metric label="Retry queued" value={result.retryQueuedCount} />
-        <Metric label="Regenerated" value={result.regeneratedCount} />
-        <Metric label="Failed skipped" value={result.failedSkippedCount} />
-        <Metric label="Scanned" value={result.scannedCount} />
-      </div>
-      {result.items.length > 0 ? (
-        <div className="mt-3 grid gap-2">
-          {result.items.slice(0, 8).map((item) => (
-            <div
-              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
-              key={`${item.videoId}-${item.videoTaskId ?? item.reason}`}
-            >
-              <Link className="font-semibold" href={`/videos/${item.videoId}`}>
-                #{item.videoId}
-              </Link>
-              <StatusBadge status={item.status} />
-              <span>{item.reason}</span>
-              {item.youtubeVideoId ? (
-                <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+  return <OperationBatchResultView result={result} />;
 }
 
 function MicroEventEnqueueResult({
@@ -991,39 +962,7 @@ function MicroEventEnqueueResult({
 }: {
   result: NonNullable<EnqueueMicroEventsMutation["data"]>;
 }) {
-  return (
-    <div aria-live="polite" className="mt-4 border-t border-slate-200 pt-4" role="status">
-      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
-        <Metric label="Queued" value={result.enqueuedCount} />
-        <Metric label="Pending" value={result.alreadyPendingCount} />
-        <Metric label="Running" value={result.alreadyRunningCount} />
-        <Metric label="Succeeded" value={result.alreadySucceededCount} />
-        <Metric label="Skipped failed" value={result.skippedFailedCount} />
-        <Metric label="Ineligible" value={result.ineligibleCount} />
-        <Metric label="Scanned" value={result.scannedCount} />
-        <Metric label="Requested" value={result.requestedCount} />
-      </div>
-      {result.items.length > 0 ? (
-        <div className="mt-3 grid gap-2">
-          {result.items.slice(0, 8).map((item) => (
-            <div
-              className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
-              key={`${item.videoId}-${item.videoTaskId ?? item.reason}`}
-            >
-              <Link className="font-semibold" href={`/videos/${item.videoId}`}>
-                #{item.videoId}
-              </Link>
-              <StatusBadge status={item.status} />
-              <span>{item.reason}</span>
-              {item.youtubeVideoId ? (
-                <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+  return <OperationBatchResultView result={result} />;
 }
 
 function MicroEventRunNowResult({
@@ -1031,31 +970,31 @@ function MicroEventRunNowResult({
 }: {
   result: NonNullable<ExtractAllMicroEventsMutation["data"]>;
 }) {
+  return <OperationBatchResultView result={result} />;
+}
+
+function OperationBatchResultView({ result }: { result: OperationBatchResult }) {
   return (
     <div aria-live="polite" className="mt-4 border-t border-slate-200 pt-4" role="status">
-      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4 xl:grid-cols-8">
-        <Metric label="Processed" value={result.processedCount} />
-        <Metric label="Succeeded" value={result.succeededCount} />
-        <Metric label="Failed" value={result.failedCount} />
+      <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4">
+        <Metric label="Requested" value={result.requestedCount} />
+        <Metric label="Created" value={result.createdCount} />
+        <Metric label="Reused" value={result.reusedCount} />
         <Metric label="Skipped" value={result.skippedCount} />
-        <Metric label="Timed out" value={result.timedOutCount} />
-        <Metric label="Scanned" value={result.scannedCount} />
-        <Metric label="Satisfied" value={result.alreadySatisfiedCount} />
-        <Metric label="Ineligible" value={result.ineligibleCount} />
       </div>
       {result.items.length > 0 ? (
         <div className="mt-3 grid gap-2">
-          {result.items.map((item) => (
+          {result.items.slice(0, 8).map((item) => (
             <div
               className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs"
-              key={`${item.videoId}-${item.videoTaskId ?? "none"}`}
+              key={`${item.videoId}-${item.workItemId ?? item.reason}`}
             >
               <Link className="font-semibold" href={`/videos/${item.videoId}`}>
                 #{item.videoId}
               </Link>
               <StatusBadge status={item.status} />
               <span>{item.reason}</span>
-              <span className="text-slate-500">{compactId(item.youtubeVideoId)}</span>
+              {item.workItemId ? <span className="text-slate-500">work #{item.workItemId}</span> : null}
             </div>
           ))}
         </div>
@@ -1219,121 +1158,82 @@ function videosHref(filters: OpsVideoFilters): string {
 function enqueueSelectedRequest(
   videoIds: number[],
   defaults: MicroEventDefaults,
-): MicroEventEnqueueRequest {
+): MicroEventOperationRequest {
   return {
     ...microEventRequestDefaults(defaults),
-    target: "selected_videos",
-    videoIds,
-    limit: Math.min(videoIds.length, 200),
+    selection: { type: "selected", videoIds },
   };
 }
 
 function enqueueCurrentFiltersRequest(
   filters: OpsVideoFilters,
   defaults: MicroEventDefaults,
-): MicroEventEnqueueRequest {
+): MicroEventOperationRequest {
   return {
     ...microEventRequestDefaults(defaults),
-    target: "current_filters",
-    channelId: filters.channelId,
-    taskStatus: videoTaskStatusValue(filters.taskStatus),
-    search: filters.search || undefined,
+    selection: {
+      type: "filter",
+      channelId: filters.channelId,
+      search: filters.search || undefined,
+      limit: Math.min(Math.max(defaults.limit, 1), 200),
+    },
   };
 }
 
 function timelineSelectedRequest(
   videoIds: number[],
   defaults: TimelineComposeDefaults,
-): TimelineComposeEnqueueRequest {
+): TimelineOperationRequest {
   return {
     ...timelineRequestDefaults(defaults),
-    target: "selected_videos",
-    videoIds,
-    limit: Math.min(videoIds.length, 200),
+    selection: { type: "selected", videoIds },
   };
 }
 
 function timelineCurrentFiltersRequest(
   filters: OpsVideoFilters,
   defaults: TimelineComposeDefaults,
-): TimelineComposeEnqueueRequest {
+): TimelineOperationRequest {
   return {
     ...timelineRequestDefaults(defaults),
-    target: "current_filters",
-    channelId: filters.channelId,
-    taskStatus: videoTaskStatusValue(filters.taskStatus),
-    search: filters.search || undefined,
+    selection: {
+      type: "filter",
+      channelId: filters.channelId,
+      search: filters.search || undefined,
+      limit: Math.min(Math.max(defaults.limit, 1), 200),
+    },
   };
 }
 
 function microEventRequestDefaults(
   defaults: MicroEventDefaults,
-): Pick<
-  MicroEventEnqueueRequest,
-  | "includeNonEmbeddable"
-  | "limit"
-  | "model"
-  | "overlapMinutes"
-  | "reasoningEffort"
-  | "regenerateSucceeded"
-  | "retryFailed"
-  | "windowMinutes"
-  | "promptVersionId"
-> {
+): Omit<MicroEventOperationRequest, "selection"> {
   return {
-    limit: Math.min(Math.max(defaults.limit, 1), 200),
     includeNonEmbeddable: false,
     model: defaults.model,
     reasoningEffort: defaults.reasoningEffort,
     retryFailed: defaults.retryFailed,
-    regenerateSucceeded: defaults.regenerateSucceeded,
+    rerunSucceeded: defaults.regenerateSucceeded,
     windowMinutes: defaults.windowMinutes,
     overlapMinutes: defaults.overlapMinutes,
-    ...(defaults.promptVersionId ? { promptVersionId: defaults.promptVersionId } : {}),
+    timeoutSeconds: 3600,
+    promptVersionId: defaults.promptVersionId,
   };
 }
 
 function timelineRequestDefaults(
   defaults: TimelineComposeDefaults,
-): Pick<
-  TimelineComposeEnqueueRequest,
-  | "copyStyle"
-  | "includeNonEmbeddable"
-  | "limit"
-  | "model"
-  | "reasoningEffort"
-  | "regenerateSucceeded"
-  | "retryFailed"
-  | "promptVersionId"
-> {
+): Omit<TimelineOperationRequest, "selection"> {
   return {
-    limit: Math.min(Math.max(defaults.limit, 1), 200),
     includeNonEmbeddable: false,
     model: defaults.model,
     reasoningEffort: defaults.reasoningEffort,
     retryFailed: defaults.retryFailed,
-    regenerateSucceeded: defaults.regenerateSucceeded,
+    rerunSucceeded: defaults.regenerateSucceeded,
     copyStyle: defaults.copyStyle,
-    ...(defaults.promptVersionId ? { promptVersionId: defaults.promptVersionId } : {}),
+    timeoutSeconds: 3600,
+    promptVersionId: defaults.promptVersionId,
   };
-}
-
-function videoTaskStatusValue(
-  status: OpsVideoFilters["taskStatus"],
-): MicroEventEnqueueRequest["taskStatus"] {
-  if (
-    status === "pending" ||
-    status === "running" ||
-    status === "succeeded" ||
-    status === "failed" ||
-    status === "timed_out" ||
-    status === "no_transcript" ||
-    status === "skipped" ||
-    status === "canceled"
-  ) {
-    return status;
-  }
-  return undefined;
 }
 
 function embedStatusFormValue(

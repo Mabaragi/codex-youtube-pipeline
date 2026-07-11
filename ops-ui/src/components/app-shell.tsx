@@ -12,7 +12,6 @@ import {
   FileText,
   Gauge,
   ListChecks,
-  PlaySquare,
   Rows3,
   ScrollText,
 } from "lucide-react";
@@ -22,8 +21,7 @@ const navItems = [
   { href: "/channels", label: "Channels", icon: Cable },
   { href: "/videos", label: "Videos", icon: Rows3 },
   { href: "/archive", label: "Archive", icon: CloudUpload },
-  { href: "/tasks", label: "Tasks", icon: ListChecks },
-  { href: "/jobs", label: "Jobs", icon: PlaySquare },
+  { href: "/tasks", label: "Work", icon: ListChecks },
   { href: "/logs", label: "Logs", icon: ScrollText },
   { href: "/usage", label: "Usage", icon: Gauge },
   { href: "/prompts", label: "Prompts", icon: FileText },

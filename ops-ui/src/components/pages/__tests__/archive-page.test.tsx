@@ -5,7 +5,7 @@ import type {
   ArchiveCurrent,
   ArchiveOpsVideoFilters,
   ArchiveOpsVideoList,
-  ArchivePublishResult,
+  OperationBatchResult,
   OpsChannel,
 } from "@/lib/types";
 
@@ -161,33 +161,36 @@ describe("ArchivePage", () => {
 
     expect(queryMocks.publishArchive.mutate).toHaveBeenCalledWith(
       {
-        target: "selected_videos",
-        videoIds: [71],
-        limit: 20,
+        selection: { type: "selected", videoIds: [71] },
         publishMode: "prod",
         environment: "prod",
         variant: "control",
         schemaVersion: 1,
         includeNonEmbeddable: false,
         retryFailed: false,
-        regenerateSucceeded: false,
+        rerunSucceeded: false,
+        timeoutSeconds: 600,
       },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
 
   it("renders publish result summaries", () => {
-    const result: ArchivePublishResult = {
+    const result: OperationBatchResult = {
       requestedCount: 1,
-      scannedCount: 1,
-      processedCount: 1,
-      publishedCount: 1,
-      alreadyPublishedCount: 0,
-      regeneratedCount: 0,
-      failedCount: 0,
-      failedSkippedCount: 0,
-      ineligibleCount: 0,
-      items: [],
+      createdCount: 1,
+      reusedCount: 0,
+      skippedCount: 0,
+      batchId: 11,
+      items: [{
+        videoId: 71,
+        youtubeVideoId: "JSbJMOXtqn8",
+        status: "succeeded",
+        reason: "published",
+        workItemId: 91,
+        errorCode: null,
+        errorMessage: null,
+      }],
     };
     queryMocks.publishArchive.mutate.mockImplementation((_body, options) => {
       options?.onSuccess?.(result);
@@ -197,6 +200,6 @@ describe("ArchivePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Publish next eligible/i }));
 
-    expect(screen.getByText("Published 1")).toBeTruthy();
+    expect(screen.getByText("Created 1")).toBeTruthy();
   });
 });

@@ -2,13 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VideosPage } from "../videos-page";
 import type {
-  MicroEventBatchExtractResult,
-  MicroEventEnqueueResult,
+  OperationBatchResult,
   OpsChannel,
   OpsVideoFilters,
   OpsVideoList,
   PromptDetail,
-  TimelineComposeEnqueueResult,
 } from "@/lib/types";
 
 const routerPush = vi.hoisted(() => vi.fn());
@@ -26,19 +24,19 @@ const queryMocks = vi.hoisted(() => ({
   extractAllMicroEvents: {
     mutate: vi.fn(),
     isPending: false,
-    data: undefined as MicroEventBatchExtractResult | undefined,
+    data: undefined as OperationBatchResult | undefined,
     error: null as Error | null,
   },
   enqueueMicroEvents: {
     mutate: vi.fn(),
     isPending: false,
-    data: undefined as MicroEventEnqueueResult | undefined,
+    data: undefined as OperationBatchResult | undefined,
     error: null as Error | null,
   },
   enqueueTimelineCompose: {
     mutate: vi.fn(),
     isPending: false,
-    data: undefined as TimelineComposeEnqueueResult | undefined,
+    data: undefined as OperationBatchResult | undefined,
     error: null as Error | null,
   },
   refreshEmbedStatus: {
@@ -52,12 +50,18 @@ const queryMocks = vi.hoisted(() => ({
     { data: PromptDetail | undefined; isLoading: boolean; error: Error | null }
   >,
   videoFilters: undefined as OpsVideoFilters | undefined,
+  extractHookCalls: 0,
 }));
 
 vi.mock("@/lib/queries", () => ({
-  useEnqueueMicroEventsMutation: () => queryMocks.enqueueMicroEvents,
-  useEnqueueTimelineComposeMutation: () => queryMocks.enqueueTimelineCompose,
-  useExtractAllMicroEventsMutation: () => queryMocks.extractAllMicroEvents,
+  useExtractMicroEventsOperation: () => {
+    const result = queryMocks.extractHookCalls % 2 === 0
+      ? queryMocks.extractAllMicroEvents
+      : queryMocks.enqueueMicroEvents;
+    queryMocks.extractHookCalls += 1;
+    return result;
+  },
+  useComposeTimelinesOperation: () => queryMocks.enqueueTimelineCompose,
   useOpsChannels: () => queryMocks.channels,
   useOpsVideos: (filters: OpsVideoFilters) => {
     queryMocks.videoFilters = filters;
@@ -232,6 +236,7 @@ describe("VideosPage", () => {
     queryMocks.extractAllMicroEvents.isPending = false;
     queryMocks.extractAllMicroEvents.data = undefined;
     queryMocks.extractAllMicroEvents.error = null;
+    queryMocks.extractHookCalls = 0;
     queryMocks.enqueueMicroEvents.mutate.mockReset();
     queryMocks.enqueueMicroEvents.isPending = false;
     queryMocks.enqueueMicroEvents.data = undefined;
@@ -364,17 +369,16 @@ describe("VideosPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Queue selected/i })[0]);
 
     expect(queryMocks.enqueueMicroEvents.mutate).toHaveBeenCalledWith({
-      target: "selected_videos",
-      videoIds: [42],
-      limit: 1,
+      selection: { type: "selected", videoIds: [42] },
       model: "gpt-5.4",
       reasoningEffort: "high",
       includeNonEmbeddable: false,
       retryFailed: true,
-      regenerateSucceeded: false,
+      rerunSucceeded: false,
       windowMinutes: 30,
       overlapMinutes: 5,
       promptVersionId: 102,
+      timeoutSeconds: 3600,
     });
   });
 
@@ -397,15 +401,16 @@ describe("VideosPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Run now/i }));
 
     expect(queryMocks.extractAllMicroEvents.mutate).toHaveBeenCalledWith({
-      limit: 3,
+      selection: { type: "nextEligible", limit: 3 },
       model: "gpt-5.4",
       reasoningEffort: "high",
       includeNonEmbeddable: false,
       retryFailed: true,
-      regenerateSucceeded: false,
+      rerunSucceeded: false,
       windowMinutes: 30,
       overlapMinutes: 5,
       promptVersionId: 102,
+      timeoutSeconds: 3600,
     });
   });
 
@@ -425,18 +430,16 @@ describe("VideosPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Queue current filters/i })[0]);
 
     expect(queryMocks.enqueueMicroEvents.mutate).toHaveBeenCalledWith({
-      target: "current_filters",
-      channelId: 7,
-      search: "Stored",
-      taskStatus: "succeeded",
-      limit: 20,
+      selection: { type: "filter", channelId: 7, search: "Stored", limit: 20 },
       model: "gpt-5.5",
       reasoningEffort: "medium",
       includeNonEmbeddable: false,
       retryFailed: false,
-      regenerateSucceeded: false,
+      rerunSucceeded: false,
       windowMinutes: 30,
       overlapMinutes: 5,
+      promptVersionId: null,
+      timeoutSeconds: 3600,
     });
   });
 
@@ -460,48 +463,33 @@ describe("VideosPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Queue selected/i })[1]);
 
     expect(queryMocks.enqueueTimelineCompose.mutate).toHaveBeenCalledWith({
-      target: "selected_videos",
-      videoIds: [42],
-      limit: 1,
+      selection: { type: "selected", videoIds: [42] },
       model: "gpt-5.4-mini",
       reasoningEffort: "low",
       includeNonEmbeddable: false,
       retryFailed: true,
-      regenerateSucceeded: false,
+      rerunSucceeded: false,
       copyStyle: "LIGHT_FANDOM_V1",
       promptVersionId: 202,
+      timeoutSeconds: 3600,
     });
   });
 
   it("shows micro-event batch result counts and task link", () => {
     queryMocks.extractAllMicroEvents.data = {
+      batchId: 50,
       requestedCount: 1,
-      processedCount: 1,
-      succeededCount: 1,
-      failedCount: 0,
+      createdCount: 1,
+      reusedCount: 0,
       skippedCount: 0,
-      timedOutCount: 0,
-      scannedCount: 2,
-      alreadySatisfiedCount: 1,
-      ineligibleCount: 0,
       items: [
         {
           videoId: 42,
           youtubeVideoId: "abc123DEF45",
-          videoTaskId: 99,
-          status: "succeeded",
-          reason: "extracted",
-          model: "gpt-5.4",
-          reasoningEffort: "high",
-          jobId: 77,
-          jobAttemptId: 88,
-          transcriptId: 11,
-          windowCount: 1,
-          microEventCount: 2,
-          asrCorrectionCandidateCount: 0,
-          firstCueId: "tr1-c000001",
-          lastCueId: "tr1-c000002",
-          errorType: null,
+          workItemId: 99,
+          status: "pending",
+          reason: "created",
+          errorCode: null,
           errorMessage: null,
         },
       ],
@@ -509,11 +497,11 @@ describe("VideosPage", () => {
 
     render(<VideosPage initialFilters={{ limit: 100, offset: 0 }} />);
 
-    expect(screen.getByText("Processed")).toBeTruthy();
-    expect(screen.getByText("Satisfied")).toBeTruthy();
-    expect(screen.getByText("extracted")).toBeTruthy();
+    expect(screen.getAllByText("Created").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Reused").length).toBeGreaterThan(0);
+    expect(screen.getByText("created")).toBeTruthy();
     expect(screen.getAllByRole("link", { name: /Tasks/i })[0].getAttribute("href")).toBe(
-      "/tasks?taskName=micro_event_extract&limit=100",
+      "/tasks?taskType=micro_event_extract&limit=100",
     );
   });
 });

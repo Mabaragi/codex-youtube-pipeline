@@ -1,141 +1,129 @@
 import type { components, paths } from "@/generated/codex-api";
 
-export type OpsSummary = components["schemas"]["OpsSummaryResponse"];
-export type OpsChannelList = components["schemas"]["OpsChannelListResponse"];
-export type OpsChannel = components["schemas"]["OpsChannelResponse"];
-export type OpsVideoList = components["schemas"]["OpsVideoListResponse"];
-export type OpsVideo = components["schemas"]["OpsVideoResponse"];
-export type OpsVideoDetail = components["schemas"]["OpsVideoDetailResponse"];
-export type OpsVideoTaskList = components["schemas"]["OpsVideoTaskListResponse"];
-export type OpsVideoTask = components["schemas"]["OpsVideoTaskResponse"];
+type Schemas = components["schemas"];
+
+export type OpsSummary = Schemas["OpsSummaryResponse"];
+export type OpsChannelList = Schemas["OpsChannelListResponse"];
+export type OpsChannel = Schemas["OpsChannelResponse"];
+export type OpsVideoList = Schemas["OpsVideoListResponse"];
+export type OpsVideo = Schemas["OpsVideoResponse"];
+export type OpsVideoDetail = Schemas["OpsVideoDetailResponse"];
+export type OpsVideoTask = Schemas["OpsVideoTaskResponse"];
 export type OpsRefreshVideoEmbedStatusRequest =
-  components["schemas"]["OpsRefreshVideoEmbedStatusRequest"];
+  Schemas["OpsRefreshVideoEmbedStatusRequest"];
 export type OpsRefreshVideoEmbedStatusResponse =
-  components["schemas"]["OpsRefreshVideoEmbedStatusResponse"];
-export type TranscriptContent = components["schemas"]["TranscriptResponse"];
-export type TranscriptCueList = components["schemas"]["TranscriptCueListResponse"];
-export type TranscriptCue = components["schemas"]["TranscriptCueResponse"];
-export type MicroEventExtractRequest =
-  components["schemas"]["MicroEventExtractRequest"];
-export type MicroEventExtractResult =
-  components["schemas"]["MicroEventExtractResponse"];
-export type MicroEventBatchExtractRequest =
-  components["schemas"]["MicroEventBatchExtractRequest"];
-export type MicroEventBatchExtractResult =
-  components["schemas"]["MicroEventBatchExtractResponse"];
-export type MicroEventEnqueueRequest =
-  components["schemas"]["MicroEventEnqueueRequest"];
-export type MicroEventEnqueueResult =
-  components["schemas"]["MicroEventEnqueueResponse"];
+  Schemas["OpsRefreshVideoEmbedStatusResponse"];
+
+export type WorkItem = Schemas["WorkItemResponse"];
+export type WorkItemDetail = Schemas["WorkItemDetailResponse"];
+export type WorkItemList = Schemas["WorkItemListResponse"];
+export type WorkBatchDetail = Schemas["WorkBatchDetailResponse"];
+export type WorkflowRunDetail = Schemas["WorkflowRunDetailResponse"];
+export type WorkItemStatus = Schemas["WorkItemStatus"];
+export type WorkItemFilters = NonNullable<
+  paths["/ops/work-items"]["get"]["parameters"]["query"]
+>;
+
+export type VideoSelection =
+  | Schemas["SelectedVideoSelectionRequest"]
+  | Schemas["ChannelVideoSelectionRequest"]
+  | Schemas["FilterVideoSelectionRequest"]
+  | Schemas["NextEligibleVideoSelectionRequest"];
+export type OperationBatchResult = Schemas["OperationBatchResponse"];
+export type ChannelOperationBatchResult = Schemas["ChannelOperationBatchResponse"];
+export type ChannelResolveOperationResult =
+  Schemas["ChannelResolveOperationResponse"];
+export type WorkflowBatchResult = Schemas["WorkflowBatchResponse"];
+export type TranscriptCollectOperationRequest =
+  Schemas["TranscriptCollectOperationRequest"];
+export type TranscriptCueOperationRequest =
+  Schemas["TranscriptCueOperationRequest"];
+export type MicroEventOperationRequest = Schemas["MicroEventOperationRequest"];
+export type TimelineOperationRequest = Schemas["TimelineOperationRequest"];
+export type ArchivePublishOperationRequest =
+  Schemas["ArchivePublishOperationRequest"];
+export type VideoCollectOperationRequest =
+  Schemas["VideoCollectOperationRequest"];
+export type ChannelResolveOperationRequest =
+  Schemas["ChannelResolveOperationRequest"];
+export type ProcessToPublishOperationRequest =
+  Schemas["ProcessToPublishOperationRequest"];
+
+export type TranscriptContent = Schemas["TranscriptResponse"];
+export type TranscriptCueList = Schemas["TranscriptCueListResponse"];
+export type TranscriptCue = Schemas["TranscriptCueResponse"];
 export type MicroEventExtractionDetail =
-  components["schemas"]["MicroEventExtractionDetailResponse"];
+  Schemas["MicroEventExtractionDetailResponse"];
 export type MicroEventExtractionWindow =
-  components["schemas"]["MicroEventExtractionWindowResponse"];
-export type MicroEventCandidate =
-  components["schemas"]["MicroEventCandidateResponse"];
-export type AsrCorrectionCandidate =
-  components["schemas"]["AsrCorrectionCandidateResponse"];
-export type TimelineComposeEnqueueRequest =
-  components["schemas"]["TimelineComposeEnqueueRequest"];
-export type TimelineComposeEnqueueResult =
-  components["schemas"]["TimelineComposeEnqueueResponse"];
-export type ArchivePublishRequest =
-  components["schemas"]["ArchivePublishRequest"];
-export type ArchivePublishResult =
-  components["schemas"]["ArchivePublishResponse"];
-export type ArchiveCurrent = components["schemas"]["ArchiveCurrentResponse"];
-export type ArchiveOpsVideoList =
-  components["schemas"]["ArchiveOpsVideoListResponse"];
-export type ArchiveOpsVideo = components["schemas"]["ArchiveOpsVideoResponse"];
-export type TimelineComposition =
-  components["schemas"]["TimelineCompositionResponse"];
-export type TimelineEpisode = components["schemas"]["TimelineEpisodeResponse"];
-export type TimelineBlock = components["schemas"]["TimelineBlockResponse"];
-export type OperationEventList = components["schemas"]["OperationEventListResponse"];
-export type OperationEvent = components["schemas"]["OperationEventResponse"];
-export type CodexUsageList = components["schemas"]["CodexUsageListResponse"];
-export type CodexUsage = components["schemas"]["CodexUsageResponse"];
-export type CodexUsageByVideoList =
-  components["schemas"]["CodexUsageByVideoResponse"];
+  Schemas["MicroEventExtractionWindowResponse"];
+export type MicroEventCandidate = Schemas["MicroEventCandidateResponse"];
+export type AsrCorrectionCandidate = Schemas["AsrCorrectionCandidateResponse"];
+export type TimelineComposition = Schemas["TimelineCompositionResponse"];
+export type TimelineEpisode = Schemas["TimelineEpisodeResponse"];
+export type TimelineBlock = Schemas["TimelineBlockResponse"];
+
+export type ArchiveCurrent = Schemas["ArchiveCurrentResponse"];
+export type ArchiveOpsVideoList = Schemas["ArchiveOpsVideoListResponse"];
+export type ArchiveOpsVideo = Schemas["ArchiveOpsVideoResponse"];
+
+export type OperationEventList = Schemas["OperationEventListResponse"];
+export type OperationEvent = Schemas["OperationEventResponse"];
+export type CodexUsageList = Schemas["CodexUsageListResponse"];
+export type CodexUsage = Schemas["CodexUsageResponse"];
+export type CodexUsageByVideoList = Schemas["CodexUsageByVideoResponse"];
 export type CodexUsageVideoSummary =
-  components["schemas"]["CodexUsageVideoSummaryResponse"];
-export type CodexUsageByJobList =
-  components["schemas"]["CodexUsageByJobResponse"];
-export type CodexUsageJobSummary =
-  components["schemas"]["CodexUsageJobSummaryResponse"];
-export type DomainEntryType = components["schemas"]["DomainEntryTypeResponse"];
+  Schemas["CodexUsageVideoSummaryResponse"];
+export type CodexUsageByJobList = Schemas["CodexUsageByJobResponse"];
+export type CodexUsageJobSummary = Schemas["CodexUsageJobSummaryResponse"];
+
+export type DomainEntryType = Schemas["DomainEntryTypeResponse"];
 export type DomainEntryTypeCreateRequest =
-  components["schemas"]["DomainEntryTypeCreateRequest"];
-export type DomainEntryList = components["schemas"]["DomainEntryListResponse"];
-export type DomainEntry = components["schemas"]["DomainEntryResponse"];
-export type DomainEntryCreateRequest =
-  components["schemas"]["DomainEntryCreateRequest"];
-export type DomainEntryUpdateRequest =
-  components["schemas"]["DomainEntryUpdateRequest"];
+  Schemas["DomainEntryTypeCreateRequest"];
+export type DomainEntryList = Schemas["DomainEntryListResponse"];
+export type DomainEntry = Schemas["DomainEntryResponse"];
+export type DomainEntryCreateRequest = Schemas["DomainEntryCreateRequest"];
+export type DomainEntryUpdateRequest = Schemas["DomainEntryUpdateRequest"];
 export type DomainEntryAliasCreateRequest =
-  components["schemas"]["DomainEntryAliasCreateRequest"];
+  Schemas["DomainEntryAliasCreateRequest"];
 export type DomainEntryAliasUpdateRequest =
-  components["schemas"]["DomainEntryAliasUpdateRequest"];
+  Schemas["DomainEntryAliasUpdateRequest"];
 export type DomainEntryStreamerLinkRequest =
-  components["schemas"]["DomainEntryStreamerLinkRequest"];
-export type PromptBody = components["schemas"]["PromptBodyResponse"];
-export type PromptSummary = components["schemas"]["PromptSummaryResponse"];
-export type PromptDetail = components["schemas"]["PromptDetailResponse"];
-export type PromptVersion = components["schemas"]["PromptVersionResponse"];
-export type PromptVersionCreateRequest =
-  components["schemas"]["PromptVersionCreateRequest"];
-export type PromptVersionUpdateRequest =
-  components["schemas"]["PromptVersionUpdateRequest"];
+  Schemas["DomainEntryStreamerLinkRequest"];
+
+export type PromptBody = Schemas["PromptBodyResponse"];
+export type PromptSummary = Schemas["PromptSummaryResponse"];
+export type PromptDetail = Schemas["PromptDetailResponse"];
+export type PromptVersion = Schemas["PromptVersionResponse"];
+export type PromptVersionCreateRequest = Schemas["PromptVersionCreateRequest"];
+export type PromptVersionUpdateRequest = Schemas["PromptVersionUpdateRequest"];
 export type PromptCacheInvalidateRequest =
-  components["schemas"]["PromptCacheInvalidateRequest"];
+  Schemas["PromptCacheInvalidateRequest"];
 export type PromptCacheInvalidateResponse =
-  components["schemas"]["PromptCacheInvalidateResponse"];
+  Schemas["PromptCacheInvalidateResponse"];
 export type PromptKey = PromptSummary["key"];
-export type OpsSchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
-export type OpsSchemaTable = components["schemas"]["OpsSchemaTableResponse"];
-export type Streamer = components["schemas"]["StreamerResponse"];
-export type PipelineJobList = components["schemas"]["ListPipelineJobsResponse"];
-export type PipelineJobSummary = components["schemas"]["PipelineJobSummaryResponse"];
-export type CollectChannelVideosResult =
-  components["schemas"]["CollectChannelVideosResponse"];
-export type CollectAllTranscriptsResult =
-  components["schemas"]["CollectAllTranscriptTasksResponse"];
-export type CollectChannelTranscriptsResult =
-  components["schemas"]["CollectChannelTranscriptTasksResponse"];
-export type GenerateAllTranscriptCuesResult =
-  components["schemas"]["GenerateAllTranscriptCueTasksResponse"];
-export type GenerateChannelTranscriptCuesResult =
-  components["schemas"]["GenerateChannelTranscriptCueTasksResponse"];
-export type ResolveYouTubeChannelResult =
-  components["schemas"]["ResolveYouTubeChannelResponse"];
-export type RetryPipelineJobResult = components["schemas"]["RetryPipelineJobResponse"];
-export type PipelineJobStatusFilter = NonNullable<
-  NonNullable<paths["/pipeline/jobs"]["get"]["parameters"]["query"]>["status"]
->;
-export type PipelineJobFilters = NonNullable<
-  paths["/pipeline/jobs"]["get"]["parameters"]["query"]
->;
+
+export type OpsSchemaGraph = Schemas["OpsSchemaGraphResponse"];
+export type OpsSchemaTable = Schemas["OpsSchemaTableResponse"];
+export type Streamer = Schemas["StreamerResponse"];
+
 export type OpsVideoFilters = NonNullable<
   paths["/ops/videos"]["get"]["parameters"]["query"]
 >;
 export type ArchiveOpsVideoFilters = NonNullable<
   paths["/ops/archive/videos"]["get"]["parameters"]["query"]
 >;
-export type OpsVideoTaskFilters = NonNullable<
-  paths["/ops/video-tasks"]["get"]["parameters"]["query"]
->;
 export type OperationEventFilters = NonNullable<
-  NonNullable<paths["/ops/events"]["get"]["parameters"]["query"]>
+  paths["/ops/events"]["get"]["parameters"]["query"]
 >;
 export type CodexUsageFilters = NonNullable<
-  NonNullable<paths["/ops/codex-usage"]["get"]["parameters"]["query"]>
+  paths["/ops/codex-usage"]["get"]["parameters"]["query"]
 >;
 export type CodexUsageByVideoFilters = NonNullable<
-  NonNullable<paths["/ops/codex-usage/by-video"]["get"]["parameters"]["query"]>
+  paths["/ops/codex-usage/by-video"]["get"]["parameters"]["query"]
 >;
 export type CodexUsageByJobFilters = NonNullable<
-  NonNullable<paths["/ops/codex-usage/by-job"]["get"]["parameters"]["query"]>
+  paths["/ops/codex-usage/by-job"]["get"]["parameters"]["query"]
 >;
 export type DomainEntryFilters = NonNullable<
-  NonNullable<paths["/domain-entries"]["get"]["parameters"]["query"]>
+  paths["/ops/domain-entries"]["get"]["parameters"]["query"]
 >;

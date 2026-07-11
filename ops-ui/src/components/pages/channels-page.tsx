@@ -6,7 +6,6 @@ import { type FormEvent, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { TranscriptCollectionStatus } from "@/components/transcript-collection-status";
 import {
   ActionPanel,
   ErrorState,
@@ -15,37 +14,34 @@ import {
   MetricStrip,
 } from "@/components/ui-primitives";
 import {
-  useCollectAllTranscriptsMutation,
-  useCollectTranscriptsMutation,
-  useCollectVideosMutation,
+  useCollectTranscriptsOperation,
+  useCollectVideosOperation,
   useCreateStreamerMutation,
-  useGenerateAllTranscriptCuesMutation,
-  useGenerateTranscriptCuesMutation,
+  useGenerateTranscriptCuesOperation,
   useOpsChannels,
   useResolveStreamerChannelMutation,
-  useRunningTranscriptBatches,
-  useRunningTranscriptTasks,
   useStreamers,
 } from "@/lib/queries";
 import { compactId, formatDateTime } from "@/lib/format";
-import {
-  buildTranscriptCollectionLock,
-  transcriptCollectionActionTitle,
-} from "@/lib/transcript-collection-lock";
-import type { OpsChannel, ResolveYouTubeChannelResult, Streamer } from "@/lib/types";
+import type {
+  ChannelResolveOperationResult,
+  OpsChannel,
+  Streamer,
+  TranscriptCollectOperationRequest,
+  TranscriptCueOperationRequest,
+  VideoSelection,
+} from "@/lib/types";
 
 const STREAMER_OPTIONS_ID = "streamer-name-options";
 
 export function ChannelsPage() {
   const { data, isLoading, error } = useOpsChannels();
   const streamers = useStreamers();
-  const runningTranscriptTasks = useRunningTranscriptTasks();
-  const runningTranscriptBatches = useRunningTranscriptBatches();
-  const collectVideos = useCollectVideosMutation();
-  const collectAllTranscripts = useCollectAllTranscriptsMutation();
-  const collectTranscripts = useCollectTranscriptsMutation();
-  const generateAllTranscriptCues = useGenerateAllTranscriptCuesMutation();
-  const generateTranscriptCues = useGenerateTranscriptCuesMutation();
+  const collectVideos = useCollectVideosOperation();
+  const collectAllTranscripts = useCollectTranscriptsOperation();
+  const collectTranscripts = useCollectTranscriptsOperation();
+  const generateAllTranscriptCues = useGenerateTranscriptCuesOperation();
+  const generateTranscriptCues = useGenerateTranscriptCuesOperation();
   const createStreamer = useCreateStreamerMutation();
   const resolveChannel = useResolveStreamerChannelMutation();
   const [newStreamerName, setNewStreamerName] = useState("");
@@ -85,15 +81,10 @@ export function ChannelsPage() {
     collectTranscripts.isPending || collectAllTranscripts.isPending;
   const isAnyCueMutationPending =
     generateTranscriptCues.isPending || generateAllTranscriptCues.isPending;
-  const transcriptLock = buildTranscriptCollectionLock({
-    runningTasks: runningTranscriptTasks.data,
-    runningBatches: runningTranscriptBatches.data,
-    tasksLoading: runningTranscriptTasks.isLoading,
-    batchesLoading: runningTranscriptBatches.isLoading,
-    tasksError: runningTranscriptTasks.isError,
-    batchesError: runningTranscriptBatches.isError,
-    mutationPending: isAnyTranscriptMutationPending,
-  });
+  const transcriptLock: TranscriptActionState = {
+    isLocked: isAnyTranscriptMutationPending,
+    status: isAnyTranscriptMutationPending ? "running" : "idle",
+  };
   const isTranscriptCollectionDisabled = transcriptLock.isLocked;
   const isAllTranscriptCollectionDisabled =
     isTranscriptCollectionDisabled || totalStoredVideoCount < 1;
@@ -226,7 +217,12 @@ export function ChannelsPage() {
           <button
             className="ops-button"
             disabled={collectVideos.isPending}
-            onClick={() => collectVideos.mutate(row.original.channelId)}
+            onClick={() => collectVideos.mutate({
+              channelIds: [row.original.channelId],
+              retryFailed: false,
+              rerunSucceeded: true,
+              timeoutSeconds: 600,
+            })}
             title="Collect latest videos"
           >
             <Download aria-hidden="true" size={15} />
@@ -236,10 +232,13 @@ export function ChannelsPage() {
             className="ops-button"
             disabled={isTranscriptCollectionDisabled || row.original.videoCount < 1}
             onClick={() =>
-              collectTranscripts.mutate({
-                channelId: row.original.channelId,
-                limit: row.original.videoCount,
-              })
+              collectTranscripts.mutate(transcriptRequest({
+                selection: {
+                  type: "channel",
+                  channelId: row.original.channelId,
+                  limit: Math.min(row.original.videoCount, 200),
+                },
+              }))
             }
             title={
               row.original.videoCount < 1
@@ -255,12 +254,14 @@ export function ChannelsPage() {
             className="ops-button"
             disabled={isTranscriptCollectionDisabled || row.original.taskFailedCount < 1}
             onClick={() =>
-              collectTranscripts.mutate({
-                channelId: row.original.channelId,
-                collectNew: false,
-                limit: row.original.videoCount,
+              collectTranscripts.mutate(transcriptRequest({
+                selection: {
+                  type: "channel",
+                  channelId: row.original.channelId,
+                  limit: Math.min(row.original.videoCount, 200),
+                },
                 retryFailed: true,
-              })
+              }))
             }
             title={retryFailedTaskButtonTitle({
               lock: transcriptLock,
@@ -277,12 +278,14 @@ export function ChannelsPage() {
               isTranscriptCollectionDisabled || row.original.taskNoTranscriptCount < 1
             }
             onClick={() =>
-              collectTranscripts.mutate({
-                channelId: row.original.channelId,
-                collectNew: false,
-                limit: row.original.videoCount,
+              collectTranscripts.mutate(transcriptRequest({
+                selection: {
+                  type: "channel",
+                  channelId: row.original.channelId,
+                  limit: Math.min(row.original.videoCount, 200),
+                },
                 recheckNoTranscript: true,
-              })
+              }))
             }
             title={recheckNoTranscriptTaskButtonTitle({
               lock: transcriptLock,
@@ -299,10 +302,11 @@ export function ChannelsPage() {
               row.original.transcriptSucceededCount < 1
             }
             onClick={() =>
-              generateTranscriptCues.mutate({
+              generateTranscriptCues.mutate(cueRequest({
+                type: "channel",
                 channelId: row.original.channelId,
-                limit: Math.min(Math.max(row.original.transcriptSucceededCount, 1), 100),
-              })
+                limit: Math.min(Math.max(row.original.transcriptSucceededCount, 1), 200),
+              }))
             }
             title={cueTaskButtonTitle({
               transcriptSucceededCount: row.original.transcriptSucceededCount,
@@ -325,7 +329,9 @@ export function ChannelsPage() {
             <button
               className="ops-button ops-button-primary"
               disabled={isAllTranscriptCollectionDisabled}
-              onClick={() => collectAllTranscripts.mutate({})}
+              onClick={() => collectAllTranscripts.mutate(transcriptRequest({
+                selection: { type: "nextEligible", limit: 200 },
+              }))}
               title={allTranscriptButtonTitle}
             >
               <Captions aria-hidden="true" size={15} />
@@ -335,9 +341,10 @@ export function ChannelsPage() {
               className="ops-button"
               disabled={isAllCueGenerateDisabled}
               onClick={() =>
-                generateAllTranscriptCues.mutate({
-                  limit: Math.min(totalTranscriptSucceededCount, 100),
-                })
+                generateAllTranscriptCues.mutate(cueRequest({
+                  type: "nextEligible",
+                  limit: Math.min(totalTranscriptSucceededCount, 200),
+                }))
               }
               title={allCueButtonTitle}
             >
@@ -349,10 +356,10 @@ export function ChannelsPage() {
               className="ops-button"
               disabled={isAllFailedRetryDisabled}
               onClick={() =>
-                collectAllTranscripts.mutate({
-                  collectNew: false,
+                collectAllTranscripts.mutate(transcriptRequest({
+                  selection: { type: "nextEligible", limit: 200 },
                   retryFailed: true,
-                })
+                }))
               }
               title={allRetryFailedButtonTitle}
             >
@@ -364,10 +371,10 @@ export function ChannelsPage() {
               className="ops-button"
               disabled={isAllNoTranscriptRecheckDisabled}
               onClick={() =>
-                collectAllTranscripts.mutate({
-                  collectNew: false,
+                collectAllTranscripts.mutate(transcriptRequest({
+                  selection: { type: "nextEligible", limit: 200 },
                   recheckNoTranscript: true,
-                })
+                }))
               }
               title={allRecheckNoTranscriptButtonTitle}
             >
@@ -481,11 +488,10 @@ export function ChannelsPage() {
           </form>
         </div>
       </ActionPanel>
-      <TranscriptCollectionStatus
-        className="mb-3"
-        showIdle
-        state={transcriptLock}
-      />
+      <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
+        <span>Transcript operations</span>
+        <StatusBadge status={transcriptLock.isLocked ? "running" : "ready"} />
+      </div>
       <div className="mb-3 flex gap-2 text-sm">
         <span className="text-xs text-slate-500">Video collect</span>
         <StatusBadge status={collectVideos.isPending ? "running" : "ready"} />
@@ -552,12 +558,17 @@ function findStreamerByName(streamers: Streamer[], name: string): Streamer | nul
 }
 
 function resolveSuccessMessage(
-  resolved: ResolveYouTubeChannelResult,
+  resolved: ChannelResolveOperationResult,
   created: boolean,
   streamerName: string,
 ) {
   const prefix = created ? `Added streamer ${streamerName} and resolved` : "Resolved";
-  return `${prefix} ${resolved.name} (${compactId(resolved.youtubeChannelId)}).`;
+  const name = typeof resolved.output?.name === "string" ? resolved.output.name : streamerName;
+  const youtubeChannelId =
+    typeof resolved.output?.youtubeChannelId === "string"
+      ? resolved.output.youtubeChannelId
+      : null;
+  return `${prefix} ${name} (${compactId(youtubeChannelId)}).`;
 }
 
 function resolveButtonTitle({
@@ -583,13 +594,15 @@ function formatMutationError(error: unknown) {
   return String(error);
 }
 
+type TranscriptActionState = { isLocked: boolean; status: "idle" | "running" };
+
 function transcriptTaskButtonTitle({
   lock,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
 }) {
   if (lock.isLocked) {
-    return transcriptCollectionActionTitle(lock);
+    return "A transcript request is being submitted.";
   }
   return "Collect transcripts for this channel's stored videos";
 }
@@ -598,14 +611,14 @@ function retryFailedTaskButtonTitle({
   lock,
   taskFailedCount,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
   taskFailedCount: number;
 }) {
   if (taskFailedCount < 1) {
     return "No failed transcript tasks to retry";
   }
   if (lock.isLocked) {
-    return transcriptCollectionActionTitle(lock);
+    return "A transcript request is being submitted.";
   }
   return "Retry failed transcript tasks for this channel";
 }
@@ -614,14 +627,14 @@ function recheckNoTranscriptTaskButtonTitle({
   lock,
   taskNoTranscriptCount,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
   taskNoTranscriptCount: number;
 }) {
   if (taskNoTranscriptCount < 1) {
     return "No no-transcript tasks to recheck";
   }
   if (lock.isLocked) {
-    return transcriptCollectionActionTitle(lock);
+    return "A transcript request is being submitted.";
   }
   return "Recheck videos that previously had no retrievable transcript";
 }
@@ -630,14 +643,14 @@ function allTranscriptTaskButtonTitle({
   lock,
   totalStoredVideoCount,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
   totalStoredVideoCount: number;
 }) {
   if (totalStoredVideoCount < 1) {
     return "No stored videos to collect transcripts for";
   }
   if (lock.isLocked) {
-    return transcriptCollectionActionTitle(lock);
+    return "A transcript request is being submitted.";
   }
   return "Collect transcripts for all stored videos";
 }
@@ -646,14 +659,14 @@ function allRetryFailedTaskButtonTitle({
   lock,
   totalFailedTaskCount,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
   totalFailedTaskCount: number;
 }) {
   if (totalFailedTaskCount < 1) {
     return "No failed transcript tasks to retry";
   }
   if (lock.isLocked) {
-    return transcriptCollectionActionTitle(lock);
+    return "A transcript request is being submitted.";
   }
   return "Retry failed transcript tasks for all channels";
 }
@@ -662,14 +675,14 @@ function allRecheckNoTranscriptTaskButtonTitle({
   lock,
   totalNoTranscriptTaskCount,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
   totalNoTranscriptTaskCount: number;
 }) {
   if (totalNoTranscriptTaskCount < 1) {
     return "No no-transcript tasks to recheck";
   }
   if (lock.isLocked) {
-    return transcriptCollectionActionTitle(lock);
+    return "A transcript request is being submitted.";
   }
   return "Recheck all videos that previously had no retrievable transcript";
 }
@@ -709,16 +722,41 @@ function allCueTaskButtonTitle({
 function transcriptTaskButtonLabel({
   lock,
 }: {
-  lock: ReturnType<typeof buildTranscriptCollectionLock>;
+  lock: TranscriptActionState;
 }) {
-  if (lock.status === "checking") {
-    return "Checking";
-  }
-  if (lock.status === "unavailable") {
-    return "Blocked";
-  }
   if (lock.isLocked) {
     return "Running";
   }
   return "Transcripts";
+}
+
+function transcriptRequest({
+  selection,
+  retryFailed = false,
+  recheckNoTranscript = false,
+}: {
+  selection: VideoSelection;
+  retryFailed?: boolean;
+  recheckNoTranscript?: boolean;
+}): TranscriptCollectOperationRequest {
+  return {
+    selection,
+    languages: ["ko", "en"],
+    preserveFormatting: false,
+    retryFailed,
+    recheckNoTranscript,
+    rerunSucceeded: false,
+    includeNonEmbeddable: false,
+    timeoutSeconds: 600,
+  };
+}
+
+function cueRequest(selection: VideoSelection): TranscriptCueOperationRequest {
+  return {
+    selection,
+    retryFailed: false,
+    rerunSucceeded: false,
+    includeNonEmbeddable: false,
+    timeoutSeconds: 600,
+  };
 }

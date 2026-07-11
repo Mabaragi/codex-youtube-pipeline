@@ -1,27 +1,28 @@
 import { TasksPage } from "@/components/pages/tasks-page";
-import type { OpsVideoTaskFilters } from "@/lib/types";
-import {
-  nonNegativeNumberParam,
-  positiveNumberParam,
-  stringParam,
-  type RawSearchParams,
-} from "@/lib/url-filters";
+import type { WorkItemFilters, WorkItemStatus } from "@/lib/types";
+import { positiveNumberParam, stringParam, type RawSearchParams } from "@/lib/url-filters";
 
-type PageProps = {
-  searchParams?: Promise<RawSearchParams>;
-};
+type PageProps = { searchParams?: Promise<RawSearchParams> };
 
 export default async function Page({ searchParams }: PageProps) {
-  const params = (await searchParams) ?? {};
-  return <TasksPage initialFilters={parseFilters(params)} />;
+  return <TasksPage initialFilters={parseFilters((await searchParams) ?? {})} />;
 }
 
-function parseFilters(params: RawSearchParams): OpsVideoTaskFilters {
+function parseFilters(params: RawSearchParams): WorkItemFilters {
   return {
-    channelId: positiveNumberParam(params.channelId),
-    taskName: stringParam(params.taskName),
-    status: stringParam(params.status),
-    limit: positiveNumberParam(params.limit) ?? 100,
-    offset: nonNegativeNumberParam(params.offset) ?? 0,
+    taskType: stringParam(params.taskType),
+    status: parseStatus(params.status),
+    subjectType: stringParam(params.subjectType),
+    subjectId: positiveNumberParam(params.subjectId),
+    cursor: positiveNumberParam(params.cursor),
+    limit: positiveNumberParam(params.limit) ?? 50,
   };
+}
+
+function parseStatus(value: string | string[] | undefined): WorkItemStatus | undefined {
+  const status = stringParam(value);
+  const allowed: WorkItemStatus[] = [
+    "pending", "running", "succeeded", "failed", "timed_out", "blocked", "canceled",
+  ];
+  return allowed.includes(status as WorkItemStatus) ? (status as WorkItemStatus) : undefined;
 }

@@ -28,7 +28,7 @@ import {
 } from "@/lib/codex-options";
 import {
   fetchTranscriptContent,
-  useExtractMicroEventsMutation,
+  useExtractMicroEventsOperation,
   useMicroEventExtraction,
   useOpsVideoDetail,
   usePromptDetail,
@@ -87,7 +87,7 @@ export function VideoDetailPage({ videoId }: { videoId: number }) {
     isLoading: timelineLoading,
     error: timelineError,
   } = useTimelineComposition(videoId, Boolean(data));
-  const extractMicroEvents = useExtractMicroEventsMutation();
+  const extractMicroEvents = useExtractMicroEventsOperation();
   const microEventPrompt = usePromptDetail("micro_event_extract");
 
   const taskColumns: ColumnDef<OpsVideoTask>[] = [
@@ -313,7 +313,7 @@ function DetailRow({
   );
 }
 
-type ExtractMicroEventsMutation = ReturnType<typeof useExtractMicroEventsMutation>;
+type ExtractMicroEventsMutation = ReturnType<typeof useExtractMicroEventsOperation>;
 
 function MicroEventExtractionPanel({
   videoId,
@@ -376,9 +376,13 @@ function MicroEventExtractionPanel({
 
   function handleExtract() {
     extractMicroEvents.mutate({
-      videoId,
+      selection: { type: "selected", videoIds: [videoId] },
       retryFailed: taskFailed,
-      regenerateSucceeded: taskSucceeded,
+      rerunSucceeded: taskSucceeded,
+      includeNonEmbeddable: false,
+      timeoutSeconds: 3600,
+      windowMinutes: 30,
+      overlapMinutes: 5,
       model,
       reasoningEffort,
       ...(selectedPromptVersionId
@@ -494,8 +498,8 @@ function MicroEventExtractionPanel({
       {extractMicroEvents.data ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
           <span>Last request</span>
-          <StatusBadge status={extractMicroEvents.data.status} />
-          <span>{extractMicroEvents.data.reason}</span>
+          <StatusBadge status={extractMicroEvents.data.items[0]?.status ?? "pending"} />
+          <span>{extractMicroEvents.data.items[0]?.reason ?? "submitted"}</span>
         </div>
       ) : null}
       {extractionLoading ? (
