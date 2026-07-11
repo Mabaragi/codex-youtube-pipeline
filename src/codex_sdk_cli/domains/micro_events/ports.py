@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -186,9 +186,7 @@ class MicroEventExtractionWindowCreate:
     source_job_attempt_id: int
     micro_events: list[MicroEventCandidateCreate] = field(default_factory=list)
     excluded_ranges: list[MicroEventExcludedRangeCreate] = field(default_factory=list)
-    asr_correction_candidates: list[AsrCorrectionCandidateCreate] = field(
-        default_factory=list
-    )
+    asr_correction_candidates: list[AsrCorrectionCandidateCreate] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,9 +267,7 @@ class MicroEventExtractionWindowRecord:
     updated_at: datetime
     micro_events: list[MicroEventCandidateRecord] = field(default_factory=list)
     excluded_ranges: list[MicroEventExcludedRangeRecord] = field(default_factory=list)
-    asr_correction_candidates: list[AsrCorrectionCandidateRecord] = field(
-        default_factory=list
-    )
+    asr_correction_candidates: list[AsrCorrectionCandidateRecord] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

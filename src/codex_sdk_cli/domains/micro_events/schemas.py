@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
@@ -100,9 +100,7 @@ class MicroEventExtractResponse(BaseModel):
     transcript_id: int | None = Field(alias="transcriptId")
     window_count: int | None = Field(alias="windowCount")
     micro_event_count: int | None = Field(alias="microEventCount")
-    asr_correction_candidate_count: int | None = Field(
-        alias="asrCorrectionCandidateCount"
-    )
+    asr_correction_candidate_count: int | None = Field(alias="asrCorrectionCandidateCount")
     first_cue_id: str | None = Field(alias="firstCueId")
     last_cue_id: str | None = Field(alias="lastCueId")
     error_type: str | None = Field(alias="errorType")
@@ -260,9 +258,7 @@ class MicroEventExtractionWindowResponse(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     micro_events: list[MicroEventCandidateResponse] = Field(alias="microEvents")
-    excluded_ranges: list[MicroEventExcludedRangeResponse] = Field(
-        alias="excludedRanges"
-    )
+    excluded_ranges: list[MicroEventExcludedRangeResponse] = Field(alias="excludedRanges")
     asr_correction_candidates: list[AsrCorrectionCandidateResponse] = Field(
         alias="asrCorrectionCandidates"
     )
