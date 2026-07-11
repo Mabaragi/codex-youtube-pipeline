@@ -26,6 +26,13 @@ PRESERVED_TABLES = (
     "operation_events",
 )
 
+ForeignKeyViolation = tuple[
+    str,
+    int | None,
+    str,
+    tuple[tuple[str, str, object], ...],
+]
+
 
 @dataclass(frozen=True, slots=True)
 class CutoverValidation:
@@ -35,6 +42,7 @@ class CutoverValidation:
     work_item_count: int
     work_attempt_count: int
     legacy_ref_count: int
+    preexisting_foreign_key_violation_count: int
 
 
 def validate_work_cutover(source_path: Path, candidate_path: Path) -> CutoverValidation:
@@ -42,7 +50,10 @@ def validate_work_cutover(source_path: Path, candidate_path: Path) -> CutoverVal
     candidate = _connect(candidate_path)
     try:
         counts = _validate_preserved_rows(source, candidate)
-        _validate_candidate_integrity(candidate)
+        preexisting_foreign_key_violation_count = _validate_candidate_integrity(
+            source,
+            candidate,
+        )
         _validate_legacy_mappings(source, candidate)
         _validate_provenance(candidate)
         return CutoverValidation(
@@ -52,6 +63,9 @@ def validate_work_cutover(source_path: Path, candidate_path: Path) -> CutoverVal
             work_item_count=_count(candidate, "work_items"),
             work_attempt_count=_count(candidate, "work_attempts"),
             legacy_ref_count=_count(candidate, "legacy_work_refs"),
+            preexisting_foreign_key_violation_count=(
+                preexisting_foreign_key_violation_count
+            ),
         )
     finally:
         source.close()
@@ -86,13 +100,22 @@ def _validate_preserved_rows(
     return counts
 
 
-def _validate_candidate_integrity(candidate: sqlite3.Connection) -> None:
+def _validate_candidate_integrity(
+    source: sqlite3.Connection,
+    candidate: sqlite3.Connection,
+) -> int:
     integrity = candidate.execute("PRAGMA integrity_check").fetchone()
     if integrity is None or integrity[0] != "ok":
         raise RuntimeError(f"Candidate integrity check failed: {integrity!r}")
-    foreign_key_errors = candidate.execute("PRAGMA foreign_key_check").fetchall()
-    if foreign_key_errors:
-        raise RuntimeError(f"Candidate has dangling foreign keys: {foreign_key_errors[:10]!r}")
+    source_foreign_key_errors = _foreign_key_violations(source)
+    candidate_foreign_key_errors = _foreign_key_violations(candidate)
+    if candidate_foreign_key_errors != source_foreign_key_errors:
+        added = sorted(candidate_foreign_key_errors - source_foreign_key_errors)
+        removed = sorted(source_foreign_key_errors - candidate_foreign_key_errors)
+        raise RuntimeError(
+            "Candidate changed the foreign-key violation baseline: "
+            f"added={added[:10]!r}, removed={removed[:10]!r}"
+        )
     for table in (
         "work_items",
         "work_attempts",
@@ -105,6 +128,41 @@ def _validate_candidate_integrity(candidate: sqlite3.Connection) -> None:
     ):
         if not _table_exists(candidate, table):
             raise RuntimeError(f"Candidate is missing work table {table}.")
+    return len(source_foreign_key_errors)
+
+
+def _foreign_key_violations(
+    connection: sqlite3.Connection,
+) -> set[ForeignKeyViolation]:
+    violations: set[ForeignKeyViolation] = set()
+    for table, row_id, parent, foreign_key_id in connection.execute(
+        "PRAGMA foreign_key_check"
+    ):
+        column_pairs = tuple(
+            (str(row[3]), str(row[4]))
+            for row in connection.execute(f"PRAGMA foreign_key_list({table})")
+            if row[0] == foreign_key_id
+        )
+        values: tuple[object, ...]
+        if row_id is None:
+            values = (None,) * len(column_pairs)
+        else:
+            selected = ", ".join(_quote_identifier(source) for source, _ in column_pairs)
+            row = connection.execute(
+                f"SELECT {selected} FROM {_quote_identifier(str(table))} WHERE rowid = ?",
+                (row_id,),
+            ).fetchone()
+            values = tuple(row) if row is not None else (None,) * len(column_pairs)
+        columns = tuple(
+            (source, target, value)
+            for (source, target), value in zip(column_pairs, values, strict=True)
+        )
+        violations.add((str(table), row_id, str(parent), columns))
+    return violations
+
+
+def _quote_identifier(identifier: str) -> str:
+    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
 
 
 def _validate_legacy_mappings(

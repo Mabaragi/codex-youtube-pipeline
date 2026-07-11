@@ -9,11 +9,20 @@ param(
 Set-Location $script:RepoRoot
 Import-LocalHomeEnv
 
+function Resolve-AbsolutePath {
+    param([string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $script:RepoRoot $Path))
+}
+
 function Resolve-LocalDatabasePath {
     param([string]$ExplicitPath)
 
     if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
-        return [System.IO.Path]::GetFullPath($ExplicitPath, $script:RepoRoot)
+        return Resolve-AbsolutePath $ExplicitPath
     }
     $prefix = "sqlite+aiosqlite:///"
     if (-not $env:CODEX_CLI_DATABASE_URL.StartsWith($prefix)) {
@@ -23,7 +32,7 @@ function Resolve-LocalDatabasePath {
     if ($rawPath -match '^/[A-Za-z]:/') {
         $rawPath = $rawPath.Substring(1)
     }
-    return [System.IO.Path]::GetFullPath($rawPath, $script:RepoRoot)
+    return Resolve-AbsolutePath $rawPath
 }
 
 function Stop-WorkRuntime {

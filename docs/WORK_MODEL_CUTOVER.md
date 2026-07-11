@@ -25,7 +25,9 @@ copy, and validate it:
 The command leaves both a timestamped backup and candidate DB. Validation
 checks preserved PK sets, storage object names, artifact URLs, work/attempt
 mapping counts, provenance coverage, `PRAGMA integrity_check`, and
-`PRAGMA foreign_key_check`.
+`PRAGMA foreign_key_check`. 기존 DB에 이미 존재하는 FK 위반은 row와 constraint
+기준으로 candidate와 정확히 같아야 하며, 새 위반이나 migration 중의 암묵적 데이터
+수정은 실패로 처리한다. 기존 위반 건수는 검증 결과에 별도로 출력한다.
 
 Inspect the printed report and retain the candidate until the API and worker
 smoke tests pass against it.

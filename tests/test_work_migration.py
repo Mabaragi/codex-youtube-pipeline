@@ -139,6 +139,39 @@ def test_work_cutover_validator_compares_source_and_candidate(
     assert result.preserved_table_counts["videos"] == 1
     assert result.work_item_count == 3
     assert result.work_attempt_count == 3
+    assert result.preexisting_foreign_key_violation_count == 0
+
+
+def test_work_cutover_validator_preserves_legacy_foreign_key_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.db"
+    candidate_path = tmp_path / "candidate.db"
+    monkeypatch.setenv(
+        "CODEX_CLI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{source_path.as_posix()}",
+    )
+    config = _alembic_config()
+    command.upgrade(config, "20260704_0024")
+    _insert_legacy_fixture(source_path)
+    with sqlite3.connect(source_path) as connection:
+        connection.execute("UPDATE videos SET channel_id = 999 WHERE id = 2")
+    shutil.copy2(source_path, candidate_path)
+
+    monkeypatch.setenv(
+        "CODEX_CLI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{candidate_path.as_posix()}",
+    )
+    command.upgrade(config, "head")
+
+    result = validate_work_cutover(source_path, candidate_path)
+    assert result.preexisting_foreign_key_violation_count == 1
+
+    with sqlite3.connect(candidate_path) as connection:
+        connection.execute("UPDATE videos SET channel_id = 998 WHERE id = 2")
+    with pytest.raises(RuntimeError, match="foreign-key violation baseline"):
+        validate_work_cutover(source_path, candidate_path)
 
 
 def _assert_work_provenance_foreign_keys(connection: sqlite3.Connection) -> None:
