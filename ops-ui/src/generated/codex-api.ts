@@ -538,6 +538,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/operations/transcript-collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Collect Transcripts */
+        post: operations["collect_transcripts_ops_operations_transcript_collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/operations/transcript-cue-generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Transcript Cues */
+        post: operations["generate_transcript_cues_ops_operations_transcript_cue_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/schema-graph": {
         parameters: {
             query?: never;
@@ -634,6 +668,74 @@ export interface paths {
         get: operations["get_ops_video_detail_ops_videos__video_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/work-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Work Items */
+        get: operations["list_work_items_ops_work_items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/work-items/{work_item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Work Item */
+        get: operations["get_work_item_ops_work_items__work_item_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/work-items/{work_item_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Work Item */
+        post: operations["cancel_work_item_ops_work_items__work_item_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/work-items/{work_item_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Work Item */
+        post: operations["retry_work_item_ops_work_items__work_item_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1624,6 +1726,14 @@ export interface components {
             /** Requestedcount */
             requestedCount: number;
         };
+        /** CancelWorkItemRequest */
+        CancelWorkItemRequest: {
+            /**
+             * Reason
+             * @default Canceled by operator.
+             */
+            reason: string;
+        };
         /**
          * ChannelCreateRequest
          * @example {
@@ -1698,6 +1808,21 @@ export interface components {
              * @example UC_x5XG1OV2P6uZZ5FSM9Ttw
              */
             youtubeChannelId?: string | null;
+        };
+        /** ChannelVideoSelectionRequest */
+        ChannelVideoSelectionRequest: {
+            /** Channelid */
+            channelId: number;
+            /**
+             * Limit
+             * @default 50
+             */
+            limit: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "channel";
         };
         /** CodexUsageByJobResponse */
         CodexUsageByJobResponse: {
@@ -2357,6 +2482,23 @@ export interface components {
             /** Validationstatus */
             validationStatus: string;
         };
+        /** FilterVideoSelectionRequest */
+        FilterVideoSelectionRequest: {
+            /** Channelid */
+            channelId?: number | null;
+            /**
+             * Limit
+             * @default 50
+             */
+            limit: number;
+            /** Search */
+            search?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "filter";
+        };
         /** GenerateAllTranscriptCueTasksResponse */
         GenerateAllTranscriptCueTasksResponse: {
             /** Failedcount */
@@ -2469,7 +2611,7 @@ export interface components {
              */
             limit: number;
             /** Model */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna") | null;
             /**
              * Overlapminutes
              * @default 5
@@ -2621,7 +2763,7 @@ export interface components {
              */
             limit: number;
             /** Model */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna") | null;
             /**
              * Overlapminutes
              * @default 5
@@ -2726,7 +2868,7 @@ export interface components {
              */
             includeNonEmbeddable: boolean;
             /** Model */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna") | null;
             /**
              * Overlapminutes
              * @default 5
@@ -2896,6 +3038,34 @@ export interface components {
             /** Windowindex */
             windowIndex: number;
         };
+        /** NextEligibleVideoSelectionRequest */
+        NextEligibleVideoSelectionRequest: {
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "nextEligible";
+        };
+        /** OperationBatchResponse */
+        OperationBatchResponse: {
+            /** Batchid */
+            batchId: number;
+            /** Createdcount */
+            createdCount: number;
+            /** Items */
+            items: components["schemas"]["OperationItemResponse"][];
+            /** Requestedcount */
+            requestedCount: number;
+            /** Reusedcount */
+            reusedCount: number;
+            /** Skippedcount */
+            skippedCount: number;
+        };
         /** OperationEventListResponse */
         OperationEventListResponse: {
             /** Items */
@@ -2956,6 +3126,23 @@ export interface components {
             videoId?: number | null;
             /** Videotaskid */
             videoTaskId?: number | null;
+        };
+        /** OperationItemResponse */
+        OperationItemResponse: {
+            /** Errorcode */
+            errorCode?: string | null;
+            /** Errormessage */
+            errorMessage?: string | null;
+            /** Reason */
+            reason: string;
+            /** Status */
+            status: string;
+            /** Videoid */
+            videoId: number;
+            /** Workitemid */
+            workItemId: number | null;
+            /** Youtubevideoid */
+            youtubeVideoId: string | null;
         };
         /** OpsCandidateRecommendedEnqueueResponse */
         OpsCandidateRecommendedEnqueueResponse: {
@@ -4027,6 +4214,14 @@ export interface components {
             /** Step */
             step: string;
         };
+        /** RetryWorkItemRequest */
+        RetryWorkItemRequest: {
+            /**
+             * Rerunsucceeded
+             * @default false
+             */
+            rerunSucceeded: boolean;
+        };
         /**
          * RunRequest
          * @example {
@@ -4055,7 +4250,7 @@ export interface components {
              * @description Optional model override for this run.
              * @example gpt-5.5
              */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna") | null;
             /**
              * Prompt
              * @description User prompt to send to a Codex thread.
@@ -4085,6 +4280,16 @@ export interface components {
             turnId: string;
             /** Usage */
             usage?: unknown | null;
+        };
+        /** SelectedVideoSelectionRequest */
+        SelectedVideoSelectionRequest: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "selected";
+            /** Videoids */
+            videoIds: number[];
         };
         /**
          * StreamerCreateRequest
@@ -4202,7 +4407,7 @@ export interface components {
              */
             limit: number;
             /** Model */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna") | null;
             /** Promptversionid */
             promptVersionId?: number | null;
             /** Reasoningeffort */
@@ -4667,6 +4872,49 @@ export interface components {
             /** Youtubevideoid */
             youtubeVideoId: string;
         };
+        /** TranscriptCollectOperationRequest */
+        TranscriptCollectOperationRequest: {
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
+            /**
+             * Languages
+             * @default [
+             *       "ko",
+             *       "en"
+             *     ]
+             */
+            languages: string[];
+            /**
+             * Preserveformatting
+             * @default false
+             */
+            preserveFormatting: boolean;
+            /**
+             * Rechecknotranscript
+             * @default false
+             */
+            recheckNoTranscript: boolean;
+            /**
+             * Rerunsucceeded
+             * @default false
+             */
+            rerunSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /** Selection */
+            selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
+            /**
+             * Timeoutseconds
+             * @default 600
+             */
+            timeoutSeconds: number;
+        };
         /** TranscriptCueGenerateResponse */
         TranscriptCueGenerateResponse: {
             /** Cuecount */
@@ -4692,6 +4940,31 @@ export interface components {
             items: components["schemas"]["TranscriptCueResponse"][];
             /** Transcriptid */
             transcriptId: number;
+        };
+        /** TranscriptCueOperationRequest */
+        TranscriptCueOperationRequest: {
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
+            /**
+             * Rerunsucceeded
+             * @default false
+             */
+            rerunSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /** Selection */
+            selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
+            /**
+             * Timeoutseconds
+             * @default 600
+             */
+            timeoutSeconds: number;
         };
         /** TranscriptCueResponse */
         TranscriptCueResponse: {
@@ -4995,6 +5268,182 @@ export interface components {
             /** Youtubevideoid */
             youtubeVideoId: string;
         };
+        /** WorkAttemptResponse */
+        WorkAttemptResponse: {
+            /** Attemptno */
+            attemptNo: number;
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Finishedat */
+            finishedAt: string | null;
+            /** Id */
+            id: number;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Startedat
+             * Format: date-time
+             */
+            startedAt: string;
+            /** Status */
+            status: string;
+            /** Workitemid */
+            workItemId: number;
+            /** Workerid */
+            workerId: string | null;
+        };
+        /** WorkItemDetailResponse */
+        WorkItemDetailResponse: {
+            /** Attempts */
+            attempts: components["schemas"]["WorkAttemptResponse"][];
+            /**
+             * Availableat
+             * Format: date-time
+             */
+            availableAt: string;
+            /** Completedat */
+            completedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Executionmode */
+            executionMode: string;
+            /** Externalkey */
+            externalKey: string | null;
+            /** Id */
+            id: number;
+            /** Input */
+            input: {
+                [key: string]: unknown;
+            };
+            /** Inputhash */
+            inputHash: string;
+            /** Leaseexpiresat */
+            leaseExpiresAt: string | null;
+            /** Leaseowner */
+            leaseOwner: string | null;
+            /** Outcomecode */
+            outcomeCode: string | null;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            } | null;
+            /** Outputtranscriptid */
+            outputTranscriptId: number | null;
+            /** Priority */
+            priority: number;
+            /** Startedat */
+            startedAt: string | null;
+            /** Status */
+            status: string;
+            /** Subjectid */
+            subjectId: number | null;
+            /** Subjecttype */
+            subjectType: string;
+            /** Tasktype */
+            taskType: string;
+            /** Taskversion */
+            taskVersion: string;
+            /** Timeoutseconds */
+            timeoutSeconds: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** WorkItemListResponse */
+        WorkItemListResponse: {
+            /** Items */
+            items: components["schemas"]["WorkItemResponse"][];
+            /** Nextcursor */
+            nextCursor: number | null;
+        };
+        /** WorkItemResponse */
+        WorkItemResponse: {
+            /**
+             * Availableat
+             * Format: date-time
+             */
+            availableAt: string;
+            /** Completedat */
+            completedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Executionmode */
+            executionMode: string;
+            /** Externalkey */
+            externalKey: string | null;
+            /** Id */
+            id: number;
+            /** Input */
+            input: {
+                [key: string]: unknown;
+            };
+            /** Inputhash */
+            inputHash: string;
+            /** Leaseexpiresat */
+            leaseExpiresAt: string | null;
+            /** Leaseowner */
+            leaseOwner: string | null;
+            /** Outcomecode */
+            outcomeCode: string | null;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            } | null;
+            /** Outputtranscriptid */
+            outputTranscriptId: number | null;
+            /** Priority */
+            priority: number;
+            /** Startedat */
+            startedAt: string | null;
+            /** Status */
+            status: string;
+            /** Subjectid */
+            subjectId: number | null;
+            /** Subjecttype */
+            subjectType: string;
+            /** Tasktype */
+            taskType: string;
+            /** Taskversion */
+            taskVersion: string;
+            /** Timeoutseconds */
+            timeoutSeconds: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /**
+         * WorkItemStatus
+         * @enum {string}
+         */
+        WorkItemStatus: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "blocked" | "canceled";
     };
     responses: never;
     parameters: never;
@@ -6189,6 +6638,72 @@ export interface operations {
             };
         };
     };
+    collect_transcripts_ops_operations_transcript_collect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranscriptCollectOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_transcript_cues_ops_operations_transcript_cue_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranscriptCueOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_ops_schema_graph_ops_schema_graph_get: {
         parameters: {
             query?: never;
@@ -6351,6 +6866,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpsVideoDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_work_items_ops_work_items_get: {
+        parameters: {
+            query?: {
+                taskType?: string | null;
+                status?: components["schemas"]["WorkItemStatus"] | null;
+                subjectType?: string | null;
+                subjectId?: number | null;
+                cursor?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_work_item_ops_work_items__work_item_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                work_item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_work_item_ops_work_items__work_item_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                work_item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelWorkItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_work_item_ops_work_items__work_item_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                work_item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryWorkItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemResponse"];
                 };
             };
             /** @description Validation Error */

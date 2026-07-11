@@ -16,6 +16,7 @@ from codex_sdk_cli.api.routes.codex_usage import router as codex_usage_router
 from codex_sdk_cli.api.routes.domain_knowledge import router as domain_knowledge_router
 from codex_sdk_cli.api.routes.micro_events import router as micro_events_router
 from codex_sdk_cli.api.routes.operation_events import router as operation_events_router
+from codex_sdk_cli.api.routes.operations import router as operations_router
 from codex_sdk_cli.api.routes.ops import router as ops_router
 from codex_sdk_cli.api.routes.pipeline_jobs import router as pipeline_jobs_router
 from codex_sdk_cli.api.routes.prompts import router as prompts_router
@@ -23,6 +24,7 @@ from codex_sdk_cli.api.routes.streamers import router as streamers_router
 from codex_sdk_cli.api.routes.timelines import router as timelines_router
 from codex_sdk_cli.api.routes.video_tasks import router as video_tasks_router
 from codex_sdk_cli.api.routes.videos import router as videos_router
+from codex_sdk_cli.api.routes.work_items import router as work_items_router
 from codex_sdk_cli.api.routes.youtube_transcripts import router as youtube_transcripts_router
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
 from codex_sdk_cli.infra.database.recovery import recover_interrupted_running_work
@@ -72,6 +74,8 @@ def create_app() -> FastAPI:
     app.include_router(domain_knowledge_router, tags=["domain-knowledge"])
     app.include_router(prompts_router, tags=["prompts"])
     app.include_router(operation_events_router, prefix="/ops", tags=["ops"])
+    app.include_router(operations_router, prefix="/ops", tags=["ops-operations"])
+    app.include_router(work_items_router, prefix="/ops", tags=["ops-work"])
     app.include_router(pipeline_jobs_router, prefix="/pipeline", tags=["pipeline-jobs"])
     app.include_router(streamers_router, tags=["streamers"])
     app.include_router(channels_router, tags=["channels"])

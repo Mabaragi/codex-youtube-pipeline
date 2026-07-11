@@ -528,6 +528,19 @@ class SqlAlchemyWorkAttemptRepository(WorkAttemptRepositoryPort):
         self._session = session
 
     @override
+    async def list_for_work_item(self, work_item_id: int) -> list[WorkAttempt]:
+        statement = (
+            select(WorkAttemptModel)
+            .where(WorkAttemptModel.work_item_id == work_item_id)
+            .order_by(WorkAttemptModel.attempt_no)
+        )
+        try:
+            models = list((await self._session.scalars(statement)).all())
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return [_attempt(model) for model in models]
+
+    @override
     async def create(self, *, work_item_id: int, worker_id: str | None) -> WorkAttempt:
         attempt_no = (
             await self._session.scalar(

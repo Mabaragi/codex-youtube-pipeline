@@ -160,6 +160,8 @@ class WorkItemRepositoryPort(Protocol):
 
 
 class WorkAttemptRepositoryPort(Protocol):
+    async def list_for_work_item(self, work_item_id: int) -> list[WorkAttempt]: ...
+
     async def create(self, *, work_item_id: int, worker_id: str | None) -> WorkAttempt: ...
 
     async def mark_succeeded(

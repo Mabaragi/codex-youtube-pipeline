@@ -1075,6 +1075,20 @@
         "title": "CancelVideoTasksResponse",
         "type": "object"
       },
+      "CancelWorkItemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "default": "Canceled by operator.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "CancelWorkItemRequest",
+        "type": "object"
+      },
       "ChannelCreateRequest": {
         "additionalProperties": false,
         "examples": [
@@ -1269,6 +1283,34 @@
           }
         },
         "title": "ChannelUpdateRequest",
+        "type": "object"
+      },
+      "ChannelVideoSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "channelId": {
+            "minimum": 1.0,
+            "title": "Channelid",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "type": {
+            "const": "channel",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "channelId"
+        ],
+        "title": "ChannelVideoSelectionRequest",
         "type": "object"
       },
       "CodexUsageByJobResponse": {
@@ -3312,6 +3354,53 @@
         "title": "ExternalApiCallSummaryResponse",
         "type": "object"
       },
+      "FilterVideoSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "channelId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channelid"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search"
+          },
+          "type": {
+            "const": "filter",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "FilterVideoSelectionRequest",
+        "type": "object"
+      },
       "GenerateAllTranscriptCueTasksResponse": {
         "properties": {
           "failedCount": {
@@ -4914,6 +5003,69 @@
         "title": "MicroEventExtractionWindowResponse",
         "type": "object"
       },
+      "NextEligibleVideoSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 20,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "type": {
+            "const": "nextEligible",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "NextEligibleVideoSelectionRequest",
+        "type": "object"
+      },
+      "OperationBatchResponse": {
+        "properties": {
+          "batchId": {
+            "title": "Batchid",
+            "type": "integer"
+          },
+          "createdCount": {
+            "title": "Createdcount",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OperationItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "reusedCount": {
+            "title": "Reusedcount",
+            "type": "integer"
+          },
+          "skippedCount": {
+            "title": "Skippedcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batchId",
+          "requestedCount",
+          "createdCount",
+          "reusedCount",
+          "skippedCount",
+          "items"
+        ],
+        "title": "OperationBatchResponse",
+        "type": "object"
+      },
       "OperationEventListResponse": {
         "properties": {
           "items": {
@@ -5131,6 +5283,75 @@
           "metadata"
         ],
         "title": "OperationEventResponse",
+        "type": "object"
+      },
+      "OperationItemResponse": {
+        "properties": {
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "workItemId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workitemid"
+          },
+          "youtubeVideoId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubevideoid"
+          }
+        },
+        "required": [
+          "videoId",
+          "youtubeVideoId",
+          "status",
+          "reason",
+          "workItemId"
+        ],
+        "title": "OperationItemResponse",
         "type": "object"
       },
       "OpsCandidateRecommendedEnqueueResponse": {
@@ -8597,6 +8818,18 @@
         "title": "RetryPipelineJobResponse",
         "type": "object"
       },
+      "RetryWorkItemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "rerunSucceeded": {
+            "default": false,
+            "title": "Rerunsucceeded",
+            "type": "boolean"
+          }
+        },
+        "title": "RetryWorkItemRequest",
+        "type": "object"
+      },
       "RunRequest": {
         "additionalProperties": false,
         "examples": [
@@ -8744,6 +8977,31 @@
           "reasoningEffort"
         ],
         "title": "RunResponse",
+        "type": "object"
+      },
+      "SelectedVideoSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "const": "selected",
+            "title": "Type",
+            "type": "string"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Videoids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "type",
+          "videoIds"
+        ],
+        "title": "SelectedVideoSelectionRequest",
         "type": "object"
       },
       "StreamerCreateRequest": {
@@ -10734,6 +10992,87 @@
         "title": "TranscriptCollectItemResponse",
         "type": "object"
       },
+      "TranscriptCollectOperationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
+          "languages": {
+            "default": [
+              "ko",
+              "en"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Languages",
+            "type": "array"
+          },
+          "preserveFormatting": {
+            "default": false,
+            "title": "Preserveformatting",
+            "type": "boolean"
+          },
+          "recheckNoTranscript": {
+            "default": false,
+            "title": "Rechecknotranscript",
+            "type": "boolean"
+          },
+          "rerunSucceeded": {
+            "default": false,
+            "title": "Rerunsucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "selection": {
+            "discriminator": {
+              "mapping": {
+                "channel": "#/components/schemas/ChannelVideoSelectionRequest",
+                "filter": "#/components/schemas/FilterVideoSelectionRequest",
+                "nextEligible": "#/components/schemas/NextEligibleVideoSelectionRequest",
+                "selected": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/FilterVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/NextEligibleVideoSelectionRequest"
+              }
+            ],
+            "title": "Selection"
+          },
+          "timeoutSeconds": {
+            "default": 600,
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Timeoutseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "title": "TranscriptCollectOperationRequest",
+        "type": "object"
+      },
       "TranscriptCueGenerateResponse": {
         "properties": {
           "cueCount": {
@@ -10815,6 +11154,64 @@
           "items"
         ],
         "title": "TranscriptCueListResponse",
+        "type": "object"
+      },
+      "TranscriptCueOperationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
+          "rerunSucceeded": {
+            "default": false,
+            "title": "Rerunsucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "selection": {
+            "discriminator": {
+              "mapping": {
+                "channel": "#/components/schemas/ChannelVideoSelectionRequest",
+                "filter": "#/components/schemas/FilterVideoSelectionRequest",
+                "nextEligible": "#/components/schemas/NextEligibleVideoSelectionRequest",
+                "selected": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/FilterVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/NextEligibleVideoSelectionRequest"
+              }
+            ],
+            "title": "Selection"
+          },
+          "timeoutSeconds": {
+            "default": 600,
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Timeoutseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "title": "TranscriptCueOperationRequest",
         "type": "object"
       },
       "TranscriptCueResponse": {
@@ -11689,6 +12086,613 @@
         ],
         "title": "VideoTaskResponse",
         "type": "object"
+      },
+      "WorkAttemptResponse": {
+        "properties": {
+          "attemptNo": {
+            "title": "Attemptno",
+            "type": "integer"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "title": "Startedat",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "workItemId": {
+            "title": "Workitemid",
+            "type": "integer"
+          },
+          "workerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workerid"
+          }
+        },
+        "required": [
+          "id",
+          "workItemId",
+          "attemptNo",
+          "status",
+          "workerId",
+          "startedAt",
+          "finishedAt",
+          "output",
+          "errorCode",
+          "errorType",
+          "errorMessage"
+        ],
+        "title": "WorkAttemptResponse",
+        "type": "object"
+      },
+      "WorkItemDetailResponse": {
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/WorkAttemptResponse"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "title": "Availableat",
+            "type": "string"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "executionMode": {
+            "title": "Executionmode",
+            "type": "string"
+          },
+          "externalKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Externalkey"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "inputHash": {
+            "title": "Inputhash",
+            "type": "string"
+          },
+          "leaseExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaseexpiresat"
+          },
+          "leaseOwner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaseowner"
+          },
+          "outcomeCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomecode"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "outputTranscriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputtranscriptid"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjectid"
+          },
+          "subjectType": {
+            "title": "Subjecttype",
+            "type": "string"
+          },
+          "taskType": {
+            "title": "Tasktype",
+            "type": "string"
+          },
+          "taskVersion": {
+            "title": "Taskversion",
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "title": "Timeoutseconds",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "taskType",
+          "subjectType",
+          "subjectId",
+          "externalKey",
+          "taskVersion",
+          "inputHash",
+          "executionMode",
+          "status",
+          "outcomeCode",
+          "priority",
+          "timeoutSeconds",
+          "input",
+          "output",
+          "outputTranscriptId",
+          "errorCode",
+          "errorType",
+          "errorMessage",
+          "leaseOwner",
+          "leaseExpiresAt",
+          "availableAt",
+          "startedAt",
+          "completedAt",
+          "createdAt",
+          "updatedAt",
+          "attempts"
+        ],
+        "title": "WorkItemDetailResponse",
+        "type": "object"
+      },
+      "WorkItemListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "WorkItemListResponse",
+        "type": "object"
+      },
+      "WorkItemResponse": {
+        "properties": {
+          "availableAt": {
+            "format": "date-time",
+            "title": "Availableat",
+            "type": "string"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "executionMode": {
+            "title": "Executionmode",
+            "type": "string"
+          },
+          "externalKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Externalkey"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "inputHash": {
+            "title": "Inputhash",
+            "type": "string"
+          },
+          "leaseExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaseexpiresat"
+          },
+          "leaseOwner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaseowner"
+          },
+          "outcomeCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomecode"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "outputTranscriptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputtranscriptid"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subjectid"
+          },
+          "subjectType": {
+            "title": "Subjecttype",
+            "type": "string"
+          },
+          "taskType": {
+            "title": "Tasktype",
+            "type": "string"
+          },
+          "taskVersion": {
+            "title": "Taskversion",
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "title": "Timeoutseconds",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "taskType",
+          "subjectType",
+          "subjectId",
+          "externalKey",
+          "taskVersion",
+          "inputHash",
+          "executionMode",
+          "status",
+          "outcomeCode",
+          "priority",
+          "timeoutSeconds",
+          "input",
+          "output",
+          "outputTranscriptId",
+          "errorCode",
+          "errorType",
+          "errorMessage",
+          "leaseOwner",
+          "leaseExpiresAt",
+          "availableAt",
+          "startedAt",
+          "completedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "WorkItemResponse",
+        "type": "object"
+      },
+      "WorkItemStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "succeeded",
+          "failed",
+          "timed_out",
+          "blocked",
+          "canceled"
+        ],
+        "title": "WorkItemStatus",
+        "type": "string"
       }
     }
   },
@@ -14192,6 +15196,88 @@
         ]
       }
     },
+    "/ops/operations/transcript-collect": {
+      "post": {
+        "operationId": "collect_transcripts_ops_operations_transcript_collect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptCollectOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Collect Transcripts",
+        "tags": [
+          "ops-operations"
+        ]
+      }
+    },
+    "/ops/operations/transcript-cue-generate": {
+      "post": {
+        "operationId": "generate_transcript_cues_ops_operations_transcript_cue_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptCueOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Transcript Cues",
+        "tags": [
+          "ops-operations"
+        ]
+      }
+    },
     "/ops/schema-graph": {
       "get": {
         "operationId": "get_ops_schema_graph_ops_schema_graph_get",
@@ -14558,6 +15644,284 @@
         "summary": "Get Ops Video Detail",
         "tags": [
           "ops"
+        ]
+      }
+    },
+    "/ops/work-items": {
+      "get": {
+        "operationId": "list_work_items_ops_work_items_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "taskType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tasktype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkItemStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subjectType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subjecttype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subjectId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subjectid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Work Items",
+        "tags": [
+          "ops-work"
+        ]
+      }
+    },
+    "/ops/work-items/{work_item_id}": {
+      "get": {
+        "operationId": "get_work_item_ops_work_items__work_item_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_item_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Work Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Work Item",
+        "tags": [
+          "ops-work"
+        ]
+      }
+    },
+    "/ops/work-items/{work_item_id}/cancel": {
+      "post": {
+        "operationId": "cancel_work_item_ops_work_items__work_item_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_item_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Work Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelWorkItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Work Item",
+        "tags": [
+          "ops-work"
+        ]
+      }
+    },
+    "/ops/work-items/{work_item_id}/retry": {
+      "post": {
+        "operationId": "retry_work_item_ops_work_items__work_item_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_item_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Work Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryWorkItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Work Item",
+        "tags": [
+          "ops-work"
         ]
       }
     },

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from codex_sdk_cli.application.errors import ApplicationError, ErrorKind
 from codex_sdk_cli.domains.archive_publish.exceptions import (
     ArchivePublishArtifactInvalid,
     ArchivePublishConfigurationError,
@@ -97,6 +99,23 @@ from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
 
 
 def add_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ApplicationError)
+    async def application_error_handler(
+        _request: Request,
+        exc: ApplicationError,
+    ) -> JSONResponse:
+        descriptor = exc.descriptor
+        return JSONResponse(
+            status_code=_application_status(descriptor.kind),
+            content={
+                "error": {
+                    "code": descriptor.code,
+                    "message": descriptor.message,
+                    "details": descriptor.details,
+                }
+            },
+        )
+
     @app.exception_handler(CodexDomainError)
     async def codex_domain_error_handler(
         _request: Request,
@@ -355,5 +374,19 @@ def add_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": exc.errors(include_url=False)},
+            content=jsonable_encoder({"detail": exc.errors(include_url=False)}),
         )
+
+
+def _application_status(kind: ErrorKind) -> int:
+    if kind is ErrorKind.NOT_FOUND:
+        return status.HTTP_404_NOT_FOUND
+    if kind is ErrorKind.CONFLICT:
+        return status.HTTP_409_CONFLICT
+    if kind is ErrorKind.VALIDATION:
+        return status.HTTP_422_UNPROCESSABLE_CONTENT
+    if kind is ErrorKind.UPSTREAM:
+        return status.HTTP_502_BAD_GATEWAY
+    if kind is ErrorKind.UNAVAILABLE:
+        return status.HTTP_503_SERVICE_UNAVAILABLE
+    return status.HTTP_500_INTERNAL_SERVER_ERROR
