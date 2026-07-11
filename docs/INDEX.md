@@ -27,6 +27,10 @@ operators can use them without private runtime context.
   reference needs redirecting.
 - [Architecture linting](ARCHITECTURE_LINTING.md): Import Linter layer rules
   and repair guidance. Read when imports or domain boundaries change.
+- [Clean architecture](CLEAN_ARCHITECTURE.md): enforced package boundaries,
+  Unit of Work ownership, unified execution model, and compatibility boundary.
+- [Work model cutover](WORK_MODEL_CUTOVER.md): offline SQLite rehearsal,
+  validation, atomic replacement, rollback, and contract-removal criteria.
 - [Archive publish](ARCHIVE_PUBLISH.md): archive API, object layout, cache
   policy, and required environment variables. Read when publishing or
   validating public timeline artifacts.

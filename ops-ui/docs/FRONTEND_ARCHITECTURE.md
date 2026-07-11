@@ -1,47 +1,50 @@
 # Frontend Architecture
 
-The ops UI is a Next.js App Router application mounted at `/ops`.
+The Ops UI is a Next.js App Router application mounted at `/ops`.
 
-## Runtime Shape
+## Runtime
 
-- The local native runtime runs the Ops UI as a Windows process on
-  `127.0.0.1:3000`; Docker is used only for local infrastructure such as MinIO.
-- Next.js proxies backend calls through `/ops/api/backend/*`.
+- Browser requests use the same-origin BFF at `/ops/api/backend/*`.
 - The BFF targets `CODEX_OPS_BACKEND_BASE_URL`, normally
-  `http://127.0.0.1:8000` in `.home-deploy/local.env`.
-- Browser code never calls FastAPI directly.
+  `http://127.0.0.1:8000`.
+- Browser modules never call FastAPI directly.
 
-Read `ops-ui/docs/BFF_PROXY.md` before changing browser/backend calls, proxy
-route behavior, or deployment wiring around `CODEX_OPS_BACKEND_BASE_URL`.
+## State
 
-## State Boundaries
+- TanStack Query owns server state, mutations, and invalidation.
+- Zustand owns cross-component local UI state only.
+- TanStack Table owns table view state.
+- React Flow is isolated to the ERD feature and loaded dynamically.
 
-- TanStack Query owns server state and mutation invalidation.
-- Zustand owns local UI state such as filters and selected ERD table.
-- TanStack Table owns table rendering state.
-- React Flow is isolated under the ERD feature and loaded dynamically.
+## Feature API Boundary
 
-## Screen Map
+Server calls are split under `src/features`:
 
-- `/ops`: API/storage health, counts, recent failures.
-- `/ops/channels`: channel inventory and manual collect actions.
-- `/ops/videos`: stored videos and latest task/transcript state.
-- `/ops/videos/[videoId]`: one video’s task, transcript, micro-event, and
-  timeline detail.
-- `/ops/archive`: current dev/prod archive pointers and published artifacts.
-- `/ops/tasks`: durable video task state and retry actions.
-- `/ops/jobs`: pipeline jobs and retry actions.
-- `/ops/logs`: operation event timeline with linked job/task/channel/video filters.
-- `/ops/usage`: Codex usage aggregates and per-video/job usage views.
-- `/ops/prompts`: public-safe prompt-version administration.
-- `/ops/domain-knowledge`: domain entry, alias, and streamer-scope management.
-- `/ops/erd`: React Flow schema viewer from `/ops/schema-graph`, including
-  table groups, PK/FK/UQ/IX badges, column-level relationship anchors,
-  crow's-foot cardinality markers, relation metadata, and constraint/index
-  inspector panels.
+- `work/api.ts`: work items, attempts, retry, cancel.
+- `videos/api.ts`: video reads and operation commands.
+- `archive/api.ts`: archive reads and publish.
+- `observability/api.ts`: events and usage.
+- `catalog/api.ts`: channels, prompts, and domain catalog reads.
+- `query-keys.ts`: shared invalidation keys.
+
+`src/lib/queries.ts` is a compatibility re-export barrel, not the owner of new
+query logic. Add new hooks to the owning feature module.
+
+## Screens
+
+- `/ops`: runtime health and recent state.
+- `/ops/channels`: channel inventory and collect commands.
+- `/ops/videos`: video selection and pipeline commands.
+- `/ops/videos/[videoId]`: transcript, cue, micro-event, and timeline detail.
+- `/ops/tasks`: unified work items, outcome, lease, retry, and cancel.
+- `/ops/jobs`: redirect to `/ops/tasks` for old bookmarks.
+- `/ops/logs`: operation events filtered by work item/attempt/batch.
+- `/ops/archive`: R2/D1 publish state.
+- `/ops/usage`, `/ops/prompts`, `/ops/domain-knowledge`, `/ops/erd`:
+  observability and administration.
 
 ## Mutation Rules
 
-Mutations call existing FastAPI write APIs through the BFF. After success, they
-invalidate both `ops` and `pipeline` query groups because task/job updates affect
-multiple screens.
+Commands call `/ops/operations/*` or `/ops/workflows/*`. After success,
+invalidate the affected video/archive projection plus work and event query
+groups. Do not recreate legacy video-task or pipeline-job mutations in the UI.

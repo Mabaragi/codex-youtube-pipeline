@@ -20,6 +20,8 @@ Run checks locally:
 uv run pytest
 uv run ruff check .
 uv run pyrefly check --min-severity warn
+uv run lint-imports --no-cache
+uv run python scripts/check_architecture.py
 uv run python scripts/export_openapi.py --check
 pnpm --filter codex-sdk-ops-ui api:check
 pnpm --filter codex-sdk-ops-ui lint

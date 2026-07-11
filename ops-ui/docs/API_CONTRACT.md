@@ -25,3 +25,6 @@ have uncommitted diffs.
 - Frontend agents can rely on generated types without reading backend internals.
 - Runtime requests still go through the Next BFF described in
   `ops-ui/docs/BFF_PROXY.md`; generated types do not replace the BFF boundary.
+- Query and mutation hooks belong to `src/features/<owner>/api.ts`.
+- `src/lib/queries.ts` remains a compatibility export barrel; do not grow it
+  back into a monolithic API module.

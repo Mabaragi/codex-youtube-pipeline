@@ -1,194 +1,94 @@
 # Codex YouTube Pipeline
 
-Python `codex-demo` CLI와 `codex-api` FastAPI 앱으로 구성된 로컬 YouTube 데이터 파이프라인 예제 프로젝트다. Codex SDK 실행, YouTube 메타데이터/자막 수집, transcript cue 생성, micro-event 추출, timeline 구성, archive publish 흐름을 한 저장소에서 실험할 수 있다.
+Local Python/FastAPI and React operations project for collecting YouTube video
+metadata and transcripts, generating cue-based micro-events and timelines, and
+publishing playback-ready JSON to Cloudflare R2/D1.
 
-이 공개 저장소에는 코드와 public-safe 샘플 프롬프트만 포함한다. 실제 운영 데이터, 내부 runbook, raw LLM trace, production prompt pack, API key, 로컬 DB는 포함하지 않는다.
+The repository contains public-safe code and sample prompt fallbacks. Local DB,
+runtime logs, raw media/transcripts, production prompt packs, and secrets are
+ignored.
 
-## 주요 기능
+## Runtime
 
-- Codex SDK CLI: prompt 실행, thread 재개, 로그인, account 확인.
-- FastAPI backend: Codex 실행 API, YouTube pipeline API, 운영 조회 API.
-- YouTube pipeline:
-  - streamer/channel metadata 관리
-  - 최신 video metadata 수집
-  - transcript 수집과 cue 생성
-  - cue 기반 micro-event 후보 추출
-  - micro-event 기반 timeline 구성
-  - channel video/transcript 수집을 주기적으로 시작하는 local scheduler
-  - Cloudflare R2 compatible archive publish
-- Ops UI: Next.js 기반 로컬 운영 콘솔.
-- 관측성:
-  - `video_tasks`, `pipeline_jobs`, `pipeline_job_attempts`
-  - `operation_events`
-  - LLM usage row
-  - optional file trace under `.home-deploy/logs/llm-traces`
+- FastAPI API on `127.0.0.1:8000`.
+- Next.js Ops UI on `127.0.0.1:3000/ops`.
+- DB-polling transcript, cue, micro-event, and timeline workers.
+- Workflow coordinator for transcript -> cue -> micro-event -> timeline ->
+  archive.
+- Periodic channel/video/transcript scheduler.
+- SQLite metadata DB and MinIO raw storage; optional Cloudflare R2/D1 publish.
 
-## 공개 저장소 정책
-
-다음 항목은 commit하지 않는다.
-
-- `.home-deploy/`, `data/`, SQLite DB, local env, PID/log files.
-- raw transcript, cue, micro-event, timeline export JSON.
-- production prompt pack과 내부 prompt tuning 기록.
-- 내부 운영 runbook, worklog, incident note.
-- R2 bucket URL, API key, OAuth token, access token, private key.
-
-기본 prompt resource 파일은 앱이 로컬에서 동작하도록 둔 샘플 fallback이다. 운영 품질의 프롬프트는 DB의 `prompt_versions` 또는 private prompt pack으로 주입하는 것을 권장한다.
-
-## 빠른 시작
-
-의존성을 설치한다.
+## Quick Start
 
 ```powershell
-uv sync --dev
+uv sync --dev --locked
 corepack enable
-pnpm install
-```
-
-로컬 환경 파일을 만든다.
-
-```powershell
-New-Item -ItemType Directory -Force .home-deploy | Out-Null
+pnpm install --frozen-lockfile
 Copy-Item scripts/local-home/local.env.example .home-deploy/local.env
-notepad .home-deploy/local.env
+.\scripts\local-home\deploy.ps1
 ```
 
-MinIO를 시작하고 DB migration을 적용한다.
+Check the runtime:
 
 ```powershell
-docker compose -f compose.local-infra.yaml up -d
-uv run alembic upgrade head
+.\scripts\local-home\status.ps1
+Invoke-RestMethod http://127.0.0.1:8000/health
+Invoke-WebRequest http://127.0.0.1:3000/ops -UseBasicParsing
 ```
 
-API를 실행한다.
+OpenAPI is available at `http://127.0.0.1:8000/docs`.
 
-```powershell
-uv run uvicorn codex_sdk_cli.api.main:app --host 127.0.0.1 --port 8000
-```
-
-Ops UI를 실행한다.
-
-```powershell
-pnpm --filter codex-sdk-ops-ui dev
-```
-
-## CLI 예시
-
-```powershell
-uv run codex-demo --help
-uv run codex-demo login browser
-uv run codex-demo run "이 저장소를 한 문장으로 설명해줘."
-uv run codex-demo run --persist "이 thread를 저장해줘."
-uv run codex-demo run --thread-id <thread-id> "앞선 답변을 이어서 정리해줘."
-uv run codex-demo account
-```
-
-운영 보조 CLI:
-
-```powershell
-uv run codex-demo ops detect-stuck --task micro_event_extract --minutes 15
-uv run codex-demo ops detect-stuck --task timeline_compose --minutes 15
-```
-
-## API 진입점
-
-로컬 API 주소:
-
-```text
-http://127.0.0.1:8000
-```
-
-주요 endpoint group:
-
-- `/codex/*`
-- `/streamers`, `/channels`, `/channels/{id}/videos`
-- `/youtube-transcripts/*`
-- `/video-tasks/*`
-- `/videos/{id}/micro-event-extractions/*`
-- `/videos/{id}/timelines/*`
-- `/pipeline/jobs/*`
-- `/ops/*`
-
-OpenAPI 문서:
-
-```text
-http://127.0.0.1:8000/docs
-http://127.0.0.1:8000/openapi.json
-```
-
-선택한 video를 micro-event, timeline, publish까지 처리하는 API 예시:
+## API Example
 
 ```powershell
 $body = @{
-  videoIds = @(1, 2, 3)
-  microReasoning = "medium"
-  timelineReasoning = "high"
-  retryFailed = $false
-  waitTimeoutMinutes = 30
-  pollIntervalSeconds = 10
+  selection = @{ type = "selected"; videoIds = @(1, 2) }
+  retryFailed = $true
+  microReasoningEffort = "medium"
+  timelineReasoningEffort = "high"
+  publishMode = "prod"
   environment = "prod"
   variant = "control"
-  schemaVersion = 1
-} | ConvertTo-Json
+} | ConvertTo-Json -Depth 5
 
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:8000/video-tasks/process-to-publish" `
+  -Uri "http://127.0.0.1:8000/ops/workflows/process-to-publish" `
   -ContentType "application/json" `
   -Body $body
 ```
 
-## 아키텍처
+All pipeline commands live under `/ops/operations/*`. Durable execution state
+is read and controlled through `/ops/work-items`, `/ops/work-batches`, and
+`/ops/workflows`.
+
+## Architecture
 
 ```text
 src/codex_sdk_cli/
-├── api/                  # FastAPI app, routes, dependency composition
-├── domains/              # use cases, DTOs, ports
-├── infra/                # SQLAlchemy, external clients, Codex adapters
-├── workers/              # DB polling workers와 local pipeline scheduler
-├── cli.py                # Click command entrypoint
-├── runner.py             # Codex SDK helper
-└── settings.py           # CODEX_CLI_ settings
+|-- domains/       framework-free policy and models
+|-- application/   commands, queries, workflows, ports
+|-- infra/         SQLAlchemy and external adapters
+|-- bootstrap/     composition root and lazy executor wiring
+|-- api/           FastAPI DTOs and routes
+|-- workers/       thin process entrypoints
+|-- cli.py         Click entrypoint
+`-- settings.py    CODEX_CLI_ environment settings
 ```
 
-Route handler는 얇게 유지하고, 업무 흐름은 domain use case에 둔다. Infrastructure adapter는 Protocol port를 구현한다. DB schema 변경은 Alembic migration으로만 수행한다.
+Read [Clean Architecture](docs/CLEAN_ARCHITECTURE.md) and
+[Agent API Operations](docs/AGENT_API_OPERATIONS.md) before changing boundaries
+or operating the pipeline.
 
-## 설정
-
-환경변수 prefix는 `CODEX_CLI_`다. 로컬 기본값은 [scripts/local-home/local.env.example](scripts/local-home/local.env.example)에 있다.
-
-자주 쓰는 설정:
-
-- `CODEX_CLI_DATABASE_URL`
-- `CODEX_CLI_MODEL`
-- `CODEX_CLI_REASONING_EFFORT`
-- `CODEX_CLI_API_KEY`
-- `CODEX_CLI_YOUTUBE_DATA_API_KEY`
-- `CODEX_CLI_TRANSCRIPT_MINIO_*`
-- `CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX`
-- `CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT`
-- `CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT`
-- `CODEX_CLI_PIPELINE_SCHEDULER_*`
-- `CODEX_CLI_YTDLP_BIN`, `CODEX_CLI_FFMPEG_BIN`, `CODEX_CLI_FFPROBE_BIN`
-- `CODEX_CLI_LLM_TRACE_*`
-- `CODEX_CLI_ARCHIVE_PUBLISH_R2_*`
-
-`.home-deploy/local.env`는 secret을 포함할 수 있으므로 commit하지 않는다.
-
-## 검증
-
-백엔드:
+## Verification
 
 ```powershell
 uv run pytest
 uv run ruff check .
 uv run pyrefly check --min-severity warn
+uv run lint-imports --no-cache
+uv run python scripts/check_architecture.py
 uv run python scripts/export_openapi.py --check
-```
-
-프론트엔드:
-
-```powershell
 pnpm --filter codex-sdk-ops-ui api:check
 pnpm --filter codex-sdk-ops-ui lint
 pnpm --filter codex-sdk-ops-ui typecheck
@@ -196,7 +96,5 @@ pnpm --filter codex-sdk-ops-ui test
 pnpm --filter codex-sdk-ops-ui build
 ```
 
-## 문서
-
-- [docs/INDEX.md](docs/INDEX.md): backend, pipeline, deployment, archive, API 운영 문서를 작업별로 찾는다.
-- [ops-ui/docs/INDEX.md](ops-ui/docs/INDEX.md): Ops UI 구조, BFF, API contract, UI style 문서를 작업별로 찾는다.
+Documentation is indexed at [docs/INDEX.md](docs/INDEX.md). Ops UI-specific
+guidance is at [ops-ui/docs/INDEX.md](ops-ui/docs/INDEX.md).

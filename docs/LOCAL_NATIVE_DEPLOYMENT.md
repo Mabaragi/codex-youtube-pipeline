@@ -11,8 +11,11 @@ run as Windows processes from this checkout.
 ```text
 Windows process: codex-api / uvicorn on 127.0.0.1:8000
 Windows process: codex-pipeline-scheduler
+Windows process: codex-transcript-worker
+Windows process: codex-transcript-cue-worker
 Windows process: codex-micro-event-worker
 Windows process: codex-timeline-compose-worker
+Windows process: codex-workflow-coordinator
 Windows process: Next.js ops-ui on 127.0.0.1:3000
 Docker container: MinIO on 127.0.0.1:9000 and console on 127.0.0.1:9001
 SQLite file: ./data/app.db
@@ -111,8 +114,9 @@ After the first deploy, use idempotent start:
 ```
 
 `start.ps1` starts native app processes and leaves MinIO running. The native app
-processes are API, pipeline scheduler, micro-event worker, timeline compose
-worker, and optionally Ops UI.
+processes are API, pipeline scheduler, transcript worker, cue worker,
+micro-event worker, timeline worker, workflow coordinator, and optionally Ops
+UI.
 
 Check status:
 
@@ -145,6 +149,8 @@ Read logs:
 .\scripts\local-home\logs.ps1
 .\scripts\local-home\logs.ps1 api -Tail 200
 .\scripts\local-home\logs.ps1 pipeline-scheduler -Tail 200
+.\scripts\local-home\logs.ps1 transcript-worker -Tail 200
+.\scripts\local-home\logs.ps1 workflow-coordinator -Tail 200
 .\scripts\local-home\logs.ps1 timeline-compose-worker -Wait
 ```
 
@@ -209,9 +215,23 @@ CODEX_CLI_ARCHIVE_PUBLISH_DEV_PREFIX=archive-dev
 CODEX_CLI_ARCHIVE_PUBLISH_DEV_ENVIRONMENT=dev
 ```
 
-Archive publish runs synchronously in `POST /video-tasks/archive-publish`; there
+Archive publish runs synchronously in `POST /ops/operations/archive-publish`; there
 is no local archive publish worker process. See `docs/ARCHIVE_PUBLISH.md` for
 object keys and API usage.
+
+## Work Model Database Cutover
+
+The work-model transition must use an offline candidate DB rather than a direct
+in-place migration:
+
+```powershell
+.\scripts\local-home\cutover-work-model.ps1 -Rehearsal -NoRestart
+.\scripts\local-home\cutover-work-model.ps1
+```
+
+The command stops all writers, checkpoints WAL, creates backup/candidate copies,
+migrates and validates the candidate, then atomically replaces the DB. Read
+`docs/WORK_MODEL_CUTOVER.md` before running it.
 
 ## GitHub Actions
 
@@ -223,6 +243,8 @@ does not include a Docker Publish workflow. Normal operation is local:
 uv run pytest
 uv run ruff check .
 uv run pyrefly check --min-severity warn
+uv run lint-imports --no-cache
+uv run python scripts/check_architecture.py
 uv run python scripts/export_openapi.py --check
 pnpm --filter codex-sdk-ops-ui api:check
 pnpm --filter codex-sdk-ops-ui lint

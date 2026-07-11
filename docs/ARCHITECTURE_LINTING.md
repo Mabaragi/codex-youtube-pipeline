@@ -1,71 +1,39 @@
 # Architecture Linting
 
-This project uses `import-linter` as the static gate for Python clean
-architecture boundaries.
+The repository has two static clean-architecture gates.
 
-## Command
-
-Run the official gate from the repository root:
+## Commands
 
 ```powershell
-uv run lint-imports
+uv run lint-imports --no-cache
+uv run python scripts/check_architecture.py
+uv run ruff check .
 ```
 
-If local Home PC worker processes are running and Windows keeps executable files
-locked during `uv` sync, stop the local runtime first:
+Import Linter enforces six contracts:
 
-```powershell
-.\scripts\local-home\stop.ps1
-uv run lint-imports
-```
+1. `api | workers -> bootstrap -> infra -> application -> domains`.
+2. Domains cannot import outer app layers.
+3. Domains cannot import adapter frameworks such as FastAPI, SQLAlchemy,
+   HTTPX, MinIO, Uvicorn, YouTube Transcript API, or Codex SDK.
+4. Application cannot import outer layers, settings, or adapter frameworks.
+5. Infrastructure cannot import API, bootstrap, or workers.
+6. Application cannot import legacy `video_tasks` or `pipeline_jobs` models.
 
-`uv run --no-sync lint-imports --config pyproject.toml` is acceptable only as a
-local diagnostic when the environment is already synced.
+The size gate limits new entry/application modules to 700 lines and functions
+to 120 lines. Other production modules are capped at 2,000 and 300 lines. Ruff
+enforces `C901` with maximum complexity 10 across the repository.
 
-## Layers
+## Repair Rules
 
-The enforced import direction is:
+- Move FastAPI routing and dependency aliases to `api`.
+- Put commands, queries, workflows, and Protocol ports in `application`.
+- Put SQLAlchemy queries and external clients in `infra`.
+- Convert settings to focused config in `bootstrap`.
+- Split orchestration, parsing, normalization, repair, and persistence instead
+  of adding an ignore.
+- Keep executor registry entries lazy; do not eagerly build every external
+  dependency for one selected task type.
 
-```text
-api | workers -> infra -> domains
-```
-
-- `domains`: inner application/domain layer. Contains schemas, ports,
-  use cases, exceptions, constants, and pure helpers.
-- `infra`: concrete adapters for persistence, object storage, external APIs,
-  and SDK clients.
-- `api`: FastAPI routers, exception mapping, dependency wiring, and concrete
-  use case assembly.
-- `workers`: long-running process entrypoints that call domain use cases through
-  infra wiring.
-
-## Domain Rules
-
-Domain code must not import:
-
-- `codex_sdk_cli.api`
-- `codex_sdk_cli.infra`
-- `codex_sdk_cli.workers`
-- `codex_sdk_cli.settings`
-- external adapter frameworks such as `fastapi`, `sqlalchemy`, `httpx`,
-  `minio`, `uvicorn`, `youtube_transcript_api`, or `openai_codex`
-
-Pydantic request/response DTOs stay in `domains/<domain>/schemas.py` because
-they are part of the public contract in this codebase. FastAPI route handlers
-and dependency providers live in `api/routes` and `api/use_case_dependencies`.
-
-## Fixing Violations
-
-Prefer moving code to the owning layer instead of adding ignores.
-
-- FastAPI `APIRouter`, `Depends`, status codes, and dependency aliases belong in
-  `api`.
-- SQLAlchemy metadata inspection and query construction belong in `infra`.
-- Domain use cases should depend on `Protocol` ports and small domain records.
-- Settings should be translated into explicit domain input/default records in
-  the API or worker wiring layer.
-- Worker entrypoints may assemble concrete infra, but infra must not import
-  workers or API modules.
-
-When a contract fails, read the import chain in `lint-imports` output and move
-the outer dependency outward until imports point only inward.
+Compatibility adapters are allowed only in `infra/work` and bootstrap. They do
+not justify a new dependency from application back to legacy task/job domains.
