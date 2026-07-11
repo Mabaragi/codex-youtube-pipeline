@@ -373,6 +373,52 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
             raise WorkPersistenceError() from exc
         return len(updated_ids)
 
+    @override
+    async def recover_expired_leases(self, *, now: datetime) -> int:
+        expired_ids = list(
+            (
+                await self._session.scalars(
+                    select(WorkItemModel.id).where(
+                        WorkItemModel.status == WorkItemStatus.RUNNING.value,
+                        WorkItemModel.lease_expires_at.is_not(None),
+                        WorkItemModel.lease_expires_at <= now,
+                    )
+                )
+            ).all()
+        )
+        if not expired_ids:
+            return 0
+        await self._session.execute(
+            update(WorkAttemptModel)
+            .where(
+                WorkAttemptModel.work_item_id.in_(expired_ids),
+                WorkAttemptModel.status == WorkAttemptStatus.RUNNING.value,
+            )
+            .values(
+                status=WorkAttemptStatus.TIMED_OUT.value,
+                finished_at=now,
+                error_code="work.lease_expired",
+                error_type="WorkLeaseExpired",
+                error_message="The worker lease expired before completion.",
+            )
+        )
+        await self._session.execute(
+            update(WorkItemModel)
+            .where(WorkItemModel.id.in_(expired_ids))
+            .values(
+                status=WorkItemStatus.TIMED_OUT.value,
+                error_code="work.lease_expired",
+                error_type="WorkLeaseExpired",
+                error_message="The worker lease expired before completion.",
+                lease_owner=None,
+                lease_expires_at=None,
+                heartbeat_at=None,
+                completed_at=now,
+                updated_at=now,
+            )
+        )
+        return len(expired_ids)
+
     async def _required(self, work_item_id: int) -> WorkItemModel:
         model = await self._session.get(WorkItemModel, work_item_id)
         if model is None:
