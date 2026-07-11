@@ -39,6 +39,16 @@ from codex_sdk_cli.infra.timelines.repository import (
 from codex_sdk_cli.infra.transcript_cues.repository import TranscriptCueModel
 from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
+from codex_sdk_cli.infra.work.models import (
+    LegacyWorkRefModel,
+    WorkAttemptModel,
+    WorkBatchItemModel,
+    WorkBatchModel,
+    WorkflowRunModel,
+    WorkflowStepModel,
+    WorkItemDependencyModel,
+    WorkItemModel,
+)
 from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscriptRecordModel
 
 __all__ = [
@@ -70,4 +80,12 @@ __all__ = [
     "VideoTaskModel",
     "VideoModel",
     "YouTubeTranscriptRecordModel",
+    "LegacyWorkRefModel",
+    "WorkAttemptModel",
+    "WorkBatchItemModel",
+    "WorkBatchModel",
+    "WorkItemDependencyModel",
+    "WorkItemModel",
+    "WorkflowRunModel",
+    "WorkflowStepModel",
 ]

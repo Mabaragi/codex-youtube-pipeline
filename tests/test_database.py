@@ -44,6 +44,14 @@ def test_database_base_registers_app_tables() -> None:
         "timeline_topic_clusters",
         "video_tasks",
         "videos",
+        "legacy_work_refs",
+        "work_attempts",
+        "work_batch_items",
+        "work_batches",
+        "work_item_dependencies",
+        "work_items",
+        "workflow_runs",
+        "workflow_steps",
         "youtube_transcripts",
     }
 
