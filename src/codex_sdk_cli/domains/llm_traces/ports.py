@@ -12,6 +12,8 @@ class LlmTraceEvent:
     operation: str
     phase: str
     video_task_id: int | None = None
+    work_item_id: int | None = None
+    work_attempt_id: int | None = None
     video_id: int | None = None
     job_id: int | None = None
     job_attempt_id: int | None = None
@@ -41,4 +43,3 @@ class LlmTraceRecorderPort(Protocol):
 class NoopLlmTraceRecorder(LlmTraceRecorderPort):
     async def record_event(self, event: LlmTraceEvent) -> None:
         return None
-

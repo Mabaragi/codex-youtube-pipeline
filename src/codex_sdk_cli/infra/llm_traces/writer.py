@@ -123,6 +123,8 @@ def _event_payload(event: LlmTraceEvent, now: datetime) -> dict[str, object]:
         "operation": event.operation,
         "phase": event.phase,
         "videoTaskId": event.video_task_id,
+        "workItemId": event.work_item_id,
+        "workAttemptId": event.work_attempt_id,
         "videoId": event.video_id,
         "jobId": event.job_id,
         "jobAttemptId": event.job_attempt_id,
@@ -154,6 +156,10 @@ def _raw_response_filename(event: LlmTraceEvent, now: datetime, sha256: str) -> 
     ]
     if event.video_task_id is not None:
         parts.append(f"task-{event.video_task_id}")
+    if event.work_item_id is not None:
+        parts.append(f"work-{event.work_item_id}")
+    if event.work_attempt_id is not None:
+        parts.append(f"work-attempt-{event.work_attempt_id}")
     if event.job_attempt_id is not None:
         parts.append(f"attempt-{event.job_attempt_id}")
     if event.window_index is not None:

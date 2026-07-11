@@ -124,6 +124,8 @@ def _usage_create(
         video_task_id=context.video_task_id,
         job_id=context.job_id,
         job_attempt_id=context.job_attempt_id,
+        work_item_id=context.work_item_id,
+        work_attempt_id=context.work_attempt_id,
         transcript_id=context.transcript_id,
         window_index=context.window_index,
     )

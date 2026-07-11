@@ -22,6 +22,9 @@ class OperationEventCreate:
     job_id: int | None = None
     job_attempt_id: int | None = None
     video_task_id: int | None = None
+    work_item_id: int | None = None
+    work_attempt_id: int | None = None
+    work_batch_id: int | None = None
     channel_id: int | None = None
     video_id: int | None = None
     external_api_call_id: int | None = None
@@ -55,6 +58,9 @@ class OperationEventRecord:
     correlation_id: str | None
     error_type: str | None
     error_message: str | None
+    work_item_id: int | None = None
+    work_attempt_id: int | None = None
+    work_batch_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +72,8 @@ class OperationEventListQuery:
     subject_id: int | None = None
     job_id: int | None = None
     video_task_id: int | None = None
+    work_item_id: int | None = None
+    work_batch_id: int | None = None
     channel_id: int | None = None
     video_id: int | None = None
     cursor: int | None = None
@@ -82,4 +90,3 @@ class OperationEventRepositoryPort(Protocol):
 class OperationEventRecorderPort(Protocol):
     async def record_event(self, event: OperationEventCreate) -> None:
         """Record an operation event without changing the caller outcome."""
-

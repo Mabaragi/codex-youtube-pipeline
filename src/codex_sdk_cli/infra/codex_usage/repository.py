@@ -165,6 +165,8 @@ class SqlAlchemyCodexUsageRepository(CodexUsageRepositoryPort):
                 video_task_id=usage.video_task_id,
                 job_id=usage.job_id,
                 job_attempt_id=usage.job_attempt_id,
+                work_item_id=usage.work_item_id,
+                work_attempt_id=usage.work_attempt_id,
                 transcript_id=usage.transcript_id,
                 window_index=usage.window_index,
             )
@@ -362,6 +364,8 @@ def _conditions(
         conditions.append(CodexRunUsageModel.video_task_id == query.video_task_id)
     if query.job_id is not None:
         conditions.append(CodexRunUsageModel.job_id == query.job_id)
+    if query.work_item_id is not None:
+        conditions.append(CodexRunUsageModel.work_item_id == query.work_item_id)
     if include_cursor and query.cursor is not None:
         conditions.append(CodexRunUsageModel.id < query.cursor)
     return conditions
@@ -413,6 +417,8 @@ def _record(model: CodexRunUsageModel) -> CodexUsageRecord:
         video_task_id=model.video_task_id,
         job_id=model.job_id,
         job_attempt_id=model.job_attempt_id,
+        work_item_id=model.work_item_id,
+        work_attempt_id=model.work_attempt_id,
         transcript_id=model.transcript_id,
         window_index=model.window_index,
         created_at=model.created_at,

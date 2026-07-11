@@ -134,6 +134,9 @@ class SQLAlchemyOperationEventRepository(OperationEventRepositoryPort):
             job_id=event.job_id,
             job_attempt_id=event.job_attempt_id,
             video_task_id=event.video_task_id,
+            work_item_id=event.work_item_id,
+            work_attempt_id=event.work_attempt_id,
+            work_batch_id=event.work_batch_id,
             channel_id=event.channel_id,
             video_id=event.video_id,
             external_api_call_id=event.external_api_call_id,
@@ -168,6 +171,10 @@ class SQLAlchemyOperationEventRepository(OperationEventRepositoryPort):
             statement = statement.where(OperationEventModel.job_id == query.job_id)
         if query.video_task_id is not None:
             statement = statement.where(OperationEventModel.video_task_id == query.video_task_id)
+        if query.work_item_id is not None:
+            statement = statement.where(OperationEventModel.work_item_id == query.work_item_id)
+        if query.work_batch_id is not None:
+            statement = statement.where(OperationEventModel.work_batch_id == query.work_batch_id)
         if query.channel_id is not None:
             statement = statement.where(OperationEventModel.channel_id == query.channel_id)
         if query.video_id is not None:
@@ -195,6 +202,9 @@ def _record_from_model(model: OperationEventModel) -> OperationEventRecord:
         job_id=model.job_id,
         job_attempt_id=model.job_attempt_id,
         video_task_id=model.video_task_id,
+        work_item_id=model.work_item_id,
+        work_attempt_id=model.work_attempt_id,
+        work_batch_id=model.work_batch_id,
         channel_id=model.channel_id,
         video_id=model.video_id,
         external_api_call_id=model.external_api_call_id,

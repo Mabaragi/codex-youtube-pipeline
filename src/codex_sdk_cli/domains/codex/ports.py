@@ -13,6 +13,8 @@ class CodexRunUsageContext(BaseModel):
     operation: str
     video_id: int | None = None
     video_task_id: int | None = None
+    work_item_id: int | None = None
+    work_attempt_id: int | None = None
     job_id: int | None = None
     job_attempt_id: int | None = None
     transcript_id: int | None = None

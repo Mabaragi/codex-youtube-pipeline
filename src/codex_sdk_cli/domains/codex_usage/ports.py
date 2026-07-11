@@ -30,6 +30,8 @@ class CodexUsageCreate:
     video_task_id: int | None = None
     job_id: int | None = None
     job_attempt_id: int | None = None
+    work_item_id: int | None = None
+    work_attempt_id: int | None = None
     transcript_id: int | None = None
     window_index: int | None = None
 
@@ -60,6 +62,8 @@ class CodexUsageRecord:
     transcript_id: int | None
     window_index: int | None
     created_at: datetime
+    work_item_id: int | None = None
+    work_attempt_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +75,7 @@ class CodexUsageListQuery:
     video_id: int | None = None
     video_task_id: int | None = None
     job_id: int | None = None
+    work_item_id: int | None = None
     limit: int = 50
     cursor: int | None = None
 
