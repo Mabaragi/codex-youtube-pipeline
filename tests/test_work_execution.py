@@ -51,6 +51,16 @@ def test_work_execution_engine_records_failure(
     asyncio.run(_exercise_failure(database_url))
 
 
+def test_work_execution_engine_runs_inline_item(
+    monkeypatch: pytest.MonkeyPatch,
+    migrated_database_path: Path,
+) -> None:
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
+    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
+
+    asyncio.run(_exercise_inline(database_url))
+
+
 async def _exercise_success(database_url: str) -> None:
     engine, session_factory = await _database(database_url)
     unselected_factory_calls = 0
@@ -122,6 +132,35 @@ async def _exercise_failure(database_url: str) -> None:
         await engine.dispose()
 
 
+async def _exercise_inline(database_url: str) -> None:
+    engine, session_factory = await _database(database_url)
+    try:
+        item_id = await _enqueue(
+            session_factory,
+            task_type="inline",
+            execution_mode=WorkExecutionMode.INLINE,
+        )
+        execution = WorkExecutionEngine(
+            unit_of_work_factory=lambda: SqlAlchemyWorkUnitOfWork(session_factory),
+            registry=WorkExecutorRegistry({"inline": SuccessfulExecutor}),
+            task_types=("inline",),
+            worker_id="inline:test",
+        )
+
+        result = await execution.run_inline(item_id)
+
+        assert result.processed is True
+        assert result.succeeded is True
+        assert result.work_item_id == item_id
+        assert result.output_json == {"workItemId": item_id}
+        async with SqlAlchemyWorkUnitOfWork(session_factory) as unit_of_work:
+            item = await unit_of_work.work_items.get(item_id)
+        assert item is not None
+        assert item.status is WorkItemStatus.SUCCEEDED
+    finally:
+        await engine.dispose()
+
+
 async def _database(database_url: str):
     engine = create_database_engine(database_url)
     session_factory = create_session_factory(engine)
@@ -143,7 +182,12 @@ async def _database(database_url: str):
     return engine, session_factory
 
 
-async def _enqueue(session_factory, *, task_type: str) -> int:
+async def _enqueue(
+    session_factory,
+    *,
+    task_type: str,
+    execution_mode: WorkExecutionMode = WorkExecutionMode.WORKER,
+) -> int:
     async with SqlAlchemyWorkUnitOfWork(session_factory) as unit_of_work:
         item, _ = await unit_of_work.work_items.get_or_create(
             CreateWorkItem(
@@ -154,7 +198,7 @@ async def _enqueue(session_factory, *, task_type: str) -> int:
                 task_version="v1",
                 input_hash=task_type,
                 idempotency_key=f"{task_type}:video:1:v1",
-                execution_mode=WorkExecutionMode.WORKER,
+                execution_mode=execution_mode,
                 timeout_seconds=30,
                 input_json={"videoId": 1},
                 available_at=datetime.now(UTC),

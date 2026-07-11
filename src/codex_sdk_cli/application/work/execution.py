@@ -27,8 +27,10 @@ class WorkExecutionResult:
 @dataclass(frozen=True, slots=True)
 class WorkRunResult:
     processed: bool
+    work_item_id: int | None = None
     succeeded: bool | None = None
     outcome_code: str | None = None
+    output_json: JsonObject | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +105,19 @@ class WorkExecutionEngine:
         claimed = await self._claim()
         if claimed is None:
             return WorkRunResult(processed=False)
-        work_item, attempt_id = claimed
+        return await self._execute_claimed(*claimed)
+
+    async def run_inline(self, work_item_id: int) -> WorkRunResult:
+        started = await self._start_inline(work_item_id)
+        if started is None:
+            return WorkRunResult(processed=False, work_item_id=work_item_id)
+        return await self._execute_claimed(*started)
+
+    async def _execute_claimed(
+        self,
+        work_item: WorkItem,
+        attempt_id: int,
+    ) -> WorkRunResult:
         try:
             executor = self._registry.resolve(work_item.task_type)
             result = await self._execute_with_heartbeat(
@@ -123,7 +137,11 @@ class WorkExecutionEngine:
                 error_message=f"Work item exceeded {work_item.timeout_seconds} seconds.",
                 timed_out=True,
             )
-            return WorkRunResult(processed=True, succeeded=False)
+            return WorkRunResult(
+                processed=True,
+                work_item_id=work_item.id,
+                succeeded=False,
+            )
         except Exception as exc:
             await self._mark_failed(
                 work_item_id=work_item.id,
@@ -133,7 +151,11 @@ class WorkExecutionEngine:
                 error_message=str(exc) or type(exc).__name__,
                 timed_out=False,
             )
-            return WorkRunResult(processed=True, succeeded=False)
+            return WorkRunResult(
+                processed=True,
+                work_item_id=work_item.id,
+                succeeded=False,
+            )
         else:
             await self._mark_succeeded(
                 work_item_id=work_item.id,
@@ -142,8 +164,10 @@ class WorkExecutionEngine:
             )
             return WorkRunResult(
                 processed=True,
+                work_item_id=work_item.id,
                 succeeded=True,
                 outcome_code=result.outcome_code,
+                output_json=result.output_json,
             )
 
     async def recover_expired(self) -> int:
@@ -158,6 +182,25 @@ class WorkExecutionEngine:
             await unit_of_work.work_items.mark_dependency_blocked(now=now)
             work_item = await unit_of_work.work_items.claim_next(
                 task_types=self._task_types,
+                worker_id=self._worker_id,
+                now=now,
+                lease_expires_at=now + timedelta(seconds=self._lease_seconds),
+            )
+            if work_item is None:
+                await unit_of_work.commit()
+                return None
+            attempt = await unit_of_work.work_attempts.create(
+                work_item_id=work_item.id,
+                worker_id=self._worker_id,
+            )
+            await unit_of_work.commit()
+        return work_item, attempt.id
+
+    async def _start_inline(self, work_item_id: int) -> tuple[WorkItem, int] | None:
+        now = self._aware_now()
+        async with self._unit_of_work_factory() as unit_of_work:
+            work_item = await unit_of_work.work_items.start_inline(
+                work_item_id=work_item_id,
                 worker_id=self._worker_id,
                 now=now,
                 lease_expires_at=now + timedelta(seconds=self._lease_seconds),

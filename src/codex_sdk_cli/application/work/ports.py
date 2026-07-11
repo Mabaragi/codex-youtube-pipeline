@@ -67,7 +67,7 @@ class WorkItemRepositoryPort(Protocol):
 
     async def get_or_create(self, create: CreateWorkItem) -> tuple[WorkItem, bool]: ...
 
-    async def list(self, query: WorkItemQuery) -> list[WorkItem]: ...
+    async def list_items(self, query: WorkItemQuery) -> list[WorkItem]: ...
 
     async def find_latest(
         self,
@@ -78,6 +78,15 @@ class WorkItemRepositoryPort(Protocol):
         status: WorkItemStatus | None = None,
     ) -> WorkItem | None: ...
 
+    async def list_outcome_due(
+        self,
+        *,
+        task_type: str,
+        outcome_code: str,
+        completed_before: datetime,
+        limit: int,
+    ) -> list[WorkItem]: ...
+
     async def add_dependency(
         self,
         *,
@@ -85,6 +94,15 @@ class WorkItemRepositoryPort(Protocol):
         dependency_work_item_id: int,
         requires_successful_output: bool = True,
     ) -> None: ...
+
+    async def start_inline(
+        self,
+        *,
+        work_item_id: int,
+        worker_id: str,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> WorkItem | None: ...
 
     async def claim_next(
         self,

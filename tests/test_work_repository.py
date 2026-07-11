@@ -106,7 +106,7 @@ async def _exercise_work_repository(database_url: str) -> None:
             duplicate, duplicate_created = await unit_of_work.work_items.get_or_create(
                 _create_item("transcript_collect", "upstream", now)
             )
-            listed = await unit_of_work.work_items.list(
+            listed = await unit_of_work.work_items.list_items(
                 WorkItemQuery(subject_type="video", subject_id=1, limit=10)
             )
             await unit_of_work.commit()

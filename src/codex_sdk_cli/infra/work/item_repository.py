@@ -89,7 +89,7 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         return _item(model), True
 
     @override
-    async def list(self, query: WorkItemQuery) -> list[WorkItem]:
+    async def list_items(self, query: WorkItemQuery) -> list[WorkItem]:
         statement = select(WorkItemModel)
         if query.task_type is not None:
             statement = statement.where(WorkItemModel.task_type == query.task_type)
@@ -132,6 +132,35 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         return _item(model) if model is not None else None
 
     @override
+    async def list_outcome_due(
+        self,
+        *,
+        task_type: str,
+        outcome_code: str,
+        completed_before: datetime,
+        limit: int,
+    ) -> list[WorkItem]:
+        statement = (
+            select(WorkItemModel)
+            .where(
+                WorkItemModel.task_type == task_type,
+                WorkItemModel.status == WorkItemStatus.SUCCEEDED.value,
+                WorkItemModel.outcome_code == outcome_code,
+                WorkItemModel.completed_at.is_not(None),
+                WorkItemModel.completed_at <= completed_before,
+                WorkItemModel.subject_type == "video",
+                WorkItemModel.subject_id.is_not(None),
+            )
+            .order_by(WorkItemModel.completed_at, WorkItemModel.id)
+            .limit(limit)
+        )
+        try:
+            models = list((await self._session.scalars(statement)).all())
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return [_item(model) for model in models]
+
+    @override
     async def add_dependency(
         self,
         *,
@@ -156,6 +185,43 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
             await self._session.flush()
         except SQLAlchemyError as exc:
             raise WorkPersistenceError() from exc
+
+    @override
+    async def start_inline(
+        self,
+        *,
+        work_item_id: int,
+        worker_id: str,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> WorkItem | None:
+        statement = (
+            update(WorkItemModel)
+            .where(
+                WorkItemModel.id == work_item_id,
+                WorkItemModel.status == WorkItemStatus.PENDING.value,
+                WorkItemModel.execution_mode == WorkExecutionMode.INLINE.value,
+            )
+            .values(
+                status=WorkItemStatus.RUNNING.value,
+                lease_owner=worker_id,
+                lease_expires_at=lease_expires_at,
+                heartbeat_at=now,
+                started_at=func.coalesce(WorkItemModel.started_at, now),
+                updated_at=now,
+            )
+            .returning(WorkItemModel.id)
+        )
+        try:
+            started_id = (await self._session.execute(statement)).scalar_one_or_none()
+            if started_id is None:
+                return None
+            model = await self._session.get(WorkItemModel, started_id)
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        if model is None:
+            raise WorkPersistenceError("Started work item disappeared.")
+        return _item(model)
 
     @override
     async def claim_next(
