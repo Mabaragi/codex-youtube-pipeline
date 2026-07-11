@@ -25,6 +25,13 @@ class WorkExecutionResult:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkRunResult:
+    processed: bool
+    succeeded: bool | None = None
+    outcome_code: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class WorkExecutionContext:
     work_item: WorkItem
     attempt_id: int
@@ -90,9 +97,12 @@ class WorkExecutionEngine:
         self._sleep = sleep
 
     async def run_once(self) -> bool:
+        return (await self.run_once_with_result()).processed
+
+    async def run_once_with_result(self) -> WorkRunResult:
         claimed = await self._claim()
         if claimed is None:
-            return False
+            return WorkRunResult(processed=False)
         work_item, attempt_id = claimed
         try:
             executor = self._registry.resolve(work_item.task_type)
@@ -113,6 +123,7 @@ class WorkExecutionEngine:
                 error_message=f"Work item exceeded {work_item.timeout_seconds} seconds.",
                 timed_out=True,
             )
+            return WorkRunResult(processed=True, succeeded=False)
         except Exception as exc:
             await self._mark_failed(
                 work_item_id=work_item.id,
@@ -122,13 +133,18 @@ class WorkExecutionEngine:
                 error_message=str(exc) or type(exc).__name__,
                 timed_out=False,
             )
+            return WorkRunResult(processed=True, succeeded=False)
         else:
             await self._mark_succeeded(
                 work_item_id=work_item.id,
                 attempt_id=attempt_id,
                 result=result,
             )
-        return True
+            return WorkRunResult(
+                processed=True,
+                succeeded=True,
+                outcome_code=result.outcome_code,
+            )
 
     async def recover_expired(self) -> int:
         async with self._unit_of_work_factory() as unit_of_work:

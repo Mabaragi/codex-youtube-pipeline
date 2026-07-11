@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -17,8 +17,10 @@ class TranscriptCueCreate:
     end_ms: int
     duration_ms: int
     source_segment_index: int
-    source_job_id: int | None
-    source_job_attempt_id: int | None
+    source_job_id: int | None = None
+    source_job_attempt_id: int | None = None
+    source_work_item_id: int | None = None
+    source_work_attempt_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +38,8 @@ class TranscriptCueRecord:
     source_job_attempt_id: int | None
     created_at: datetime
     updated_at: datetime
+    source_work_item_id: int | None = None
+    source_work_attempt_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +49,7 @@ class TranscriptCueSummaryRecord:
     first_cue_id: str | None
     last_cue_id: str | None
     source_job_id: int | None
+    source_work_item_id: int | None = None
 
 
 class TranscriptCueRepositoryPort(Protocol):

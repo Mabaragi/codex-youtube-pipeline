@@ -109,6 +109,29 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         return [_item(model) for model in models]
 
     @override
+    async def find_latest(
+        self,
+        *,
+        task_type: str,
+        subject_type: str,
+        subject_id: int,
+        status: WorkItemStatus | None = None,
+    ) -> WorkItem | None:
+        statement = select(WorkItemModel).where(
+            WorkItemModel.task_type == task_type,
+            WorkItemModel.subject_type == subject_type,
+            WorkItemModel.subject_id == subject_id,
+        )
+        if status is not None:
+            statement = statement.where(WorkItemModel.status == status.value)
+        statement = statement.order_by(WorkItemModel.id.desc()).limit(1)
+        try:
+            model = await self._session.scalar(statement)
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return _item(model) if model is not None else None
+
+    @override
     async def add_dependency(
         self,
         *,

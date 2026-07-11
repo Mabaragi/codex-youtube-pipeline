@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing_extensions import override
@@ -43,6 +45,26 @@ class SqlAlchemyWorkBatchRepository(WorkBatchRepositoryPort):
         except SQLAlchemyError as exc:
             raise WorkPersistenceError() from exc
         return _batch(model) if model is not None else None
+
+    @override
+    async def complete(
+        self,
+        *,
+        batch_id: int,
+        status: str,
+        completed_at: datetime,
+    ) -> WorkBatch:
+        model = await self._session.get(WorkBatchModel, batch_id)
+        if model is None:
+            raise WorkPersistenceError("Work batch was not found.")
+        model.status = WorkBatchStatus(status).value
+        model.completed_at = completed_at
+        try:
+            await self._session.flush()
+            await self._session.refresh(model)
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return _batch(model)
 
     @override
     async def add_item(

@@ -22,6 +22,8 @@ Write-Host ""
 
 Write-ProcessStatus "api"
 Write-ProcessStatus "micro-event-worker"
+Write-ProcessStatus "transcript-worker"
+Write-ProcessStatus "transcript-cue-worker"
 Write-ProcessStatus "pipeline-scheduler"
 Write-ProcessStatus "timeline-compose-worker"
 Write-ProcessStatus "ops-ui"

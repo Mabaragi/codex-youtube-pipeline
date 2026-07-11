@@ -215,6 +215,9 @@ function Get-LocalHomeRuntimeProcesses {
             $lowerCommandLine -match "codex_sdk_cli\.api\.main:app" -or
             $lowerCommandLine -match "codex-micro-event-worker" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.micro_events" -or
+            $lowerCommandLine -match "codex-transcript-worker" -or
+            $lowerCommandLine -match "codex-transcript-cue-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.transcripts" -or
             $lowerCommandLine -match "codex-pipeline-scheduler" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_scheduler" -or
             $lowerCommandLine -match "codex-timeline-compose-worker" -or

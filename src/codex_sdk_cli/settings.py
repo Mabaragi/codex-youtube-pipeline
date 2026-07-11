@@ -37,6 +37,8 @@ class CliSettings(BaseSettings):
     transcript_collect_timeout_seconds: int = 600
     transcript_collect_concurrency_limit: int = 1
     transcript_collect_delay_seconds: int = 300
+    transcript_worker_poll_interval_seconds: int = 5
+    transcript_worker_id: str | None = None
     pipeline_scheduler_enabled: bool = True
     pipeline_scheduler_poll_interval_seconds: int = 300
     pipeline_scheduler_channel_interval_seconds: int = 86400
@@ -46,6 +48,8 @@ class CliSettings(BaseSettings):
     pipeline_scheduler_id: str | None = None
     transcript_cue_generate_timeout_seconds: int = 600
     transcript_cue_generate_concurrency_limit: int = 1
+    transcript_cue_worker_poll_interval_seconds: int = 5
+    transcript_cue_worker_id: str | None = None
     micro_event_extract_timeout_seconds: int = 3600
     micro_event_extract_concurrency_limit: int = 3
     micro_event_worker_poll_interval_seconds: int = 5
@@ -102,6 +106,8 @@ class CliSettings(BaseSettings):
         "ffprobe_bin",
         "youtube_data_api_key",
         "pipeline_scheduler_id",
+        "transcript_worker_id",
+        "transcript_cue_worker_id",
         "micro_event_worker_id",
         "timeline_compose_worker_id",
         "archive_publish_r2_endpoint",
@@ -156,6 +162,7 @@ class CliSettings(BaseSettings):
     @field_validator(
         "transcript_collect_timeout_seconds",
         "transcript_collect_concurrency_limit",
+        "transcript_worker_poll_interval_seconds",
         "pipeline_scheduler_poll_interval_seconds",
         "pipeline_scheduler_channel_interval_seconds",
         "pipeline_scheduler_transcript_limit",
@@ -163,6 +170,7 @@ class CliSettings(BaseSettings):
         "pipeline_scheduler_no_transcript_limit",
         "transcript_cue_generate_timeout_seconds",
         "transcript_cue_generate_concurrency_limit",
+        "transcript_cue_worker_poll_interval_seconds",
         "micro_event_extract_timeout_seconds",
         "micro_event_extract_concurrency_limit",
         "micro_event_worker_poll_interval_seconds",

@@ -98,7 +98,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
     async def get_video(self, video_id: int) -> VideoRecord | None:
         try:
             row = await self._session.get(VideoModel, video_id)
-            return _video_record(row) if row is not None else None
+            return video_record_from_model(row) if row is not None else None
         except SQLAlchemyError as exc:
             raise VideoPersistenceError("Video persistence failed.") from exc
 
@@ -111,7 +111,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
             row = await self._session.scalar(
                 select(VideoModel).where(VideoModel.youtube_video_id == youtube_video_id)
             )
-            return _video_record(row) if row is not None else None
+            return video_record_from_model(row) if row is not None else None
         except SQLAlchemyError as exc:
             raise VideoPersistenceError("Video persistence failed.") from exc
 
@@ -124,7 +124,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
                     VideoModel.id.desc(),
                 )
             )
-            return [_video_record(row) for row in rows]
+            return [video_record_from_model(row) for row in rows]
         except SQLAlchemyError as exc:
             raise VideoPersistenceError("Video persistence failed.") from exc
 
@@ -136,7 +136,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
                 .where(VideoModel.channel_id == channel_id)
                 .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
             )
-            return [_video_record(row) for row in rows]
+            return [video_record_from_model(row) for row in rows]
         except SQLAlchemyError as exc:
             raise VideoPersistenceError("Video persistence failed.") from exc
 
@@ -158,7 +158,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
                     return []
                 statement = statement.where(VideoModel.id.in_(video_ids))
             rows = await self._session.scalars(statement.limit(limit))
-            return [_video_record(row) for row in rows]
+            return [video_record_from_model(row) for row in rows]
         except SQLAlchemyError as exc:
             raise VideoPersistenceError("Video persistence failed.") from exc
 
@@ -217,7 +217,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
             await self._session.commit()
             for model in models:
                 await self._session.refresh(model)
-            return [_video_record(model) for model in models]
+            return [video_record_from_model(model) for model in models]
         except IntegrityError as exc:
             await self._session.rollback()
             raise VideoAlreadyExists("YouTube video already exists.") from exc
@@ -243,7 +243,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
             model.source_embed_status_api_call_id = source_api_call_id
             await self._session.commit()
             await self._session.refresh(model)
-            return _video_record(model)
+            return video_record_from_model(model)
         except VideoPersistenceError:
             await self._session.rollback()
             raise
@@ -252,7 +252,7 @@ class SqlAlchemyVideoRepository(VideoRepositoryPort):
             raise VideoPersistenceError("Video persistence failed.") from exc
 
 
-def _video_record(model: VideoModel) -> VideoRecord:
+def video_record_from_model(model: VideoModel) -> VideoRecord:
     return VideoRecord(
         id=model.id,
         channel_id=model.channel_id,

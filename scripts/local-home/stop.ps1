@@ -10,6 +10,8 @@ Import-LocalHomeEnv
 Stop-ManagedProcess "ops-ui"
 Stop-ManagedProcess "timeline-compose-worker"
 Stop-ManagedProcess "pipeline-scheduler"
+Stop-ManagedProcess "transcript-cue-worker"
+Stop-ManagedProcess "transcript-worker"
 Stop-ManagedProcess "micro-event-worker"
 Stop-ManagedProcess "api"
 Stop-LocalHomeRuntimeProcesses

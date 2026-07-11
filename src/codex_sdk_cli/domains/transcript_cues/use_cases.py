@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import json
@@ -30,6 +30,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 from codex_sdk_cli.domains.youtube_transcripts.schemas import TranscriptResponse
 
+from .generation import TranscriptCueSegmentInput, build_transcript_cues
 from .ports import (
     TranscriptCueCreate,
     TranscriptCueRecord,
@@ -293,9 +294,7 @@ class GetTranscriptPromptCuesUseCase:
         return TranscriptPromptCuesResponse(
             transcriptId=transcript_id,
             cueCount=len(records),
-            promptText="\n".join(
-                f"[{cue.cue_id}] {cue.text}" for cue in prompt_cues
-            ),
+            promptText="\n".join(f"[{cue.cue_id}] {cue.text}" for cue in prompt_cues),
             cues=prompt_cues,
         )
 
@@ -315,35 +314,19 @@ def _cue_creates(
     source_job_id: int,
     source_job_attempt_id: int,
 ) -> list[TranscriptCueCreate]:
-    cues: list[TranscriptCueCreate] = []
-    for segment_index, segment in enumerate(content.segments):
-        cue_index = segment_index + 1
-        start_ms = _seconds_to_ms(segment.start)
-        duration_ms = max(0, _seconds_to_ms(segment.duration))
-        end_ms = max(start_ms, start_ms + duration_ms)
-        cues.append(
-            TranscriptCueCreate(
-                transcript_id=transcript_id,
-                cue_id=_cue_id(transcript_id, cue_index),
-                cue_index=cue_index,
+    return build_transcript_cues(
+        transcript_id,
+        (
+            TranscriptCueSegmentInput(
                 text=segment.text,
-                start_ms=start_ms,
-                end_ms=end_ms,
-                duration_ms=duration_ms,
-                source_segment_index=segment_index,
-                source_job_id=source_job_id,
-                source_job_attempt_id=source_job_attempt_id,
+                start_seconds=segment.start,
+                duration_seconds=segment.duration,
             )
-        )
-    return cues
-
-
-def _cue_id(transcript_id: int, cue_index: int) -> str:
-    return f"tr{transcript_id}-c{cue_index:06d}"
-
-
-def _seconds_to_ms(value: float) -> int:
-    return round(value * 1000)
+            for segment in content.segments
+        ),
+        source_job_id=source_job_id,
+        source_job_attempt_id=source_job_attempt_id,
+    )
 
 
 def _cue_response(record: TranscriptCueRecord) -> TranscriptCueResponse:
@@ -416,7 +399,5 @@ def _summary_from_records(
 def _required_int(input_json: JsonObject, key: str) -> int:
     value = input_json.get(key)
     if not isinstance(value, int):
-        raise YouTubeTranscriptStorageError(
-            f"Pipeline job input is missing integer '{key}'."
-        )
+        raise YouTubeTranscriptStorageError(f"Pipeline job input is missing integer '{key}'.")
     return value

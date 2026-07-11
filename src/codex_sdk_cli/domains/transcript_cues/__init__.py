@@ -1,1 +1,1 @@
-﻿"""Transcript cue domain."""
+"""Transcript cue domain."""

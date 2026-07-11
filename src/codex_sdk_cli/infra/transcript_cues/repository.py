@@ -133,12 +133,14 @@ class SqlAlchemyTranscriptCueRepository(TranscriptCueRepositoryPort):
     async def summarize_cues(self, transcript_id: int) -> TranscriptCueSummaryRecord:
         records = await self.list_cues(transcript_id)
         source_job_id = records[0].source_job_id if records else None
+        source_work_item_id = records[0].source_work_item_id if records else None
         return TranscriptCueSummaryRecord(
             transcript_id=transcript_id,
             cue_count=len(records),
             first_cue_id=records[0].cue_id if records else None,
             last_cue_id=records[-1].cue_id if records else None,
             source_job_id=source_job_id,
+            source_work_item_id=source_work_item_id,
         )
 
 
@@ -154,6 +156,8 @@ def _cue_model(cue: TranscriptCueCreate) -> TranscriptCueModel:
         source_segment_index=cue.source_segment_index,
         source_job_id=cue.source_job_id,
         source_job_attempt_id=cue.source_job_attempt_id,
+        source_work_item_id=cue.source_work_item_id,
+        source_work_attempt_id=cue.source_work_attempt_id,
     )
 
 
@@ -170,6 +174,8 @@ def _cue_record(model: TranscriptCueModel) -> TranscriptCueRecord:
         source_segment_index=model.source_segment_index,
         source_job_id=model.source_job_id,
         source_job_attempt_id=model.source_job_attempt_id,
+        source_work_item_id=model.source_work_item_id,
+        source_work_attempt_id=model.source_work_attempt_id,
         created_at=model.created_at,
         updated_at=model.updated_at,
     )

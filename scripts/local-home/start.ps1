@@ -27,6 +27,14 @@ Start-LoggedProcess "micro-event-worker" (Join-Path $script:RepoRoot ".venv\Scri
     "-c",
     '"from codex_sdk_cli.workers.micro_events import run; run()"'
 )
+Start-LoggedProcess "transcript-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    "-c",
+    '"from codex_sdk_cli.workers.transcripts import run_transcript; run_transcript()"'
+)
+Start-LoggedProcess "transcript-cue-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    "-c",
+    '"from codex_sdk_cli.workers.transcripts import run_transcript_cue; run_transcript_cue()"'
+)
 Start-LoggedProcess "pipeline-scheduler" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
     "-m",
     "codex_sdk_cli.workers.pipeline_scheduler"

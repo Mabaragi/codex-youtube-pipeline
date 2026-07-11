@@ -69,6 +69,15 @@ class WorkItemRepositoryPort(Protocol):
 
     async def list(self, query: WorkItemQuery) -> list[WorkItem]: ...
 
+    async def find_latest(
+        self,
+        *,
+        task_type: str,
+        subject_type: str,
+        subject_id: int,
+        status: WorkItemStatus | None = None,
+    ) -> WorkItem | None: ...
+
     async def add_dependency(
         self,
         *,
@@ -160,6 +169,14 @@ class WorkBatchRepositoryPort(Protocol):
     async def create(self, create: CreateWorkBatch) -> WorkBatch: ...
 
     async def get(self, batch_id: int) -> WorkBatch | None: ...
+
+    async def complete(
+        self,
+        *,
+        batch_id: int,
+        status: str,
+        completed_at: datetime,
+    ) -> WorkBatch: ...
 
     async def add_item(
         self,

@@ -76,15 +76,15 @@ def application_config(settings: CliSettings) -> ApplicationConfig:
             task_type="transcript_collect",
             timeout_seconds=settings.transcript_collect_timeout_seconds,
             concurrency_limit=settings.transcript_collect_concurrency_limit,
-            poll_interval_seconds=settings.pipeline_scheduler_poll_interval_seconds,
-            worker_id=settings.pipeline_scheduler_id,
+            poll_interval_seconds=settings.transcript_worker_poll_interval_seconds,
+            worker_id=settings.transcript_worker_id,
         ),
         transcript_cue=WorkerConfig(
             task_type="transcript_cue_generate",
             timeout_seconds=settings.transcript_cue_generate_timeout_seconds,
             concurrency_limit=settings.transcript_cue_generate_concurrency_limit,
-            poll_interval_seconds=settings.pipeline_scheduler_poll_interval_seconds,
-            worker_id=settings.pipeline_scheduler_id,
+            poll_interval_seconds=settings.transcript_cue_worker_poll_interval_seconds,
+            worker_id=settings.transcript_cue_worker_id,
         ),
         micro_event=WorkerConfig(
             task_type="micro_event_extract",
@@ -101,4 +101,3 @@ def application_config(settings: CliSettings) -> ApplicationConfig:
             worker_id=settings.timeline_compose_worker_id,
         ),
     )
-
