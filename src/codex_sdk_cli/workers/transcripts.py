@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import socket
 
+from codex_sdk_cli.bootstrap.runtime_logging import configure_runtime_logging
 from codex_sdk_cli.bootstrap.workers import WorkRuntime
 from codex_sdk_cli.settings import CliSettings
 from codex_sdk_cli.workers.work import WorkCooldownPolicy, run_worker_loop
 
 
 def run_transcript() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_runtime_logging()
     asyncio.run(run_transcript_worker())
 
 
 def run_transcript_cue() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_runtime_logging()
     asyncio.run(run_transcript_cue_worker())
 
 

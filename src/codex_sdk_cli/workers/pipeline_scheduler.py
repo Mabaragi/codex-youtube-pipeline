@@ -6,6 +6,7 @@ import os
 import socket
 from collections.abc import Awaitable, Callable
 
+from codex_sdk_cli.bootstrap.runtime_logging import configure_runtime_logging
 from codex_sdk_cli.bootstrap.scheduler import PipelineSchedulerRuntime
 from codex_sdk_cli.settings import CliSettings
 
@@ -14,7 +15,7 @@ Sleep = Callable[[float], Awaitable[None]]
 
 
 def run() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_runtime_logging()
     asyncio.run(run_worker())
 
 
