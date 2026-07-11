@@ -5,9 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.micro_events.ports import (
@@ -37,11 +35,10 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import (
 
 def test_micro_event_repository_replaces_and_reads_extraction(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'micro-events.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_repository(database_url))
 
@@ -284,12 +281,8 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "parsed_response_json": reread.windows[0].parsed_response_json,
                 "missing_update_is_none": missing_update is None,
                 "upsert_window_count": len(upserted.windows),
-                "upsert_first_window_micro_event_count": len(
-                    upserted.windows[0].micro_events
-                ),
-                "upsert_second_window_micro_event_count": len(
-                    upserted.windows[1].micro_events
-                ),
+                "upsert_first_window_micro_event_count": len(upserted.windows[0].micro_events),
+                "upsert_second_window_micro_event_count": len(upserted.windows[1].micro_events),
                 "replaced_window_count": len(replaced.windows),
                 "replaced_micro_event_count": len(replaced.windows[0].micro_events),
             }
@@ -393,11 +386,3 @@ def _external_call(operation: str) -> ExternalApiCallCreate:
         duration_ms=12,
         quota_cost=1,
     )
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

@@ -5,9 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate
@@ -28,11 +26,10 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import (
 
 def test_video_task_repository_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'video-tasks.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_repository(database_url))
 
@@ -230,12 +227,10 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 completed_before=datetime.now(UTC) + timedelta(seconds=1),
                 limit=10,
             )
-            not_due_no_transcript = await (
-                video_tasks.list_no_transcript_tasks_due_for_recheck(
-                    task_name="transcript_collect",
-                    completed_before=datetime(2020, 1, 1, tzinfo=UTC),
-                    limit=10,
-                )
+            not_due_no_transcript = await video_tasks.list_no_transcript_tasks_due_for_recheck(
+                task_name="transcript_collect",
+                completed_before=datetime(2020, 1, 1, tzinfo=UTC),
+                limit=10,
             )
             timeline_job = await pipeline_jobs.create_job(
                 PipelineJobCreate(
@@ -312,9 +307,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "failed_status": failed.status,
                 "timed_out_status": timed_out.status,
                 "no_transcript_status": no_transcript.status,
-                "due_no_transcript_video_ids": [
-                    record.video.id for record in due_no_transcript
-                ],
+                "due_no_transcript_video_ids": [record.video.id for record in due_no_transcript],
                 "not_due_no_transcript_count": len(not_due_no_transcript),
                 "exclusive_claim_video_id": exclusive_claim.video_id,
                 "canceled_status": canceled[0].status,
@@ -323,14 +316,6 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             }
     finally:
         await engine.dispose()
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config
 
 
 def _external_call(operation: str) -> ExternalApiCallCreate:

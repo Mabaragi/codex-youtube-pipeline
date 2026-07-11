@@ -4,9 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate
 from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueCreate
 from codex_sdk_cli.domains.youtube_transcripts.ports import YouTubeTranscriptRecord
@@ -20,11 +18,10 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import (
 
 def test_transcript_cue_repository_replaces_and_lists_cues(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'transcript-cues.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_repository(database_url))
 
@@ -114,11 +111,3 @@ def _cue(
         source_job_id=job_id,
         source_job_attempt_id=attempt_id,
     )
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

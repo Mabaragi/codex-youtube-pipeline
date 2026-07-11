@@ -4,9 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.operation_events.ports import (
     OperationEventCreate,
     OperationEventListQuery,
@@ -19,11 +17,10 @@ from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRe
 
 def test_operation_event_repository_creates_and_filters_events(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'operation-events.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_repository(database_url))
 
@@ -82,9 +79,7 @@ async def _exercise_repository(database_url: str) -> None:
             )
 
             newest = await events.list_events(OperationEventListQuery(limit=10))
-            errors = await events.list_events(
-                OperationEventListQuery(limit=10, severity="error")
-            )
+            errors = await events.list_events(OperationEventListQuery(limit=10, severity="error"))
             by_job = await events.list_events(OperationEventListQuery(limit=10, job_id=job.id))
             by_subject = await events.list_events(
                 OperationEventListQuery(limit=10, subject_type="channel", subject_id=7)
@@ -105,11 +100,3 @@ async def _exercise_repository(database_url: str) -> None:
             assert errors[0].error_message == "upstream failed"
     finally:
         await engine.dispose()
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

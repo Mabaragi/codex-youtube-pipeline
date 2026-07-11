@@ -7,13 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 from click.testing import CliRunner
 from openai_codex import ApprovalMode, Sandbox
 from openai_codex.generated.v2_all import ReasoningEffort
 from sqlalchemy import create_engine, text
 
-from alembic import command
 from codex_sdk_cli.cli import main
 from codex_sdk_cli.runner import (
     BLANK_BASE_INSTRUCTIONS,
@@ -234,12 +232,11 @@ def test_run_command_can_empty_developer_instructions() -> None:
 
 def test_domain_entry_add_creates_type_entry_streamer_and_alias(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_file = tmp_path / "domain-cli.db"
+    database_file = migrated_database_path
     database_url = f"sqlite+aiosqlite:///{database_file.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
     _insert_streamer(database_file)
 
     result = CliRunner().invoke(
@@ -272,12 +269,11 @@ def test_domain_entry_add_creates_type_entry_streamer_and_alias(
 
 def test_timeline_normalize_style_cli_dry_run_and_apply(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_file = tmp_path / "timeline-style-cli.db"
+    database_file = migrated_database_path
     database_url = f"sqlite+aiosqlite:///{database_file.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
     _insert_timeline_style_fixture(database_file)
 
     dry_run = CliRunner().invoke(
@@ -318,12 +314,11 @@ def test_timeline_normalize_style_cli_dry_run_and_apply(
 
 def test_ops_detect_stuck_cli_reports_stale_running_tasks(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_file = tmp_path / "ops-cli.db"
+    database_file = migrated_database_path
     database_url = f"sqlite+aiosqlite:///{database_file.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
     _insert_stuck_task_fixture(database_file)
 
     result = CliRunner().invoke(
@@ -337,9 +332,7 @@ def test_ops_detect_stuck_cli_reports_stale_running_tasks(
     assert payload["total"] == 1
     assert payload["items"][0]["videoTaskId"] == 1
     assert payload["items"][0]["workerPid"] == 9876
-    assert payload["items"][0]["latestEvent"]["eventType"] == (
-        "micro_event_extract.window_started"
-    )
+    assert payload["items"][0]["latestEvent"]["eventType"] == ("micro_event_extract.window_started")
 
 
 def test_run_command_resumes_thread() -> None:
@@ -713,11 +706,3 @@ def _fetch_timeline_style_fixture(database_file: Path) -> dict[str, str]:
             }
     finally:
         engine.dispose()
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

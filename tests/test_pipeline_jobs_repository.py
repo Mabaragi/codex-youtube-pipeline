@@ -4,9 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
@@ -34,22 +32,20 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import (
 
 def test_pipeline_job_repository_tracks_attempt_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'pipeline-jobs.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_repository(database_url))
 
 
 def test_pipeline_job_repository_filters_by_related_channel(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'pipeline-job-filters.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_channel_filter_repository(database_url))
 
@@ -390,11 +386,3 @@ async def _create_job(
             ),
         )
     )
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

@@ -5,9 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.channels.ports import ChannelCreate
 from codex_sdk_cli.domains.external_api_calls.ports import ExternalApiCallCreate
 from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobCreate
@@ -23,11 +21,10 @@ from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
 
 def test_video_repository_bulk_creates_lists_and_detects_existing(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'videos.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_repository(database_url))
 
@@ -197,11 +194,3 @@ def _external_call(operation: str) -> ExternalApiCallCreate:
         duration_ms=12,
         quota_cost=1,
     )
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

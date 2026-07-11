@@ -5,10 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from alembic import command
 from codex_sdk_cli.domains.codex_usage.ports import CodexUsageCreate, CodexUsageListQuery
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import SqlAlchemyCodexUsageRepository
@@ -20,11 +18,10 @@ from codex_sdk_cli.infra.videos.repository import VideoModel
 
 def test_codex_usage_repository_creates_lists_and_summarizes_usage(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'codex-usage.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_repository(database_url))
 
@@ -195,9 +192,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
                 "source_summary_total_tokens": source_rows.summary.total_tokens,
                 "video_summary_count": len(video_rows),
                 "video_summary_latest_model": video_rows[0].latest_model,
-                "video_summary_latest_reasoning_effort": (
-                    video_rows[0].latest_reasoning_effort
-                ),
+                "video_summary_latest_reasoning_effort": (video_rows[0].latest_reasoning_effort),
                 "video_summary_title": video_rows[0].title,
                 "video_summary_total_tokens": video_rows[0].total_tokens,
                 "job_summary_count": len(job_rows),
@@ -263,11 +258,3 @@ async def _create_job(
     await session.commit()
     await session.refresh(job)
     return job
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

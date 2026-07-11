@@ -5,9 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.micro_events.repository import (
@@ -30,14 +28,13 @@ from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscript
 
 def test_ops_repository_lists_operational_views(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_file = tmp_path / "ops.db"
+    database_file = migrated_database_path
     monkeypatch.setenv(
         "CODEX_CLI_DATABASE_URL",
         f"sqlite+aiosqlite:///{database_file.as_posix()}",
     )
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_repository(database_file))
 
@@ -55,9 +52,7 @@ def test_ops_repository_lists_operational_views(
     assert result["videos"].items[0].generation.micro_events.window_count == 1
     assert result["videos"].items[0].generation.micro_events.micro_event_count == 2
     assert result["videos"].items[0].generation.timeline.generated is True
-    assert result["videos"].items[0].generation.timeline.composition_id == result[
-        "composition_id"
-    ]
+    assert result["videos"].items[0].generation.timeline.composition_id == result["composition_id"]
     assert result["videos"].items[0].generation.timeline.episode_count == 2
     assert result["micro_candidates"].total == 4
     assert {item.category for item in result["micro_candidates"].items} == {
@@ -628,11 +623,3 @@ async def _add_micro_success(
     )
     await session.flush()
     return micro_task
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

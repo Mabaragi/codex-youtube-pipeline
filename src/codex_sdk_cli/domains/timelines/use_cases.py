@@ -11,7 +11,11 @@ from typing import cast, get_args
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
-from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
+from codex_sdk_cli.domains.codex.choices import (
+    CODEX_MODEL_CHOICES,
+    CodexModelChoice,
+    ReasoningEffortChoice,
+)
 from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainKnowledgePromptEntryRecord,
     DomainKnowledgeRepositoryPort,
@@ -4337,8 +4341,8 @@ def _episode_count_hint(micro_event_count: int) -> JsonObject:
 
 def _model_output(input_json: JsonObject) -> CodexModelChoice | None:
     value = input_json.get("model")
-    if value in {"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}:
-        return cast(CodexModelChoice, value)
+    if value in CODEX_MODEL_CHOICES:
+        return value
     return None
 
 

@@ -5,9 +5,7 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.prompts.cache import PromptCache
 from codex_sdk_cli.domains.prompts.constants import MICRO_EVENT_EXTRACT_PROMPT_KEY
 from codex_sdk_cli.domains.prompts.exceptions import PromptConflict, PromptNotFound
@@ -19,11 +17,10 @@ from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 
 def test_prompt_repository_manages_versions_and_active_resolution(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'prompts.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_repository(database_url))
 
@@ -94,9 +91,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             )
             assert published is not None
             cache.invalidate(MICRO_EVENT_EXTRACT_PROMPT_KEY)
-            cached_before_publish = await resolver.resolve_prompt(
-                MICRO_EVENT_EXTRACT_PROMPT_KEY
-            )
+            cached_before_publish = await resolver.resolve_prompt(MICRO_EVENT_EXTRACT_PROMPT_KEY)
 
             second = await repository.create_version(
                 PromptVersionCreate(
@@ -110,9 +105,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             active_after_second_publish = await repository.get_active_version(
                 MICRO_EVENT_EXTRACT_PROMPT_KEY
             )
-            cached_before_invalidate = await resolver.resolve_prompt(
-                MICRO_EVENT_EXTRACT_PROMPT_KEY
-            )
+            cached_before_invalidate = await resolver.resolve_prompt(MICRO_EVENT_EXTRACT_PROMPT_KEY)
             cache.invalidate(MICRO_EVENT_EXTRACT_PROMPT_KEY)
             resolved_after_invalidate = await resolver.resolve_prompt(
                 MICRO_EVENT_EXTRACT_PROMPT_KEY
@@ -206,11 +199,3 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
 
 def _sha256(body: str) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

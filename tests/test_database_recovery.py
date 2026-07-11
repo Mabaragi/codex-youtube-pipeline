@@ -5,9 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.database.recovery import (
     INTERRUPTED_ERROR_TYPE,
@@ -25,11 +23,10 @@ from codex_sdk_cli.infra.videos.repository import VideoModel
 
 def test_recover_interrupted_running_work_marks_running_rows_failed(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'recovery.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_recovery(database_url))
 
@@ -140,11 +137,3 @@ async def _exercise_recovery(database_url: str) -> dict[str, object]:
             }
     finally:
         await engine.dispose()
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

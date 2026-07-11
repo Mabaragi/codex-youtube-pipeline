@@ -11,7 +11,11 @@ from typing import cast
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
-from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
+from codex_sdk_cli.domains.codex.choices import (
+    CODEX_MODEL_CHOICES,
+    CodexModelChoice,
+    ReasoningEffortChoice,
+)
 from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainKnowledgePromptAliasRecord,
     DomainKnowledgePromptEntryRecord,
@@ -4168,8 +4172,8 @@ def _str_output(output_json: JsonObject, key: str) -> str | None:
 
 def _model_output(output_json: JsonObject) -> CodexModelChoice | None:
     value = _str_output(output_json, "model")
-    if value in {"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}:
-        return cast(CodexModelChoice, value)
+    if value in CODEX_MODEL_CHOICES:
+        return value
     return None
 
 

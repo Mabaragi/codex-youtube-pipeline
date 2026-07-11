@@ -4,10 +4,8 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from alembic import command
 from codex_sdk_cli.domains.domain_knowledge.ports import (
     DomainEntryAliasCreate,
     DomainEntryAliasUpdate,
@@ -23,11 +21,10 @@ from codex_sdk_cli.infra.streamers.repository import StreamerModel
 
 def test_domain_knowledge_repository_manages_entries_and_prompt_scope(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'domain.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     result = asyncio.run(_exercise_repository(database_url))
 
@@ -69,9 +66,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     detail="테스트 인물에 대한 설명",
                     prompt_policy="AUTO_ON_MATCH",
                     priority=50,
-                    streamer_links=[
-                        DomainEntryStreamerLinkCreate(streamer_id=streamer_id)
-                    ],
+                    streamer_links=[DomainEntryStreamerLinkCreate(streamer_id=streamer_id)],
                     aliases=[
                         DomainEntryAliasCreate(
                             surface_form="테인",
@@ -118,9 +113,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 "created_type_key": created_type.key,
                 "entry_streamer_count": len(entry.streamers),
                 "entry_alias_count": len(entry.aliases),
-                "streamer_scoped_names": sorted(
-                    item.canonical_name for item in streamer_scoped
-                ),
+                "streamer_scoped_names": sorted(item.canonical_name for item in streamer_scoped),
                 "all_active_count": len(all_active),
                 "prompt_names": sorted(item.canonical_name for item in prompt_entries),
                 "updated_alias_apply_scope": (
@@ -138,11 +131,3 @@ async def _create_streamer(session: AsyncSession) -> int:
     await session.commit()
     await session.refresh(streamer)
     return streamer.id
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

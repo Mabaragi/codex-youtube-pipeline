@@ -4,23 +4,20 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 
-from alembic import command
 from codex_sdk_cli.api.dependencies import _get_database_engine, get_settings
 from codex_sdk_cli.api.main import create_app
 
 
 def test_domain_knowledge_api_creates_entry_with_new_type(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'domain-api.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
     get_settings.cache_clear()
     _get_database_engine.cache_clear()
-    command.upgrade(_alembic_config(), "head")
 
     try:
         result = asyncio.run(_exercise_api())
@@ -88,11 +85,3 @@ async def _exercise_api() -> dict[str, object]:
             "listed_count": len(list_response.json()["items"]),
             "archived_active": archived["isActive"],
         }
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

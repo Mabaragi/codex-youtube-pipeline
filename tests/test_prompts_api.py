@@ -4,23 +4,20 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 
-from alembic import command
 from codex_sdk_cli.api.dependencies import _get_database_engine, get_settings
 from codex_sdk_cli.api.main import create_app
 
 
 def test_prompts_api_manages_publish_rollback_archive_and_cache(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'prompts-api.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
     get_settings.cache_clear()
     _get_database_engine.cache_clear()
-    command.upgrade(_alembic_config(), "head")
 
     try:
         result = asyncio.run(_exercise_api())
@@ -58,9 +55,7 @@ async def _exercise_api() -> dict[str, object]:
         list_response.raise_for_status()
         listed = list_response.json()
         fallback_source = next(
-            item["active"]["source"]
-            for item in listed
-            if item["key"] == "micro_event_extract"
+            item["active"]["source"] for item in listed if item["key"] == "micro_event_extract"
         )
 
         created_response = await client.post(
@@ -103,9 +98,7 @@ async def _exercise_api() -> dict[str, object]:
         second_publish_response.raise_for_status()
         second_detail_response = await client.get("/prompts/micro_event_extract")
         second_detail_response.raise_for_status()
-        active_after_second_publish = second_detail_response.json()["active"][
-            "versionLabel"
-        ]
+        active_after_second_publish = second_detail_response.json()["active"]["versionLabel"]
 
         rollback_response = await client.post(
             f"/prompts/micro_event_extract/versions/{created['id']}/publish"
@@ -154,11 +147,3 @@ async def _exercise_api() -> dict[str, object]:
             "archive_draft_status": archive_draft_response.json()["status"],
             "invalidated_count": invalidate_response.json()["invalidatedCount"],
         }
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config

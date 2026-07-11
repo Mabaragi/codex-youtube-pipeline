@@ -4,9 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
-from alembic.config import Config
 
-from alembic import command
 from codex_sdk_cli.domains.channels.exceptions import ChannelAlreadyExists
 from codex_sdk_cli.domains.channels.ports import ChannelCreate, ChannelUpdate
 from codex_sdk_cli.domains.streamers.exceptions import StreamerHasChannels
@@ -17,11 +15,10 @@ from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepositor
 
 def test_streamer_and_channel_repositories(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    migrated_database_path: Path,
 ) -> None:
-    database_url = f"sqlite+aiosqlite:///{(tmp_path / 'repo.db').as_posix()}"
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
-    command.upgrade(_alembic_config(), "head")
 
     asyncio.run(_exercise_repositories(database_url))
 
@@ -69,8 +66,7 @@ async def _exercise_repositories(database_url: str) -> None:
                 external_channel.id,
             ]
             assert [
-                channel.id
-                for channel in await channels.list_channels(streamer_id=streamer.id)
+                channel.id for channel in await channels.list_channels(streamer_id=streamer.id)
             ] == [
                 nullable_channel.id,
                 external_channel.id,
@@ -122,11 +118,3 @@ async def _exercise_repositories(database_url: str) -> None:
             assert await streamers.delete_streamer(streamer.id) is False
     finally:
         await engine.dispose()
-
-
-def _alembic_config() -> Config:
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("prepend_sys_path", ".")
-    config.set_main_option("path_separator", "os")
-    return config
