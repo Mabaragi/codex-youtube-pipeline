@@ -64,6 +64,9 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not performance' -n auto"
@@ -84,7 +87,9 @@ name = "Clean architecture layers"
 type = "layers"
 layers = [
     "api | workers",
+    "bootstrap",
     "infra",
+    "application",
     "domains",
 ]
 containers = ["codex_sdk_cli"]
@@ -115,10 +120,30 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Application does not import outer layers or adapters"
+type = "forbidden"
+source_modules = ["codex_sdk_cli.application"]
+forbidden_modules = [
+    "codex_sdk_cli.api",
+    "codex_sdk_cli.bootstrap",
+    "codex_sdk_cli.infra",
+    "codex_sdk_cli.settings",
+    "codex_sdk_cli.workers",
+    "fastapi",
+    "httpx",
+    "minio",
+    "openai_codex",
+    "sqlalchemy",
+    "uvicorn",
+    "youtube_transcript_api",
+]
+
+[[tool.importlinter.contracts]]
 name = "Infrastructure does not import app entrypoints"
 type = "forbidden"
 source_modules = ["codex_sdk_cli.infra"]
 forbidden_modules = [
     "codex_sdk_cli.api",
+    "codex_sdk_cli.bootstrap",
     "codex_sdk_cli.workers",
 ]
