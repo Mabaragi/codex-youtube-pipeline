@@ -20,11 +20,15 @@ from codex_sdk_cli.application.workflows.coordinator import ProcessToPublishCoor
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.work.archive_execution import (
     InlineWorkExecutionRunner,
-    LegacyArchivePublisher,
+    WorkArchivePublisher,
+)
+from codex_sdk_cli.infra.work.execution_repositories import (
+    WorkPipelineJobRepository,
+    WorkVideoTaskRepository,
 )
 from codex_sdk_cli.infra.work.processing_execution import (
-    LegacyMicroEventProcessor,
-    LegacyTimelineProcessor,
+    WorkMicroEventProcessor,
+    WorkTimelineProcessor,
 )
 from codex_sdk_cli.infra.work.transcript_execution import (
     StoredTranscriptCueGenerator,
@@ -108,32 +112,57 @@ class WorkRuntime:
 
     def _micro_event_executor(self) -> MicroEventExtractionExecutor:
         return MicroEventExtractionExecutor(
-            LegacyMicroEventProcessor(
+            WorkMicroEventProcessor(
                 session_factory=self.session_factory,
-                use_case_factory=lambda session: micro_event_use_case(
-                    session,
-                    self.session_factory,
-                    self.settings,
+                use_case_factory=lambda session, work_item_id, work_attempt_id: (
+                    micro_event_use_case(
+                        session,
+                        self.session_factory,
+                        self.settings,
+                        video_tasks=WorkVideoTaskRepository(session),
+                        pipeline_jobs=WorkPipelineJobRepository(
+                            session,
+                            current_work_item_id=work_item_id,
+                            current_work_attempt_id=work_attempt_id,
+                        ),
+                    )
                 ),
             )
         )
 
     def _timeline_executor(self) -> TimelineCompositionExecutor:
         return TimelineCompositionExecutor(
-            LegacyTimelineProcessor(
+            WorkTimelineProcessor(
                 session_factory=self.session_factory,
-                use_case_factory=lambda session: timeline_use_case(
+                use_case_factory=lambda session, work_item_id, work_attempt_id: timeline_use_case(
                     session,
                     self.session_factory,
                     self.settings,
+                    video_tasks=WorkVideoTaskRepository(session),
+                    pipeline_jobs=WorkPipelineJobRepository(
+                        session,
+                        current_work_item_id=work_item_id,
+                        current_work_attempt_id=work_attempt_id,
+                    ),
                 ),
             )
         )
 
     def _archive_executor(self) -> ArchivePublishExecutor:
         return ArchivePublishExecutor(
-            LegacyArchivePublisher(
+            WorkArchivePublisher(
                 session_factory=self.session_factory,
-                use_case_factory=lambda session: archive_publish_use_case(session, self.settings),
+                use_case_factory=lambda session, work_item_id, work_attempt_id: (
+                    archive_publish_use_case(
+                        session,
+                        self.settings,
+                        video_tasks=WorkVideoTaskRepository(session),
+                        pipeline_jobs=WorkPipelineJobRepository(
+                            session,
+                            current_work_item_id=work_item_id,
+                            current_work_attempt_id=work_attempt_id,
+                        ),
+                    )
+                ),
             )
         )

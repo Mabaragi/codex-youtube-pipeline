@@ -36,8 +36,10 @@ business operation, then call `commit()` once. Work repositories flush when an
 identifier is required but do not commit. The unit of work rolls back when its
 context exits without a successful commit.
 
-Legacy content repositories still used by the compatibility processors own
-their historical commits. New application code must not import the legacy
+Processing algorithms still expose a task-shaped internal port while they are
+incrementally decomposed, but its SQLAlchemy implementation reads and writes
+`work_items` / `work_attempts`. Runtime composition does not construct the old
+task/job repositories. New application code must not import the historical
 `video_tasks` or `pipeline_jobs` domains; Import Linter enforces this boundary.
 
 ## Work Model
@@ -69,16 +71,22 @@ dependencies.
 The coordinator is restart-safe: a workflow lease can expire, be recovered,
 and continue from its recorded steps.
 
-## Compatibility Boundary
+## Contracted Legacy Boundary
 
-Micro-event, timeline, archive, and channel adapters currently bridge proven
-legacy persistence code while writing canonical work provenance. These adapters
-are confined to `infra/work` and assembled only in `bootstrap`. They are not
-public API contracts and must not leak back into `application`.
+Alembic revision `20260711_0028` remaps historical job and attempt IDs through
+`legacy_work_refs`, rewires provenance foreign keys to `work_items` and
+`work_attempts`, then drops the physical `video_tasks`, `pipeline_jobs`, and
+`pipeline_job_attempts` tables. Those names remain as read-only SQL views for
+historical operational projections; they are not writable sources of truth.
 
-Do not drop `video_tasks`, `pipeline_jobs`, or their provenance columns until
-the conditions in `docs/WORK_MODEL_CUTOVER.md` are satisfied. Data preservation
-takes priority over an unsafe one-step contract migration.
+Micro-event, timeline, archive, channel resolution, and video collection now
+execute against the current work item/attempt supplied by `WorkExecutionEngine`.
+They do not enqueue a second task or create a second job. Startup recovery also
+updates only unified work rows.
+
+`legacy_work_refs` is retained as immutable audit provenance. Removing the
+read-only views is a separate query-model cleanup and does not block the work
+model contract.
 
 ## Gates
 

@@ -14,9 +14,9 @@ from codex_sdk_cli.application.work.execution import (
 )
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.work.scheduler import (
-    LegacyVideoCollector,
     SqlAlchemyScheduledChannelReader,
     SqlAlchemySchedulerEventRecorder,
+    WorkVideoCollector,
 )
 from codex_sdk_cli.infra.work.transcript_execution import YouTubeTranscriptMetadataReader
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
@@ -73,7 +73,7 @@ class PipelineSchedulerRuntime:
 
     def _video_collect_executor(self) -> VideoCollectExecutor:
         return VideoCollectExecutor(
-            LegacyVideoCollector(
+            WorkVideoCollector(
                 session_factory=self.session_factory,
                 settings=self.settings,
             )

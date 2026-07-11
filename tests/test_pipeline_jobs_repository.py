@@ -23,7 +23,6 @@ from codex_sdk_cli.infra.external_api_calls.repository import SqlAlchemyExternal
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
-from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
 from codex_sdk_cli.infra.youtube_transcripts.repository import (
     SqlAlchemyYouTubeTranscriptRepository,
@@ -320,17 +319,6 @@ async def _exercise_channel_filter_repository(database_url: str) -> None:
                 subject_type="video",
                 subject_id=video.id,
                 input_json={"videoId": video.id},
-            )
-            session.add(
-                VideoTaskModel(
-                    video_id=video.id,
-                    task_name="transcript_collect",
-                    task_version="v1",
-                    input_hash="1" * 64,
-                    status="running",
-                    timeout_seconds=600,
-                    job_id=linked_task_job.id,
-                )
             )
             unrelated_job = await _create_job(
                 pipeline_jobs,

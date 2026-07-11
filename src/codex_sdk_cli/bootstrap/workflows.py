@@ -8,7 +8,11 @@ from codex_sdk_cli.application.workflows.commands import StartProcessToPublishUs
 from codex_sdk_cli.application.workflows.publish import PublishArchivesUseCase
 from codex_sdk_cli.infra.work.archive_execution import (
     InlineWorkExecutionRunner,
-    LegacyArchivePublisher,
+    WorkArchivePublisher,
+)
+from codex_sdk_cli.infra.work.execution_repositories import (
+    WorkPipelineJobRepository,
+    WorkVideoTaskRepository,
 )
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
 from codex_sdk_cli.settings import CliSettings
@@ -36,11 +40,19 @@ def publish_archives_use_case(
         registry=WorkExecutorRegistry(
             {
                 "archive_publish": lambda: ArchivePublishExecutor(
-                    LegacyArchivePublisher(
+                    WorkArchivePublisher(
                         session_factory=session_factory,
-                        use_case_factory=lambda session: archive_publish_use_case(
-                            session,
-                            settings,
+                        use_case_factory=lambda session, work_item_id, work_attempt_id: (
+                            archive_publish_use_case(
+                                session,
+                                settings,
+                                video_tasks=WorkVideoTaskRepository(session),
+                                pipeline_jobs=WorkPipelineJobRepository(
+                                    session,
+                                    current_work_item_id=work_item_id,
+                                    current_work_attempt_id=work_attempt_id,
+                                ),
+                            )
                         ),
                     )
                 )

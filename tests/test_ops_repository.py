@@ -14,16 +14,85 @@ from codex_sdk_cli.infra.micro_events.repository import (
 )
 from codex_sdk_cli.infra.operation_events.repository import OperationEventModel
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
-from codex_sdk_cli.infra.pipeline_jobs.repository import PipelineJobAttemptModel, PipelineJobModel
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
 from codex_sdk_cli.infra.timelines.repository import (
     TimelineCompositionModel,
     TimelineEpisodeModel,
 )
 from codex_sdk_cli.infra.transcript_cues.repository import TranscriptCueModel
-from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
+from codex_sdk_cli.infra.work.models import WorkAttemptModel, WorkItemModel
 from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscriptRecordModel
+
+
+def _work_job(
+    *,
+    task_type: str,
+    status: str,
+    subject_type: str,
+    subject_id: int,
+    external_key: str,
+    input_json: dict[str, object],
+    input_hash: str,
+) -> WorkItemModel:
+    return WorkItemModel(
+        task_type=task_type,
+        subject_type=subject_type,
+        subject_id=subject_id,
+        external_key=external_key,
+        task_version="v1",
+        input_hash=input_hash,
+        idempotency_key=f"ops-job:{task_type}:{subject_type}:{subject_id}:{input_hash}",
+        execution_mode="inline",
+        status=status,
+        priority=0,
+        timeout_seconds=600,
+        input_json=input_json,
+        available_at=datetime.now(UTC),
+    )
+
+
+def _video_task(
+    *,
+    video_id: int,
+    task_name: str,
+    task_version: str,
+    input_hash: str,
+    status: str,
+    timeout_seconds: int,
+    output_transcript_id: int | None = None,
+    output_json: dict[str, object] | None = None,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    worker_id: str | None = None,
+    started_at: datetime | None = None,
+    updated_at: datetime | None = None,
+) -> WorkItemModel:
+    outcome_code = "no_transcript" if status == "no_transcript" else None
+    work_status = "succeeded" if status == "no_transcript" else status
+    return WorkItemModel(
+        task_type=task_name,
+        subject_type="video",
+        subject_id=video_id,
+        external_key=None,
+        task_version=task_version,
+        input_hash=input_hash,
+        idempotency_key=f"ops-task:{task_name}:{video_id}:{input_hash}",
+        execution_mode="worker",
+        status=work_status,
+        outcome_code=outcome_code,
+        priority=0,
+        timeout_seconds=timeout_seconds,
+        input_json={},
+        output_transcript_id=output_transcript_id,
+        output_json=output_json,
+        error_type=error_type,
+        error_message=error_message,
+        lease_owner=worker_id,
+        started_at=started_at,
+        available_at=updated_at or datetime.now(UTC),
+        updated_at=updated_at or datetime.now(UTC),
+    )
 
 
 def test_ops_repository_lists_operational_views(
@@ -128,8 +197,8 @@ async def _exercise_repository(database_file: Path):
                 text_length=10,
             )
             session.add(transcript)
-            failed_job = PipelineJobModel(
-                step="video_collect",
+            failed_job = _work_job(
+                task_type="video_collect",
                 status="failed",
                 subject_type="channel",
                 subject_id=channel.id,
@@ -140,8 +209,8 @@ async def _exercise_repository(database_file: Path):
             session.add(failed_job)
             await session.flush()
             session.add(
-                PipelineJobAttemptModel(
-                    job_id=failed_job.id,
+                WorkAttemptModel(
+                    work_item_id=failed_job.id,
                     attempt_no=1,
                     status="failed",
                     error_type="UpstreamError",
@@ -149,7 +218,7 @@ async def _exercise_repository(database_file: Path):
                 )
             )
             await session.flush()
-            no_transcript_task = VideoTaskModel(
+            no_transcript_task = _video_task(
                 video_id=video.id,
                 task_name="transcript_collect",
                 task_version="v1",
@@ -161,7 +230,7 @@ async def _exercise_repository(database_file: Path):
             )
             session.add(no_transcript_task)
             await session.flush()
-            task = VideoTaskModel(
+            task = _video_task(
                 video_id=video.id,
                 task_name="transcript_collect",
                 task_version="v1",
@@ -171,7 +240,7 @@ async def _exercise_repository(database_file: Path):
                 output_transcript_id=transcript.id,
             )
             session.add(task)
-            cue_task = VideoTaskModel(
+            cue_task = _video_task(
                 video_id=video.id,
                 task_name="transcript_cue_generate",
                 task_version="v1",
@@ -207,7 +276,7 @@ async def _exercise_repository(database_file: Path):
                     ),
                 ]
             )
-            micro_task = VideoTaskModel(
+            micro_task = _video_task(
                 video_id=video.id,
                 task_name="micro_event_extract",
                 task_version="v2",
@@ -263,7 +332,7 @@ async def _exercise_repository(database_file: Path):
                     ),
                 ]
             )
-            timeline_task = VideoTaskModel(
+            timeline_task = _video_task(
                 video_id=video.id,
                 task_name="timeline_compose",
                 task_version="v1",
@@ -335,7 +404,7 @@ async def _exercise_repository(database_file: Path):
                 now - timedelta(minutes=2),
             )
             session.add(
-                VideoTaskModel(
+                _video_task(
                     video_id=micro_failed_video.id,
                     task_name="micro_event_extract",
                     task_version="v2",
@@ -376,7 +445,7 @@ async def _exercise_repository(database_file: Path):
                 input_hash="timeline-failed-micro",
             )
             session.add(
-                VideoTaskModel(
+                _video_task(
                     video_id=timeline_failed_video.id,
                     task_name="timeline_compose",
                     task_version="v1",
@@ -403,7 +472,7 @@ async def _exercise_repository(database_file: Path):
                 now - timedelta(minutes=6),
             )
             old = now - timedelta(minutes=30)
-            stuck_task = VideoTaskModel(
+            stuck_task = _video_task(
                 video_id=stuck_video.id,
                 task_name="micro_event_extract",
                 task_version="v2",
@@ -534,7 +603,7 @@ async def _add_video_with_cues(
     await session.flush()
     if with_cue_task:
         session.add(
-            VideoTaskModel(
+            _video_task(
                 video_id=video.id,
                 task_name="transcript_cue_generate",
                 task_version="v1",
@@ -580,8 +649,8 @@ async def _add_micro_success(
     transcript: YouTubeTranscriptRecordModel,
     suffix: int,
     input_hash: str,
-) -> VideoTaskModel:
-    micro_task = VideoTaskModel(
+) -> WorkItemModel:
+    micro_task = _video_task(
         video_id=video.id,
         task_name="micro_event_extract",
         task_version="v2",

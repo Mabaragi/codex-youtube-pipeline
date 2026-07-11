@@ -543,7 +543,9 @@ class ComposeTimelineUseCase:
 
     async def _load_composer_input(self, input_json: JsonObject) -> _ComposerInput:
         video_id = _required_int(input_json, "videoId")
-        source_task_id = _required_int(input_json, "sourceMicroEventTaskId")
+        source_task_id = _int_output(input_json, "sourceMicroEventWorkItemId")
+        if source_task_id is None:
+            source_task_id = _required_int(input_json, "sourceMicroEventTaskId")
         video = await self._videos.get_video(video_id)
         if video is None:
             raise VideoNotFound("Video not found.")

@@ -142,18 +142,9 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     timeout_seconds=3600,
                 )
             )
-            job = await pipeline_jobs.create_job(
-                PipelineJobCreate(
-                    step="micro_event_extract",
-                    status="running",
-                    subject_type="video",
-                    subject_id=video.id,
-                    external_key=video.youtube_video_id,
-                    input_json={"videoTaskId": task.id},
-                    input_hash=task.input_hash,
-                )
-            )
-            attempt = await pipeline_jobs.create_attempt(job_id=job.id)
+            job = await pipeline_jobs.get_job(task.id)
+            assert job is not None
+            attempt = await pipeline_jobs.create_attempt(job_id=task.id)
             running = await video_tasks.mark_task_running(
                 task.id,
                 worker_id="manual-api",

@@ -16,10 +16,8 @@ from codex_sdk_cli.domains.codex.choices import (
     CodexModelChoice,
     ReasoningEffortChoice,
 )
-from codex_sdk_cli.domains.micro_events.schemas import MicroEventEnqueueRequest
 from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEventsUseCase
 from codex_sdk_cli.domains.timelines.ports import CopyStyle
-from codex_sdk_cli.domains.timelines.schemas import TimelineComposeEnqueueRequest
 from codex_sdk_cli.domains.timelines.use_cases import ComposeTimelineUseCase
 from codex_sdk_cli.infra.codex_usage.repository import CodexRunUsageModel
 from codex_sdk_cli.infra.micro_events.repository import (
@@ -30,14 +28,16 @@ from codex_sdk_cli.infra.micro_events.repository import (
 )
 from codex_sdk_cli.infra.operation_events.repository import OperationEventModel
 from codex_sdk_cli.infra.timelines.repository import TimelineCompositionModel
-from codex_sdk_cli.infra.video_tasks.repository import SqlAlchemyVideoTaskRepository
+from codex_sdk_cli.infra.work.execution_repositories import WorkVideoTaskRepository
+from codex_sdk_cli.infra.work.models import WorkItemModel
 
-MicroEventUseCaseFactory = Callable[[AsyncSession], ExtractVideoMicroEventsUseCase]
-TimelineUseCaseFactory = Callable[[AsyncSession], ComposeTimelineUseCase]
+MicroEventUseCaseFactory = Callable[
+    [AsyncSession, int, int], ExtractVideoMicroEventsUseCase
+]
+TimelineUseCaseFactory = Callable[[AsyncSession, int, int], ComposeTimelineUseCase]
 
 
-class LegacyMicroEventProcessor(MicroEventProcessorPort):
-    """Transition adapter until legacy task tables are removed at contract cutover."""
+class WorkMicroEventProcessor(MicroEventProcessorPort):
 
     def __init__(
         self,
@@ -63,31 +63,10 @@ class LegacyMicroEventProcessor(MicroEventProcessorPort):
         prompt_version_id: int | None,
     ) -> MicroEventProcessResult:
         async with self._session_factory() as session:
-            use_case = self._use_case_factory(session)
-            queued = await use_case.enqueue(
-                MicroEventEnqueueRequest(
-                    target="selected_videos",
-                    videoIds=[video_id],
-                    limit=1,
-                    retryFailed=True,
-                    regenerateSucceeded=True,
-                    windowMinutes=window_minutes,
-                    overlapMinutes=overlap_minutes,
-                    model=model,
-                    reasoningEffort=reasoning_effort,
-                    promptVersionId=prompt_version_id,
-                )
-            )
-            item = queued.items[0] if queued.items else None
-            if item is None or item.video_task_id is None:
-                raise RuntimeError(item.reason if item is not None else "micro_event_not_queued")
-            legacy_task_id = item.video_task_id
-            task = await SqlAlchemyVideoTaskRepository(session).claim_pending_task(
-                legacy_task_id,
-                worker_id=f"work-item:{work_item_id}",
-            )
-            if task is None:
-                raise RuntimeError("Legacy micro-event task could not be claimed.")
+            use_case = self._use_case_factory(session, work_item_id, work_attempt_id)
+            task = await WorkVideoTaskRepository(session).get_task(work_item_id)
+            if task is None or task.status != "running":
+                raise RuntimeError("Running micro-event work item was not found.")
             response = await use_case.execute_claimed_task(
                 task,
                 worker_id=f"work-item:{work_item_id}",
@@ -96,7 +75,7 @@ class LegacyMicroEventProcessor(MicroEventProcessorPort):
                 raise RuntimeError(response.error_message or response.reason)
             await _link_micro_event_provenance(
                 session,
-                legacy_task_id=legacy_task_id,
+                legacy_task_id=work_item_id,
                 work_item_id=work_item_id,
                 work_attempt_id=work_attempt_id,
             )
@@ -118,8 +97,7 @@ class LegacyMicroEventProcessor(MicroEventProcessorPort):
         )
 
 
-class LegacyTimelineProcessor(TimelineProcessorPort):
-    """Transition adapter until timeline persistence is work-item native."""
+class WorkTimelineProcessor(TimelineProcessorPort):
 
     def __init__(
         self,
@@ -144,47 +122,24 @@ class LegacyTimelineProcessor(TimelineProcessorPort):
         prompt_version_id: int | None,
     ) -> TimelineProcessResult:
         async with self._session_factory() as session:
-            legacy_source_task_id = await session.scalar(
-                select(MicroEventExtractionWindowModel.video_task_id)
-                .where(
-                    MicroEventExtractionWindowModel.work_item_id == source_micro_event_work_item_id
-                )
-                .order_by(MicroEventExtractionWindowModel.id.asc())
-                .limit(1)
-            )
-            if legacy_source_task_id is None:
-                raise RuntimeError("Source micro-event extraction was not found.")
-            use_case = self._use_case_factory(session)
-            queued = await use_case.enqueue(
-                TimelineComposeEnqueueRequest(
-                    target="selected_videos",
-                    videoIds=[video_id],
-                    limit=1,
-                    retryFailed=True,
-                    regenerateSucceeded=True,
-                    model=model,
-                    reasoningEffort=reasoning_effort,
-                    copyStyle=copy_style,
-                    promptVersionId=prompt_version_id,
+            source_exists = await session.scalar(
+                select(WorkItemModel.id).where(
+                    WorkItemModel.id == source_micro_event_work_item_id
                 )
             )
-            item = queued.items[0] if queued.items else None
-            if item is None or item.video_task_id is None:
-                raise RuntimeError(item.reason if item is not None else "timeline_not_queued")
-            legacy_task_id = item.video_task_id
-            task = await SqlAlchemyVideoTaskRepository(session).claim_pending_task(
-                legacy_task_id,
-                worker_id=f"work-item:{work_item_id}",
-            )
-            if task is None:
-                raise RuntimeError("Legacy timeline task could not be claimed.")
+            if source_exists is None:
+                raise RuntimeError("Source micro-event work item was not found.")
+            use_case = self._use_case_factory(session, work_item_id, work_attempt_id)
+            task = await WorkVideoTaskRepository(session).get_task(work_item_id)
+            if task is None or task.status != "running":
+                raise RuntimeError("Running timeline work item was not found.")
             response = await use_case.execute_claimed_task(
                 task,
                 worker_id=f"work-item:{work_item_id}",
             )
             await _link_timeline_provenance(
                 session,
-                legacy_task_id=legacy_task_id,
+                legacy_task_id=work_item_id,
                 work_item_id=work_item_id,
                 work_attempt_id=work_attempt_id,
                 source_micro_event_work_item_id=source_micro_event_work_item_id,

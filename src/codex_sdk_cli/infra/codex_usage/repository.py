@@ -104,15 +104,15 @@ class CodexRunUsageModel(Base):
         nullable=True,
     )
     video_task_id: Mapped[int | None] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         nullable=True,
     )
     job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         nullable=True,
     )
     job_attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         nullable=True,
     )
     work_item_id: Mapped[int | None] = mapped_column(

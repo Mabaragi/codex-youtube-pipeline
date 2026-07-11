@@ -105,7 +105,7 @@ class ArchiveVideoArtifactModel(Base):
         nullable=False,
     )
     source_timeline_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="RESTRICT"),
+        ForeignKey("work_items.id", ondelete="RESTRICT"),
         nullable=False,
     )
     source_timeline_work_item_id: Mapped[int | None] = mapped_column(
@@ -114,7 +114,7 @@ class ArchiveVideoArtifactModel(Base):
         index=True,
     )
     source_micro_event_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="RESTRICT"),
+        ForeignKey("work_items.id", ondelete="RESTRICT"),
         nullable=False,
     )
     source_micro_event_work_item_id: Mapped[int | None] = mapped_column(
@@ -123,7 +123,7 @@ class ArchiveVideoArtifactModel(Base):
         index=True,
     )
     publish_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="RESTRICT"),
+        ForeignKey("work_items.id", ondelete="RESTRICT"),
         nullable=False,
     )
     publish_work_item_id: Mapped[int | None] = mapped_column(
@@ -132,7 +132,7 @@ class ArchiveVideoArtifactModel(Base):
         index=True,
     )
     publish_job_id: Mapped[int] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="RESTRICT"),
+        ForeignKey("work_items.id", ondelete="RESTRICT"),
         nullable=False,
     )
     publish_work_attempt_id: Mapped[int | None] = mapped_column(

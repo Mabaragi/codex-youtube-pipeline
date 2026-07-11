@@ -74,7 +74,7 @@ class PipelineJobModel(Base):
     input_json: Mapped[JsonObject] = mapped_column(JSON, nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     parent_job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
@@ -105,7 +105,7 @@ class PipelineJobAttemptModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_id: Mapped[int] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="RESTRICT"),
+        ForeignKey("work_items.id", ondelete="RESTRICT"),
         index=True,
         nullable=False,
     )
@@ -123,7 +123,7 @@ class PipelineJobAttemptModel(Base):
     output_json: Mapped[JsonObject | None] = mapped_column(JSON, nullable=True)
 
 
-class SqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
+class LegacySqlAlchemyPipelineJobRepository(PipelineJobRepositoryPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -759,3 +759,16 @@ def _attempt_record(model: PipelineJobAttemptModel) -> PipelineJobAttemptRecord:
         error_message=model.error_message,
         output_json=model.output_json,
     )
+
+
+# Public construction now writes unified work tables. The read-only ORM models above
+# remain only for compatibility projections used by operational queries.
+from codex_sdk_cli.infra.work.execution_repositories import (  # noqa: E402
+    WorkPipelineJobRepository as SqlAlchemyPipelineJobRepository,
+)
+
+__all__ = [
+    "PipelineJobAttemptModel",
+    "PipelineJobModel",
+    "SqlAlchemyPipelineJobRepository",
+]

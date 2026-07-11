@@ -43,7 +43,7 @@ class ChannelModel(Base):
         nullable=True,
     )
     source_job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )

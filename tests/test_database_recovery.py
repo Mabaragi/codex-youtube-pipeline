@@ -12,13 +12,9 @@ from codex_sdk_cli.infra.database.recovery import (
     recover_interrupted_running_work,
 )
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
-from codex_sdk_cli.infra.pipeline_jobs.repository import (
-    PipelineJobAttemptModel,
-    PipelineJobModel,
-)
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
-from codex_sdk_cli.infra.video_tasks.repository import VideoTaskModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
+from codex_sdk_cli.infra.work.models import WorkAttemptModel, WorkItemModel
 
 
 def test_recover_interrupted_running_work_marks_running_rows_failed(
@@ -31,17 +27,14 @@ def test_recover_interrupted_running_work_marks_running_rows_failed(
     result = asyncio.run(_exercise_recovery(database_url))
 
     assert result == {
-        "pipeline_jobs": 1,
-        "pipeline_job_attempts": 1,
-        "video_tasks": 1,
-        "job_status": "failed",
+        "work_items": 1,
+        "work_attempts": 1,
         "attempt_status": "failed",
-        "task_status": "failed",
+        "work_item_status": "failed",
         "attempt_error_type": INTERRUPTED_ERROR_TYPE,
-        "task_error_type": INTERRUPTED_ERROR_TYPE,
-        "job_completed": True,
+        "work_item_error_type": INTERRUPTED_ERROR_TYPE,
+        "work_item_completed": True,
         "attempt_finished": True,
-        "task_completed": True,
     }
 
 
@@ -63,25 +56,6 @@ async def _exercise_recovery(database_url: str) -> dict[str, object]:
             )
             session.add(channel)
             await session.flush()
-            job = PipelineJobModel(
-                step="transcript_collect",
-                status="running",
-                subject_type="video",
-                subject_id=1,
-                external_key="abc123DEF45",
-                input_json={"videoId": 1},
-                input_hash="a" * 64,
-            )
-            session.add(job)
-            await session.flush()
-            attempt = PipelineJobAttemptModel(
-                job_id=job.id,
-                attempt_no=1,
-                status="running",
-                started_at=now,
-                worker_id="manual-api",
-            )
-            session.add(attempt)
             video = VideoModel(
                 channel_id=channel.id,
                 youtube_video_id="abc123DEF45",
@@ -92,48 +66,58 @@ async def _exercise_recovery(database_url: str) -> dict[str, object]:
                 thumbnail_url=None,
                 source_listing_api_call_id=None,
                 source_details_api_call_id=None,
-                source_job_id=job.id,
+                source_job_id=None,
             )
             session.add(video)
             await session.flush()
-            task = VideoTaskModel(
-                video_id=video.id,
-                task_name="transcript_collect",
+            work_item = WorkItemModel(
+                task_type="transcript_collect",
+                subject_type="video",
+                subject_id=video.id,
+                external_key=video.youtube_video_id,
                 task_version="v1",
                 input_hash="b" * 64,
+                idempotency_key="recovery-test",
+                execution_mode="inline",
                 status="running",
-                worker_id="manual-api",
+                priority=0,
                 timeout_seconds=600,
-                job_id=job.id,
-                job_attempt_id=attempt.id,
+                input_json={"videoId": video.id},
+                available_at=now,
+                lease_owner="manual-api",
                 started_at=now,
+                created_at=now,
+                updated_at=now,
             )
-            session.add(task)
+            session.add(work_item)
+            await session.flush()
+            attempt = WorkAttemptModel(
+                work_item_id=work_item.id,
+                attempt_no=1,
+                status="running",
+                started_at=now,
+                worker_id="manual-api",
+            )
+            session.add(attempt)
             await session.commit()
 
             recovery = await recover_interrupted_running_work(session)
-            recovered_job = await session.get(PipelineJobModel, job.id)
-            recovered_attempt = await session.get(PipelineJobAttemptModel, attempt.id)
-            recovered_task = await session.get(VideoTaskModel, task.id)
+            recovered_item = await session.get(WorkItemModel, work_item.id)
+            recovered_attempt = await session.get(WorkAttemptModel, attempt.id)
 
-            assert recovered_job is not None
+            assert recovered_item is not None
             assert recovered_attempt is not None
-            assert recovered_task is not None
-            await session.refresh(recovered_job)
+            await session.refresh(recovered_item)
             await session.refresh(recovered_attempt)
-            await session.refresh(recovered_task)
             return {
-                "pipeline_jobs": recovery.pipeline_jobs,
-                "pipeline_job_attempts": recovery.pipeline_job_attempts,
-                "video_tasks": recovery.video_tasks,
-                "job_status": recovered_job.status,
+                "work_items": recovery.work_items,
+                "work_attempts": recovery.work_attempts,
                 "attempt_status": recovered_attempt.status,
-                "task_status": recovered_task.status,
+                "work_item_status": recovered_item.status,
                 "attempt_error_type": recovered_attempt.error_type,
-                "task_error_type": recovered_task.error_type,
-                "job_completed": recovered_job.completed_at is not None,
+                "work_item_error_type": recovered_item.error_type,
+                "work_item_completed": recovered_item.completed_at is not None,
                 "attempt_finished": recovered_attempt.finished_at is not None,
-                "task_completed": recovered_task.completed_at is not None,
             }
     finally:
         await engine.dispose()

@@ -108,6 +108,24 @@ def test_work_expand_migration_preserves_legacy_execution_history(
             "FROM archive_video_artifacts WHERE id = 40"
         ).fetchone()
         assert tuple(artifact) == (5, 5, 5, 101)
+        legacy_objects = {
+            row[0]: row[1]
+            for row in connection.execute(
+                "SELECT name, type FROM sqlite_master "
+                "WHERE name IN ('video_tasks', 'pipeline_jobs', 'pipeline_job_attempts')"
+            )
+        }
+        assert legacy_objects == {
+            "video_tasks": "view",
+            "pipeline_jobs": "view",
+            "pipeline_job_attempts": "view",
+        }
+        assert connection.execute(
+            "SELECT source_job_id FROM transcript_cues WHERE id = 50"
+        ).fetchone()[0] == 5
+        assert connection.execute(
+            "SELECT pipeline_job_attempt_id FROM external_api_calls WHERE id = 80"
+        ).fetchone()[0] == 101
         _assert_work_provenance_foreign_keys(connection)
         assert connection.execute(
             "SELECT COUNT(*) FROM work_items "
@@ -178,6 +196,69 @@ def test_work_cutover_validator_preserves_legacy_foreign_key_baseline(
         validate_work_cutover(source_path, candidate_path)
 
 
+def test_contract_migration_maps_jobs_created_after_expand(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "post-expand.db"
+    monkeypatch.setenv(
+        "CODEX_CLI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{database_path.as_posix()}",
+    )
+    config = _alembic_config()
+    command.upgrade(config, "20260704_0024")
+    _insert_legacy_fixture(database_path)
+    command.upgrade(config, "20260711_0027")
+
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "INSERT INTO work_items(id, task_type, subject_type, subject_id, "
+            "task_version, input_hash, idempotency_key, execution_mode, status, "
+            "priority, timeout_seconds, input_json) VALUES "
+            "(18, 'video_collect', 'channel', 1, 'v1', 'post-expand-work', "
+            "'post-expand-work', 'inline', 'succeeded', 0, 600, '{}')"
+        )
+        connection.execute(
+            "INSERT INTO work_attempts(id, work_item_id, attempt_no, status) "
+            "VALUES (104, 18, 1, 'succeeded')"
+        )
+        connection.execute(
+            "INSERT INTO pipeline_jobs(id, step, status, subject_type, subject_id, "
+            "input_json, input_hash, completed_at) VALUES "
+            "(13, 'video_collect', 'succeeded', 'channel', 1, '{}', "
+            "'post-expand-job', CURRENT_TIMESTAMP)"
+        )
+        connection.execute(
+            "INSERT INTO pipeline_job_attempts(id, job_id, attempt_no, status, "
+            "finished_at) VALUES (103, 13, 1, 'succeeded', CURRENT_TIMESTAMP)"
+        )
+        connection.execute(
+            "UPDATE videos SET source_job_id = 13, source_work_item_id = 18 WHERE id = 2"
+        )
+        connection.execute(
+            "UPDATE external_api_calls SET pipeline_job_attempt_id = 103, "
+            "work_attempt_id = 104 WHERE id = 80"
+        )
+
+    command.upgrade(config, "head")
+
+    with sqlite3.connect(database_path) as connection:
+        assert connection.execute(
+            "SELECT source_job_id FROM videos WHERE id = 2"
+        ).fetchone()[0] == 18
+        assert connection.execute(
+            "SELECT pipeline_job_attempt_id FROM external_api_calls WHERE id = 80"
+        ).fetchone()[0] == 104
+        assert connection.execute(
+            "SELECT work_item_id FROM legacy_work_refs "
+            "WHERE entity_kind = 'pipeline_job' AND legacy_id = 13"
+        ).fetchone()[0] == 18
+        assert connection.execute(
+            "SELECT work_attempt_id FROM legacy_work_refs "
+            "WHERE entity_kind = 'pipeline_job_attempt' AND legacy_id = 103"
+        ).fetchone()[0] == 104
+
+
 def _assert_work_provenance_foreign_keys(connection: sqlite3.Connection) -> None:
     expected = {
         ("channels", "source_work_item_id", "work_items"),
@@ -195,6 +276,28 @@ def _assert_work_provenance_foreign_keys(connection: sqlite3.Connection) -> None
         ("timeline_compositions", "source_micro_event_work_item_id", "work_items"),
         ("archive_video_artifacts", "publish_work_item_id", "work_items"),
         ("archive_video_artifacts", "publish_work_attempt_id", "work_attempts"),
+        ("channels", "source_job_id", "work_items"),
+        ("videos", "source_job_id", "work_items"),
+        ("external_api_calls", "pipeline_job_attempt_id", "work_attempts"),
+        ("codex_run_usages", "video_task_id", "work_items"),
+        ("codex_run_usages", "job_id", "work_items"),
+        ("codex_run_usages", "job_attempt_id", "work_attempts"),
+        ("operation_events", "video_task_id", "work_items"),
+        ("operation_events", "job_id", "work_items"),
+        ("operation_events", "job_attempt_id", "work_attempts"),
+        ("transcript_cues", "source_job_id", "work_items"),
+        ("transcript_cues", "source_job_attempt_id", "work_attempts"),
+        ("micro_event_extraction_windows", "video_task_id", "work_items"),
+        ("micro_event_extraction_windows", "source_job_id", "work_items"),
+        ("micro_event_extraction_windows", "source_job_attempt_id", "work_attempts"),
+        ("timeline_compositions", "video_task_id", "work_items"),
+        ("timeline_compositions", "source_micro_event_task_id", "work_items"),
+        ("timeline_compositions", "source_job_id", "work_items"),
+        ("timeline_compositions", "source_job_attempt_id", "work_attempts"),
+        ("archive_video_artifacts", "source_micro_event_task_id", "work_items"),
+        ("archive_video_artifacts", "source_timeline_task_id", "work_items"),
+        ("archive_video_artifacts", "publish_task_id", "work_items"),
+        ("archive_video_artifacts", "publish_job_id", "work_items"),
     }
     actual = {
         (table, row[3], row[2])

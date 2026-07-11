@@ -62,7 +62,7 @@ class TimelineCompositionModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     video_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="CASCADE"),
+        ForeignKey("work_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     work_item_id: Mapped[int | None] = mapped_column(
@@ -75,7 +75,7 @@ class TimelineCompositionModel(Base):
         nullable=False,
     )
     source_micro_event_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="RESTRICT"),
+        ForeignKey("work_items.id", ondelete="RESTRICT"),
         nullable=False,
     )
     source_micro_event_work_item_id: Mapped[int | None] = mapped_column(
@@ -95,11 +95,11 @@ class TimelineCompositionModel(Base):
     output_json: Mapped[JsonObject] = mapped_column(JSON, nullable=False)
     validation_warnings: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     source_job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         nullable=True,
     )
     source_job_attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         nullable=True,
     )
     source_work_attempt_id: Mapped[int | None] = mapped_column(

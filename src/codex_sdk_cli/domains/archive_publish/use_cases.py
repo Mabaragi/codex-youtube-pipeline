@@ -240,6 +240,13 @@ class ArchivePublishUseCase:
                 break
         return _publish_response(request, counters, items)
 
+    async def execute_claimed_work_item(self, work_item_id: int) -> JsonObject:
+        """Execute one work-engine-claimed archive item without creating another task."""
+        task = await self._video_tasks.get_task(work_item_id)
+        if task is None or task.status != "running":
+            raise VideoTaskRetryNotAllowed("Running archive publish work item not found.")
+        return await self._execute_task_now(task, input_json=task.input_json or {})
+
     async def get_current(
         self,
         *,

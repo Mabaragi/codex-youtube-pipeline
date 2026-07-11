@@ -62,7 +62,7 @@ class ExternalApiCallModel(Base):
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     quota_cost: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pipeline_job_attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )

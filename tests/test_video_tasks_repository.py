@@ -36,7 +36,7 @@ def test_video_task_repository_lifecycle(
     assert result["same_task_id"] is True
     assert result["queued_input_json"] == {"videoId": 1, "queued": True}
     assert result["claimed_worker_id"] == "worker-claim"
-    assert result["attached_job_id"] == 2
+    assert result["attached_job_id"] == result["task_id"]
     assert result["running_count"] == 1
     assert result["listed_youtube_ids"] == ["abc123DEF45"]
     assert result["latest_succeeded_youtube_ids"] == ["abc123DEF45"]
@@ -147,18 +147,9 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     timeout_seconds=600,
                 )
             )
-            job = await pipeline_jobs.create_job(
-                PipelineJobCreate(
-                    step="transcript_collect",
-                    status="running",
-                    subject_type="video",
-                    subject_id=video.id,
-                    external_key=video.youtube_video_id,
-                    input_json={"videoTaskId": task.id},
-                    input_hash="a" * 64,
-                )
-            )
-            attempt = await pipeline_jobs.create_attempt(job_id=job.id)
+            job = await pipeline_jobs.get_job(task.id)
+            assert job is not None
+            attempt = await pipeline_jobs.create_attempt(job_id=task.id)
             queued = await video_tasks.reset_task_to_pending(
                 task.id,
                 timeout_seconds=601,
@@ -232,18 +223,6 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                 completed_before=datetime(2020, 1, 1, tzinfo=UTC),
                 limit=10,
             )
-            timeline_job = await pipeline_jobs.create_job(
-                PipelineJobCreate(
-                    step="timeline_compose",
-                    status="running",
-                    subject_type="video",
-                    subject_id=video.id,
-                    external_key=video.youtube_video_id,
-                    input_json={"videoId": video.id},
-                    input_hash="c" * 64,
-                )
-            )
-            timeline_attempt = await pipeline_jobs.create_attempt(job_id=timeline_job.id)
             running_timeline = await video_tasks.get_or_create_task(
                 VideoTaskCreate(
                     video_id=video.id,
@@ -253,6 +232,11 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
                     timeout_seconds=3600,
                     input_json={"videoId": video.id},
                 )
+            )
+            timeline_job = await pipeline_jobs.get_job(running_timeline.id)
+            assert timeline_job is not None
+            timeline_attempt = await pipeline_jobs.create_attempt(
+                job_id=running_timeline.id
             )
             await video_tasks.mark_task_running(
                 running_timeline.id,
@@ -294,6 +278,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             assert len(canceled) == 1
 
             return {
+                "task_id": task.id,
                 "same_task_id": task.id == same_task.id,
                 "queued_input_json": queued.input_json,
                 "claimed_worker_id": claimed.worker_id,

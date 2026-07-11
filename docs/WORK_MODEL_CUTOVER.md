@@ -65,18 +65,33 @@ Use `-NoRestart` when a manual smoke sequence should run before start.
 Do not delete the backup until at least one complete pipeline and archive
 publish have succeeded after cutover.
 
-## Contract-Phase Removal Criteria
+## Contract Phase
 
-The expand migration deliberately retains legacy execution tables while
-compatibility processors remain. A later contract revision may remove them only
-when all of these are true:
+Revision `20260711_0028` completes the execution-table contract:
 
-- micro-event, timeline, archive, and channel processors persist directly by
-  `work_item_id` / `work_attempt_id`;
-- no runtime composition imports legacy task/job repositories;
-- all provenance columns are non-null for newly generated output;
-- a production backup rehearsal proves row and object-key preservation;
-- public OpenAPI and Ops UI contain no legacy mutation or lookup dependency.
+- historical job/attempt references are translated with `legacy_work_refs`;
+- provenance foreign keys now target `work_items` / `work_attempts`;
+- micro-event, timeline, archive, channel, and video collection execute the
+  already-claimed work item and attempt;
+- startup recovery updates unified work rows only;
+- physical `video_tasks`, `pipeline_jobs`, and `pipeline_job_attempts` tables
+  are dropped.
 
-Until then, `work_items` is the public operational source of truth and legacy
-rows are compatibility provenance, not an operator contract.
+The three historical names are recreated as read-only compatibility views so
+existing Ops query projections can read migrated history. Never write to these
+views. `work_items` and `work_attempts` are the only execution source of truth.
+
+This contract revision is intentionally irreversible through Alembic downgrade.
+Rollback uses the timestamped pre-cutover database backup because reconstructing
+the old dual-write model would risk losing attempt identity and provenance.
+
+Before applying the contract to the active DB, all of these must pass:
+
+```powershell
+uv run pytest
+uv run ruff check src tests alembic
+uv run pyrefly check --min-severity warn
+uv run lint-imports
+uv run python scripts/check_architecture.py
+.\scripts\local-home\cutover-work-model.ps1 -Rehearsal
+```

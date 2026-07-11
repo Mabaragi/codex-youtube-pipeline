@@ -46,10 +46,9 @@ async def _recover_interrupted_work_on_startup() -> None:
         if result.total > 0:
             logger.warning(
                 "Recovered interrupted running work on startup: "
-                "pipeline_jobs=%s pipeline_job_attempts=%s video_tasks=%s",
-                result.pipeline_jobs,
-                result.pipeline_job_attempts,
-                result.video_tasks,
+                "work_items=%s work_attempts=%s",
+                result.work_items,
+                result.work_attempts,
             )
     except Exception:
         logger.exception("Failed to recover interrupted running work on startup.")

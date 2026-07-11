@@ -73,7 +73,6 @@ from codex_sdk_cli.infra.micro_events.repository import (
 )
 from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
-from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
@@ -81,8 +80,11 @@ from codex_sdk_cli.infra.timelines.repository import (
     SqlAlchemyTimelineCompositionRepository,
 )
 from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
-from codex_sdk_cli.infra.video_tasks.repository import SqlAlchemyVideoTaskRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
+from codex_sdk_cli.infra.work.execution_repositories import (
+    WorkPipelineJobRepository,
+    WorkVideoTaskRepository,
+)
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.infra.youtube_transcripts.client import YouTubeTranscriptClient
 from codex_sdk_cli.infra.youtube_transcripts.repository import (
@@ -164,7 +166,7 @@ async def get_archive_publish_repository(
 async def get_pipeline_job_repository(
     session: DatabaseSessionDep,
 ) -> PipelineJobRepositoryPort:
-    return SqlAlchemyPipelineJobRepository(session)
+    return WorkPipelineJobRepository(session)
 
 
 async def get_video_repository(
@@ -176,7 +178,7 @@ async def get_video_repository(
 async def get_video_task_repository(
     session: DatabaseSessionDep,
 ) -> VideoTaskRepositoryPort:
-    return SqlAlchemyVideoTaskRepository(session)
+    return WorkVideoTaskRepository(session)
 
 
 async def get_micro_event_extraction_repository(

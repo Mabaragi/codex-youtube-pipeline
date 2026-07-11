@@ -74,12 +74,12 @@ class VideoTaskModel(Base):
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     input_json: Mapped[JsonObject | None] = mapped_column(JSON, nullable=True)
     job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
     job_attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
@@ -106,7 +106,7 @@ class VideoTaskModel(Base):
     )
 
 
-class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
+class LegacySqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -788,6 +788,15 @@ def _task_record(model: VideoTaskModel) -> VideoTaskRecord:
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
+
+
+# Public construction now writes unified work tables. The read-only ORM model above
+# remains only for compatibility projections used by operational queries.
+from codex_sdk_cli.infra.work.execution_repositories import (  # noqa: E402
+    WorkVideoTaskRepository as SqlAlchemyVideoTaskRepository,
+)
+
+__all__ = ["SqlAlchemyVideoTaskRepository", "VideoTaskModel"]
 
 
 def _task_status(value: str) -> VideoTaskStatus:

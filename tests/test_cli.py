@@ -523,20 +523,22 @@ def _insert_timeline_style_fixture(database_file: Path) -> None:
             )
             connection.execute(
                 text(
-                    "INSERT INTO video_tasks "
-                    "(id, video_id, task_name, task_version, input_hash, status, "
-                    "timeout_seconds, input_json, output_json) "
-                    "VALUES (1, 1, 'micro_event_extract', 'v1', 'hash-micro', "
-                    "'succeeded', 1200, '{}', '{}')"
+                    "INSERT INTO work_items "
+                    "(id, task_type, subject_type, subject_id, task_version, input_hash, "
+                    "idempotency_key, execution_mode, status, priority, timeout_seconds, "
+                    "input_json, output_json) VALUES "
+                    "(1, 'micro_event_extract', 'video', 1, 'v1', 'hash-micro', "
+                    "'fixture:micro', 'worker', 'succeeded', 0, 1200, '{}', '{}')"
                 )
             )
             connection.execute(
                 text(
-                    "INSERT INTO video_tasks "
-                    "(id, video_id, task_name, task_version, input_hash, status, "
-                    "timeout_seconds, input_json, output_json) "
-                    "VALUES (2, 1, 'timeline_compose', 'v1', 'hash-timeline', "
-                    "'succeeded', 1200, '{}', '{}')"
+                    "INSERT INTO work_items "
+                    "(id, task_type, subject_type, subject_id, task_version, input_hash, "
+                    "idempotency_key, execution_mode, status, priority, timeout_seconds, "
+                    "input_json, output_json) VALUES "
+                    "(2, 'timeline_compose', 'video', 1, 'v1', 'hash-timeline', "
+                    "'fixture:timeline', 'worker', 'succeeded', 0, 1200, '{}', '{}')"
                 )
             )
             connection.execute(
@@ -635,29 +637,21 @@ def _insert_stuck_task_fixture(database_file: Path) -> None:
             )
             connection.execute(
                 text(
-                    "INSERT INTO pipeline_jobs "
-                    "(id, step, status, subject_type, subject_id, external_key, "
-                    "input_json, input_hash) "
-                    "VALUES (1, 'micro_event_extract', 'running', 'video', 1, "
-                    "'youtube-1', '{}', 'job-hash')"
+                    "INSERT INTO work_items "
+                    "(id, task_type, subject_type, subject_id, external_key, task_version, "
+                    "input_hash, idempotency_key, execution_mode, status, priority, "
+                    "timeout_seconds, input_json, lease_owner, started_at, updated_at) "
+                    "VALUES (1, 'micro_event_extract', 'video', 1, 'youtube-1', 'v2', "
+                    "'hash', 'fixture:stuck', 'worker', 'running', 0, 600, '{}', "
+                    "'micro-event-worker:host:9876', '2026-01-01 00:00:00', "
+                    "'2026-01-01 00:00:00')"
                 )
             )
             connection.execute(
                 text(
-                    "INSERT INTO pipeline_job_attempts "
-                    "(id, job_id, attempt_no, status, worker_id) "
+                    "INSERT INTO work_attempts "
+                    "(id, work_item_id, attempt_no, status, worker_id) "
                     "VALUES (1, 1, 1, 'running', 'micro-event-worker:host:9876')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO video_tasks "
-                    "(id, video_id, task_name, task_version, input_hash, status, "
-                    "worker_id, timeout_seconds, job_id, job_attempt_id, started_at, "
-                    "updated_at) "
-                    "VALUES (1, 1, 'micro_event_extract', 'v2', 'hash', 'running', "
-                    "'micro-event-worker:host:9876', 600, 1, 1, "
-                    "'2026-01-01 00:00:00', '2026-01-01 00:00:00')"
                 )
             )
             connection.execute(

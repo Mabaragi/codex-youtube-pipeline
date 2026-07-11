@@ -31,8 +31,8 @@ from codex_sdk_cli.application.work.queries import (
     ListWorkItemsUseCase,
 )
 from codex_sdk_cli.infra.work.archive_execution import InlineWorkExecutionRunner
-from codex_sdk_cli.infra.work.channel_execution import LegacyChannelResolver
-from codex_sdk_cli.infra.work.scheduler import LegacyVideoCollector
+from codex_sdk_cli.infra.work.channel_execution import WorkChannelResolver
+from codex_sdk_cli.infra.work.scheduler import WorkVideoCollector
 from codex_sdk_cli.infra.work.transcript_execution import YouTubeTranscriptMetadataReader
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
@@ -96,7 +96,7 @@ def collect_videos_use_case(
         registry=WorkExecutorRegistry(
             {
                 "video_collect": lambda: VideoCollectExecutor(
-                    LegacyVideoCollector(
+                    WorkVideoCollector(
                         session_factory=session_factory,
                         settings=settings,
                     ),
@@ -123,7 +123,7 @@ def resolve_channel_use_case(
         registry=WorkExecutorRegistry(
             {
                 "channel_resolve": lambda: ChannelResolveExecutor(
-                    LegacyChannelResolver(
+                    WorkChannelResolver(
                         session_factory=session_factory,
                         settings=settings,
                     )

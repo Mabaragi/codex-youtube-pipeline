@@ -65,11 +65,11 @@ class TranscriptCueModel(Base):
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     source_segment_index: Mapped[int] = mapped_column(Integer, nullable=False)
     source_job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         nullable=True,
     )
     source_job_attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )

@@ -7,9 +7,11 @@ from codex_sdk_cli.domains.micro_events.use_cases import ExtractVideoMicroEvents
 from codex_sdk_cli.domains.operation_events.recorder import (
     BestEffortOperationEventRecorder,
 )
+from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
 from codex_sdk_cli.domains.prompts.cache import PromptCache
 from codex_sdk_cli.domains.prompts.use_cases import PromptResolver
 from codex_sdk_cli.domains.timelines.use_cases import ComposeTimelineUseCase
+from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.infra.channels.repository import SqlAlchemyChannelRepository
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
 from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
@@ -27,7 +29,6 @@ from codex_sdk_cli.infra.micro_events.repository import (
 from codex_sdk_cli.infra.operation_events.repository import (
     SQLAlchemyOperationEventRepository,
 )
-from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
@@ -37,8 +38,11 @@ from codex_sdk_cli.infra.timelines.repository import (
 from codex_sdk_cli.infra.transcript_cues.repository import (
     SqlAlchemyTranscriptCueRepository,
 )
-from codex_sdk_cli.infra.video_tasks.repository import SqlAlchemyVideoTaskRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
+from codex_sdk_cli.infra.work.execution_repositories import (
+    WorkPipelineJobRepository,
+    WorkVideoTaskRepository,
+)
 from codex_sdk_cli.infra.youtube_transcripts.repository import (
     SqlAlchemyYouTubeTranscriptRepository,
 )
@@ -51,17 +55,20 @@ def micro_event_use_case(
     session: AsyncSession,
     session_factory: async_sessionmaker[AsyncSession],
     settings: CliSettings,
+    *,
+    video_tasks: VideoTaskRepositoryPort | None = None,
+    pipeline_jobs: PipelineJobRepositoryPort | None = None,
 ) -> ExtractVideoMicroEventsUseCase:
     runtime = _recording_runtime(session_factory, settings)
     return ExtractVideoMicroEventsUseCase(
         videos=SqlAlchemyVideoRepository(session),
-        video_tasks=SqlAlchemyVideoTaskRepository(session),
+        video_tasks=video_tasks or WorkVideoTaskRepository(session),
         transcripts=SqlAlchemyYouTubeTranscriptRepository(session),
         transcript_cues=SqlAlchemyTranscriptCueRepository(session),
         channels=SqlAlchemyChannelRepository(session),
         streamers=SqlAlchemyStreamerRepository(session),
         domain_knowledge=SqlAlchemyDomainKnowledgeRepository(session),
-        pipeline_jobs=SqlAlchemyPipelineJobRepository(session),
+        pipeline_jobs=pipeline_jobs or WorkPipelineJobRepository(session),
         micro_events=SqlAlchemyMicroEventExtractionRepository(session),
         extractor=CodexMicroEventExtractor(
             runtime,
@@ -82,17 +89,20 @@ def timeline_use_case(
     session: AsyncSession,
     session_factory: async_sessionmaker[AsyncSession],
     settings: CliSettings,
+    *,
+    video_tasks: VideoTaskRepositoryPort | None = None,
+    pipeline_jobs: PipelineJobRepositoryPort | None = None,
 ) -> ComposeTimelineUseCase:
     runtime = _recording_runtime(session_factory, settings)
     return ComposeTimelineUseCase(
         videos=SqlAlchemyVideoRepository(session),
-        video_tasks=SqlAlchemyVideoTaskRepository(session),
+        video_tasks=video_tasks or WorkVideoTaskRepository(session),
         channels=SqlAlchemyChannelRepository(session),
         streamers=SqlAlchemyStreamerRepository(session),
         domain_knowledge=SqlAlchemyDomainKnowledgeRepository(session),
         micro_events=SqlAlchemyMicroEventExtractionRepository(session),
         timelines=SqlAlchemyTimelineCompositionRepository(session),
-        pipeline_jobs=SqlAlchemyPipelineJobRepository(session),
+        pipeline_jobs=pipeline_jobs or WorkPipelineJobRepository(session),
         composer=CodexTimelineComposer(
             runtime,
             model=settings.model,

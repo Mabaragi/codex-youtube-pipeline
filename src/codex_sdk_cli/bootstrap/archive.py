@@ -8,16 +8,20 @@ from codex_sdk_cli.domains.archive_publish.use_cases import (
     ArchivePublishUseCase,
 )
 from codex_sdk_cli.domains.operation_events.recorder import BestEffortOperationEventRecorder
+from codex_sdk_cli.domains.pipeline_jobs.ports import PipelineJobRepositoryPort
+from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.infra.archive_publish.public_catalog import HttpArchivePublicCatalogSync
 from codex_sdk_cli.infra.archive_publish.repository import SqlAlchemyArchivePublishRepository
 from codex_sdk_cli.infra.archive_publish.storage import R2ArchivePublishStorage
 from codex_sdk_cli.infra.micro_events.repository import SqlAlchemyMicroEventExtractionRepository
 from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
-from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.timelines.repository import SqlAlchemyTimelineCompositionRepository
 from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
-from codex_sdk_cli.infra.video_tasks.repository import SqlAlchemyVideoTaskRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
+from codex_sdk_cli.infra.work.execution_repositories import (
+    WorkPipelineJobRepository,
+    WorkVideoTaskRepository,
+)
 from codex_sdk_cli.settings import CliSettings
 
 
@@ -66,6 +70,9 @@ def archive_publish_storage_factory(
 def archive_publish_use_case(
     session: AsyncSession,
     settings: CliSettings,
+    *,
+    video_tasks: VideoTaskRepositoryPort | None = None,
+    pipeline_jobs: PipelineJobRepositoryPort | None = None,
 ) -> ArchivePublishUseCase:
     public_catalog = (
         HttpArchivePublicCatalogSync(
@@ -80,11 +87,11 @@ def archive_publish_use_case(
     )
     return ArchivePublishUseCase(
         videos=SqlAlchemyVideoRepository(session),
-        video_tasks=SqlAlchemyVideoTaskRepository(session),
+        video_tasks=video_tasks or WorkVideoTaskRepository(session),
         timelines=SqlAlchemyTimelineCompositionRepository(session),
         micro_events=SqlAlchemyMicroEventExtractionRepository(session),
         transcript_cues=SqlAlchemyTranscriptCueRepository(session),
-        pipeline_jobs=SqlAlchemyPipelineJobRepository(session),
+        pipeline_jobs=pipeline_jobs or WorkPipelineJobRepository(session),
         archive=SqlAlchemyArchivePublishRepository(session),
         events=BestEffortOperationEventRecorder(SQLAlchemyOperationEventRepository(session)),
         timeout_seconds=settings.archive_publish_timeout_seconds,

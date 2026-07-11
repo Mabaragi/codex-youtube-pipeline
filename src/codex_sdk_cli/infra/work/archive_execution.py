@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -13,19 +12,14 @@ from codex_sdk_cli.application.workflows.ports import (
     InlineWorkRunnerPort,
     PublishedArchive,
 )
-from codex_sdk_cli.domains.archive_publish.schemas import (
-    ArchivePublishModeLiteral,
-    ArchivePublishRequest,
-)
 from codex_sdk_cli.domains.archive_publish.use_cases import ArchivePublishUseCase
 from codex_sdk_cli.infra.archive_publish.repository import ArchiveVideoArtifactModel
 from codex_sdk_cli.infra.timelines.repository import TimelineCompositionModel
 
-ArchivePublishUseCaseFactory = Callable[[AsyncSession], ArchivePublishUseCase]
+ArchivePublishUseCaseFactory = Callable[[AsyncSession, int, int], ArchivePublishUseCase]
 
 
-class LegacyArchivePublisher(ArchivePublisherPort):
-    """Bridge the new work contract to the proven R2/D1 publisher during cutover."""
+class WorkArchivePublisher(ArchivePublisherPort):
 
     def __init__(
         self,
@@ -49,29 +43,16 @@ class LegacyArchivePublisher(ArchivePublisherPort):
         variant: str,
         schema_version: int,
     ) -> PublishedArchive:
-        if publish_mode not in {"prod", "dev"}:
-            raise ValueError("publishMode must be prod or dev.")
+        del video_id, publish_mode, environment, variant, schema_version
         async with self._session_factory() as session:
-            response = await self._use_case_factory(session).publish(
-                ArchivePublishRequest(
-                    target="selected_videos",
-                    videoIds=[video_id],
-                    limit=1,
-                    publishMode=cast(ArchivePublishModeLiteral, publish_mode),
-                    environment=environment,
-                    variant=variant,
-                    schemaVersion=schema_version,
-                    retryFailed=True,
-                    regenerateSucceeded=False,
-                )
-            )
-            item = next((item for item in response.items if item.video_id == video_id), None)
-            if item is None:
-                raise RuntimeError("Archive publisher returned no result for the selected video.")
-            if item.artifact_id is None or item.public_url is None:
-                detail = item.error_message or item.reason
-                raise RuntimeError(f"Archive publish did not produce an artifact: {detail}")
-            artifact = await session.get(ArchiveVideoArtifactModel, item.artifact_id)
+            output = await self._use_case_factory(
+                session, work_item_id, work_attempt_id
+            ).execute_claimed_work_item(work_item_id)
+            artifact_id = output.get("artifactId")
+            public_url = output.get("publicUrl")
+            if not isinstance(artifact_id, int) or not isinstance(public_url, str):
+                raise RuntimeError("Archive publish did not produce an artifact.")
+            artifact = await session.get(ArchiveVideoArtifactModel, artifact_id)
             if artifact is None:
                 raise RuntimeError("Published archive artifact was not found.")
             artifact.source_timeline_work_item_id = source_timeline_work_item_id
@@ -85,9 +66,9 @@ class LegacyArchivePublisher(ArchivePublisherPort):
             artifact.source_micro_event_work_item_id = source_micro_work_item_id
             await session.commit()
         return PublishedArchive(
-            video_id=video_id,
-            artifact_id=item.artifact_id,
-            public_url=item.public_url,
+            video_id=artifact.video_id,
+            artifact_id=artifact_id,
+            public_url=public_url,
         )
 
 

@@ -79,7 +79,7 @@ class MicroEventExtractionWindowModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     video_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="CASCADE"),
+        ForeignKey("work_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     work_item_id: Mapped[int | None] = mapped_column(
@@ -107,11 +107,11 @@ class MicroEventExtractionWindowModel(Base):
     parsed_response_json: Mapped[JsonObject | None] = mapped_column(JSON, nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_jobs.id", ondelete="SET NULL"),
+        ForeignKey("work_items.id", ondelete="SET NULL"),
         nullable=True,
     )
     source_job_attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_job_attempts.id", ondelete="SET NULL"),
+        ForeignKey("work_attempts.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
@@ -160,7 +160,7 @@ class MicroEventCandidateModel(Base):
         nullable=False,
     )
     video_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="CASCADE"),
+        ForeignKey("work_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     work_item_id: Mapped[int | None] = mapped_column(
@@ -223,7 +223,7 @@ class MicroEventExcludedRangeModel(Base):
         nullable=False,
     )
     video_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="CASCADE"),
+        ForeignKey("work_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     work_item_id: Mapped[int | None] = mapped_column(
@@ -279,7 +279,7 @@ class AsrCorrectionCandidateModel(Base):
         nullable=False,
     )
     video_task_id: Mapped[int] = mapped_column(
-        ForeignKey("video_tasks.id", ondelete="CASCADE"),
+        ForeignKey("work_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     work_item_id: Mapped[int | None] = mapped_column(

@@ -163,6 +163,7 @@ def test_alembic_upgrade_creates_app_tables(
     try:
         inspector = inspect(engine)
         table_names = inspector.get_table_names()
+        view_names = inspector.get_view_names()
         transcript_columns = {
             column["name"] for column in inspector.get_columns("youtube_transcripts")
         }
@@ -198,13 +199,9 @@ def test_alembic_upgrade_creates_app_tables(
         pipeline_job_columns = {
             column["name"] for column in inspector.get_columns("pipeline_jobs")
         }
-        pipeline_job_indexes = {
-            index["name"]: index for index in inspector.get_indexes("pipeline_jobs")
-        }
         pipeline_job_attempt_columns = {
             column["name"] for column in inspector.get_columns("pipeline_job_attempts")
         }
-        pipeline_job_attempt_foreign_keys = inspector.get_foreign_keys("pipeline_job_attempts")
         prompt_version_columns = {
             column["name"] for column in inspector.get_columns("prompt_versions")
         }
@@ -222,12 +219,6 @@ def test_alembic_upgrade_creates_app_tables(
         video_unique_constraints = inspector.get_unique_constraints("videos")
         video_task_columns = {
             column["name"] for column in inspector.get_columns("video_tasks")
-        }
-        video_task_foreign_keys = inspector.get_foreign_keys("video_tasks")
-        video_task_unique_constraints = inspector.get_unique_constraints("video_tasks")
-        video_task_indexes = {
-            index["name"]: index["column_names"]
-            for index in inspector.get_indexes("video_tasks")
         }
         operation_event_columns = {
             column["name"] for column in inspector.get_columns("operation_events")
@@ -310,7 +301,7 @@ def test_alembic_upgrade_creates_app_tables(
         "video_tasks",
         "videos",
         "youtube_transcripts",
-    }.issubset(table_names)
+    }.issubset(set(table_names) | set(view_names))
     assert {
         "video_id",
         "language_code",
@@ -355,12 +346,6 @@ def test_alembic_upgrade_creates_app_tables(
         "updated_at",
         "completed_at",
     }.issubset(pipeline_job_columns)
-    assert pipeline_job_indexes["uq_pipeline_jobs_running_transcript_collect_batch"][
-        "column_names"
-    ] == ["status"]
-    assert pipeline_job_indexes["uq_pipeline_jobs_running_transcript_collect_batch"][
-        "unique"
-    ]
     assert {
         "id",
         "job_id",
@@ -411,7 +396,7 @@ def test_alembic_upgrade_creates_app_tables(
         for foreign_key in channel_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["source_job_id"]
         for foreign_key in channel_foreign_keys
     )
@@ -424,14 +409,9 @@ def test_alembic_upgrade_creates_app_tables(
         for unique_constraint in channel_unique_constraints
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_job_attempts"
+        foreign_key["referred_table"] == "work_attempts"
         and foreign_key["constrained_columns"] == ["pipeline_job_attempt_id"]
         for foreign_key in external_api_call_foreign_keys
-    )
-    assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
-        and foreign_key["constrained_columns"] == ["job_id"]
-        for foreign_key in pipeline_job_attempt_foreign_keys
     )
     assert {
         "id",
@@ -493,17 +473,17 @@ def test_alembic_upgrade_creates_app_tables(
         for foreign_key in codex_usage_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "video_tasks"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["video_task_id"]
         for foreign_key in codex_usage_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["job_id"]
         for foreign_key in codex_usage_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_job_attempts"
+        foreign_key["referred_table"] == "work_attempts"
         and foreign_key["constrained_columns"] == ["job_attempt_id"]
         for foreign_key in codex_usage_foreign_keys
     )
@@ -549,7 +529,7 @@ def test_alembic_upgrade_creates_app_tables(
         for foreign_key in video_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["source_job_id"]
         for foreign_key in video_foreign_keys
     )
@@ -572,36 +552,6 @@ def test_alembic_upgrade_creates_app_tables(
         "started_at",
         "completed_at",
     }.issubset(video_task_columns)
-    assert any(
-        unique_constraint["column_names"]
-        == ["video_id", "task_name", "task_version", "input_hash"]
-        for unique_constraint in video_task_unique_constraints
-    )
-    assert video_task_indexes["ix_video_tasks_pending_claim"] == [
-        "task_name",
-        "status",
-        "id",
-    ]
-    assert any(
-        foreign_key["referred_table"] == "videos"
-        and foreign_key["constrained_columns"] == ["video_id"]
-        for foreign_key in video_task_foreign_keys
-    )
-    assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
-        and foreign_key["constrained_columns"] == ["job_id"]
-        for foreign_key in video_task_foreign_keys
-    )
-    assert any(
-        foreign_key["referred_table"] == "pipeline_job_attempts"
-        and foreign_key["constrained_columns"] == ["job_attempt_id"]
-        for foreign_key in video_task_foreign_keys
-    )
-    assert any(
-        foreign_key["referred_table"] == "youtube_transcripts"
-        and foreign_key["constrained_columns"] == ["output_transcript_id"]
-        for foreign_key in video_task_foreign_keys
-    )
     assert {
         "id",
         "video_task_id",
@@ -625,7 +575,7 @@ def test_alembic_upgrade_creates_app_tables(
         "raw_response_text",
     }.issubset(timeline_composition_columns)
     assert any(
-        foreign_key["referred_table"] == "video_tasks"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["video_task_id"]
         for foreign_key in timeline_composition_foreign_keys
     )
@@ -692,17 +642,17 @@ def test_alembic_upgrade_creates_app_tables(
         "error_message",
     }.issubset(operation_event_columns)
     assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["job_id"]
         for foreign_key in operation_event_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_job_attempts"
+        foreign_key["referred_table"] == "work_attempts"
         and foreign_key["constrained_columns"] == ["job_attempt_id"]
         for foreign_key in operation_event_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "video_tasks"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["video_task_id"]
         for foreign_key in operation_event_foreign_keys
     )
@@ -751,12 +701,12 @@ def test_alembic_upgrade_creates_app_tables(
         for foreign_key in transcript_cue_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_jobs"
+        foreign_key["referred_table"] == "work_items"
         and foreign_key["constrained_columns"] == ["source_job_id"]
         for foreign_key in transcript_cue_foreign_keys
     )
     assert any(
-        foreign_key["referred_table"] == "pipeline_job_attempts"
+        foreign_key["referred_table"] == "work_attempts"
         and foreign_key["constrained_columns"] == ["source_job_attempt_id"]
         for foreign_key in transcript_cue_foreign_keys
     )

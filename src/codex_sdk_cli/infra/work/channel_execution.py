@@ -16,14 +16,14 @@ from codex_sdk_cli.infra.external_api_calls.repository import (
     SqlAlchemyExternalApiCallRepository,
 )
 from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
-from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.settings import CliSettings
 
+from .execution_repositories import WorkPipelineJobRepository
 
-class LegacyChannelResolver(ChannelResolverPort):
-    """Bridge channel resolution while preserving existing API-call raw storage."""
+
+class WorkChannelResolver(ChannelResolverPort):
 
     def __init__(
         self,
@@ -63,7 +63,11 @@ class LegacyChannelResolver(ChannelResolverPort):
                     ),
                     SqlAlchemyChannelRepository(session),
                     SqlAlchemyStreamerRepository(session),
-                    SqlAlchemyPipelineJobRepository(session),
+                    WorkPipelineJobRepository(
+                        session,
+                        current_work_item_id=work_item_id,
+                        current_work_attempt_id=work_attempt_id,
+                    ),
                 ).execute(streamer_id, ResolveYouTubeChannelRequest(handle=handle))
             await session.execute(
                 update(ChannelModel)

@@ -11,9 +11,9 @@ from codex_sdk_cli.domains.codex_usage.ports import CodexUsageCreate, CodexUsage
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import SqlAlchemyCodexUsageRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
-from codex_sdk_cli.infra.pipeline_jobs.repository import PipelineJobModel
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
 from codex_sdk_cli.infra.videos.repository import VideoModel
+from codex_sdk_cli.infra.work.models import WorkItemModel
 
 
 def test_codex_usage_repository_creates_lists_and_summarizes_usage(
@@ -244,15 +244,21 @@ async def _create_job(
     status: str,
     video_id: int,
     external_key: str,
-) -> PipelineJobModel:
-    job = PipelineJobModel(
-        step=step,
+) -> WorkItemModel:
+    job = WorkItemModel(
+        task_type=step,
         status=status,
         subject_type="video",
         subject_id=video_id,
         external_key=external_key,
+        task_version="v1",
         input_json={"videoId": video_id},
         input_hash=f"{step}-{status}-{video_id}",
+        idempotency_key=f"usage:{step}:{status}:{video_id}",
+        execution_mode="worker",
+        priority=0,
+        timeout_seconds=600,
+        available_at=datetime.now(UTC),
     )
     session.add(job)
     await session.commit()

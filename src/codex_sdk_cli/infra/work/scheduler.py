@@ -42,10 +42,11 @@ from codex_sdk_cli.infra.operation_events.repository import (
     OperationEventModel,
     SQLAlchemyOperationEventRepository,
 )
-from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.settings import CliSettings
+
+from .execution_repositories import WorkPipelineJobRepository
 
 
 class SqlAlchemyScheduledChannelReader(ScheduledChannelReaderPort):
@@ -99,8 +100,7 @@ class SqlAlchemySchedulerEventRecorder(SchedulerEventRecorderPort):
             )
 
 
-class LegacyVideoCollector(VideoCollectorPort):
-    """Temporary adapter until the video collection algorithm moves to application."""
+class WorkVideoCollector(VideoCollectorPort):
 
     def __init__(
         self,
@@ -140,7 +140,11 @@ class LegacyVideoCollector(VideoCollectorPort):
                     ),
                     SqlAlchemyChannelRepository(session),
                     SqlAlchemyVideoRepository(session),
-                    SqlAlchemyPipelineJobRepository(session),
+                    WorkPipelineJobRepository(
+                        session,
+                        current_work_item_id=work_item_id,
+                        current_work_attempt_id=work_attempt_id,
+                    ),
                     BestEffortOperationEventRecorder(
                         SQLAlchemyOperationEventRepository(session)
                     ),
