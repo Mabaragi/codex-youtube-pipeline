@@ -413,6 +413,44 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         return await self._flush_item(model)
 
     @override
+    async def cancel_pending_for_subject(
+        self,
+        *,
+        subject_type: str,
+        subject_id: int,
+        task_types: tuple[str, ...],
+        now: datetime,
+        outcome_code: str,
+        reason: str,
+    ) -> int:
+        if not task_types:
+            return 0
+        statement = (
+            update(WorkItemModel)
+            .where(
+                WorkItemModel.subject_type == subject_type,
+                WorkItemModel.subject_id == subject_id,
+                WorkItemModel.task_type.in_(task_types),
+                WorkItemModel.status == WorkItemStatus.PENDING.value,
+            )
+            .values(
+                status=WorkItemStatus.CANCELED.value,
+                outcome_code=outcome_code,
+                error_code=f"work.{outcome_code}",
+                error_type="VideoNotEmbeddable",
+                error_message=reason,
+                completed_at=now,
+                updated_at=now,
+            )
+            .returning(WorkItemModel.id)
+        )
+        try:
+            result = await self._session.execute(statement)
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return len(result.scalars().all())
+
+    @override
     async def mark_dependency_blocked(self, *, now: datetime) -> int:
         upstream = aliased(WorkItemModel)
         failed_dependency = exists(

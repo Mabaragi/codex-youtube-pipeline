@@ -17,6 +17,7 @@ from codex_sdk_cli.domains.ops.ports import (
     OpsLatestEventRecord,
     OpsMicroEventReadyCandidateListResult,
     OpsMicroEventReadyCandidateRecord,
+    OpsPendingWorkCancelerPort,
     OpsRepositoryPort,
     OpsSchemaColumnRecord,
     OpsSchemaForeignKeyConstraintRecord,
@@ -231,11 +232,13 @@ class RefreshOpsVideoEmbedStatusUseCase:
         *,
         videos: VideoRepositoryPort,
         video_tasks: VideoTaskRepositoryPort,
+        pending_work: OpsPendingWorkCancelerPort,
         youtube_data: YouTubeDataClientPort,
         events: OperationEventRecorderPort,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
+        self._pending_work = pending_work
         self._youtube_data = youtube_data
         self._events = events
 
@@ -312,15 +315,23 @@ class RefreshOpsVideoEmbedStatusUseCase:
             )
             canceled_count = 0
             if updated.is_embeddable is False:
+                cancellation_reason = (
+                    "YouTube status.embeddable=false; downstream work was canceled."
+                )
                 canceled = await self._video_tasks.cancel_pending_tasks_for_video(
                     video_id=updated.id,
                     task_names=_DOWNSTREAM_TASK_NAMES,
                     error_type="VideoNotEmbeddable",
-                    error_message=(
-                        "YouTube status.embeddable=false; downstream task was canceled."
-                    ),
+                    error_message=cancellation_reason,
                 )
-                canceled_count = len(canceled)
+                canceled_work_count = await self._pending_work.execute(
+                    subject_type="video",
+                    subject_id=updated.id,
+                    task_types=_DOWNSTREAM_TASK_NAMES,
+                    outcome_code="not_embeddable",
+                    reason=cancellation_reason,
+                )
+                canceled_count = max(len(canceled), canceled_work_count)
             await record_operation_event(
                 self._events,
                 OperationEventCreate(

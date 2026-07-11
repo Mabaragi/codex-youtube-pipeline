@@ -15,6 +15,7 @@ from codex_sdk_cli.application.transcripts.commands import (
 from codex_sdk_cli.application.videos.commands import CollectVideosUseCase
 from codex_sdk_cli.application.videos.executors import VideoCollectExecutor
 from codex_sdk_cli.application.work.commands import (
+    CancelPendingSubjectWorkUseCase,
     CancelWorkItemUseCase,
     RetryWorkItemUseCase,
 )
@@ -159,6 +160,12 @@ def cancel_work_item_use_case(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> CancelWorkItemUseCase:
     return CancelWorkItemUseCase(work_unit_of_work_factory(session_factory))
+
+
+def cancel_pending_subject_work_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> CancelPendingSubjectWorkUseCase:
+    return CancelPendingSubjectWorkUseCase(work_unit_of_work_factory(session_factory))
 
 
 def get_work_batch_use_case(

@@ -118,6 +118,23 @@ async def _exercise_work_repository(database_url: str) -> None:
         assert duplicate.id == upstream.id
         assert duplicate_created is False
         assert {item.id for item in listed} == {upstream.id, downstream.id}
+
+        async with SqlAlchemyWorkUnitOfWork(session_factory) as unit_of_work:
+            canceled_count = await unit_of_work.work_items.cancel_pending_for_subject(
+                subject_type="video",
+                subject_id=1,
+                task_types=("transcript_collect",),
+                now=now + timedelta(minutes=2),
+                outcome_code="not_embeddable",
+                reason="Video cannot be embedded.",
+            )
+            canceled = await unit_of_work.work_items.get(upstream.id)
+            await unit_of_work.commit()
+
+        assert canceled_count == 1
+        assert canceled is not None
+        assert canceled.status is WorkItemStatus.CANCELED
+        assert canceled.outcome_code == "not_embeddable"
     finally:
         await engine.dispose()
 

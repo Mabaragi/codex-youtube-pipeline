@@ -42,6 +42,18 @@ class OpsSummaryCountsRecord:
     pipeline_jobs: tuple[OpsStatusCountRecord, ...]
 
 
+class OpsPendingWorkCancelerPort(Protocol):
+    async def execute(
+        self,
+        *,
+        subject_type: str,
+        subject_id: int,
+        task_types: tuple[str, ...],
+        outcome_code: str,
+        reason: str,
+    ) -> int: ...
+
+
 @dataclass(frozen=True)
 class OpsRecentFailureRecord:
     kind: OpsFailureKind

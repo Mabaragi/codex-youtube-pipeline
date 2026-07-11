@@ -156,6 +156,17 @@ class WorkItemRepositoryPort(Protocol):
 
     async def cancel(self, *, work_item_id: int, now: datetime, reason: str) -> WorkItem: ...
 
+    async def cancel_pending_for_subject(
+        self,
+        *,
+        subject_type: str,
+        subject_id: int,
+        task_types: tuple[str, ...],
+        now: datetime,
+        outcome_code: str,
+        reason: str,
+    ) -> int: ...
+
     async def mark_dependency_blocked(self, *, now: datetime) -> int: ...
 
     async def recover_expired_leases(self, *, now: datetime) -> int: ...
