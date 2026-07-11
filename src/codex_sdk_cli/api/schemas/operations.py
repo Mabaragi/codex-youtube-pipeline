@@ -4,7 +4,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from codex_sdk_cli.application.operations.results import OperationBatchResult
+from codex_sdk_cli.application.channels.commands import ResolveChannelResult
+from codex_sdk_cli.application.operations.results import (
+    ChannelOperationBatchResult,
+    OperationBatchResult,
+)
 from codex_sdk_cli.application.operations.selection import (
     ChannelVideos,
     FilteredVideos,
@@ -79,6 +83,25 @@ class TranscriptCollectOperationRequest(BaseModel):
         return self
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class VideoCollectOperationRequest(BaseModel):
+    channel_ids: tuple[int, ...] = Field(alias="channelIds", min_length=1, max_length=200)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    rerun_succeeded: bool = Field(default=False, alias="rerunSucceeded")
+    timeout_seconds: int = Field(default=600, alias="timeoutSeconds", ge=1, le=3600)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ChannelResolveOperationRequest(BaseModel):
+    streamer_id: int = Field(alias="streamerId", ge=1)
+    handle: str = Field(min_length=1, max_length=255)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    rerun_succeeded: bool = Field(default=False, alias="rerunSucceeded")
+    timeout_seconds: int = Field(default=120, alias="timeoutSeconds", ge=1, le=600)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", str_strip_whitespace=True)
 
 
 class TranscriptCueOperationRequest(BaseModel):
@@ -166,6 +189,26 @@ class ProcessToPublishOperationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
+class ArchivePublishOperationRequest(BaseModel):
+    selection: VideoSelectionRequest
+    publish_mode: Literal["prod", "dev"] = Field(default="prod", alias="publishMode")
+    environment: str = Field(default="prod", min_length=1, max_length=64)
+    variant: str = Field(default="control", min_length=1, max_length=64)
+    schema_version: int = Field(default=1, alias="schemaVersion", ge=1, le=100)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    rerun_succeeded: bool = Field(default=False, alias="rerunSucceeded")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
+    timeout_seconds: int = Field(default=600, alias="timeoutSeconds", ge=1, le=3600)
+
+    @model_validator(mode="after")
+    def validate_publish_mode(self) -> ArchivePublishOperationRequest:
+        if self.publish_mode == "dev" and self.environment == "prod":
+            raise ValueError("publishMode=dev cannot publish to environment=prod.")
+        return self
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class OperationItemResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str | None = Field(alias="youtubeVideoId")
@@ -210,6 +253,41 @@ class WorkflowBatchResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ChannelOperationItemResponse(BaseModel):
+    channel_id: int = Field(alias="channelId")
+    status: str
+    reason: str
+    work_item_id: int | None = Field(alias="workItemId")
+    output: dict[str, object] | None
+    error_code: str | None = Field(alias="errorCode")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ChannelOperationBatchResponse(BaseModel):
+    batch_id: int = Field(alias="batchId")
+    requested_count: int = Field(alias="requestedCount")
+    succeeded_count: int = Field(alias="succeededCount")
+    failed_count: int = Field(alias="failedCount")
+    skipped_count: int = Field(alias="skippedCount")
+    items: tuple[ChannelOperationItemResponse, ...]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ChannelResolveOperationResponse(BaseModel):
+    batch_id: int = Field(alias="batchId")
+    work_item_id: int = Field(alias="workItemId")
+    status: str
+    reason: str
+    output: dict[str, object] | None
+    error_code: str | None = Field(alias="errorCode")
+    error_message: str | None = Field(alias="errorMessage")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 def to_selection(request: VideoSelectionRequest) -> VideoSelection:
     if isinstance(request, SelectedVideoSelectionRequest):
         return SelectedVideos(request.video_ids)
@@ -226,3 +304,15 @@ def operation_response(result: OperationBatchResult) -> OperationBatchResponse:
 
 def workflow_batch_response(result: WorkflowBatchResult) -> WorkflowBatchResponse:
     return WorkflowBatchResponse.model_validate(result, from_attributes=True)
+
+
+def channel_operation_response(
+    result: ChannelOperationBatchResult,
+) -> ChannelOperationBatchResponse:
+    return ChannelOperationBatchResponse.model_validate(result, from_attributes=True)
+
+
+def channel_resolve_response(
+    result: ResolveChannelResult,
+) -> ChannelResolveOperationResponse:
+    return ChannelResolveOperationResponse.model_validate(result, from_attributes=True)

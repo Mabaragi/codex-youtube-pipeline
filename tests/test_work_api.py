@@ -31,6 +31,10 @@ def test_new_work_paths_are_exported() -> None:
     schema = create_app().openapi()
 
     assert "/ops/operations/transcript-collect" in schema["paths"]
+    assert "/ops/operations/channel-resolve" in schema["paths"]
+    assert "/ops/operations/video-collect" in schema["paths"]
+    assert "/ops/operations/archive-publish" in schema["paths"]
+    assert "/ops/operations/embed-status-refresh" in schema["paths"]
     assert "/ops/operations/transcript-cue-generate" in schema["paths"]
     assert "/ops/operations/micro-event-extract" in schema["paths"]
     assert "/ops/operations/timeline-compose" in schema["paths"]

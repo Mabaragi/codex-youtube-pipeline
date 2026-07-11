@@ -3,24 +3,36 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 
 from codex_sdk_cli.api.schemas.operations import (
+    ArchivePublishOperationRequest,
+    ChannelOperationBatchResponse,
+    ChannelResolveOperationRequest,
+    ChannelResolveOperationResponse,
     MicroEventOperationRequest,
     OperationBatchResponse,
     ProcessToPublishOperationRequest,
     TimelineOperationRequest,
     TranscriptCollectOperationRequest,
     TranscriptCueOperationRequest,
+    VideoCollectOperationRequest,
     WorkflowBatchResponse,
+    channel_operation_response,
+    channel_resolve_response,
     operation_response,
     to_selection,
     workflow_batch_response,
 )
+from codex_sdk_cli.api.use_case_dependencies.ops import RefreshOpsVideoEmbedStatusUseCaseDep
 from codex_sdk_cli.api.use_case_dependencies.work import (
     CollectTranscriptsUseCaseDep,
+    CollectVideosUseCaseDep,
     ComposeTimelinesUseCaseDep,
     ExtractMicroEventsUseCaseDep,
     GenerateTranscriptCuesUseCaseDep,
+    PublishArchivesUseCaseDep,
+    ResolveChannelUseCaseDep,
     StartProcessToPublishUseCaseDep,
 )
+from codex_sdk_cli.application.channels.commands import ResolveChannelCommand
 from codex_sdk_cli.application.processing.commands import (
     ComposeTimelinesCommand,
     ExtractMicroEventsCommand,
@@ -29,9 +41,96 @@ from codex_sdk_cli.application.transcripts.commands import (
     CollectTranscriptsCommand,
     GenerateTranscriptCuesCommand,
 )
+from codex_sdk_cli.application.videos.commands import CollectVideosCommand
 from codex_sdk_cli.application.workflows.commands import ProcessToPublishCommand
+from codex_sdk_cli.application.workflows.publish import PublishArchivesCommand
+from codex_sdk_cli.domains.ops.schemas import (
+    OpsRefreshVideoEmbedStatusRequest,
+    OpsRefreshVideoEmbedStatusResponse,
+)
 
 router = APIRouter()
+
+
+@router.post(
+    "/operations/embed-status-refresh",
+    response_model=OpsRefreshVideoEmbedStatusResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def refresh_embed_status(
+    use_case: RefreshOpsVideoEmbedStatusUseCaseDep,
+    request: OpsRefreshVideoEmbedStatusRequest | None = None,
+) -> OpsRefreshVideoEmbedStatusResponse:
+    return await use_case.execute(request or OpsRefreshVideoEmbedStatusRequest())
+
+
+@router.post(
+    "/operations/channel-resolve",
+    response_model=ChannelResolveOperationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def resolve_channel(
+    request: ChannelResolveOperationRequest,
+    use_case: ResolveChannelUseCaseDep,
+) -> ChannelResolveOperationResponse:
+    return channel_resolve_response(
+        await use_case.execute(
+            ResolveChannelCommand(
+                streamer_id=request.streamer_id,
+                handle=request.handle,
+                retry_failed=request.retry_failed,
+                rerun_succeeded=request.rerun_succeeded,
+                timeout_seconds=request.timeout_seconds,
+            )
+        )
+    )
+
+
+@router.post(
+    "/operations/archive-publish",
+    response_model=OperationBatchResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def publish_archives(
+    request: ArchivePublishOperationRequest,
+    use_case: PublishArchivesUseCaseDep,
+) -> OperationBatchResponse:
+    return operation_response(
+        await use_case.execute(
+            PublishArchivesCommand(
+                selection=to_selection(request.selection),
+                publish_mode=request.publish_mode,
+                environment=request.environment,
+                variant=request.variant,
+                schema_version=request.schema_version,
+                retry_failed=request.retry_failed,
+                rerun_succeeded=request.rerun_succeeded,
+                include_non_embeddable=request.include_non_embeddable,
+                timeout_seconds=request.timeout_seconds,
+            )
+        )
+    )
+
+
+@router.post(
+    "/operations/video-collect",
+    response_model=ChannelOperationBatchResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def collect_videos(
+    request: VideoCollectOperationRequest,
+    use_case: CollectVideosUseCaseDep,
+) -> ChannelOperationBatchResponse:
+    return channel_operation_response(
+        await use_case.execute(
+            CollectVideosCommand(
+                channel_ids=request.channel_ids,
+                retry_failed=request.retry_failed,
+                rerun_succeeded=request.rerun_succeeded,
+                timeout_seconds=request.timeout_seconds,
+            )
+        )
+    )
 
 
 @router.post(

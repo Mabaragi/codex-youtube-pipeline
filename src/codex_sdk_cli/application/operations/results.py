@@ -20,3 +20,24 @@ class OperationBatchResult:
     reused_count: int
     skipped_count: int
     items: tuple[OperationItem, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelOperationItem:
+    channel_id: int
+    status: str
+    reason: str
+    work_item_id: int | None
+    output: dict[str, object] | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelOperationBatchResult:
+    batch_id: int
+    requested_count: int
+    succeeded_count: int
+    failed_count: int
+    skipped_count: int
+    items: tuple[ChannelOperationItem, ...]

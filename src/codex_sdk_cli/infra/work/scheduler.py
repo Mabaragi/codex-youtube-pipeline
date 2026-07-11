@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import cast
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typing_extensions import override
 
@@ -34,14 +34,16 @@ from codex_sdk_cli.infra.channels.repository import (
 )
 from codex_sdk_cli.infra.external_api_calls.recorder import ExternalApiCallRecorder
 from codex_sdk_cli.infra.external_api_calls.repository import (
+    ExternalApiCallModel,
     SqlAlchemyExternalApiCallRepository,
 )
 from codex_sdk_cli.infra.external_api_calls.storage import MinioExternalApiCallStorage
 from codex_sdk_cli.infra.operation_events.repository import (
+    OperationEventModel,
     SQLAlchemyOperationEventRepository,
 )
 from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRepository
-from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
+from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.settings import CliSettings
 
@@ -118,7 +120,6 @@ class LegacyVideoCollector(VideoCollectorPort):
         work_attempt_id: int,
         actor_type: str,
     ) -> VideoCollectionResult:
-        del work_item_id, work_attempt_id
         api_key = self._settings.youtube_data_api_key_value()
         if api_key is None:
             raise YouTubeDataConfigurationError("YouTube Data API key is not configured.")
@@ -148,6 +149,24 @@ class LegacyVideoCollector(VideoCollectorPort):
                     channel_id,
                     actor_type=_actor_type(actor_type),
                 )
+            await session.execute(
+                update(VideoModel)
+                .where(VideoModel.source_job_id == response.job_id)
+                .values(source_work_item_id=work_item_id)
+            )
+            await session.execute(
+                update(ExternalApiCallModel)
+                .where(
+                    ExternalApiCallModel.pipeline_job_attempt_id == response.job_attempt_id
+                )
+                .values(work_attempt_id=work_attempt_id)
+            )
+            await session.execute(
+                update(OperationEventModel)
+                .where(OperationEventModel.job_attempt_id == response.job_attempt_id)
+                .values(work_item_id=work_item_id, work_attempt_id=work_attempt_id)
+            )
+            await session.commit()
         return VideoCollectionResult(
             created_count=response.created_count,
             output_json=cast(JsonObject, response.model_dump(by_alias=True)),
