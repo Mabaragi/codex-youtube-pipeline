@@ -11,6 +11,9 @@ runbook·실행 로그·secret은 이 디렉터리에 기록하지 않는다.
   읽는다.
 - [completion workflow](workflows/completion.md): substantial work의 완료 요약, artifact,
   검증 결과, private worklog fallback을 정리한다. 작업을 마무리하거나 handoff할 때 읽는다.
+- [documentation workflow](workflows/documentation.md): 새 문서의 위치를 분류하고 index
+  routing, root bloat audit, link·stale path 검증을 수행한다. agent guide, workflow,
+  decision, learning note를 만들거나 옮길 때 읽는다.
 - [durable improvement index](durable/INDEX.md): 반복된 사용자 교정과 재사용 가능한
   process gap을 기록·승격하는 기준이다. 같은 종류의 교정이 두 번 이상 나타날 때 읽는다.
 - [private worklog template](worklogs/README.md): external worklog integration이 없을 때

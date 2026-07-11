@@ -32,5 +32,8 @@ operators can use them without private runtime context.
   validating public timeline artifacts.
 - [CI/CD status](CICD.md): current manual GitHub Actions behavior and local
   quality gates. Read when changing verification or deployment automation.
+- [Human learnings](learnings/INDEX.md): public-safe discoveries, debugging
+  narratives, tradeoffs, and reusable explanations. Use it when recording what
+  developers should learn later rather than agent state or work status.
 - [Ops UI documentation index](../ops-ui/docs/INDEX.md): Next.js architecture,
   BFF, generated contract, and visual rules. Read before changing `ops-ui/`.

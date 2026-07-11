@@ -14,7 +14,8 @@
 
 1. 이 `AGENTS.md`.
 2. [vaults/INDEX.md](vaults/INDEX.md)에서 작업별 guide를 고른다.
-3. [docs/INDEX.md](docs/INDEX.md)와 선택한 작업 문서를 읽는다.
+3. 공개 동작·구현 배경·운영 절차를 다루는 작업일 때만
+   [docs/INDEX.md](docs/INDEX.md)에서 필요한 문서를 고른다.
 4. 대상 코드와 관련 테스트를 읽는다.
 5. Ops UI 작업은 [ops-ui/AGENTS.md](ops-ui/AGENTS.md)를 먼저 추가로 읽는다.
 
