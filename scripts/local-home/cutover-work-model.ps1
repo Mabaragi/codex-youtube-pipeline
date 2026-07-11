@@ -61,7 +61,9 @@ $candidate = Join-Path $databaseDirectory "$databaseName.work-candidate.$timesta
 Stop-WorkRuntime
 try {
     Invoke-Checked "uv" @("run", "python", "scripts/sqlite_checkpoint.py", $database)
-    Copy-Item -LiteralPath $database -Destination $backup -ErrorAction Stop
+    if ($Rehearsal) {
+        Copy-Item -LiteralPath $database -Destination $backup -ErrorAction Stop
+    }
     Copy-Item -LiteralPath $database -Destination $candidate -ErrorAction Stop
 
     $originalDatabaseUrl = $env:CODEX_CLI_DATABASE_URL
@@ -84,13 +86,15 @@ try {
         Write-Host "Rehearsal succeeded. Candidate retained at $candidate"
         Write-Host "Backup retained at $backup"
     } else {
-        [System.IO.File]::Replace($candidate, $database, $null, $true)
+        [System.IO.File]::Replace($candidate, $database, $backup, $true)
         Write-Host "Work-model cutover completed. Backup retained at $backup"
     }
 } catch {
     Write-Host "Cutover failed; original database was not replaced."
     Write-Host "Candidate: $candidate"
-    Write-Host "Backup: $backup"
+    if (Test-Path -LiteralPath $backup) {
+        Write-Host "Backup: $backup"
+    }
     throw
 } finally {
     if (-not $NoRestart) {
