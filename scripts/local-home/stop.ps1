@@ -8,6 +8,7 @@ Set-Location $script:RepoRoot
 Import-LocalHomeEnv
 
 Stop-ManagedProcess "ops-ui"
+Stop-ManagedProcess "workflow-coordinator"
 Stop-ManagedProcess "timeline-compose-worker"
 Stop-ManagedProcess "pipeline-scheduler"
 Stop-ManagedProcess "transcript-cue-worker"

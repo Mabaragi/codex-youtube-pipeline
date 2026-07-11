@@ -9,8 +9,17 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Path, Query, status
+from fastapi import APIRouter, Body, FastAPI, Path, Query, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
+from codex_sdk_cli.api.error_mapping import (
+    DOMAIN_ERROR_TYPES,
+    domain_error_message,
+    domain_error_status,
+)
 from codex_sdk_cli.api.main import create_app as create_production_app
 from codex_sdk_cli.api.routes.domain_knowledge import router as domain_knowledge_router
 from codex_sdk_cli.api.routes.pipeline_jobs import router as pipeline_jobs_router
@@ -315,7 +324,7 @@ async def generate_youtube_transcript_cues(
     return await use_case.execute_for_transcript(transcript_id)
 
 
-def create_legacy_app():
+def create_legacy_app() -> FastAPI:
     app = create_production_app()
     app.include_router(domain_knowledge_router, tags=["domain-knowledge"])
     app.include_router(prompts_router, tags=["prompts"])
@@ -334,7 +343,43 @@ def create_legacy_app():
         prefix="/youtube-transcripts",
         tags=["youtube-transcripts"],
     )
+    _add_legacy_error_handlers(app)
     return app
+
+
+def _add_legacy_error_handlers(app: FastAPI) -> None:
+    async def legacy_domain_error(_request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=domain_error_status(exc),
+            content={"detail": domain_error_message(exc)},
+        )
+
+    async def legacy_pydantic_error(
+        _request: Request,
+        exc: Exception,
+    ) -> JSONResponse:
+        if not isinstance(exc, ValidationError):
+            raise TypeError("Legacy Pydantic handler received an unexpected exception.")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=jsonable_encoder({"detail": exc.errors(include_url=False)}),
+        )
+
+    async def legacy_request_validation_error(
+        _request: Request,
+        exc: Exception,
+    ) -> JSONResponse:
+        if not isinstance(exc, RequestValidationError):
+            raise TypeError("Legacy request handler received an unexpected exception.")
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=jsonable_encoder({"detail": exc.errors()}),
+        )
+
+    for error_type in DOMAIN_ERROR_TYPES:
+        app.add_exception_handler(error_type, legacy_domain_error)
+    app.add_exception_handler(ValidationError, legacy_pydantic_error)
+    app.add_exception_handler(RequestValidationError, legacy_request_validation_error)
 
 
 app = create_legacy_app()

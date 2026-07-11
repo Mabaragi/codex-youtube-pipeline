@@ -158,30 +158,31 @@ class SQLAlchemyOperationEventRepository(OperationEventRepositoryPort):
 
     @override
     async def list_events(self, query: OperationEventListQuery) -> list[OperationEventRecord]:
-        statement = select(OperationEventModel)
-        if query.severity is not None:
-            statement = statement.where(OperationEventModel.severity == query.severity)
-        if query.event_type is not None:
-            statement = statement.where(OperationEventModel.event_type == query.event_type)
-        if query.subject_type is not None:
-            statement = statement.where(OperationEventModel.subject_type == query.subject_type)
-        if query.subject_id is not None:
-            statement = statement.where(OperationEventModel.subject_id == query.subject_id)
-        if query.job_id is not None:
-            statement = statement.where(OperationEventModel.job_id == query.job_id)
-        if query.video_task_id is not None:
-            statement = statement.where(OperationEventModel.video_task_id == query.video_task_id)
-        if query.work_item_id is not None:
-            statement = statement.where(OperationEventModel.work_item_id == query.work_item_id)
-        if query.work_batch_id is not None:
-            statement = statement.where(OperationEventModel.work_batch_id == query.work_batch_id)
-        if query.channel_id is not None:
-            statement = statement.where(OperationEventModel.channel_id == query.channel_id)
-        if query.video_id is not None:
-            statement = statement.where(OperationEventModel.video_id == query.video_id)
+        filters = [
+            column == value
+            for value, column in (
+                (query.severity, OperationEventModel.severity),
+                (query.event_type, OperationEventModel.event_type),
+                (query.subject_type, OperationEventModel.subject_type),
+                (query.subject_id, OperationEventModel.subject_id),
+                (query.job_id, OperationEventModel.job_id),
+                (query.video_task_id, OperationEventModel.video_task_id),
+                (query.work_item_id, OperationEventModel.work_item_id),
+                (query.work_attempt_id, OperationEventModel.work_attempt_id),
+                (query.work_batch_id, OperationEventModel.work_batch_id),
+                (query.channel_id, OperationEventModel.channel_id),
+                (query.video_id, OperationEventModel.video_id),
+            )
+            if value is not None
+        ]
         if query.cursor is not None:
-            statement = statement.where(OperationEventModel.id < query.cursor)
-        statement = statement.order_by(OperationEventModel.id.desc()).limit(query.limit)
+            filters.append(OperationEventModel.id < query.cursor)
+        statement = (
+            select(OperationEventModel)
+            .where(*filters)
+            .order_by(OperationEventModel.id.desc())
+            .limit(query.limit)
+        )
         try:
             result = await self._session.execute(statement)
         except SQLAlchemyError as exc:

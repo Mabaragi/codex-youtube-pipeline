@@ -1,392 +1,111 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Request, status
+from collections.abc import Sequence
+from typing import cast
+
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from codex_sdk_cli.api.error_mapping import (
+    DOMAIN_ERROR_TYPES,
+    domain_error_code,
+    domain_error_message,
+    domain_error_status,
+)
 from codex_sdk_cli.application.errors import ApplicationError, ErrorKind
-from codex_sdk_cli.domains.archive_publish.exceptions import (
-    ArchivePublishArtifactInvalid,
-    ArchivePublishConfigurationError,
-    ArchivePublishDomainError,
-    ArchivePublishPersistenceError,
-    ArchivePublishPreconditionFailed,
-    ArchivePublishStorageError,
-)
-from codex_sdk_cli.domains.channels.exceptions import (
-    ChannelAlreadyExists,
-    ChannelDomainError,
-    ChannelNotFound,
-    ChannelPersistenceError,
-)
-from codex_sdk_cli.domains.codex.exceptions import CodexDomainError, CodexRuntimeError
-from codex_sdk_cli.domains.domain_knowledge.exceptions import (
-    DomainKnowledgeConflict,
-    DomainKnowledgeDomainError,
-    DomainKnowledgeNotFound,
-    DomainKnowledgePersistenceError,
-)
-from codex_sdk_cli.domains.external_api_calls.exceptions import ExternalApiCallDomainError
-from codex_sdk_cli.domains.micro_events.exceptions import (
-    MicroEventDomainError,
-    MicroEventExtractionNotFound,
-    MicroEventExtractionPersistenceError,
-    MicroEventExtractionPreconditionFailed,
-)
-from codex_sdk_cli.domains.operation_events.exceptions import OperationEventDomainError
-from codex_sdk_cli.domains.ops.exceptions import OpsDomainError, OpsVideoNotFound
-from codex_sdk_cli.domains.pipeline_jobs.exceptions import (
-    PipelineJobDomainError,
-    PipelineJobNotFound,
-    PipelineJobPersistenceError,
-    PipelineJobRetryNotAllowed,
-)
-from codex_sdk_cli.domains.prompts.exceptions import (
-    PromptConflict,
-    PromptDomainError,
-    PromptNotFound,
-    PromptPersistenceError,
-)
-from codex_sdk_cli.domains.streamers.exceptions import (
-    StreamerDomainError,
-    StreamerHasChannels,
-    StreamerNotFound,
-    StreamerPersistenceError,
-)
-from codex_sdk_cli.domains.timelines.exceptions import (
-    TimelineCompositionNotFound,
-    TimelineCompositionPersistenceError,
-    TimelineCompositionPreconditionFailed,
-    TimelineDomainError,
-)
-from codex_sdk_cli.domains.transcript_cues.exceptions import (
-    TranscriptCueDomainError,
-    TranscriptCuePersistenceError,
-)
-from codex_sdk_cli.domains.video_tasks.exceptions import (
-    TranscriptCollectAlreadyRunning,
-    VideoTaskCancelNotAllowed,
-    VideoTaskDomainError,
-    VideoTaskNotFound,
-    VideoTaskPersistenceError,
-    VideoTaskRetryNotAllowed,
-)
-from codex_sdk_cli.domains.videos.exceptions import (
-    ChannelMissingYouTubeId,
-    VideoAlreadyExists,
-    VideoDomainError,
-    VideoNotFound,
-    VideoPersistenceError,
-)
-from codex_sdk_cli.domains.youtube_data.exceptions import (
-    InvalidYouTubeChannelHandle,
-    YouTubeDataChannelNotFound,
-    YouTubeDataConfigurationError,
-    YouTubeDataDomainError,
-    YouTubeDataUpstreamError,
-)
-from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
-    InvalidYouTubeVideo,
-    YouTubeTranscriptDomainError,
-    YouTubeTranscriptForbidden,
-    YouTubeTranscriptMetadataNotFound,
-    YouTubeTranscriptNotFound,
-    YouTubeTranscriptPersistenceError,
-    YouTubeTranscriptStorageError,
-    YouTubeTranscriptUpstreamError,
-)
 
 
 def add_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(ApplicationError)
-    async def application_error_handler(
-        _request: Request,
-        exc: ApplicationError,
-    ) -> JSONResponse:
-        descriptor = exc.descriptor
-        return JSONResponse(
-            status_code=_application_status(descriptor.kind),
-            content={
-                "error": {
-                    "code": descriptor.code,
-                    "message": descriptor.message,
-                    "details": descriptor.details,
-                }
-            },
-        )
+    app.add_exception_handler(ApplicationError, application_error_handler)
+    for error_type in DOMAIN_ERROR_TYPES:
+        app.add_exception_handler(error_type, domain_error_handler)
+    app.add_exception_handler(ValidationError, pydantic_validation_error_handler)
+    app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+    app.add_exception_handler(HTTPException, http_error_handler)
 
-    @app.exception_handler(CodexDomainError)
-    async def codex_domain_error_handler(
-        _request: Request,
-        exc: CodexDomainError,
-    ) -> JSONResponse:
-        status_code = (
-            status.HTTP_502_BAD_GATEWAY
-            if isinstance(exc, CodexRuntimeError)
-            else status.HTTP_400_BAD_REQUEST
-        )
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(StreamerDomainError)
-    async def streamer_domain_error_handler(
-        _request: Request,
-        exc: StreamerDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, StreamerNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, StreamerHasChannels):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, StreamerPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+async def application_error_handler(_request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, ApplicationError):
+        raise TypeError("Application error handler received an unexpected exception.")
+    descriptor = exc.descriptor
+    return _error_response(
+        status_code=_application_status(descriptor.kind),
+        code=descriptor.code,
+        message=descriptor.message,
+        details=descriptor.details,
+    )
 
-    @app.exception_handler(ChannelDomainError)
-    async def channel_domain_error_handler(
-        _request: Request,
-        exc: ChannelDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, ChannelNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, ChannelAlreadyExists):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, ChannelPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(DomainKnowledgeDomainError)
-    async def domain_knowledge_domain_error_handler(
-        _request: Request,
-        exc: DomainKnowledgeDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, DomainKnowledgeNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, DomainKnowledgeConflict):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, DomainKnowledgePersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+async def domain_error_handler(_request: Request, exc: Exception) -> JSONResponse:
+    return _error_response(
+        status_code=domain_error_status(exc),
+        code=domain_error_code(exc),
+        message=domain_error_message(exc),
+    )
 
-    @app.exception_handler(PromptDomainError)
-    async def prompt_domain_error_handler(
-        _request: Request,
-        exc: PromptDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, PromptNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, PromptConflict):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, PromptPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(ExternalApiCallDomainError)
-    async def external_api_call_domain_error_handler(
-        _request: Request,
-        exc: ExternalApiCallDomainError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"detail": exc.message},
-        )
+async def pydantic_validation_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    if not isinstance(exc, ValidationError):
+        raise TypeError("Pydantic error handler received an unexpected exception.")
+    return _validation_response(exc.errors(include_url=False))
 
-    @app.exception_handler(OpsDomainError)
-    async def ops_domain_error_handler(
-        _request: Request,
-        exc: OpsDomainError,
-    ) -> JSONResponse:
-        if isinstance(exc, OpsVideoNotFound):
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={"detail": exc.message},
-            )
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"detail": exc.message},
-        )
 
-    @app.exception_handler(OperationEventDomainError)
-    async def operation_event_domain_error_handler(
-        _request: Request,
-        exc: OperationEventDomainError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"detail": exc.message},
-        )
+async def request_validation_error_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    if not isinstance(exc, RequestValidationError):
+        raise TypeError("Request validation handler received an unexpected exception.")
+    return _validation_response(exc.errors())
 
-    @app.exception_handler(VideoDomainError)
-    async def video_domain_error_handler(
-        _request: Request,
-        exc: VideoDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, VideoNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, VideoAlreadyExists):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, VideoPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        elif isinstance(exc, ChannelMissingYouTubeId):
-            status_code = status.HTTP_400_BAD_REQUEST
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(MicroEventDomainError)
-    async def micro_event_domain_error_handler(
-        _request: Request,
-        exc: MicroEventDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, MicroEventExtractionNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, MicroEventExtractionPreconditionFailed):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, MicroEventExtractionPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+async def http_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, HTTPException):
+        raise TypeError("HTTP error handler received an unexpected exception.")
+    if not isinstance(exc.detail, str):
+        return cast(JSONResponse, await http_exception_handler(request, exc))
+    return _error_response(
+        status_code=exc.status_code,
+        code=f"http_{exc.status_code}",
+        message=exc.detail,
+    )
 
-    @app.exception_handler(TimelineDomainError)
-    async def timeline_domain_error_handler(
-        _request: Request,
-        exc: TimelineDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, TimelineCompositionNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, TimelineCompositionPreconditionFailed):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, TimelineCompositionPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(ArchivePublishDomainError)
-    async def archive_publish_domain_error_handler(
-        _request: Request,
-        exc: ArchivePublishDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, (ArchivePublishPreconditionFailed, ArchivePublishArtifactInvalid)):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(
-            exc,
-            (
-                ArchivePublishConfigurationError,
-                ArchivePublishPersistenceError,
-                ArchivePublishStorageError,
-            ),
-        ):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
+def _validation_response(errors: Sequence[object]) -> JSONResponse:
+    return _error_response(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        code="request_validation_failed",
+        message="Request validation failed.",
+        details={"errors": jsonable_encoder(errors)},
+    )
 
-    @app.exception_handler(VideoTaskDomainError)
-    async def video_task_domain_error_handler(
-        _request: Request,
-        exc: VideoTaskDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, VideoTaskNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(
-            exc,
-            (
-                VideoTaskRetryNotAllowed,
-                TranscriptCollectAlreadyRunning,
-                VideoTaskCancelNotAllowed,
-            ),
-        ):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, VideoTaskPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
-    @app.exception_handler(TranscriptCueDomainError)
-    async def transcript_cue_domain_error_handler(
-        _request: Request,
-        exc: TranscriptCueDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, TranscriptCuePersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
-
-    @app.exception_handler(PipelineJobDomainError)
-    async def pipeline_job_domain_error_handler(
-        _request: Request,
-        exc: PipelineJobDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, PipelineJobNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, PipelineJobRetryNotAllowed):
-            status_code = status.HTTP_409_CONFLICT
-        elif isinstance(exc, PipelineJobPersistenceError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return JSONResponse(
-            status_code=status_code,
-            content={"detail": exc.message},
-        )
-
-    @app.exception_handler(YouTubeDataDomainError)
-    async def youtube_data_domain_error_handler(
-        _request: Request,
-        exc: YouTubeDataDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, YouTubeDataChannelNotFound):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, YouTubeDataConfigurationError):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        elif isinstance(exc, YouTubeDataUpstreamError):
-            status_code = status.HTTP_502_BAD_GATEWAY
-        elif isinstance(exc, InvalidYouTubeChannelHandle):
-            status_code = status.HTTP_400_BAD_REQUEST
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
-
-    @app.exception_handler(YouTubeTranscriptDomainError)
-    async def youtube_domain_error_handler(
-        _request: Request,
-        exc: YouTubeTranscriptDomainError,
-    ) -> JSONResponse:
-        status_code = status.HTTP_400_BAD_REQUEST
-        if isinstance(exc, (YouTubeTranscriptNotFound, YouTubeTranscriptMetadataNotFound)):
-            status_code = status.HTTP_404_NOT_FOUND
-        elif isinstance(exc, YouTubeTranscriptForbidden):
-            status_code = status.HTTP_403_FORBIDDEN
-        elif isinstance(exc, YouTubeTranscriptUpstreamError):
-            status_code = status.HTTP_502_BAD_GATEWAY
-        elif isinstance(
-            exc,
-            (YouTubeTranscriptStorageError, YouTubeTranscriptPersistenceError),
-        ):
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        elif isinstance(exc, InvalidYouTubeVideo):
-            status_code = status.HTTP_400_BAD_REQUEST
-        return JSONResponse(status_code=status_code, content={"detail": exc.message})
-
-    @app.exception_handler(ValidationError)
-    async def pydantic_validation_error_handler(
-        _request: Request,
-        exc: ValidationError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=jsonable_encoder({"detail": exc.errors(include_url=False)}),
-        )
+def _error_response(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    details: object | None = None,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": {"code": code, "message": message, "details": details}},
+    )
 
 
 def _application_status(kind: ErrorKind) -> int:
-    if kind is ErrorKind.NOT_FOUND:
-        return status.HTTP_404_NOT_FOUND
-    if kind is ErrorKind.CONFLICT:
-        return status.HTTP_409_CONFLICT
-    if kind is ErrorKind.VALIDATION:
-        return status.HTTP_422_UNPROCESSABLE_CONTENT
-    if kind is ErrorKind.UPSTREAM:
-        return status.HTTP_502_BAD_GATEWAY
-    if kind is ErrorKind.UNAVAILABLE:
-        return status.HTTP_503_SERVICE_UNAVAILABLE
-    return status.HTTP_500_INTERNAL_SERVER_ERROR
+    return {
+        ErrorKind.NOT_FOUND: status.HTTP_404_NOT_FOUND,
+        ErrorKind.CONFLICT: status.HTTP_409_CONFLICT,
+        ErrorKind.VALIDATION: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        ErrorKind.UPSTREAM: status.HTTP_502_BAD_GATEWAY,
+        ErrorKind.UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
+        ErrorKind.INTERNAL: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    }[kind]

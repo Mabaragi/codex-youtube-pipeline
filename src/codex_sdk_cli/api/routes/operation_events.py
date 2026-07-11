@@ -24,6 +24,9 @@ async def list_operation_events(
     subject_id: Annotated[int | None, Query(alias="subjectId", ge=1)] = None,
     job_id: Annotated[int | None, Query(alias="jobId", ge=1)] = None,
     video_task_id: Annotated[int | None, Query(alias="videoTaskId", ge=1)] = None,
+    work_item_id: Annotated[int | None, Query(alias="workItemId", ge=1)] = None,
+    work_attempt_id: Annotated[int | None, Query(alias="workAttemptId", ge=1)] = None,
+    work_batch_id: Annotated[int | None, Query(alias="workBatchId", ge=1)] = None,
     channel_id: Annotated[int | None, Query(alias="channelId", ge=1)] = None,
     video_id: Annotated[int | None, Query(alias="videoId", ge=1)] = None,
     cursor: Annotated[int | None, Query(ge=1)] = None,
@@ -37,8 +40,10 @@ async def list_operation_events(
         subject_id=subject_id,
         job_id=job_id,
         video_task_id=video_task_id,
+        work_item_id=work_item_id,
+        work_attempt_id=work_attempt_id,
+        work_batch_id=work_batch_id,
         channel_id=channel_id,
         video_id=video_id,
         cursor=cursor,
     )
-

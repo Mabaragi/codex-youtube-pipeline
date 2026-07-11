@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.selectable import Subquery
 from typing_extensions import override
 
@@ -522,25 +523,22 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
                     ChannelModel.name.ilike(term),
                 )
             )
-        if query.publish_status == "not_ready":
-            base = base.where(TimelineCompositionModel.id.is_(None))
-        elif query.publish_status == "ready":
-            base = base.where(
+        status_filters: dict[str, tuple[ColumnElement[bool], ...]] = {
+            "not_ready": (TimelineCompositionModel.id.is_(None),),
+            "ready": (
                 TimelineCompositionModel.id.is_not(None),
                 ArchiveVideoArtifactModel.id.is_(None),
                 or_(
                     VideoTaskModel.id.is_(None),
                     VideoTaskModel.status.not_in(("pending", "running", "failed", "timed_out")),
                 ),
-            )
-        elif query.publish_status == "pending":
-            base = base.where(VideoTaskModel.status == "pending")
-        elif query.publish_status == "running":
-            base = base.where(VideoTaskModel.status == "running")
-        elif query.publish_status == "failed":
-            base = base.where(VideoTaskModel.status.in_(("failed", "timed_out")))
-        elif query.publish_status == "published":
-            base = base.where(ArchiveVideoArtifactModel.id.is_not(None))
+            ),
+            "pending": (VideoTaskModel.status == "pending",),
+            "running": (VideoTaskModel.status == "running",),
+            "failed": (VideoTaskModel.status.in_(("failed", "timed_out")),),
+            "published": (ArchiveVideoArtifactModel.id.is_not(None),),
+        }
+        base = base.where(*status_filters.get(query.publish_status or "", ()))
 
         try:
             rows = (await self._session.execute(base)).all()

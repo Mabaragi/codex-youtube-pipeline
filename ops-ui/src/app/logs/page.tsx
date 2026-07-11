@@ -18,6 +18,9 @@ function parseFilters(
     eventType: stringParam(params.eventType),
     subjectType: stringParam(params.subjectType),
     subjectId: numberParam(params.subjectId),
+    workItemId: numberParam(params.workItemId),
+    workAttemptId: numberParam(params.workAttemptId),
+    workBatchId: numberParam(params.workBatchId),
     jobId: numberParam(params.jobId),
     videoTaskId: numberParam(params.videoTaskId),
     channelId: numberParam(params.channelId),
@@ -48,4 +51,3 @@ function severityParam(
   const text = stringParam(value);
   return text === "info" || text === "warning" || text === "error" ? text : undefined;
 }
-

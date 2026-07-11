@@ -2290,6 +2290,12 @@ export interface components {
             videoId?: number | null;
             /** Videotaskid */
             videoTaskId?: number | null;
+            /** Workattemptid */
+            workAttemptId?: number | null;
+            /** Workbatchid */
+            workBatchId?: number | null;
+            /** Workitemid */
+            workItemId?: number | null;
         };
         /** OperationItemResponse */
         OperationItemResponse: {
@@ -4859,6 +4865,9 @@ export interface operations {
                 subjectId?: number | null;
                 jobId?: number | null;
                 videoTaskId?: number | null;
+                workItemId?: number | null;
+                workAttemptId?: number | null;
+                workBatchId?: number | null;
                 channelId?: number | null;
                 videoId?: number | null;
                 cursor?: number | null;

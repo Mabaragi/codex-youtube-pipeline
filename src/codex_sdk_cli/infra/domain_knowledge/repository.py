@@ -399,24 +399,7 @@ class SqlAlchemyDomainKnowledgeRepository(DomainKnowledgeRepositoryPort):
             model = await self._session.get(DomainEntryModel, entry_id)
             if model is None:
                 return None
-            if update.type_id is not None:
-                model.type_id = update.type_id
-            if update.canonical_name is not None:
-                model.canonical_name = update.canonical_name
-            if update.display_name_set:
-                model.display_name = update.display_name
-            if update.disambiguation_set:
-                model.disambiguation = update.disambiguation
-            if update.detail_set:
-                model.detail = update.detail
-            if update.prompt_policy is not None:
-                model.prompt_policy = update.prompt_policy
-            if update.priority is not None:
-                model.priority = update.priority
-            if update.is_active is not None:
-                model.is_active = update.is_active
-            if update.source_note_set:
-                model.source_note = update.source_note
+            _apply_entry_update(model, update)
             await self._session.commit()
             await self._session.refresh(model)
             record = await self.get_entry(entry_id)
@@ -666,6 +649,26 @@ def _type_model(create: DomainEntryTypeCreate) -> DomainEntryTypeModel:
         sort_order=create.sort_order,
         is_system=create.is_system,
     )
+
+
+def _apply_entry_update(model: DomainEntryModel, update: DomainEntryUpdate) -> None:
+    for field_name, value in (
+        ("type_id", update.type_id),
+        ("canonical_name", update.canonical_name),
+        ("prompt_policy", update.prompt_policy),
+        ("priority", update.priority),
+        ("is_active", update.is_active),
+    ):
+        if value is not None:
+            setattr(model, field_name, value)
+    for field_name, value, is_set in (
+        ("display_name", update.display_name, update.display_name_set),
+        ("disambiguation", update.disambiguation, update.disambiguation_set),
+        ("detail", update.detail, update.detail_set),
+        ("source_note", update.source_note, update.source_note_set),
+    ):
+        if is_set:
+            setattr(model, field_name, value)
 
 
 def _streamer_model(

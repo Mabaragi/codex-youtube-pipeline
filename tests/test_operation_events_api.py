@@ -46,6 +46,9 @@ class FakeOperationEventRepository(OperationEventRepositoryPort):
                 correlation_id=None,
                 error_type="UpstreamError",
                 error_message="failed",
+                work_item_id=21,
+                work_attempt_id=22,
+                work_batch_id=23,
             )
         ]
 
@@ -65,16 +68,27 @@ async def _test_ops_events_are_filterable() -> None:
     ) as client:
         response = await client.get(
             "/ops/events",
-            params={"severity": "error", "eventType": "video_collect.failed", "jobId": 1},
+            params={
+                "severity": "error",
+                "eventType": "video_collect.failed",
+                "workItemId": 21,
+                "workAttemptId": 22,
+                "workBatchId": 23,
+            },
         )
 
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["items"][0]["eventType"] == "video_collect.failed"
     assert payload["items"][0]["metadata"] == {"attemptId": 1}
+    assert payload["items"][0]["workItemId"] == 21
+    assert payload["items"][0]["workAttemptId"] == 22
+    assert payload["items"][0]["workBatchId"] == 23
     assert event_repository.queries[0].severity == "error"
     assert event_repository.queries[0].event_type == "video_collect.failed"
-    assert event_repository.queries[0].job_id == 1
+    assert event_repository.queries[0].work_item_id == 21
+    assert event_repository.queries[0].work_attempt_id == 22
+    assert event_repository.queries[0].work_batch_id == 23
 
 
 def test_operation_event_route_is_in_openapi() -> None:
@@ -82,4 +96,3 @@ def test_operation_event_route_is_in_openapi() -> None:
 
     assert schema["paths"]["/ops/events"]["get"]["tags"] == ["ops"]
     assert "OperationEventListResponse" in schema["components"]["schemas"]
-

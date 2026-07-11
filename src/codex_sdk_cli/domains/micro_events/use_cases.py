@@ -1508,8 +1508,7 @@ class ExtractVideoMicroEventsUseCase:
             await asyncio.gather(*worker_tasks)
         except BaseException:
             for worker_task in worker_tasks:
-                if not worker_task.done():
-                    worker_task.cancel()
+                worker_task.cancel()
             await asyncio.gather(*worker_tasks, return_exceptions=True)
             raise
         return _MicroEventWindowBatchResult(

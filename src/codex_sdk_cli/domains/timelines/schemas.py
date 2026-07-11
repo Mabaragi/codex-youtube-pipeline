@@ -235,29 +235,38 @@ class TimelinePatchOperationRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_operation_shape(self) -> TimelinePatchOperationRequest:
-        if self.operation == "split_block_after_episode":
-            if self.anchor_episode_id is None and self.anchor is None:
-                raise ValueError("split_block_after_episode requires anchorEpisodeId or anchor.")
-            return self
-        if self.operation == "edit_micro_event_copy":
-            if self.target_micro_event_candidate_id is None:
-                raise ValueError("edit_micro_event_copy requires targetMicroEventCandidateId.")
-            if self.event is None:
-                raise ValueError("edit_micro_event_copy requires event.")
-            return self
-        if self.operation == "edit_topic_cluster_copy":
-            if self.target_topic_id is None:
-                raise ValueError("edit_topic_cluster_copy requires targetTopicId.")
-            if self.display_label is None and self.summary is None:
-                raise ValueError("edit_topic_cluster_copy requires displayLabel or summary.")
-            return self
+        validators = {
+            "split_block_after_episode": self._validate_split_block,
+            "edit_micro_event_copy": self._validate_micro_event_copy,
+            "edit_topic_cluster_copy": self._validate_topic_cluster_copy,
+            "edit_display_copy": self._validate_display_copy,
+        }
+        validators[self.operation]()
+        return self
+
+    def _validate_split_block(self) -> None:
+        if self.anchor_episode_id is None and self.anchor is None:
+            raise ValueError("split_block_after_episode requires anchorEpisodeId or anchor.")
+
+    def _validate_micro_event_copy(self) -> None:
+        if self.target_micro_event_candidate_id is None:
+            raise ValueError("edit_micro_event_copy requires targetMicroEventCandidateId.")
+        if self.event is None:
+            raise ValueError("edit_micro_event_copy requires event.")
+
+    def _validate_topic_cluster_copy(self) -> None:
+        if self.target_topic_id is None:
+            raise ValueError("edit_topic_cluster_copy requires targetTopicId.")
+        if self.display_label is None and self.summary is None:
+            raise ValueError("edit_topic_cluster_copy requires displayLabel or summary.")
+
+    def _validate_display_copy(self) -> None:
         if self.target_type is None:
             raise ValueError("edit_display_copy requires targetType.")
         if self.target_type in {"block", "episode"} and self.target_id is None:
             raise ValueError("edit_display_copy requires targetId for block or episode.")
         if self.display_title is None and self.display_summary is None:
             raise ValueError("edit_display_copy requires displayTitle or displaySummary.")
-        return self
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 

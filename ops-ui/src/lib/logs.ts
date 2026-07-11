@@ -22,6 +22,12 @@ export function eventSubjectLabel(event: OperationEvent): string {
 export function eventLogLinkFilters(
   event: OperationEvent,
 ): Partial<OperationEventFilters> {
+  if (event.workItemId !== null && event.workItemId !== undefined) {
+    return { workItemId: event.workItemId };
+  }
+  if (event.workBatchId !== null && event.workBatchId !== undefined) {
+    return { workBatchId: event.workBatchId };
+  }
   if (event.jobId !== null && event.jobId !== undefined) {
     return { jobId: event.jobId };
   }
@@ -33,4 +39,3 @@ export function eventLogLinkFilters(
   }
   return { eventType: event.eventType };
 }
-

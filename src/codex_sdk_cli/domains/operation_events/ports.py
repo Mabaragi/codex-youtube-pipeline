@@ -73,6 +73,7 @@ class OperationEventListQuery:
     job_id: int | None = None
     video_task_id: int | None = None
     work_item_id: int | None = None
+    work_attempt_id: int | None = None
     work_batch_id: int | None = None
     channel_id: int | None = None
     video_id: int | None = None

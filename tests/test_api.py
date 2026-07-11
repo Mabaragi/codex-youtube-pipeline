@@ -189,8 +189,10 @@ def test_run_endpoint_rejects_removed_advanced_parameters(removed_field: str) ->
     )
 
     assert fake.run_command is None
-    assert response["detail"][0]["type"] == "extra_forbidden"
-    assert response["detail"][0]["loc"] == ["body", removed_field]
+    assert response["error"]["code"] == "request_validation_failed"
+    validation_error = response["error"]["details"]["errors"][0]
+    assert validation_error["type"] == "extra_forbidden"
+    assert validation_error["loc"] == ["body", removed_field]
 
 
 def test_run_endpoint_maps_domain_errors() -> None:
@@ -207,7 +209,13 @@ def test_run_endpoint_maps_domain_errors() -> None:
         )
     )
 
-    assert response == {"detail": "runtime unavailable"}
+    assert response == {
+        "error": {
+            "code": "codex_runtime_error",
+            "message": "runtime unavailable",
+            "details": None,
+        }
+    }
 
 
 def test_account_endpoint_returns_runtime_payload() -> None:

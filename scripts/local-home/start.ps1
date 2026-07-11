@@ -43,6 +43,10 @@ Start-LoggedProcess "timeline-compose-worker" (Join-Path $script:RepoRoot ".venv
     "-c",
     '"from codex_sdk_cli.workers.timelines import run; run()"'
 )
+Start-LoggedProcess "workflow-coordinator" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    "-c",
+    '"from codex_sdk_cli.workers.workflow_coordinator import run; run()"'
+)
 
 if ($NoUi) {
     Write-Host "Skipping ops-ui because -NoUi was provided."

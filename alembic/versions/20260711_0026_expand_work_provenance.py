@@ -20,65 +20,38 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    _add_work_item_columns()
-    _add_work_attempt_columns()
+    _add_provenance_columns()
     _populate_work_provenance()
 
 
 def downgrade() -> None:
-    for table_name, column_name in reversed(_ATTEMPT_COLUMNS):
-        op.drop_index(f"ix_{table_name}_{column_name}", table_name=table_name)
+    for table_name, columns in reversed(tuple(_columns_by_table().items())):
         with op.batch_alter_table(table_name) as batch_op:
-            batch_op.drop_column(column_name)
-    for table_name, column_name in reversed(_ITEM_COLUMNS):
-        op.drop_index(f"ix_{table_name}_{column_name}", table_name=table_name)
+            for column_name, _target_table in reversed(columns):
+                batch_op.drop_index(f"ix_{table_name}_{column_name}")
+                batch_op.drop_column(column_name)
+
+
+def _add_provenance_columns() -> None:
+    for table_name, columns in _columns_by_table().items():
         with op.batch_alter_table(table_name) as batch_op:
-            batch_op.drop_column(column_name)
-    op.drop_index(
-        "ix_operation_events_work_batch_id",
-        table_name="operation_events",
-    )
-    with op.batch_alter_table("operation_events") as batch_op:
-        batch_op.drop_column("work_batch_id")
+            for column_name, target_table in columns:
+                batch_op.add_column(sa.Column(column_name, sa.Integer(), nullable=True))
+                batch_op.create_foreign_key(
+                    f"fk_{table_name}_{column_name}_{target_table}",
+                    target_table,
+                    [column_name],
+                    ["id"],
+                    ondelete="SET NULL",
+                )
+                batch_op.create_index(f"ix_{table_name}_{column_name}", [column_name])
 
 
-def _add_work_item_columns() -> None:
-    for table_name, column_name in _ITEM_COLUMNS:
-        op.add_column(
-            table_name,
-            sa.Column(
-                column_name,
-                sa.Integer(),
-                nullable=True,
-            ),
-        )
-        op.create_index(f"ix_{table_name}_{column_name}", table_name, [column_name])
-    op.add_column(
-        "operation_events",
-        sa.Column(
-            "work_batch_id",
-            sa.Integer(),
-            nullable=True,
-        ),
-    )
-    op.create_index(
-        "ix_operation_events_work_batch_id",
-        "operation_events",
-        ["work_batch_id"],
-    )
-
-
-def _add_work_attempt_columns() -> None:
-    for table_name, column_name in _ATTEMPT_COLUMNS:
-        op.add_column(
-            table_name,
-            sa.Column(
-                column_name,
-                sa.Integer(),
-                nullable=True,
-            ),
-        )
-        op.create_index(f"ix_{table_name}_{column_name}", table_name, [column_name])
+def _columns_by_table() -> dict[str, list[tuple[str, str]]]:
+    grouped: dict[str, list[tuple[str, str]]] = {}
+    for table_name, column_name, target_table in _PROVENANCE_COLUMNS:
+        grouped.setdefault(table_name, []).append((column_name, target_table))
+    return grouped
 
 
 def _populate_work_provenance() -> None:
@@ -88,30 +61,36 @@ def _populate_work_provenance() -> None:
 
 
 _ITEM_COLUMNS = (
-    ("channels", "source_work_item_id"),
-    ("videos", "source_work_item_id"),
-    ("codex_run_usages", "work_item_id"),
-    ("operation_events", "work_item_id"),
-    ("transcript_cues", "source_work_item_id"),
-    ("micro_event_extraction_windows", "work_item_id"),
-    ("micro_event_candidates", "work_item_id"),
-    ("micro_event_excluded_ranges", "work_item_id"),
-    ("asr_correction_candidates", "work_item_id"),
-    ("timeline_compositions", "work_item_id"),
-    ("timeline_compositions", "source_micro_event_work_item_id"),
-    ("archive_video_artifacts", "source_timeline_work_item_id"),
-    ("archive_video_artifacts", "source_micro_event_work_item_id"),
-    ("archive_video_artifacts", "publish_work_item_id"),
+    ("channels", "source_work_item_id", "work_items"),
+    ("videos", "source_work_item_id", "work_items"),
+    ("codex_run_usages", "work_item_id", "work_items"),
+    ("operation_events", "work_item_id", "work_items"),
+    ("transcript_cues", "source_work_item_id", "work_items"),
+    ("micro_event_extraction_windows", "work_item_id", "work_items"),
+    ("micro_event_candidates", "work_item_id", "work_items"),
+    ("micro_event_excluded_ranges", "work_item_id", "work_items"),
+    ("asr_correction_candidates", "work_item_id", "work_items"),
+    ("timeline_compositions", "work_item_id", "work_items"),
+    ("timeline_compositions", "source_micro_event_work_item_id", "work_items"),
+    ("archive_video_artifacts", "source_timeline_work_item_id", "work_items"),
+    ("archive_video_artifacts", "source_micro_event_work_item_id", "work_items"),
+    ("archive_video_artifacts", "publish_work_item_id", "work_items"),
 )
 
 _ATTEMPT_COLUMNS = (
-    ("external_api_calls", "work_attempt_id"),
-    ("codex_run_usages", "work_attempt_id"),
-    ("operation_events", "work_attempt_id"),
-    ("transcript_cues", "source_work_attempt_id"),
-    ("micro_event_extraction_windows", "source_work_attempt_id"),
-    ("timeline_compositions", "source_work_attempt_id"),
-    ("archive_video_artifacts", "publish_work_attempt_id"),
+    ("external_api_calls", "work_attempt_id", "work_attempts"),
+    ("codex_run_usages", "work_attempt_id", "work_attempts"),
+    ("operation_events", "work_attempt_id", "work_attempts"),
+    ("transcript_cues", "source_work_attempt_id", "work_attempts"),
+    ("micro_event_extraction_windows", "source_work_attempt_id", "work_attempts"),
+    ("timeline_compositions", "source_work_attempt_id", "work_attempts"),
+    ("archive_video_artifacts", "publish_work_attempt_id", "work_attempts"),
+)
+
+_PROVENANCE_COLUMNS = (
+    *_ITEM_COLUMNS,
+    *_ATTEMPT_COLUMNS,
+    ("operation_events", "work_batch_id", "work_batches"),
 )
 
 _POPULATE_STATEMENTS = (

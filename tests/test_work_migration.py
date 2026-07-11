@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 from alembic.config import Config
 
 from alembic import command
+from codex_sdk_cli.infra.database.work_cutover import validate_work_cutover
 
 
 def test_work_expand_migration_preserves_legacy_execution_history(
@@ -106,9 +108,63 @@ def test_work_expand_migration_preserves_legacy_execution_history(
             "FROM archive_video_artifacts WHERE id = 40"
         ).fetchone()
         assert tuple(artifact) == (5, 5, 5, 101)
+        _assert_work_provenance_foreign_keys(connection)
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         connection.close()
+
+
+def test_work_cutover_validator_compares_source_and_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.db"
+    candidate_path = tmp_path / "candidate.db"
+    monkeypatch.setenv(
+        "CODEX_CLI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{source_path.as_posix()}",
+    )
+    config = _alembic_config()
+    command.upgrade(config, "20260704_0024")
+    _insert_legacy_fixture(source_path)
+    shutil.copy2(source_path, candidate_path)
+
+    monkeypatch.setenv(
+        "CODEX_CLI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{candidate_path.as_posix()}",
+    )
+    command.upgrade(config, "head")
+
+    result = validate_work_cutover(source_path, candidate_path)
+    assert result.preserved_table_counts["videos"] == 1
+    assert result.work_item_count == 3
+    assert result.work_attempt_count == 3
+
+
+def _assert_work_provenance_foreign_keys(connection: sqlite3.Connection) -> None:
+    expected = {
+        ("channels", "source_work_item_id", "work_items"),
+        ("videos", "source_work_item_id", "work_items"),
+        ("external_api_calls", "work_attempt_id", "work_attempts"),
+        ("codex_run_usages", "work_item_id", "work_items"),
+        ("codex_run_usages", "work_attempt_id", "work_attempts"),
+        ("operation_events", "work_item_id", "work_items"),
+        ("operation_events", "work_attempt_id", "work_attempts"),
+        ("operation_events", "work_batch_id", "work_batches"),
+        ("transcript_cues", "source_work_item_id", "work_items"),
+        ("transcript_cues", "source_work_attempt_id", "work_attempts"),
+        ("micro_event_extraction_windows", "work_item_id", "work_items"),
+        ("timeline_compositions", "work_item_id", "work_items"),
+        ("timeline_compositions", "source_micro_event_work_item_id", "work_items"),
+        ("archive_video_artifacts", "publish_work_item_id", "work_items"),
+        ("archive_video_artifacts", "publish_work_attempt_id", "work_attempts"),
+    }
+    actual = {
+        (table, row[3], row[2])
+        for table, _column, _target in expected
+        for row in connection.execute(f"PRAGMA foreign_key_list({table})")
+    }
+    assert expected <= actual
 
 
 def _insert_legacy_fixture(database_path: Path) -> None:

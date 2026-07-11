@@ -65,7 +65,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "C90"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -79,6 +79,7 @@ markers = [
 
 [tool.pyrefly]
 project-includes = ["src", "tests", "scripts"]
+enable-fallback-search-path = true
 
 [tool.importlinter]
 root_package = "codex_sdk_cli"
@@ -149,4 +150,13 @@ forbidden_modules = [
     "codex_sdk_cli.api",
     "codex_sdk_cli.bootstrap",
     "codex_sdk_cli.workers",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application core does not import legacy execution models"
+type = "forbidden"
+source_modules = ["codex_sdk_cli.application"]
+forbidden_modules = [
+    "codex_sdk_cli.domains.pipeline_jobs",
+    "codex_sdk_cli.domains.video_tasks",
 ]

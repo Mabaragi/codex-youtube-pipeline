@@ -130,44 +130,31 @@ def _soft_verifier_flags(
     warnings: list[str],
 ) -> list[TimelineReviewFlagCreate]:
     normalized = list(existing_flags)
-    existing_keys = {
-        (flag.start_micro_event_candidate_id, flag.end_micro_event_candidate_id, flag.type)
-        for flag in normalized
-    }
-    episode_by_id = {episode.episode_id: episode for episode in episodes}
-    candidate_by_id = {candidate.id: candidate for candidate in composer_input.micro_events}
-    candidate_ids = [candidate.id for candidate in composer_input.micro_events]
-    candidate_index_by_id = {
-        candidate_id: index for index, candidate_id in enumerate(candidate_ids)
-    }
+    _append_mixed_block_warning(blocks, warnings)
+    normalized = _append_episode_verifier_flags(episodes, composer_input, normalized)
+    return _append_break_verifier_flags(episodes, blocks, normalized)
 
-    def append_flag(
-        *,
-        start_id: int | None,
-        end_id: int | None,
-        flag_type: TimelineReviewFlagType,
-        reason: str,
-    ) -> None:
-        if start_id is None or end_id is None:
-            return
-        key = (start_id, end_id, flag_type)
-        if key in existing_keys:
-            return
-        existing_keys.add(key)
-        normalized.append(
-            TimelineReviewFlagCreate(
-                flag_index=len(normalized) + 1,
-                start_micro_event_candidate_id=start_id,
-                end_micro_event_candidate_id=end_id,
-                type=flag_type,
-                reason=reason,
-            )
-        )
 
-    mixed_count = sum(1 for block in blocks if block.block_type == "MIXED")
+def _append_mixed_block_warning(
+    blocks: list[TimelineBlockCreate],
+    warnings: list[str],
+) -> None:
+    mixed_count = sum(block.block_type == "MIXED" for block in blocks)
     if len(blocks) >= 4 and mixed_count / len(blocks) >= 0.3:
         warnings.append(f"timeline has many MIXED blocks: {mixed_count}/{len(blocks)}")
 
+
+def _append_episode_verifier_flags(
+    episodes: list[TimelineEpisodeCreate],
+    composer_input: _ComposerInput,
+    flags: list[TimelineReviewFlagCreate],
+) -> list[TimelineReviewFlagCreate]:
+    normalized = flags
+    candidate_by_id = {candidate.id: candidate for candidate in composer_input.micro_events}
+    candidate_ids = list(candidate_by_id)
+    candidate_index_by_id = {
+        candidate_id: index for index, candidate_id in enumerate(candidate_ids)
+    }
     for episode in episodes:
         range_info = _episode_candidate_range(
             episode,
@@ -179,7 +166,8 @@ def _soft_verifier_flags(
             continue
         candidates, start_index, _end_index = range_info
         if _is_overbroad_episode(episode, candidates):
-            append_flag(
+            normalized = _append_review_flag(
+                normalized,
                 start_id=episode.start_micro_event_candidate_id,
                 end_id=episode.end_micro_event_candidate_id,
                 flag_type="OVERBROAD_EPISODE",
@@ -194,7 +182,8 @@ def _soft_verifier_flags(
             start_index=start_index,
             total_count=len(candidate_ids),
         ):
-            append_flag(
+            normalized = _append_review_flag(
+                normalized,
                 start_id=episode.start_micro_event_candidate_id,
                 end_id=episode.end_micro_event_candidate_id,
                 flag_type="ASR_SEMANTIC_RISK",
@@ -204,6 +193,16 @@ def _soft_verifier_flags(
                 ),
             )
 
+    return normalized
+
+
+def _append_break_verifier_flags(
+    episodes: list[TimelineEpisodeCreate],
+    blocks: list[TimelineBlockCreate],
+    flags: list[TimelineReviewFlagCreate],
+) -> list[TimelineReviewFlagCreate]:
+    normalized = flags
+    episode_by_id = {episode.episode_id: episode for episode in episodes}
     for index, block in enumerate(blocks):
         if (
             block.block_type != "BREAK"
@@ -219,7 +218,8 @@ def _soft_verifier_flags(
         ]
         if not block_episodes:
             continue
-        append_flag(
+        normalized = _append_review_flag(
+            normalized,
             start_id=block_episodes[0].start_micro_event_candidate_id,
             end_id=block_episodes[-1].end_micro_event_candidate_id,
             flag_type="BOUNDARY_AMBIGUOUS",

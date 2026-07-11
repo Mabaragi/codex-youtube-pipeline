@@ -90,6 +90,14 @@ class _TranscriptCollectBatch:
     attempt: PipelineJobAttemptRecord
 
 
+@dataclass(frozen=True, slots=True)
+class _TranscriptSkipDecision:
+    severity: OperationEventSeverity
+    message: str
+    reason: str
+    generate_cues: bool = False
+
+
 class CollectChannelTranscriptTasksUseCase:
     def __init__(
         self,
@@ -473,9 +481,12 @@ class CollectChannelTranscriptTasksUseCase:
                 attempted_fetch=False,
             )
 
-        if not collect_new and not (
-            task.status in {"failed", "timed_out"} and retry_failed
-        ) and not (task.status == "no_transcript" and recheck_no_transcript):
+        if _task_not_selected(
+            task,
+            collect_new=collect_new,
+            retry_failed=retry_failed,
+            recheck_no_transcript=recheck_no_transcript,
+        ):
             await self._record_task_event(
                 "transcript_collect.task_skipped",
                 "info",
@@ -496,107 +507,19 @@ class CollectChannelTranscriptTasksUseCase:
                 attempted_fetch=False,
             )
 
-        if task.status == "succeeded":
-            await self._record_task_event(
-                "transcript_collect.task_skipped",
-                "info",
-                "Transcript collection task was skipped.",
-                task=task,
-                video_id=video.id,
-                youtube_video_id=video.youtube_video_id,
-                actor_type=actor_type,
-                reason="already_succeeded",
-            )
-            response = await self._with_generated_cues(
-                _item_response(
-                    video,
-                    task,
-                    status="skipped",
-                    reason="already_succeeded",
-                    transcript_id=task.output_transcript_id,
-                ),
-                video_id=video.id,
-                youtube_video_id=video.youtube_video_id,
-                transcript_id=task.output_transcript_id,
+        skip_decision = _task_skip_decision(
+            task,
+            retry_failed=retry_failed,
+            recheck_no_transcript=recheck_no_transcript,
+        )
+        if skip_decision is not None:
+            return await self._skip_task(
+                task,
+                video,
+                decision=skip_decision,
                 parent_job_id=parent_job_id,
                 retry_failed=retry_failed,
                 actor_type=actor_type,
-            )
-            return _processed_response(
-                response,
-                attempted_fetch=False,
-            )
-        if task.status == "running":
-            await self._record_task_event(
-                "transcript_collect.task_skipped",
-                "warning",
-                "Transcript collection task was skipped because it is already running.",
-                task=task,
-                video_id=video.id,
-                youtube_video_id=video.youtube_video_id,
-                actor_type=actor_type,
-                reason="already_running",
-            )
-            return _processed_response(
-                _item_response(video, task, status="skipped", reason="already_running"),
-                attempted_fetch=False,
-            )
-        if task.status == "no_transcript" and not recheck_no_transcript:
-            await self._record_task_event(
-                "transcript_collect.task_skipped",
-                "info",
-                "Transcript collection task was skipped because recheckNoTranscript is false.",
-                task=task,
-                video_id=video.id,
-                youtube_video_id=video.youtube_video_id,
-                actor_type=actor_type,
-                reason="previously_no_transcript",
-            )
-            return _processed_response(
-                _item_response(
-                    video,
-                    task,
-                    status="skipped",
-                    reason="previously_no_transcript",
-                    transcript_id=task.output_transcript_id,
-                ),
-                attempted_fetch=False,
-            )
-        if task.status in {"failed", "timed_out"} and not retry_failed:
-            await self._record_task_event(
-                "transcript_collect.task_skipped",
-                "info",
-                "Transcript collection task was skipped because retryFailed is false.",
-                task=task,
-                video_id=video.id,
-                youtube_video_id=video.youtube_video_id,
-                actor_type=actor_type,
-                reason=f"previously_{task.status}",
-            )
-            return _processed_response(
-                _item_response(
-                    video,
-                    task,
-                    status="skipped",
-                    reason=f"previously_{task.status}",
-                    transcript_id=task.output_transcript_id,
-                ),
-                attempted_fetch=False,
-            )
-        if task.status in {"skipped", "canceled"}:
-            await self._record_task_event(
-                "transcript_collect.task_skipped",
-                "warning",
-                "Transcript collection task was skipped because its status is not retryable.",
-                task=task,
-                video_id=video.id,
-                youtube_video_id=video.youtube_video_id,
-                actor_type=actor_type,
-                reason="not_retryable",
-            )
-            return _processed_response(
-                _item_response(video, task, status="skipped", reason="not_retryable"),
-                attempted_fetch=False,
             )
 
         running_count = await self._video_tasks.count_running(
@@ -632,6 +555,45 @@ class CollectChannelTranscriptTasksUseCase:
             ),
             attempted_fetch=True,
         )
+
+    async def _skip_task(
+        self,
+        task: VideoTaskRecord,
+        video: VideoRecord,
+        *,
+        decision: _TranscriptSkipDecision,
+        parent_job_id: int,
+        retry_failed: bool,
+        actor_type: OperationEventActorType,
+    ) -> _ProcessedTranscriptCollectItem:
+        await self._record_task_event(
+            "transcript_collect.task_skipped",
+            decision.severity,
+            decision.message,
+            task=task,
+            video_id=video.id,
+            youtube_video_id=video.youtube_video_id,
+            actor_type=actor_type,
+            reason=decision.reason,
+        )
+        response = _item_response(
+            video,
+            task,
+            status="skipped",
+            reason=decision.reason,
+            transcript_id=task.output_transcript_id,
+        )
+        if decision.generate_cues:
+            response = await self._with_generated_cues(
+                response,
+                video_id=video.id,
+                youtube_video_id=video.youtube_video_id,
+                transcript_id=task.output_transcript_id,
+                parent_job_id=parent_job_id,
+                retry_failed=retry_failed,
+                actor_type=actor_type,
+            )
+        return _processed_response(response, attempted_fetch=False)
 
     async def _execute_task(
         self,
@@ -1462,6 +1424,63 @@ def _cancel_item_response(
         finalStatus=final_status,
         reason=reason,
     )
+
+
+def _task_not_selected(
+    task: VideoTaskRecord,
+    *,
+    collect_new: bool,
+    retry_failed: bool,
+    recheck_no_transcript: bool,
+) -> bool:
+    return (
+        not collect_new
+        and not (task.status in {"failed", "timed_out"} and retry_failed)
+        and not (task.status == "no_transcript" and recheck_no_transcript)
+    )
+
+
+def _task_skip_decision(
+    task: VideoTaskRecord,
+    *,
+    retry_failed: bool,
+    recheck_no_transcript: bool,
+) -> _TranscriptSkipDecision | None:
+    if task.status == "succeeded":
+        return _TranscriptSkipDecision(
+            severity="info",
+            message="Transcript collection task was skipped.",
+            reason="already_succeeded",
+            generate_cues=True,
+        )
+    if task.status == "running":
+        return _TranscriptSkipDecision(
+            severity="warning",
+            message="Transcript collection task was skipped because it is already running.",
+            reason="already_running",
+        )
+    if task.status == "no_transcript" and not recheck_no_transcript:
+        return _TranscriptSkipDecision(
+            severity="info",
+            message=(
+                "Transcript collection task was skipped because "
+                "recheckNoTranscript is false."
+            ),
+            reason="previously_no_transcript",
+        )
+    if task.status in {"failed", "timed_out"} and not retry_failed:
+        return _TranscriptSkipDecision(
+            severity="info",
+            message="Transcript collection task was skipped because retryFailed is false.",
+            reason=f"previously_{task.status}",
+        )
+    if task.status in {"skipped", "canceled"}:
+        return _TranscriptSkipDecision(
+            severity="warning",
+            message="Transcript collection task was skipped because its status is not retryable.",
+            reason="not_retryable",
+        )
+    return None
 
 
 def _task_input_hash(

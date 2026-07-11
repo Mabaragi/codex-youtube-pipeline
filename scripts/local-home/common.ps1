@@ -222,6 +222,8 @@ function Get-LocalHomeRuntimeProcesses {
             $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_scheduler" -or
             $lowerCommandLine -match "codex-timeline-compose-worker" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.timelines" -or
+            $lowerCommandLine -match "codex-workflow-coordinator" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.workflow_coordinator" -or
             $lowerCommandLine -match "ops-ui[\\/]\.next[\\/]standalone" -or
             $lowerCommandLine -match "scripts[\\/]start-standalone\.mjs" -or
             $lowerCommandLine -match "pnpm(?:\.cmd)?\s+-c\s+ops-ui\s+start"

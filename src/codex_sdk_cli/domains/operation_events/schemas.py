@@ -26,6 +26,9 @@ class OperationEventResponse(BaseModel):
     job_id: int | None = Field(default=None, alias="jobId")
     job_attempt_id: int | None = Field(default=None, alias="jobAttemptId")
     video_task_id: int | None = Field(default=None, alias="videoTaskId")
+    work_item_id: int | None = Field(default=None, alias="workItemId")
+    work_attempt_id: int | None = Field(default=None, alias="workAttemptId")
+    work_batch_id: int | None = Field(default=None, alias="workBatchId")
     channel_id: int | None = Field(default=None, alias="channelId")
     video_id: int | None = Field(default=None, alias="videoId")
     external_api_call_id: int | None = Field(default=None, alias="externalApiCallId")
@@ -43,4 +46,3 @@ class OperationEventListResponse(BaseModel):
 
     items: list[OperationEventResponse]
     next_cursor: int | None = Field(default=None, alias="nextCursor")
-

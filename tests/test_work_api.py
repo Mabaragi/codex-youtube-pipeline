@@ -122,6 +122,19 @@ async def _exercise_work_api(database_url: str) -> None:
             }
         }
 
+        invalid = await client.post(
+            "/ops/operations/transcript-collect",
+            json={"selection": {"type": "selected", "videoIds": []}},
+        )
+        assert invalid.status_code == 422
+        assert invalid.json()["error"]["code"] == "request_validation_failed"
+
+        missing_transcript = await client.get("/ops/transcripts/999999")
+        assert missing_transcript.status_code == 404
+        assert missing_transcript.json()["error"]["code"] == (
+            "youtube_transcript_metadata_not_found"
+        )
+
 
 async def _insert_video(database_url: str) -> None:
     engine = create_database_engine(database_url)

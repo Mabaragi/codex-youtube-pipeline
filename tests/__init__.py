@@ -1,1 +1,1 @@
-"""Project test package."""
+"""Test package marker for static analysis."""

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -173,10 +173,7 @@ class ProcessToPublishUseCase:
                     item.status = "skipped" if publish_item.status == "skipped" else "failed"
                     item.reason = publish_item.reason
 
-        for item in items.values():
-            if item.status == "pending":
-                item.status = "skipped"
-                item.reason = "not_reached"
+        _finalize_pending_items(items.values())
 
         ordered_items = [items[video_id] for video_id in video_ids]
         return ProcessToPublishResponse(
@@ -392,6 +389,13 @@ def _stage_succeeded(stage: ProcessToPublishStageResponse | None) -> bool:
         stage is not None
         and (stage.status == "succeeded" or stage.reason in {"already_succeeded"})
     )
+
+
+def _finalize_pending_items(items: Iterable[ProcessToPublishItemResponse]) -> None:
+    for item in items:
+        if item.status == "pending":
+            item.status = "skipped"
+            item.reason = "not_reached"
 
 
 def _dedupe_preserving_order(values: list[int]) -> list[int]:

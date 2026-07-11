@@ -63,9 +63,9 @@ export function LogsPage({ initialFilters }: LogsPageProps) {
         ),
       },
       {
-        id: "job-task",
-        header: "Job/task",
-        cell: ({ row }) => <JobTaskCell event={row.original} />,
+        id: "work",
+        header: "Work",
+        cell: ({ row }) => <WorkCell event={row.original} />,
       },
       {
         id: "message",
@@ -122,11 +122,20 @@ export function LogsPage({ initialFilters }: LogsPageProps) {
             name="subjectId"
             defaultValue={initialFilters.subjectId}
           />
-          <FilterInput label="Job ID" name="jobId" defaultValue={initialFilters.jobId} />
           <FilterInput
-            label="Task ID"
-            name="videoTaskId"
-            defaultValue={initialFilters.videoTaskId}
+            label="Work item ID"
+            name="workItemId"
+            defaultValue={initialFilters.workItemId}
+          />
+          <FilterInput
+            label="Work attempt ID"
+            name="workAttemptId"
+            defaultValue={initialFilters.workAttemptId}
+          />
+          <FilterInput
+            label="Work batch ID"
+            name="workBatchId"
+            defaultValue={initialFilters.workBatchId}
           />
           <FilterInput
             label="Channel ID"
@@ -222,12 +231,18 @@ function FilterInput({
   );
 }
 
-function JobTaskCell({ event }: { event: OperationEvent }) {
+function WorkCell({ event }: { event: OperationEvent }) {
+  const hasWorkReference = event.workItemId || event.workAttemptId || event.workBatchId;
   return (
     <div className="grid gap-1 text-xs text-slate-600">
-      <span>{event.jobId ? `job #${event.jobId}` : "job -"}</span>
-      <span>{event.jobAttemptId ? `attempt #${event.jobAttemptId}` : "attempt -"}</span>
-      <span>{event.videoTaskId ? `task #${event.videoTaskId}` : "task -"}</span>
+      <span>{event.workItemId ? `item #${event.workItemId}` : "item -"}</span>
+      <span>{event.workAttemptId ? `attempt #${event.workAttemptId}` : "attempt -"}</span>
+      <span>{event.workBatchId ? `batch #${event.workBatchId}` : "batch -"}</span>
+      {!hasWorkReference && (event.jobId || event.videoTaskId) ? (
+        <span className="text-slate-400">
+          legacy {event.videoTaskId ? `task #${event.videoTaskId}` : `job #${event.jobId}`}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -252,9 +267,15 @@ function EventDetail({ event }: { event: OperationEvent | null }) {
         <DetailRow label="Actor" value={event.actorType} />
         <DetailRow label="Source" value={event.source} />
         <DetailRow label="Subject" value={eventSubjectLabel(event)} />
-        <DetailRow label="Job" value={event.jobId ? `#${event.jobId}` : "-"} />
-        <DetailRow label="Attempt" value={event.jobAttemptId ? `#${event.jobAttemptId}` : "-"} />
-        <DetailRow label="Task" value={event.videoTaskId ? `#${event.videoTaskId}` : "-"} />
+        <DetailRow label="Work item" value={event.workItemId ? `#${event.workItemId}` : "-"} />
+        <DetailRow label="Work attempt" value={event.workAttemptId ? `#${event.workAttemptId}` : "-"} />
+        <DetailRow label="Work batch" value={event.workBatchId ? `#${event.workBatchId}` : "-"} />
+        {event.jobId || event.videoTaskId ? (
+          <DetailRow
+            label="Legacy ref"
+            value={event.videoTaskId ? `task #${event.videoTaskId}` : `job #${event.jobId}`}
+          />
+        ) : null}
         <DetailRow label="Channel" value={event.channelId ? `#${event.channelId}` : "-"} />
         <DetailRow label="Video" value={event.videoId ? `#${event.videoId}` : "-"} />
         <DetailRow label="External call" value={event.externalApiCallId ? `#${event.externalApiCallId}` : "-"} />
@@ -287,8 +308,9 @@ function formFilters(form: FormData): Partial<OperationEventFilters> {
     eventType: stringValue(form.get("eventType")),
     subjectType: stringValue(form.get("subjectType")),
     subjectId: numberValue(form.get("subjectId")),
-    jobId: numberValue(form.get("jobId")),
-    videoTaskId: numberValue(form.get("videoTaskId")),
+    workItemId: numberValue(form.get("workItemId")),
+    workAttemptId: numberValue(form.get("workAttemptId")),
+    workBatchId: numberValue(form.get("workBatchId")),
     channelId: numberValue(form.get("channelId")),
     videoId: numberValue(form.get("videoId")),
     limit: numberValue(form.get("limit")) ?? 50,

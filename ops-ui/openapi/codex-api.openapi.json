@@ -3769,6 +3769,39 @@
               }
             ],
             "title": "Videotaskid"
+          },
+          "workAttemptId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workattemptid"
+          },
+          "workBatchId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workbatchid"
+          },
+          "workItemId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workitemid"
           }
         },
         "required": [
@@ -10641,6 +10674,57 @@
                 }
               ],
               "title": "Videotaskid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workItemId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workitemid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workAttemptId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workattemptid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workBatchId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workbatchid"
             }
           },
           {

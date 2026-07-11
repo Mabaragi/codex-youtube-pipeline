@@ -26,6 +26,7 @@ Write-ProcessStatus "transcript-worker"
 Write-ProcessStatus "transcript-cue-worker"
 Write-ProcessStatus "pipeline-scheduler"
 Write-ProcessStatus "timeline-compose-worker"
+Write-ProcessStatus "workflow-coordinator"
 Write-ProcessStatus "ops-ui"
 Write-Host ""
 
