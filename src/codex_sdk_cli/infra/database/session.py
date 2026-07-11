@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 
 
 def create_database_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
+    _register_database_models()
     ensure_sqlite_parent(database_url)
     return create_async_engine(database_url, echo=echo)
 
@@ -28,3 +29,11 @@ def ensure_sqlite_parent(database_url: str) -> None:
         return
 
     Path(url.database).parent.mkdir(parents=True, exist_ok=True)
+
+
+def _register_database_models() -> None:
+    # SQLAlchemy resolves string-based foreign keys from the shared metadata at flush time.
+    from codex_sdk_cli.infra.database import models
+
+    if not models.__all__:
+        raise RuntimeError("Database model registry is empty.")
