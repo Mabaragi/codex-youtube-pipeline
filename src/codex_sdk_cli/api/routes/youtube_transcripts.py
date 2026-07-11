@@ -8,19 +8,14 @@ from codex_sdk_cli.api.use_case_dependencies.transcript_cues import (
     GetTranscriptPromptCuesUseCaseDep,
     ListTranscriptCuesUseCaseDep,
 )
-from codex_sdk_cli.api.use_case_dependencies.video_tasks import (
-    GenerateTranscriptCueTasksUseCaseDep,
-)
 from codex_sdk_cli.api.use_case_dependencies.youtube_transcripts import (
     DeleteYouTubeTranscriptMetadataUseCaseDep,
-    FetchYouTubeTranscriptUseCaseDep,
     GetYouTubeTranscriptMetadataUseCaseDep,
     ListYouTubeTranscriptMetadataUseCaseDep,
     ReadYouTubeTranscriptContentUseCaseDep,
     UpdateYouTubeTranscriptMetadataUseCaseDep,
 )
 from codex_sdk_cli.domains.transcript_cues.schemas import (
-    TranscriptCueGenerateResponse,
     TranscriptCueListResponse,
     TranscriptPromptCuesResponse,
 )
@@ -28,19 +23,10 @@ from codex_sdk_cli.domains.youtube_transcripts.schemas import (
     DeleteResponse,
     TranscriptMetadataResponse,
     TranscriptMetadataUpdateRequest,
-    TranscriptRequest,
     TranscriptResponse,
 )
 
 router = APIRouter()
-
-
-@router.post("", response_model=TranscriptResponse)
-async def fetch_youtube_transcript(
-    request: TranscriptRequest,
-    use_case: FetchYouTubeTranscriptUseCaseDep,
-) -> TranscriptResponse:
-    return await use_case.execute(request)
 
 
 @router.get("", response_model=list[TranscriptMetadataResponse])
@@ -89,18 +75,6 @@ async def get_youtube_transcript_prompt_cues(
     use_case: GetTranscriptPromptCuesUseCaseDep,
 ) -> TranscriptPromptCuesResponse:
     return await use_case.execute(transcript_id)
-
-
-@router.post(
-    "/{transcript_id}/cues/generate",
-    response_model=TranscriptCueGenerateResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def generate_youtube_transcript_cues(
-    transcript_id: Annotated[int, Path(ge=1)],
-    use_case: GenerateTranscriptCueTasksUseCaseDep,
-) -> TranscriptCueGenerateResponse:
-    return await use_case.execute_for_transcript(transcript_id)
 
 
 @router.patch("/{transcript_id}", response_model=TranscriptMetadataResponse)

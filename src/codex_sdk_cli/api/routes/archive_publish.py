@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Query
 
 from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
     ArchivePublishUseCaseDep,
@@ -11,23 +11,10 @@ from codex_sdk_cli.domains.archive_publish.schemas import (
     ArchiveCurrentResponse,
     ArchiveOpsVideoListResponse,
     ArchivePublishModeLiteral,
-    ArchivePublishRequest,
-    ArchivePublishResponse,
     ArchivePublishStatusFilterLiteral,
 )
 
 router = APIRouter()
-
-
-@router.post(
-    "/video-tasks/archive-publish",
-    response_model=ArchivePublishResponse,
-)
-async def publish_archive(
-    use_case: ArchivePublishUseCaseDep,
-    request: Annotated[ArchivePublishRequest | None, Body()] = None,
-) -> ArchivePublishResponse:
-    return await use_case.publish(request or ArchivePublishRequest())
 
 
 @router.get(

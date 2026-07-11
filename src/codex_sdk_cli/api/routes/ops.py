@@ -9,24 +9,19 @@ from codex_sdk_cli.api.use_case_dependencies.ops import (
     ListOpsMicroEventReadyCandidatesUseCaseDep,
     ListOpsTimelineReadyCandidatesUseCaseDep,
     ListOpsVideosUseCaseDep,
-    ListOpsVideoTasksUseCaseDep,
     OpsSchemaGraphUseCaseDep,
     OpsSummaryUseCaseDep,
     OpsVideoDetailUseCaseDep,
-    RefreshOpsVideoEmbedStatusUseCaseDep,
 )
 from codex_sdk_cli.domains.ops.ports import OpsCandidateCategory, OpsEmbedStatusFilter
 from codex_sdk_cli.domains.ops.schemas import (
     OpsChannelListResponse,
     OpsMicroEventReadyCandidateListResponse,
-    OpsRefreshVideoEmbedStatusRequest,
-    OpsRefreshVideoEmbedStatusResponse,
     OpsSchemaGraphResponse,
     OpsSummaryResponse,
     OpsTimelineReadyCandidateListResponse,
     OpsVideoDetailResponse,
     OpsVideoListResponse,
-    OpsVideoTaskListResponse,
 )
 
 router = APIRouter()
@@ -67,41 +62,12 @@ async def list_ops_videos(
     )
 
 
-@router.post(
-    "/videos/embed-status/refresh",
-    response_model=OpsRefreshVideoEmbedStatusResponse,
-)
-async def refresh_ops_video_embed_status(
-    use_case: RefreshOpsVideoEmbedStatusUseCaseDep,
-    request: OpsRefreshVideoEmbedStatusRequest | None = None,
-) -> OpsRefreshVideoEmbedStatusResponse:
-    return await use_case.execute(request or OpsRefreshVideoEmbedStatusRequest())
-
-
 @router.get("/videos/{video_id}", response_model=OpsVideoDetailResponse)
 async def get_ops_video_detail(
     video_id: Annotated[int, Path(ge=1)],
     use_case: OpsVideoDetailUseCaseDep,
 ) -> OpsVideoDetailResponse:
     return await use_case.execute(video_id)
-
-
-@router.get("/video-tasks", response_model=OpsVideoTaskListResponse)
-async def list_ops_video_tasks(
-    use_case: ListOpsVideoTasksUseCaseDep,
-    channel_id: int | None = Query(default=None, alias="channelId", ge=1),
-    task_name: str | None = Query(default=None, alias="taskName", min_length=1),
-    status: str | None = Query(default=None, min_length=1),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-) -> OpsVideoTaskListResponse:
-    return await use_case.execute(
-        channel_id=channel_id,
-        task_name=task_name,
-        status=status,
-        limit=limit,
-        offset=offset,
-    )
 
 
 @router.get(

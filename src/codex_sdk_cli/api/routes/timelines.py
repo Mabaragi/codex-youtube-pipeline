@@ -1,38 +1,17 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Path, status
+from fastapi import APIRouter, Path
 
-from codex_sdk_cli.api.use_case_dependencies.timelines import (
-    ComposeTimelineUseCaseDep,
-    PatchTimelineUseCaseDep,
-)
-from codex_sdk_cli.domains.timelines.schemas import (
-    TimelineComposeEnqueueRequest,
-    TimelineComposeEnqueueResponse,
-    TimelineCompositionResponse,
-    TimelinePatchRequest,
-    TimelinePatchResponse,
-)
+from codex_sdk_cli.api.use_case_dependencies.timelines import ComposeTimelineUseCaseDep
+from codex_sdk_cli.domains.timelines.schemas import TimelineCompositionResponse
 
 router = APIRouter()
 
 
-@router.post(
-    "/video-tasks/timeline-compose/enqueue",
-    response_model=TimelineComposeEnqueueResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def enqueue_timeline_compose(
-    use_case: ComposeTimelineUseCaseDep,
-    request: Annotated[TimelineComposeEnqueueRequest | None, Body()] = None,
-) -> TimelineComposeEnqueueResponse:
-    return await use_case.enqueue(request or TimelineComposeEnqueueRequest())
-
-
 @router.get(
-    "/videos/{video_id}/timelines/latest",
+    "/ops/videos/{video_id}/timelines/latest",
     response_model=TimelineCompositionResponse,
 )
 async def get_latest_video_timeline(
@@ -43,29 +22,12 @@ async def get_latest_video_timeline(
 
 
 @router.get(
-    "/videos/{video_id}/timelines/{video_task_id}",
+    "/ops/videos/{video_id}/timelines/{result_id}",
     response_model=TimelineCompositionResponse,
 )
 async def get_video_timeline(
     video_id: Annotated[int, Path(ge=1)],
-    video_task_id: Annotated[int, Path(ge=1)],
+    result_id: Annotated[int, Path(ge=1)],
     use_case: ComposeTimelineUseCaseDep,
 ) -> TimelineCompositionResponse:
-    return await use_case.get_detail(video_id=video_id, video_task_id=video_task_id)
-
-
-@router.post(
-    "/videos/{videoId}/timelines/{videoTaskId}/patch",
-    response_model=TimelinePatchResponse,
-)
-async def patch_video_timeline(
-    video_id: Annotated[int, Path(ge=1, alias="videoId")],
-    video_task_id: Annotated[int, Path(ge=1, alias="videoTaskId")],
-    use_case: PatchTimelineUseCaseDep,
-    request: TimelinePatchRequest,
-) -> TimelinePatchResponse:
-    return await use_case.execute(
-        video_id=video_id,
-        video_task_id=video_task_id,
-        request=request,
-    )
+    return await use_case.get_detail(video_id=video_id, video_task_id=result_id)

@@ -43,6 +43,10 @@ def test_new_work_paths_are_exported() -> None:
     assert "/ops/work-items/{work_item_id}" in schema["paths"]
     assert "/ops/work-batches/{batch_id}" in schema["paths"]
     assert "/ops/workflows/{workflow_run_id}" in schema["paths"]
+    assert not any(path.startswith("/video-tasks/") for path in schema["paths"])
+    assert not any(path.startswith("/pipeline/jobs") for path in schema["paths"])
+    assert "/youtube-transcripts" not in schema["paths"]
+    assert "/ops/transcripts" in schema["paths"]
 
 
 async def _exercise_work_api(database_url: str) -> None:

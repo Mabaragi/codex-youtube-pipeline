@@ -18,12 +18,9 @@ from codex_sdk_cli.api.routes.micro_events import router as micro_events_router
 from codex_sdk_cli.api.routes.operation_events import router as operation_events_router
 from codex_sdk_cli.api.routes.operations import router as operations_router
 from codex_sdk_cli.api.routes.ops import router as ops_router
-from codex_sdk_cli.api.routes.pipeline_jobs import router as pipeline_jobs_router
 from codex_sdk_cli.api.routes.prompts import router as prompts_router
 from codex_sdk_cli.api.routes.streamers import router as streamers_router
 from codex_sdk_cli.api.routes.timelines import router as timelines_router
-from codex_sdk_cli.api.routes.video_tasks import router as video_tasks_router
-from codex_sdk_cli.api.routes.videos import router as videos_router
 from codex_sdk_cli.api.routes.work_items import router as work_items_router
 from codex_sdk_cli.api.routes.youtube_transcripts import router as youtube_transcripts_router
 from codex_sdk_cli.api.s3_mount import get_s3_mount_status
@@ -71,23 +68,20 @@ def create_app() -> FastAPI:
     app.include_router(codex_router, prefix="/codex", tags=["codex"])
     app.include_router(ops_router, prefix="/ops", tags=["ops"])
     app.include_router(codex_usage_router, prefix="/ops", tags=["ops"])
-    app.include_router(domain_knowledge_router, tags=["domain-knowledge"])
-    app.include_router(prompts_router, tags=["prompts"])
+    app.include_router(domain_knowledge_router, prefix="/ops", tags=["ops-domain-knowledge"])
+    app.include_router(prompts_router, prefix="/ops", tags=["ops-prompts"])
     app.include_router(operation_events_router, prefix="/ops", tags=["ops"])
     app.include_router(operations_router, prefix="/ops", tags=["ops-operations"])
     app.include_router(work_items_router, prefix="/ops", tags=["ops-work"])
-    app.include_router(pipeline_jobs_router, prefix="/pipeline", tags=["pipeline-jobs"])
-    app.include_router(streamers_router, tags=["streamers"])
-    app.include_router(channels_router, tags=["channels"])
-    app.include_router(videos_router, tags=["videos"])
-    app.include_router(video_tasks_router, tags=["video-tasks"])
-    app.include_router(micro_events_router, tags=["micro-events"])
-    app.include_router(timelines_router, tags=["timelines"])
-    app.include_router(archive_publish_router, tags=["archive-publish"])
+    app.include_router(streamers_router, prefix="/ops", tags=["ops-streamers"])
+    app.include_router(channels_router, prefix="/ops", tags=["ops-channels"])
+    app.include_router(micro_events_router, tags=["ops-micro-events"])
+    app.include_router(timelines_router, tags=["ops-timelines"])
+    app.include_router(archive_publish_router, tags=["ops-archive"])
     app.include_router(
         youtube_transcripts_router,
-        prefix="/youtube-transcripts",
-        tags=["youtube-transcripts"],
+        prefix="/ops/transcripts",
+        tags=["ops-transcripts"],
     )
 
     @app.get("/health", tags=["system"])

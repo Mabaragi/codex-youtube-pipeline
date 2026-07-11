@@ -7,10 +7,7 @@ from fastapi import APIRouter, Path, status
 from codex_sdk_cli.api.use_case_dependencies.channels import (
     CreateChannelUseCaseDep,
     DeleteChannelUseCaseDep,
-    GetChannelUseCaseDep,
-    ListChannelsUseCaseDep,
     ListStreamerChannelsUseCaseDep,
-    ResolveYouTubeChannelUseCaseDep,
     UpdateChannelUseCaseDep,
 )
 from codex_sdk_cli.domains.channels.schemas import (
@@ -18,8 +15,6 @@ from codex_sdk_cli.domains.channels.schemas import (
     ChannelResponse,
     ChannelUpdateRequest,
     DeleteResponse,
-    ResolveYouTubeChannelRequest,
-    ResolveYouTubeChannelResponse,
 )
 
 router = APIRouter()
@@ -44,32 +39,6 @@ async def list_streamer_channels(
     use_case: ListStreamerChannelsUseCaseDep,
 ) -> list[ChannelResponse]:
     return await use_case.execute(streamer_id)
-
-
-@router.post(
-    "/streamers/{streamer_id}/channels/resolve",
-    response_model=ResolveYouTubeChannelResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def resolve_streamer_channel(
-    streamer_id: Annotated[int, Path(ge=1)],
-    request: ResolveYouTubeChannelRequest,
-    use_case: ResolveYouTubeChannelUseCaseDep,
-) -> ResolveYouTubeChannelResponse:
-    return await use_case.execute(streamer_id, request)
-
-
-@router.get("/channels", response_model=list[ChannelResponse])
-async def list_channels(use_case: ListChannelsUseCaseDep) -> list[ChannelResponse]:
-    return await use_case.execute()
-
-
-@router.get("/channels/{channel_id}", response_model=ChannelResponse)
-async def get_channel(
-    channel_id: Annotated[int, Path(ge=1)],
-    use_case: GetChannelUseCaseDep,
-) -> ChannelResponse:
-    return await use_case.execute(channel_id)
 
 
 @router.patch("/channels/{channel_id}", response_model=ChannelResponse)
