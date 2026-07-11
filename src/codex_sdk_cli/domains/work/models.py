@@ -109,6 +109,18 @@ class WorkBatch:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkBatchItem:
+    id: int
+    batch_id: int
+    position: int
+    video_id: int | None
+    work_item_id: int | None
+    workflow_run_id: int | None
+    selection_status: str
+    reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class WorkflowRun:
     id: int
     workflow_type: str
@@ -125,6 +137,18 @@ class WorkflowRun:
     lease_expires_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    completed_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowStep:
+    id: int
+    workflow_run_id: int
+    stage_name: str
+    position: int
+    work_item_id: int | None
+    status: str
+    created_at: datetime
     completed_at: datetime | None
 
 

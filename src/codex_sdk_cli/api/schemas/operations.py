@@ -12,6 +12,12 @@ from codex_sdk_cli.application.operations.selection import (
     SelectedVideos,
     VideoSelection,
 )
+from codex_sdk_cli.application.workflows.models import WorkflowBatchResult
+from codex_sdk_cli.domains.codex.choices import (
+    CodexModelChoice,
+    ReasoningEffortChoice,
+)
+from codex_sdk_cli.domains.timelines.ports import CopyStyle
 
 
 class SelectedVideoSelectionRequest(BaseModel):
@@ -85,6 +91,81 @@ class TranscriptCueOperationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
+class MicroEventOperationRequest(BaseModel):
+    selection: VideoSelectionRequest
+    window_minutes: int = Field(default=30, alias="windowMinutes", ge=1, le=240)
+    overlap_minutes: int = Field(default=5, alias="overlapMinutes", ge=0, le=239)
+    model: CodexModelChoice = "gpt-5.5"
+    reasoning_effort: ReasoningEffortChoice = Field(
+        default="medium",
+        alias="reasoningEffort",
+    )
+    prompt_version_id: int | None = Field(default=None, alias="promptVersionId", ge=1)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    rerun_succeeded: bool = Field(default=False, alias="rerunSucceeded")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
+    timeout_seconds: int = Field(default=3600, alias="timeoutSeconds", ge=1, le=7200)
+
+    @model_validator(mode="after")
+    def validate_overlap(self) -> MicroEventOperationRequest:
+        if self.overlap_minutes >= self.window_minutes:
+            raise ValueError("overlapMinutes must be shorter than windowMinutes.")
+        return self
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class TimelineOperationRequest(BaseModel):
+    selection: VideoSelectionRequest
+    model: CodexModelChoice = "gpt-5.5"
+    reasoning_effort: ReasoningEffortChoice = Field(
+        default="high",
+        alias="reasoningEffort",
+    )
+    copy_style: Annotated[CopyStyle, Field(alias="copyStyle")] = "LIGHT_FANDOM_V1"
+    prompt_version_id: int | None = Field(default=None, alias="promptVersionId", ge=1)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    rerun_succeeded: bool = Field(default=False, alias="rerunSucceeded")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
+    timeout_seconds: int = Field(default=3600, alias="timeoutSeconds", ge=1, le=7200)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ProcessToPublishOperationRequest(BaseModel):
+    selection: VideoSelectionRequest
+    languages: tuple[str, ...] = Field(default=("ko", "en"), min_length=1, max_length=10)
+    preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
+    micro_window_minutes: int = Field(default=30, alias="microWindowMinutes", ge=1, le=240)
+    micro_overlap_minutes: int = Field(default=5, alias="microOverlapMinutes", ge=0, le=239)
+    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = "gpt-5.5"
+    micro_reasoning_effort: ReasoningEffortChoice = Field(
+        default="medium",
+        alias="microReasoningEffort",
+    )
+    timeline_model: Annotated[CodexModelChoice, Field(alias="timelineModel")] = "gpt-5.5"
+    timeline_reasoning_effort: ReasoningEffortChoice = Field(
+        default="high",
+        alias="timelineReasoningEffort",
+    )
+    publish_mode: Literal["prod", "dev"] = Field(default="prod", alias="publishMode")
+    environment: str = Field(default="prod", min_length=1, max_length=64)
+    variant: str = Field(default="control", min_length=1, max_length=64)
+    schema_version: int = Field(default=1, alias="schemaVersion", ge=1, le=100)
+    retry_failed: bool = Field(default=False, alias="retryFailed")
+    include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
+
+    @model_validator(mode="after")
+    def validate_window_and_mode(self) -> ProcessToPublishOperationRequest:
+        if self.micro_overlap_minutes >= self.micro_window_minutes:
+            raise ValueError("microOverlapMinutes must be shorter than microWindowMinutes.")
+        if self.publish_mode == "dev" and self.environment == "prod":
+            raise ValueError("publishMode=dev cannot publish to environment=prod.")
+        return self
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class OperationItemResponse(BaseModel):
     video_id: int = Field(alias="videoId")
     youtube_video_id: str | None = Field(alias="youtubeVideoId")
@@ -108,6 +189,27 @@ class OperationBatchResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class WorkflowSelectionItemResponse(BaseModel):
+    video_id: int = Field(alias="videoId")
+    youtube_video_id: str | None = Field(alias="youtubeVideoId")
+    status: str
+    reason: str
+    workflow_run_id: int | None = Field(alias="workflowRunId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkflowBatchResponse(BaseModel):
+    batch_id: int = Field(alias="batchId")
+    requested_count: int = Field(alias="requestedCount")
+    created_count: int = Field(alias="createdCount")
+    reused_count: int = Field(alias="reusedCount")
+    skipped_count: int = Field(alias="skippedCount")
+    items: tuple[WorkflowSelectionItemResponse, ...]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 def to_selection(request: VideoSelectionRequest) -> VideoSelection:
     if isinstance(request, SelectedVideoSelectionRequest):
         return SelectedVideos(request.video_ids)
@@ -120,3 +222,7 @@ def to_selection(request: VideoSelectionRequest) -> VideoSelection:
 
 def operation_response(result: OperationBatchResult) -> OperationBatchResponse:
     return OperationBatchResponse.model_validate(result, from_attributes=True)
+
+
+def workflow_batch_response(result: WorkflowBatchResult) -> WorkflowBatchResponse:
+    return WorkflowBatchResponse.model_validate(result, from_attributes=True)

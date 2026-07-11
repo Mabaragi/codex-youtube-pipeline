@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing_extensions import override
@@ -11,7 +12,7 @@ from codex_sdk_cli.application.work.ports import (
     CreateWorkBatch,
     WorkBatchRepositoryPort,
 )
-from codex_sdk_cli.domains.work.models import WorkBatch, WorkBatchStatus
+from codex_sdk_cli.domains.work.models import WorkBatch, WorkBatchItem, WorkBatchStatus
 
 from .models import WorkBatchItemModel, WorkBatchModel
 
@@ -45,6 +46,22 @@ class SqlAlchemyWorkBatchRepository(WorkBatchRepositoryPort):
         except SQLAlchemyError as exc:
             raise WorkPersistenceError() from exc
         return _batch(model) if model is not None else None
+
+    @override
+    async def list_items(self, batch_id: int) -> list[WorkBatchItem]:
+        try:
+            models = list(
+                (
+                    await self._session.scalars(
+                        select(WorkBatchItemModel)
+                        .where(WorkBatchItemModel.batch_id == batch_id)
+                        .order_by(WorkBatchItemModel.position.asc())
+                    )
+                ).all()
+            )
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return [_batch_item(model) for model in models]
 
     @override
     async def complete(
@@ -106,4 +123,17 @@ def _batch(model: WorkBatchModel) -> WorkBatch:
         requested_count=model.requested_count,
         created_at=model.created_at,
         completed_at=model.completed_at,
+    )
+
+
+def _batch_item(model: WorkBatchItemModel) -> WorkBatchItem:
+    return WorkBatchItem(
+        id=model.id,
+        batch_id=model.batch_id,
+        position=model.position,
+        video_id=model.video_id,
+        work_item_id=model.work_item_id,
+        workflow_run_id=model.workflow_run_id,
+        selection_status=model.selection_status,
+        reason=model.reason,
     )

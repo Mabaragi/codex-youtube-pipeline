@@ -32,8 +32,13 @@ def test_new_work_paths_are_exported() -> None:
 
     assert "/ops/operations/transcript-collect" in schema["paths"]
     assert "/ops/operations/transcript-cue-generate" in schema["paths"]
+    assert "/ops/operations/micro-event-extract" in schema["paths"]
+    assert "/ops/operations/timeline-compose" in schema["paths"]
+    assert "/ops/workflows/process-to-publish" in schema["paths"]
     assert "/ops/work-items" in schema["paths"]
     assert "/ops/work-items/{work_item_id}" in schema["paths"]
+    assert "/ops/work-batches/{batch_id}" in schema["paths"]
+    assert "/ops/workflows/{workflow_run_id}" in schema["paths"]
 
 
 async def _exercise_work_api(database_url: str) -> None:
@@ -80,6 +85,24 @@ async def _exercise_work_api(database_url: str) -> None:
         )
         assert canceled.status_code == 200
         assert canceled.json()["status"] == "canceled"
+
+        workflow_created = await client.post(
+            "/ops/workflows/process-to-publish",
+            json={"selection": {"type": "selected", "videoIds": [1]}},
+        )
+        assert workflow_created.status_code == 202
+        workflow_body = workflow_created.json()
+        workflow_id = workflow_body["items"][0]["workflowRunId"]
+        batch_id = workflow_body["batchId"]
+
+        workflow_detail = await client.get(f"/ops/workflows/{workflow_id}")
+        assert workflow_detail.status_code == 200
+        assert workflow_detail.json()["status"] == "pending"
+        assert workflow_detail.json()["steps"] == []
+
+        batch_detail = await client.get(f"/ops/work-batches/{batch_id}")
+        assert batch_detail.status_code == 200
+        assert batch_detail.json()["items"][0]["workflowRunId"] == workflow_id
 
         missing = await client.get("/ops/work-items/999999")
         assert missing.status_code == 404

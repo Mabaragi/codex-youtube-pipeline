@@ -9,8 +9,10 @@ from codex_sdk_cli.domains.work.models import (
     JsonObject,
     WorkAttempt,
     WorkBatch,
+    WorkBatchItem,
     WorkExecutionMode,
     WorkflowRun,
+    WorkflowStep,
     WorkItem,
     WorkItemStatus,
 )
@@ -190,6 +192,8 @@ class WorkBatchRepositoryPort(Protocol):
 
     async def get(self, batch_id: int) -> WorkBatch | None: ...
 
+    async def list_items(self, batch_id: int) -> list[WorkBatchItem]: ...
+
     async def complete(
         self,
         *,
@@ -216,6 +220,27 @@ class WorkflowRepositoryPort(Protocol):
 
     async def get(self, workflow_run_id: int) -> WorkflowRun | None: ...
 
+    async def list_steps(self, workflow_run_id: int) -> list[WorkflowStep]: ...
+
+    async def claim_next(
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> WorkflowRun | None: ...
+
+    async def heartbeat(
+        self,
+        *,
+        workflow_run_id: int,
+        worker_id: str,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> bool: ...
+
+    async def recover_expired_leases(self, *, now: datetime) -> int: ...
+
     async def add_step(
         self,
         *,
@@ -224,7 +249,34 @@ class WorkflowRepositoryPort(Protocol):
         position: int,
         work_item_id: int | None,
         status: str,
+        completed_at: datetime | None = None,
     ) -> None: ...
+
+    async def set_waiting(
+        self,
+        *,
+        workflow_run_id: int,
+        current_stage: str,
+        now: datetime,
+    ) -> WorkflowRun: ...
+
+    async def mark_succeeded(
+        self,
+        *,
+        workflow_run_id: int,
+        output_json: JsonObject,
+        now: datetime,
+    ) -> WorkflowRun: ...
+
+    async def mark_failed(
+        self,
+        *,
+        workflow_run_id: int,
+        error_code: str,
+        error_message: str,
+        blocked: bool,
+        now: datetime,
+    ) -> WorkflowRun: ...
 
 
 class WorkUnitOfWorkPort(UnitOfWorkPort, Protocol):

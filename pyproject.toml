@@ -29,6 +29,7 @@ codex-pipeline-scheduler = "codex_sdk_cli.workers.pipeline_scheduler:run"
 codex-timeline-compose-worker = "codex_sdk_cli.workers.timelines:run"
 codex-transcript-worker = "codex_sdk_cli.workers.transcripts:run_transcript"
 codex-transcript-cue-worker = "codex_sdk_cli.workers.transcripts:run_transcript_cue"
+codex-workflow-coordinator = "codex_sdk_cli.workers.workflow_coordinator:run"
 
 [dependency-groups]
 dev = [

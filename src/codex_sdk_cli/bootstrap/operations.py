@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from codex_sdk_cli.application.processing.commands import (
+    ComposeTimelinesUseCase,
+    ExtractMicroEventsUseCase,
+)
 from codex_sdk_cli.application.transcripts.commands import (
     CollectTranscriptsUseCase,
     GenerateTranscriptCuesUseCase,
@@ -12,6 +16,8 @@ from codex_sdk_cli.application.work.commands import (
 )
 from codex_sdk_cli.application.work.execution import WorkUnitOfWorkFactory
 from codex_sdk_cli.application.work.queries import (
+    GetWorkBatchUseCase,
+    GetWorkflowRunUseCase,
     GetWorkItemUseCase,
     ListWorkItemsUseCase,
 )
@@ -48,6 +54,24 @@ def generate_transcript_cues_use_case(
     )
 
 
+def extract_micro_events_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> ExtractMicroEventsUseCase:
+    return ExtractMicroEventsUseCase(
+        videos=SqlAlchemyVideoSelection(session_factory),
+        unit_of_work_factory=work_unit_of_work_factory(session_factory),
+    )
+
+
+def compose_timelines_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> ComposeTimelinesUseCase:
+    return ComposeTimelinesUseCase(
+        videos=SqlAlchemyVideoSelection(session_factory),
+        unit_of_work_factory=work_unit_of_work_factory(session_factory),
+    )
+
+
 def list_work_items_use_case(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> ListWorkItemsUseCase:
@@ -70,3 +94,15 @@ def cancel_work_item_use_case(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> CancelWorkItemUseCase:
     return CancelWorkItemUseCase(work_unit_of_work_factory(session_factory))
+
+
+def get_work_batch_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> GetWorkBatchUseCase:
+    return GetWorkBatchUseCase(work_unit_of_work_factory(session_factory))
+
+
+def get_workflow_run_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> GetWorkflowRunUseCase:
+    return GetWorkflowRunUseCase(work_unit_of_work_factory(session_factory))

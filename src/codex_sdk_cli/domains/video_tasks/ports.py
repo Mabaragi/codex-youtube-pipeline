@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -133,6 +133,14 @@ class VideoTaskRepositoryPort(Protocol):
         worker_id: str,
     ) -> VideoTaskRecord | None:
         """Atomically claim one pending task and mark it running."""
+
+    async def claim_pending_task(
+        self,
+        task_id: int,
+        *,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        """Atomically claim one known pending task and mark it running."""
 
     async def claim_next_pending_task_excluding_running_video(
         self,

@@ -7,15 +7,21 @@ from fastapi import APIRouter, Path, Query
 from codex_sdk_cli.api.schemas.work import (
     CancelWorkItemRequest,
     RetryWorkItemRequest,
+    WorkBatchDetailResponse,
+    WorkflowRunDetailResponse,
     WorkItemDetailResponse,
     WorkItemListResponse,
     WorkItemResponse,
+    work_batch_detail_response,
     work_item_detail_response,
     work_item_list_response,
     work_item_response,
+    workflow_run_detail_response,
 )
 from codex_sdk_cli.api.use_case_dependencies.work import (
     CancelWorkItemUseCaseDep,
+    GetWorkBatchUseCaseDep,
+    GetWorkflowRunUseCaseDep,
     GetWorkItemUseCaseDep,
     ListWorkItemsUseCaseDep,
     RetryWorkItemUseCaseDep,
@@ -24,6 +30,22 @@ from codex_sdk_cli.application.work.ports import WorkItemQuery
 from codex_sdk_cli.domains.work.models import WorkItemStatus
 
 router = APIRouter()
+
+
+@router.get("/work-batches/{batch_id}", response_model=WorkBatchDetailResponse)
+async def get_work_batch(
+    batch_id: Annotated[int, Path(ge=1)],
+    use_case: GetWorkBatchUseCaseDep,
+) -> WorkBatchDetailResponse:
+    return work_batch_detail_response(await use_case.execute(batch_id))
+
+
+@router.get("/workflows/{workflow_run_id}", response_model=WorkflowRunDetailResponse)
+async def get_workflow_run(
+    workflow_run_id: Annotated[int, Path(ge=1)],
+    use_case: GetWorkflowRunUseCaseDep,
+) -> WorkflowRunDetailResponse:
+    return workflow_run_detail_response(await use_case.execute(workflow_run_id))
 
 
 @router.get("/work-items", response_model=WorkItemListResponse)

@@ -387,6 +387,41 @@ class SqlAlchemyVideoTaskRepository(VideoTaskRepositoryPort):
             raise VideoTaskPersistenceError("Video task persistence failed.") from exc
 
     @override
+    async def claim_pending_task(
+        self,
+        task_id: int,
+        *,
+        worker_id: str,
+    ) -> VideoTaskRecord | None:
+        try:
+            now = datetime.now(UTC)
+            claimed_id = await self._session.scalar(
+                update(VideoTaskModel)
+                .where(
+                    VideoTaskModel.id == task_id,
+                    VideoTaskModel.status == "pending",
+                )
+                .values(
+                    status="running",
+                    worker_id=worker_id,
+                    error_type=None,
+                    error_message=None,
+                    started_at=now,
+                    completed_at=None,
+                )
+                .returning(VideoTaskModel.id)
+            )
+            if claimed_id is None:
+                await self._session.rollback()
+                return None
+            await self._session.commit()
+            model = await self._get_task_model_or_raise(claimed_id)
+            return _task_record(model)
+        except SQLAlchemyError as exc:
+            await self._session.rollback()
+            raise VideoTaskPersistenceError("Video task persistence failed.") from exc
+
+    @override
     async def claim_next_pending_task_excluding_running_video(
         self,
         *,

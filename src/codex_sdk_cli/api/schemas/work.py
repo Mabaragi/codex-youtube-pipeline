@@ -4,7 +4,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from codex_sdk_cli.application.work.queries import WorkItemDetail, WorkItemListResult
+from codex_sdk_cli.application.work.queries import (
+    WorkBatchDetail,
+    WorkflowRunDetail,
+    WorkItemDetail,
+    WorkItemListResult,
+)
 from codex_sdk_cli.domains.work.models import JsonObject, WorkAttempt, WorkItem
 
 
@@ -77,6 +82,65 @@ class CancelWorkItemRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class WorkBatchItemResponse(BaseModel):
+    id: int
+    position: int
+    video_id: int | None = Field(alias="videoId")
+    work_item_id: int | None = Field(alias="workItemId")
+    workflow_run_id: int | None = Field(alias="workflowRunId")
+    status: str
+    reason: str | None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkBatchDetailResponse(BaseModel):
+    id: int
+    operation_type: str = Field(alias="operationType")
+    status: str
+    actor_type: str = Field(alias="actorType")
+    selection: JsonObject
+    options: JsonObject
+    requested_count: int = Field(alias="requestedCount")
+    created_at: datetime = Field(alias="createdAt")
+    completed_at: datetime | None = Field(alias="completedAt")
+    items: tuple[WorkBatchItemResponse, ...]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkflowStepResponse(BaseModel):
+    id: int
+    stage_name: str = Field(alias="stageName")
+    position: int
+    work_item_id: int | None = Field(alias="workItemId")
+    status: str
+    created_at: datetime = Field(alias="createdAt")
+    completed_at: datetime | None = Field(alias="completedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkflowRunDetailResponse(BaseModel):
+    id: int
+    workflow_type: str = Field(alias="workflowType")
+    workflow_version: str = Field(alias="workflowVersion")
+    video_id: int = Field(alias="videoId")
+    input_hash: str = Field(alias="inputHash")
+    status: str
+    current_stage: str | None = Field(alias="currentStage")
+    options: JsonObject
+    output: JsonObject | None
+    error_code: str | None = Field(alias="errorCode")
+    error_message: str | None = Field(alias="errorMessage")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    completed_at: datetime | None = Field(alias="completedAt")
+    steps: tuple[WorkflowStepResponse, ...]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 def work_item_response(item: WorkItem) -> WorkItemResponse:
     return WorkItemResponse(
         id=item.id,
@@ -119,6 +183,65 @@ def work_item_detail_response(result: WorkItemDetail) -> WorkItemDetailResponse:
     return WorkItemDetailResponse(
         **item.model_dump(),
         attempts=tuple(_attempt_response(attempt) for attempt in result.attempts),
+    )
+
+
+def work_batch_detail_response(result: WorkBatchDetail) -> WorkBatchDetailResponse:
+    batch = result.batch
+    return WorkBatchDetailResponse(
+        id=batch.id,
+        operationType=batch.operation_type,
+        status=batch.status.value,
+        actorType=batch.actor_type,
+        selection=batch.selection_json,
+        options=batch.options_json,
+        requestedCount=batch.requested_count,
+        createdAt=batch.created_at,
+        completedAt=batch.completed_at,
+        items=tuple(
+            WorkBatchItemResponse(
+                id=item.id,
+                position=item.position,
+                videoId=item.video_id,
+                workItemId=item.work_item_id,
+                workflowRunId=item.workflow_run_id,
+                status=item.selection_status,
+                reason=item.reason,
+            )
+            for item in result.items
+        ),
+    )
+
+
+def workflow_run_detail_response(result: WorkflowRunDetail) -> WorkflowRunDetailResponse:
+    workflow = result.workflow
+    return WorkflowRunDetailResponse(
+        id=workflow.id,
+        workflowType=workflow.workflow_type,
+        workflowVersion=workflow.workflow_version,
+        videoId=workflow.video_id,
+        inputHash=workflow.input_hash,
+        status=workflow.status.value,
+        currentStage=workflow.current_stage,
+        options=workflow.options_json,
+        output=workflow.output_json,
+        errorCode=workflow.error_code,
+        errorMessage=workflow.error_message,
+        createdAt=workflow.created_at,
+        updatedAt=workflow.updated_at,
+        completedAt=workflow.completed_at,
+        steps=tuple(
+            WorkflowStepResponse(
+                id=step.id,
+                stageName=step.stage_name,
+                position=step.position,
+                workItemId=step.work_item_id,
+                status=step.status,
+                createdAt=step.created_at,
+                completedAt=step.completed_at,
+            )
+            for step in result.steps
+        ),
     )
 
 

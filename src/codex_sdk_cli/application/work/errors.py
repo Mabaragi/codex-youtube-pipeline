@@ -27,6 +27,26 @@ class WorkItemTransitionNotAllowed(ApplicationError):
         )
 
 
+class WorkBatchNotFound(ApplicationError):
+    def __init__(self, batch_id: int) -> None:
+        super().__init__(
+            code="work_batch.not_found",
+            message="Work batch was not found.",
+            kind=ErrorKind.NOT_FOUND,
+            details={"batchId": batch_id},
+        )
+
+
+class WorkflowRunNotFound(ApplicationError):
+    def __init__(self, workflow_run_id: int) -> None:
+        super().__init__(
+            code="workflow_run.not_found",
+            message="Workflow run was not found.",
+            kind=ErrorKind.NOT_FOUND,
+            details={"workflowRunId": workflow_run_id},
+        )
+
+
 class WorkPersistenceError(ApplicationError):
     def __init__(self, message: str = "Work persistence failed.") -> None:
         super().__init__(
