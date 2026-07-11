@@ -12,7 +12,6 @@ from pydantic import ValidationError
 from sqlalchemy import inspect
 
 from alembic import command
-from codex_sdk_cli.api.main import app
 from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
     archive_publish_storage_factory,
 )
@@ -47,6 +46,7 @@ from codex_sdk_cli.domains.videos.ports import VideoRecord
 from codex_sdk_cli.infra.archive_publish.storage import R2ArchivePublishStorage
 from codex_sdk_cli.infra.database.session import create_database_engine
 from codex_sdk_cli.settings import CliSettings
+from tests.support.legacy_api import app
 
 NOW = datetime(2026, 6, 27, tzinfo=UTC)
 

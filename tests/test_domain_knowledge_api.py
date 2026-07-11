@@ -7,7 +7,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import _get_database_engine, get_settings
-from codex_sdk_cli.api.main import create_app
+from tests.support.legacy_api import create_legacy_app as create_app
 
 
 def test_domain_knowledge_api_creates_entry_with_new_type(

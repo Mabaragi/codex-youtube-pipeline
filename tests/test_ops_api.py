@@ -11,7 +11,6 @@ from codex_sdk_cli.api.dependencies import (
     get_operation_event_repository,
     get_ops_repository,
 )
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.codex_usage.ports import (
     CodexUsageCreate,
     CodexUsageJobSummaryRecord,
@@ -60,6 +59,7 @@ from codex_sdk_cli.domains.ops.ports import (
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
 )
+from tests.support.legacy_api import create_legacy_app as create_app
 
 
 class FakeOperationEventRepository(OperationEventRepositoryPort):

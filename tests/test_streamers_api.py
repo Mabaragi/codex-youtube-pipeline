@@ -7,7 +7,6 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import get_channel_repository, get_streamer_repository
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.channels.exceptions import (
     ChannelAlreadyExists,
     ChannelPersistenceError,
@@ -23,6 +22,7 @@ from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerPersistenceError,
 )
 from codex_sdk_cli.domains.streamers.ports import StreamerRecord, StreamerRepositoryPort
+from tests.support.legacy_api import create_legacy_app as create_app
 
 
 class FakeStreamerRepository(StreamerRepositoryPort):

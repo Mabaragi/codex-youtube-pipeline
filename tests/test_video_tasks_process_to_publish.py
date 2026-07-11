@@ -7,7 +7,6 @@ from typing import cast
 
 from httpx import ASGITransport, AsyncClient
 
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.api.use_case_dependencies.process_publish import (
     get_process_to_publish_use_case,
 )
@@ -34,6 +33,7 @@ from codex_sdk_cli.domains.timelines.schemas import (
     TimelineComposeEnqueueResponse,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRecord, VideoTaskStatus
+from tests.support.legacy_api import create_legacy_app as create_app
 
 
 @dataclass(slots=True)

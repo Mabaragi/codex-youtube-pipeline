@@ -24,7 +24,6 @@ from codex_sdk_cli.api.dependencies import (
     get_video_task_repository,
     get_youtube_transcript_repository,
 )
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.api.use_case_dependencies.prompts import get_prompt_resolver
 from codex_sdk_cli.domains.channels.ports import (
     ChannelCreate,
@@ -112,6 +111,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 from codex_sdk_cli.infra.llm_traces.writer import FileLlmTraceRecorder
 from codex_sdk_cli.settings import CliSettings
+from tests.support.legacy_api import create_legacy_app as create_app
 
 NOW = datetime(2026, 6, 23, 1, 2, tzinfo=UTC)
 YOUTUBE_VIDEO_ID = "abc123DEF45"

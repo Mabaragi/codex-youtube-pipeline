@@ -21,7 +21,6 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_repository,
     get_youtube_transcript_storage,
 )
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.channels.ports import (
     ChannelCreate,
     ChannelRecord,
@@ -79,6 +78,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
 )
 from codex_sdk_cli.domains.youtube_transcripts.use_cases import FetchYouTubeTranscriptUseCase
 from codex_sdk_cli.settings import CliSettings
+from tests.support.legacy_api import create_legacy_app as create_app
 
 YOUTUBE_VIDEO_ID = "abc123DEF45"
 NOW = datetime(2026, 6, 16, 1, 2, tzinfo=UTC)

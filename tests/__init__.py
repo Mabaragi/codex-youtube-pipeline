@@ -1,1 +1,1 @@
-"""Tests for codex-sdk-cli-demo."""
+"""Project test package."""

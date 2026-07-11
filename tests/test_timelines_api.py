@@ -3,11 +3,11 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.timelines.schemas import (
     TimelineComposeEnqueueRequest,
     TimelinePatchRequest,
 )
+from tests.support.legacy_api import create_legacy_app as create_app
 
 
 def test_timeline_compose_openapi_paths_and_aliases() -> None:

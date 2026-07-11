@@ -14,7 +14,6 @@ from codex_sdk_cli.api.dependencies import (
     get_streamer_repository,
     get_youtube_data_client,
 )
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.channels.exceptions import ChannelAlreadyExists
 from codex_sdk_cli.domains.channels.ports import (
     ChannelCreate,
@@ -50,6 +49,7 @@ from codex_sdk_cli.domains.youtube_data.ports import (
     YouTubeVideoListingPage,
 )
 from codex_sdk_cli.settings import CliSettings
+from tests.support.legacy_api import create_legacy_app as create_app
 
 
 class FakeYouTubeDataClient(YouTubeDataClientPort):

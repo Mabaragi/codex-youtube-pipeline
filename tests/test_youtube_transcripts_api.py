@@ -13,7 +13,6 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_repository,
     get_youtube_transcript_storage,
 )
-from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.domains.transcript_cues.ports import (
     TranscriptCueCreate,
     TranscriptCueRecord,
@@ -42,6 +41,7 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptStorageReadRequest,
     YouTubeTranscriptStorageSaveRequest,
 )
+from tests.support.legacy_api import create_legacy_app as create_app
 
 VIDEO_ID = "dQw4w9WgXcQ"
 CREATED_AT = datetime(2026, 6, 15, 7, 0, tzinfo=UTC)
