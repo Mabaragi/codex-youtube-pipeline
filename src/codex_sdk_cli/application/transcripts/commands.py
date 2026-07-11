@@ -56,10 +56,12 @@ class CollectTranscriptsUseCase:
         self,
         *,
         videos: VideoSelectionPort,
+        transcripts: TranscriptMetadataReaderPort,
         unit_of_work_factory: WorkUnitOfWorkFactory,
         now: Now | None = None,
     ) -> None:
         self._videos = videos
+        self._transcripts = transcripts
         self._unit_of_work_factory = unit_of_work_factory
         self._now = now or (lambda: datetime.now(UTC))
 
@@ -123,6 +125,28 @@ class CollectTranscriptsUseCase:
     ) -> tuple[OperationItem, bool, bool]:
         if video.is_embeddable is False and not command.include_non_embeddable:
             return _skipped(video, "not_embeddable"), False, False
+        existing_success = await unit_of_work.work_items.find_latest(
+            task_type=TRANSCRIPT_COLLECT_TASK,
+            subject_type="video",
+            subject_id=video.id,
+            status=WorkItemStatus.SUCCEEDED,
+        )
+        if (
+            existing_success is not None
+            and existing_success.outcome_code is None
+            and existing_success.output_transcript_id is not None
+            and not command.rerun_succeeded
+        ):
+            stored = await self._transcripts.find_for_request(
+                youtube_video_id=video.youtube_video_id,
+                requested_languages=command.languages,
+                preserve_formatting=command.preserve_formatting,
+            )
+            if (
+                stored is not None
+                and stored.transcript_id == existing_success.output_transcript_id
+            ):
+                return _existing_item(video, existing_success), False, True
         input_json: JsonObject = {
             "videoId": video.id,
             "youtubeVideoId": video.youtube_video_id,

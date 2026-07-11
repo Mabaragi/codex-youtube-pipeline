@@ -27,6 +27,7 @@ from codex_sdk_cli.application.work.execution import (
 )
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.work.scheduler import SqlAlchemyScheduledChannelReader
+from codex_sdk_cli.infra.work.transcript_execution import YouTubeTranscriptMetadataReader
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
 
@@ -227,6 +228,7 @@ def _scheduler(
         channels=SqlAlchemyScheduledChannelReader(session_factory),
         collect_transcripts=CollectTranscriptsUseCase(
             videos=SqlAlchemyVideoSelection(session_factory),
+            transcripts=YouTubeTranscriptMetadataReader(session_factory),
             unit_of_work_factory=unit_of_work_factory,
             now=lambda: now,
         ),

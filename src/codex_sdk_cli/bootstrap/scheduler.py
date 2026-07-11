@@ -18,6 +18,7 @@ from codex_sdk_cli.infra.work.scheduler import (
     SqlAlchemyScheduledChannelReader,
     SqlAlchemySchedulerEventRecorder,
 )
+from codex_sdk_cli.infra.work.transcript_execution import YouTubeTranscriptMetadataReader
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
 from codex_sdk_cli.settings import CliSettings
@@ -52,6 +53,7 @@ class PipelineSchedulerRuntime:
             channels=SqlAlchemyScheduledChannelReader(self.session_factory),
             collect_transcripts=CollectTranscriptsUseCase(
                 videos=SqlAlchemyVideoSelection(self.session_factory),
+                transcripts=YouTubeTranscriptMetadataReader(self.session_factory),
                 unit_of_work_factory=unit_of_work_factory,
             ),
             unit_of_work_factory=unit_of_work_factory,

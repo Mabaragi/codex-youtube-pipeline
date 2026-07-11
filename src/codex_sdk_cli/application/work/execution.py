@@ -22,6 +22,7 @@ class WorkExecutionResult:
     output_json: JsonObject
     output_transcript_id: int | None = None
     outcome_code: str | None = None
+    cooldown_seconds_override: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +32,7 @@ class WorkRunResult:
     succeeded: bool | None = None
     outcome_code: str | None = None
     output_json: JsonObject | None = None
+    cooldown_seconds_override: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +170,7 @@ class WorkExecutionEngine:
                 succeeded=True,
                 outcome_code=result.outcome_code,
                 output_json=result.output_json,
+                cooldown_seconds_override=result.cooldown_seconds_override,
             )
 
     async def recover_expired(self) -> int:

@@ -61,6 +61,18 @@ class FakeTranscriptMetadataReader(TranscriptMetadataReaderPort):
             return None
         return _stored_transcript()
 
+    async def find_for_request(
+        self,
+        *,
+        youtube_video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> StoredTranscript | None:
+        assert youtube_video_id == "abcdefghijk"
+        assert requested_languages == ("ko", "en")
+        assert preserve_formatting is False
+        return _stored_transcript()
+
 
 class FakeCueGenerator(TranscriptCueGeneratorPort):
     def __init__(self) -> None:
@@ -117,6 +129,13 @@ def test_transcript_cooldown_skips_no_transcript_outcome() -> None:
         WorkRunResult(processed=True, succeeded=True, outcome_code="no_transcript")
     ) == 0.0
     assert policy.delay_for(WorkRunResult(processed=True, succeeded=True)) == 300.0
+    assert policy.delay_for(
+        WorkRunResult(
+            processed=True,
+            succeeded=True,
+            cooldown_seconds_override=0,
+        )
+    ) == 0.0
     assert policy.delay_for(WorkRunResult(processed=True, succeeded=False)) == 300.0
 
 
@@ -132,6 +151,7 @@ async def _exercise_transcript_and_cue_work(database_url: str) -> None:
         selection = SqlAlchemyVideoSelection(session_factory)
         collect = CollectTranscriptsUseCase(
             videos=selection,
+            transcripts=FakeTranscriptMetadataReader(),
             unit_of_work_factory=unit_of_work_factory,
         )
         command = CollectTranscriptsCommand(selection=SelectedVideos((1,)))
@@ -181,6 +201,12 @@ async def _exercise_transcript_and_cue_work(database_url: str) -> None:
             worker_id="transcript-worker:test",
         )
         assert await success_engine.run_once() is True
+
+        existing_success = await collect.execute(command)
+        assert existing_success.created_count == 0
+        assert existing_success.reused_count == 1
+        assert existing_success.items[0].reason == "already_succeeded"
+        assert existing_success.items[0].work_item_id == transcript_work_item_id
 
         cues = GenerateTranscriptCuesUseCase(
             videos=selection,

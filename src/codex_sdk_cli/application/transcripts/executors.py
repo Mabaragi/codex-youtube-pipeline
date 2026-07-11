@@ -40,8 +40,10 @@ class TranscriptCollectExecutor(WorkExecutorPort):
                 "transcriptId": stored.transcript_id,
                 "languageCode": stored.language_code,
                 "responseSha256": stored.response_sha256,
+                "reusedExisting": stored.reused_existing,
             },
             output_transcript_id=stored.transcript_id,
+            cooldown_seconds_override=0 if stored.reused_existing else None,
         )
 
 

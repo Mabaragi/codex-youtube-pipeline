@@ -17,6 +17,8 @@ class WorkCooldownPolicy:
     exempt_outcome_codes: frozenset[str] = frozenset()
 
     def delay_for(self, result: WorkRunResult) -> float:
+        if result.cooldown_seconds_override is not None:
+            return float(result.cooldown_seconds_override)
         if not result.processed or result.outcome_code in self.exempt_outcome_codes:
             return 0.0
         return float(self.delay_seconds)

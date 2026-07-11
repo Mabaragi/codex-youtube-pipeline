@@ -11,6 +11,7 @@ class StoredTranscript:
     youtube_video_id: str
     language_code: str
     response_sha256: str
+    reused_existing: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +34,14 @@ class TranscriptFetcherPort(Protocol):
 
 class TranscriptMetadataReaderPort(Protocol):
     async def get(self, transcript_id: int) -> StoredTranscript | None: ...
+
+    async def find_for_request(
+        self,
+        *,
+        youtube_video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> StoredTranscript | None: ...
 
 
 class TranscriptCueGeneratorPort(Protocol):

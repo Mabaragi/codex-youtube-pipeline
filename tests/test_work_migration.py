@@ -109,6 +109,10 @@ def test_work_expand_migration_preserves_legacy_execution_history(
         ).fetchone()
         assert tuple(artifact) == (5, 5, 5, 101)
         _assert_work_provenance_foreign_keys(connection)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM work_items "
+            "WHERE input_json IS NULL OR json_type(input_json) = 'null'"
+        ).fetchone()[0] == 0
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         connection.close()

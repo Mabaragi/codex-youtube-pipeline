@@ -53,6 +53,7 @@ def collect_transcripts_use_case(
 ) -> CollectTranscriptsUseCase:
     return CollectTranscriptsUseCase(
         videos=SqlAlchemyVideoSelection(session_factory),
+        transcripts=YouTubeTranscriptMetadataReader(session_factory),
         unit_of_work_factory=work_unit_of_work_factory(session_factory),
     )
 

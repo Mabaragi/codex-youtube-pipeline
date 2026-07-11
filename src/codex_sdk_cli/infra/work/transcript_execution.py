@@ -63,7 +63,7 @@ class StoredYouTubeTranscriptFetcher(TranscriptFetcherPort):
                 preserve_formatting=preserve_formatting,
             )
             if existing is not None:
-                return _stored(existing)
+                return _stored(existing, reused_existing=True)
             fetcher = FetchYouTubeTranscriptUseCase(
                 self._client,
                 self._storage,
@@ -95,6 +95,24 @@ class YouTubeTranscriptMetadataReader(TranscriptMetadataReaderPort):
         async with self._session_factory() as session:
             metadata = await SqlAlchemyYouTubeTranscriptRepository(session).get_transcript_metadata(
                 transcript_id
+            )
+        return _stored(metadata) if metadata is not None else None
+
+    @override
+    async def find_for_request(
+        self,
+        *,
+        youtube_video_id: str,
+        requested_languages: tuple[str, ...],
+        preserve_formatting: bool,
+    ) -> StoredTranscript | None:
+        async with self._session_factory() as session:
+            metadata = await SqlAlchemyYouTubeTranscriptRepository(
+                session
+            ).find_transcript_metadata_for_request(
+                video_id=youtube_video_id,
+                requested_languages=requested_languages,
+                preserve_formatting=preserve_formatting,
             )
         return _stored(metadata) if metadata is not None else None
 
@@ -156,10 +174,15 @@ class StoredTranscriptCueGenerator(TranscriptCueGeneratorPort):
         )
 
 
-def _stored(metadata: YouTubeTranscriptMetadataRecord) -> StoredTranscript:
+def _stored(
+    metadata: YouTubeTranscriptMetadataRecord,
+    *,
+    reused_existing: bool = False,
+) -> StoredTranscript:
     return StoredTranscript(
         transcript_id=metadata.id,
         youtube_video_id=metadata.video_id,
         language_code=metadata.language_code,
         response_sha256=metadata.response_sha256,
+        reused_existing=reused_existing,
     )

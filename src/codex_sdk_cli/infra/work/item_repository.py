@@ -681,8 +681,8 @@ def _item(model: WorkItemModel) -> WorkItem:
         outcome_code=model.outcome_code,
         priority=model.priority,
         timeout_seconds=model.timeout_seconds,
-        input_json=model.input_json,
-        output_json=model.output_json,
+        input_json=_json_object(model.input_json),
+        output_json=_optional_json_object(model.output_json),
         output_transcript_id=model.output_transcript_id,
         error_code=model.error_code,
         error_type=model.error_type,
@@ -696,6 +696,14 @@ def _item(model: WorkItemModel) -> WorkItem:
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
+
+
+def _json_object(value: object) -> JsonObject:
+    return value if isinstance(value, dict) else {}
+
+
+def _optional_json_object(value: object) -> JsonObject | None:
+    return value if isinstance(value, dict) else None
 
 
 def _attempt(model: WorkAttemptModel) -> WorkAttempt:
