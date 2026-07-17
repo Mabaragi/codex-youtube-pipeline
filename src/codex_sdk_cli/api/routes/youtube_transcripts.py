@@ -4,6 +4,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 
+from codex_sdk_cli.api.operator_context import OperatorReason
+from codex_sdk_cli.api.use_case_dependencies.operation_events import (
+    RecordOperatorMutationUseCaseDep,
+)
 from codex_sdk_cli.api.use_case_dependencies.transcript_cues import (
     GetTranscriptPromptCuesUseCaseDep,
     ListTranscriptCuesUseCaseDep,
@@ -93,6 +97,16 @@ async def update_youtube_transcript_metadata(
 )
 async def delete_youtube_transcript_metadata(
     transcript_id: Annotated[int, Path(ge=1)],
+    reason: OperatorReason,
     use_case: DeleteYouTubeTranscriptMetadataUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> DeleteResponse:
-    return await use_case.execute(transcript_id)
+    response = await use_case.execute(transcript_id)
+    await audit.execute(
+        mutation="deleted",
+        target_type="transcript",
+        target_id=transcript_id,
+        action="delete",
+        reason=reason,
+    )
+    return response

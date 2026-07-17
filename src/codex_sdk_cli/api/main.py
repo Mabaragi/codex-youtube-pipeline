@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from codex_sdk_cli.api.dependencies import get_settings
 from codex_sdk_cli.api.exception_handlers import add_exception_handlers
 from codex_sdk_cli.api.routes.archive_publish import router as archive_publish_router
+from codex_sdk_cli.api.routes.automation import router as automation_router
 from codex_sdk_cli.api.routes.channels import router as channels_router
 from codex_sdk_cli.api.routes.codex import router as codex_router
 from codex_sdk_cli.api.routes.codex_usage import router as codex_usage_router
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(micro_events_router, tags=["ops-micro-events"])
     app.include_router(timelines_router, tags=["ops-timelines"])
     app.include_router(archive_publish_router, tags=["ops-archive"])
+    app.include_router(automation_router, prefix="/ops", tags=["ops-automation"])
     app.include_router(
         youtube_transcripts_router,
         prefix="/ops/transcripts",

@@ -1,28 +1,19 @@
+const KOREAN_DATE_TIME = new Intl.DateTimeFormat("ko-KR", {
+  dateStyle: "short",
+  timeStyle: "medium",
+});
+const KOREAN_NUMBER = new Intl.NumberFormat("ko-KR");
+
 export function formatDateTime(value: string | null | undefined): string {
-  if (!value) {
-    return "-";
-  }
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : KOREAN_DATE_TIME.format(date);
 }
 
 export function formatNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return "-";
-  }
-  return numberFormatter.format(value);
+  return value == null ? "—" : KOREAN_NUMBER.format(value);
 }
 
-export function compactId(value: string | null | undefined): string {
-  if (!value) {
-    return "-";
-  }
-  if (value.length <= 16) {
-    return value;
-  }
-  return `${value.slice(0, 8)}...${value.slice(-5)}`;
+export function formatIdentifier(value: string | number | null | undefined): string {
+  return value == null || value === "" ? "—" : String(value);
 }
-
-const numberFormatter = new Intl.NumberFormat("en");

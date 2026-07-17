@@ -19,14 +19,20 @@
 {
   "events": [
     {
-      "event": "장면을 짧게 설명한다.",
-      "startCueId": "cue_000001",
-      "endCueId": "cue_000010",
-      "evidenceCueIds": ["cue_000001", "cue_000010"],
-      "confidence": 0.8,
-      "topics": ["topic"]
+      "start_cue_id": "cue_000001",
+      "end_cue_id": "cue_000010",
+      "event": "스트리머가 오늘 진행할 게임 목표를 설명한다.",
+      "program_mode": "GAME_SETUP",
+      "content_kind": "GAME_DISCUSSION",
+      "topics": ["게임 목표"],
+      "relation_to_previous": "NEW_TOPIC",
+      "continues_to_next": false,
+      "evidence_cue_ids": ["cue_000001", "cue_000010"],
+      "support_level": "DIRECT"
     }
-  ]
+  ],
+  "excluded_ranges": [],
+  "asr_correction_candidates": []
 }
 ```
 

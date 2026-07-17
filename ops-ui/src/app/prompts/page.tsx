@@ -1,5 +1,3 @@
-import { PromptsPage } from "@/components/pages/prompts-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <PromptsPage />;
-}
+export default function LegacyPromptsPage() { redirect("/configuration/prompts"); }

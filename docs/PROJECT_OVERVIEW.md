@@ -32,7 +32,8 @@ The old public video-task and pipeline-job mutation APIs are not mounted.
 
 ## Storage
 
-- SQLite: normalized metadata, state, outputs, provenance, usage, and events.
+- PostgreSQL: normalized metadata, concurrent work state, outputs, provenance,
+  usage, and events. SQLite remains the fast isolated test database.
 - MinIO: raw transcript and external API-call JSON.
 - R2: immutable public timeline/index artifacts plus a short-cache pointer.
 - D1: public list/search hierarchy and interaction analytics.

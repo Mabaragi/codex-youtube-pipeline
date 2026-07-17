@@ -6,7 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from codex_sdk_cli.application.work.queries import (
     WorkBatchDetail,
+    WorkBatchListResult,
     WorkflowRunDetail,
+    WorkflowRunListResult,
     WorkItemDetail,
     WorkItemListResult,
 )
@@ -109,6 +111,25 @@ class WorkBatchDetailResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class WorkBatchSummaryResponse(BaseModel):
+    id: int
+    operation_type: str = Field(alias="operationType")
+    status: str
+    actor_type: str = Field(alias="actorType")
+    requested_count: int = Field(alias="requestedCount")
+    created_at: datetime = Field(alias="createdAt")
+    completed_at: datetime | None = Field(alias="completedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkBatchListResponse(BaseModel):
+    items: tuple[WorkBatchSummaryResponse, ...]
+    next_cursor: int | None = Field(alias="nextCursor")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class WorkflowStepResponse(BaseModel):
     id: int
     stage_name: str = Field(alias="stageName")
@@ -117,6 +138,9 @@ class WorkflowStepResponse(BaseModel):
     status: str
     created_at: datetime = Field(alias="createdAt")
     completed_at: datetime | None = Field(alias="completedAt")
+    outcome_code: str | None = Field(default=None, alias="outcomeCode")
+    output: JsonObject | None = None
+    available_at: datetime | None = Field(default=None, alias="availableAt")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -129,6 +153,10 @@ class WorkflowRunDetailResponse(BaseModel):
     input_hash: str = Field(alias="inputHash")
     status: str
     current_stage: str | None = Field(alias="currentStage")
+    waiting_reason: str | None = Field(alias="waitingReason")
+    available_at: datetime = Field(alias="availableAt")
+    caption_sla_deadline: str | None = Field(alias="captionSlaDeadline")
+    asr_sla_deadline: str | None = Field(alias="asrSlaDeadline")
     options: JsonObject
     output: JsonObject | None
     error_code: str | None = Field(alias="errorCode")
@@ -137,6 +165,33 @@ class WorkflowRunDetailResponse(BaseModel):
     updated_at: datetime = Field(alias="updatedAt")
     completed_at: datetime | None = Field(alias="completedAt")
     steps: tuple[WorkflowStepResponse, ...]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkflowRunSummaryResponse(BaseModel):
+    id: int
+    workflow_type: str = Field(alias="workflowType")
+    workflow_version: str = Field(alias="workflowVersion")
+    video_id: int = Field(alias="videoId")
+    status: str
+    current_stage: str | None = Field(alias="currentStage")
+    waiting_reason: str | None = Field(alias="waitingReason")
+    error_code: str | None = Field(alias="errorCode")
+    error_message: str | None = Field(alias="errorMessage")
+    available_at: datetime = Field(alias="availableAt")
+    caption_sla_deadline: str | None = Field(alias="captionSlaDeadline")
+    asr_sla_deadline: str | None = Field(alias="asrSlaDeadline")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    completed_at: datetime | None = Field(alias="completedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class WorkflowRunListResponse(BaseModel):
+    items: tuple[WorkflowRunSummaryResponse, ...]
+    next_cursor: int | None = Field(alias="nextCursor")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -213,8 +268,27 @@ def work_batch_detail_response(result: WorkBatchDetail) -> WorkBatchDetailRespon
     )
 
 
+def work_batch_list_response(result: WorkBatchListResult) -> WorkBatchListResponse:
+    return WorkBatchListResponse(
+        items=tuple(
+            WorkBatchSummaryResponse(
+                id=batch.id,
+                operationType=batch.operation_type,
+                status=batch.status.value,
+                actorType=batch.actor_type,
+                requestedCount=batch.requested_count,
+                createdAt=batch.created_at,
+                completedAt=batch.completed_at,
+            )
+            for batch in result.items
+        ),
+        nextCursor=result.next_cursor,
+    )
+
+
 def workflow_run_detail_response(result: WorkflowRunDetail) -> WorkflowRunDetailResponse:
     workflow = result.workflow
+    items = {item.id: item for item in result.step_items}
     return WorkflowRunDetailResponse(
         id=workflow.id,
         workflowType=workflow.workflow_type,
@@ -223,6 +297,15 @@ def workflow_run_detail_response(result: WorkflowRunDetail) -> WorkflowRunDetail
         inputHash=workflow.input_hash,
         status=workflow.status.value,
         currentStage=workflow.current_stage,
+        waitingReason=(
+            "waiting_for_asr_grace"
+            if workflow.status.value == "waiting"
+            and workflow.current_stage == "transcript_recheck"
+            else ("waiting_for_stage" if workflow.status.value == "waiting" else None)
+        ),
+        availableAt=workflow.available_at,
+        captionSlaDeadline=_optional_option_str(workflow.options_json, "captionSlaDeadline"),
+        asrSlaDeadline=_optional_option_str(workflow.options_json, "asrSlaDeadline"),
         options=workflow.options_json,
         output=workflow.output_json,
         errorCode=workflow.error_code,
@@ -239,10 +322,66 @@ def workflow_run_detail_response(result: WorkflowRunDetail) -> WorkflowRunDetail
                 status=step.status,
                 createdAt=step.created_at,
                 completedAt=step.completed_at,
+                outcomeCode=(
+                    items[step.work_item_id].outcome_code
+                    if step.work_item_id in items
+                    else None
+                ),
+                output=(
+                    items[step.work_item_id].output_json
+                    if step.work_item_id in items
+                    else None
+                ),
+                availableAt=(
+                    items[step.work_item_id].available_at
+                    if step.work_item_id in items
+                    else None
+                ),
             )
             for step in result.steps
         ),
     )
+
+
+def workflow_run_list_response(result: WorkflowRunListResult) -> WorkflowRunListResponse:
+    return WorkflowRunListResponse(
+        items=tuple(
+            WorkflowRunSummaryResponse(
+                id=workflow.id,
+                workflowType=workflow.workflow_type,
+                workflowVersion=workflow.workflow_version,
+                videoId=workflow.video_id,
+                status=workflow.status.value,
+                currentStage=workflow.current_stage,
+                waitingReason=_waiting_reason(workflow.status.value, workflow.current_stage),
+                errorCode=workflow.error_code,
+                errorMessage=workflow.error_message,
+                availableAt=workflow.available_at,
+                captionSlaDeadline=_optional_option_str(
+                    workflow.options_json, "captionSlaDeadline"
+                ),
+                asrSlaDeadline=_optional_option_str(
+                    workflow.options_json, "asrSlaDeadline"
+                ),
+                createdAt=workflow.created_at,
+                updatedAt=workflow.updated_at,
+                completedAt=workflow.completed_at,
+            )
+            for workflow in result.items
+        ),
+        nextCursor=result.next_cursor,
+    )
+
+
+def _optional_option_str(values: JsonObject, key: str) -> str | None:
+    value = values.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _waiting_reason(status: str, current_stage: str | None) -> str | None:
+    if status != "waiting":
+        return None
+    return "waiting_for_asr_grace" if current_stage == "transcript_recheck" else "waiting_for_stage"
 
 
 def _attempt_response(attempt: WorkAttempt) -> WorkAttemptResponse:

@@ -1122,6 +1122,62 @@ async def test_timeline_coverage_fallback_succeeds_with_warning(
 
 
 @pytest.mark.anyio
+async def test_zero_micro_events_create_deterministic_timeline_without_composer() -> None:
+    composer_input = _composer_input([])
+    composer = _NoCallComposer()
+    pipeline_jobs = _TimelinePipelineJobsForFailure()
+    video_tasks = _TimelineVideoTasksForFailure()
+    timelines = _TimelineStoreForFailure()
+    events = _TimelineEvents()
+    use_case = ComposeTimelineUseCase(
+        videos=cast(Any, _Noop()),
+        video_tasks=cast(Any, video_tasks),
+        channels=cast(Any, _Noop()),
+        streamers=cast(Any, _Noop()),
+        domain_knowledge=cast(Any, _Noop()),
+        micro_events=cast(Any, _Noop()),
+        timelines=cast(Any, timelines),
+        pipeline_jobs=cast(Any, pipeline_jobs),
+        composer=cast(Any, composer),
+        prompt_resolver=cast(Any, _Noop()),
+        timeout_seconds=1200,
+        model="gpt-5.5",
+        reasoning_effort="medium",
+        events=events,
+    )
+
+    response = await use_case._execute_job_attempt(
+        _job(),
+        _attempt(),
+        task=_video_task(),
+        composer_input=composer_input,
+        timeout_seconds=30,
+    )
+
+    assert composer.call_count == 0
+    assert response.timeline_state == "empty"
+    assert response.empty_reason == "no_micro_events"
+    assert response.generation_mode == "deterministic_empty"
+    assert response.model is None
+    assert response.reasoning_effort is None
+    assert response.title == _video().title
+    assert response.blocks[0].display_title == "안내"
+    assert response.episodes[0].display_title == "분석 가능한 이벤트 없음"
+    assert response.episodes[0].start_micro_event_candidate_id is None
+    assert response.episodes[0].end_micro_event_candidate_id is None
+    assert timelines.replaced_create is not None
+    assert timelines.replaced_create.codex_thread_id is None
+    assert timelines.replaced_create.codex_turn_id is None
+    assert pipeline_jobs.succeeded_attempt_output_json is not None
+    assert pipeline_jobs.succeeded_attempt_output_json["timelineState"] == "empty"
+    assert video_tasks.succeeded_task_output_json is not None
+    assert video_tasks.succeeded_task_output_json["generationMode"] == (
+        "deterministic_empty"
+    )
+    assert events.items[0].metadata_json["emptyReason"] == "no_micro_events"
+
+
+@pytest.mark.anyio
 async def test_timeline_repair_trace_records_raw_response_before_fallback(
     tmp_path: Path,
 ) -> None:
@@ -1497,6 +1553,24 @@ class _ComposeAndRepairComposer:
         )
 
 
+class _NoCallComposer:
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    async def compose(self, request: TimelineComposeRequest) -> TimelineComposeResult:
+        del request
+        self.call_count += 1
+        raise AssertionError("composer must not run for an empty micro-event set")
+
+    async def repair_episode(
+        self,
+        request: TimelineEpisodeRepairRequest,
+    ) -> TimelineEpisodeRepairResult:
+        del request
+        self.call_count += 1
+        raise AssertionError("repair must not run for an empty micro-event set")
+
+
 class _TimelinePipelineJobsForFailure:
     def __init__(self) -> None:
         self.failed_attempt_output_json: JsonObject | None = None
@@ -1589,6 +1663,9 @@ class _TimelineVideoTasksForFailure:
 
 
 class _TimelineStoreForFailure:
+    def __init__(self) -> None:
+        self.replaced_create: TimelineCompositionCreate | None = None
+
     async def delete_composition(self, video_task_id: int) -> None:
         return None
 
@@ -1596,6 +1673,7 @@ class _TimelineStoreForFailure:
         self,
         create: TimelineCompositionCreate,
     ) -> TimelineCompositionRecord:
+        self.replaced_create = create
         return _timeline_record_from_create(create)
 
 

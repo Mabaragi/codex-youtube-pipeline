@@ -8,8 +8,8 @@ param(
 Set-Location $script:RepoRoot
 Initialize-LocalHomeDirs
 
-$startScript = Join-Path $PSScriptRoot "start.ps1"
-$arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`" -NoBuild"
+$startScript = Join-Path $PSScriptRoot "runtime.ps1"
+$arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`" start -NoBuild -KeepPaused"
 if ($NoUi) {
     $arguments = "$arguments -NoUi"
 }

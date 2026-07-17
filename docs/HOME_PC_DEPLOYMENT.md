@@ -13,11 +13,12 @@ of this public repository. The normal operating model is local native runtime.
 Current runtime summary:
 
 ```text
+PostgreSQL: Docker only, 127.0.0.1:5432, persistent named volume
 MinIO: Docker only, 127.0.0.1:9000 and 127.0.0.1:9001
 FastAPI: Windows process, 127.0.0.1:8000
 Workers: Windows processes
 Ops UI: Windows process, 127.0.0.1:3000
-SQLite: ./data/app.db
+SQLite: retained only as the pre-PostgreSQL source/backup
 Runtime files: ./.home-deploy/
 ```
 

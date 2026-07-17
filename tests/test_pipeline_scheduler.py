@@ -126,6 +126,16 @@ async def _exercise_due_channel(database_url: str) -> None:
             ("video_collect", "succeeded", None),
             ("transcript_collect", "pending", None),
         ]
+
+        boundary = _scheduler(
+            session_factory,
+            collector=collector,
+            events=events,
+            now=NOW + timedelta(hours=2),
+        )
+        boundary_result = await boundary.execute_once()
+        assert boundary_result.processed_channel_count == 1
+        assert collector.calls == [1, 1]
         assert "pipeline_scheduler.channel_processed" in {
             event.event_type for event in events.items
         }
@@ -236,7 +246,7 @@ def _scheduler(
         inline_runner=runner,
         events=events,
         config=PipelineSchedulerConfig(
-            channel_interval_seconds=86400,
+            channel_interval_seconds=7200,
             transcript_limit=5,
             no_transcript_recheck_interval_seconds=604800,
             no_transcript_limit=2,

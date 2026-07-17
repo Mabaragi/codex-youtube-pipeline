@@ -37,8 +37,9 @@ class FasterWhisperTranscriber(AudioTranscriberPort):
         request: AudioTranscriptionRequest,
     ) -> AudioTranscriptionResult:
         errors: list[str] = []
-        for device in _candidate_devices(request.device):
-            compute_type = _compute_type_for(device, request.compute_type)
+        for device, compute_type in _candidate_configurations(
+            request.device, request.compute_type
+        ):
             try:
                 return self._transcribe_with_device(
                     request,
@@ -49,8 +50,6 @@ class FasterWhisperTranscriber(AudioTranscriberPort):
                 raise
             except Exception as exc:  # noqa: BLE001 - fallback needs third-party failures.
                 errors.append(f"{device}/{compute_type}: {exc}")
-                if request.device != "auto":
-                    break
         raise AudioTranscriptionFailed("faster-whisper transcription failed. " + " | ".join(errors))
 
     def _transcribe_with_device(
@@ -101,13 +100,12 @@ class FasterWhisperTranscriber(AudioTranscriberPort):
         return self._models[key]
 
 
-def _candidate_devices(device: str) -> tuple[str, ...]:
-    if device == "auto":
-        return ("cuda", "cpu")
-    return (device,)
-
-
-def _compute_type_for(device: str, compute_type: str) -> str:
+def _candidate_configurations(device: str, compute_type: str) -> tuple[tuple[str, str], ...]:
     if compute_type != "auto":
-        return compute_type
-    return "float16" if device == "cuda" else "int8"
+        devices = ("cuda", "cpu") if device == "auto" else (device,)
+        return tuple((candidate, compute_type) for candidate in devices)
+    if device == "cuda":
+        return (("cuda", "float16"), ("cuda", "int8_float16"))
+    if device == "cpu":
+        return (("cpu", "int8"),)
+    return (("cuda", "float16"), ("cuda", "int8_float16"), ("cpu", "int8"))

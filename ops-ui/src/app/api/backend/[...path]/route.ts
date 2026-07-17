@@ -19,11 +19,15 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
   const accept = request.headers.get("accept");
+  const operatorReason = request.headers.get("x-operator-reason");
   if (contentType) {
     headers.set("content-type", contentType);
   }
   if (accept) {
     headers.set("accept", accept);
+  }
+  if (operatorReason) {
+    headers.set("x-operator-reason", operatorReason);
   }
 
   const method = request.method.toUpperCase();

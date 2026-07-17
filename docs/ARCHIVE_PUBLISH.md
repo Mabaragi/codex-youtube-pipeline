@@ -62,12 +62,26 @@ secret keys.
 Use `rerunSucceeded=true` to create a new immutable version from the current
 source timeline. Non-embeddable videos are skipped by default.
 
+The endpoint returns `200` only after the artifact work succeeds and the
+corresponding work attempt is terminal. Archive domain code writes objects,
+artifact rows, catalog state, and provenance; `WorkExecutionEngine` alone
+completes the current work item and attempt. Both the manual endpoint and the
+workflow coordinator use the same execution-aware adapter composition.
+
 Inspect state with:
 
 ```text
 GET /ops/archive/current?publishMode=prod
 GET /ops/archive/videos?environment=prod&limit=50
 ```
+
+After a publish, verify all three views:
+
+1. The operation item reports `status: "succeeded"`.
+2. `GET /ops/work-items/{workItemId}` shows both the item and latest attempt as
+   `succeeded`.
+3. `GET /ops/archive/videos` shows the new artifact and no public catalog sync
+   error.
 
 ## Artifact Contract
 
@@ -91,3 +105,10 @@ A storage, build, persistence, or catalog sync error fails the archive work
 item. Inspect `GET /ops/work-items/{workItemId}` and correlated events, then use
 `POST /ops/work-items/{workItemId}/retry` for the same input. Submit a new
 archive operation when environment, variant, or schema version must change.
+
+If an artifact exists but the operation reports a work-state transition error,
+do not treat the artifact alone as a successful control-plane result and do not
+blindly rerun. Inspect the latest attempt first. This signature usually means
+an inner publisher completed the item before the execution engine could finish
+the paired attempt; fix the execution adapter composition and let startup
+recovery classify any interrupted inline attempt.

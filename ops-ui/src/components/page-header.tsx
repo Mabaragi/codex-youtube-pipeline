@@ -1,22 +1,24 @@
+import type { ReactNode } from "react";
+
 export function PageHeader({
-  title,
+  eyebrow,
+  heading,
   description,
-  meta,
   actions,
 }: {
-  title: string;
-  description?: React.ReactNode;
-  meta?: React.ReactNode;
-  actions?: React.ReactNode;
+  eyebrow?: string;
+  heading: string;
+  description: string;
+  actions?: ReactNode;
 }) {
   return (
-    <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="m-0 text-2xl font-semibold tracking-normal">{title}</h1>
-        {description ? (
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">{description}</p>
+    <header data-slot="page-header" className="flex min-w-0 flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0 max-w-3xl">
+        {eyebrow ? (
+          <p className="mb-1 text-xs font-semibold uppercase text-[var(--accent)]">{eyebrow}</p>
         ) : null}
-        {meta ? <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">{meta}</div> : null}
+        <h1 className="text-2xl font-semibold text-pretty">{heading}</h1>
+        <p className="mt-1 text-sm text-pretty text-[var(--muted)]">{description}</p>
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </header>

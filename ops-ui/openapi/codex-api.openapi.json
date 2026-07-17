@@ -713,6 +713,83 @@
         "title": "AsrCorrectionCandidateResponse",
         "type": "object"
       },
+      "AutomationDataIntegrityResponse": {
+        "properties": {
+          "orphanVideoCount": {
+            "title": "Orphanvideocount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "orphanVideoCount"
+        ],
+        "title": "AutomationDataIntegrityResponse",
+        "type": "object"
+      },
+      "AutomationStatusResponse": {
+        "properties": {
+          "backfillStartedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backfillstartedat"
+          },
+          "dataIntegrity": {
+            "$ref": "#/components/schemas/AutomationDataIntegrityResponse"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "observedAt": {
+            "title": "Observedat",
+            "type": "string"
+          },
+          "openIncidentCount": {
+            "title": "Openincidentcount",
+            "type": "integer"
+          },
+          "queues": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Queues",
+            "type": "array"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/RuntimeStateResponse"
+          },
+          "steadyStartedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steadystartedat"
+          }
+        },
+        "required": [
+          "mode",
+          "backfillStartedAt",
+          "steadyStartedAt",
+          "observedAt",
+          "openIncidentCount",
+          "dataIntegrity",
+          "runtime",
+          "queues"
+        ],
+        "title": "AutomationStatusResponse",
+        "type": "object"
+      },
       "CancelWorkItemRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2736,6 +2813,245 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IncidentActionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "retry",
+              "recover_lease",
+              "extend_timeout",
+              "set_temporary_concurrency"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          }
+        },
+        "required": [
+          "action",
+          "idempotencyKey"
+        ],
+        "title": "IncidentActionRequest",
+        "type": "object"
+      },
+      "IncidentActionResponse": {
+        "properties": {
+          "action": {
+            "enum": [
+              "retry",
+              "recover_lease",
+              "extend_timeout",
+              "set_temporary_concurrency"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "incidentId": {
+            "title": "Incidentid",
+            "type": "integer"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          }
+        },
+        "required": [
+          "incidentId",
+          "action",
+          "result"
+        ],
+        "title": "IncidentActionResponse",
+        "type": "object"
+      },
+      "IncidentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "IncidentListResponse",
+        "type": "object"
+      },
+      "IncidentResponse": {
+        "properties": {
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "errorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errortype"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "firstSeenAt": {
+            "format": "date-time",
+            "title": "Firstseenat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "incidentType": {
+            "title": "Incidenttype",
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "title": "Lastseenat",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "occurrenceCount": {
+            "title": "Occurrencecount",
+            "type": "integer"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "taskType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasktype"
+          },
+          "workItemId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workitemid"
+          },
+          "workflowRunId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflowrunid"
+          }
+        },
+        "required": [
+          "id",
+          "fingerprint",
+          "incidentType",
+          "severity",
+          "state",
+          "workItemId",
+          "workflowRunId",
+          "taskType",
+          "errorType",
+          "errorMessage",
+          "metadata",
+          "occurrenceCount",
+          "firstSeenAt",
+          "lastSeenAt",
+          "resolvedAt"
+        ],
+        "title": "IncidentResponse",
+        "type": "object"
+      },
+      "IncidentUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "acknowledged",
+              "resolved",
+              "suppressed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "IncidentUpdateRequest",
+        "type": "object"
+      },
       "LoginResponse": {
         "properties": {
           "error": {
@@ -2771,6 +3087,103 @@
           "success"
         ],
         "title": "LogoutResponse",
+        "type": "object"
+      },
+      "ManagedProcessInventoryResponse": {
+        "properties": {
+          "hostName": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManagedProcessResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "observedAt",
+          "hostName",
+          "platform",
+          "items"
+        ],
+        "title": "ManagedProcessInventoryResponse",
+        "type": "object"
+      },
+      "ManagedProcessResponse": {
+        "properties": {
+          "detailCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detailcode"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "state",
+          "pid",
+          "startedAt",
+          "source",
+          "detailCode"
+        ],
+        "title": "ManagedProcessResponse",
         "type": "object"
       },
       "MicroEventCandidateResponse": {
@@ -5801,7 +6214,7 @@
             "type": "array"
           },
           "microModel": {
-            "default": "gpt-5.5",
+            "default": "gpt-5.6-sol",
             "enum": [
               "gpt-5.5",
               "gpt-5.4",
@@ -5819,6 +6232,18 @@
             "minimum": 0.0,
             "title": "Microoverlapminutes",
             "type": "integer"
+          },
+          "microPromptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Micropromptversionid"
           },
           "microReasoningEffort": {
             "default": "medium",
@@ -5891,7 +6316,7 @@
             "title": "Selection"
           },
           "timelineModel": {
-            "default": "gpt-5.5",
+            "default": "gpt-5.6-sol",
             "enum": [
               "gpt-5.5",
               "gpt-5.4",
@@ -5903,8 +6328,20 @@
             "title": "Timelinemodel",
             "type": "string"
           },
+          "timelinePromptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelinepromptversionid"
+          },
           "timelineReasoningEffort": {
-            "default": "high",
+            "default": "medium",
             "enum": [
               "low",
               "medium",
@@ -5913,6 +6350,9 @@
             ],
             "title": "Timelinereasoningeffort",
             "type": "string"
+          },
+          "transcriptFallback": {
+            "$ref": "#/components/schemas/TranscriptFallbackRequest"
           },
           "variant": {
             "default": "control",
@@ -6422,6 +6862,112 @@
         "title": "RunResponse",
         "type": "object"
       },
+      "RuntimeStateResponse": {
+        "properties": {
+          "drainReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drainreason"
+          },
+          "drainRequestedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drainrequestedat"
+          },
+          "readyToStop": {
+            "title": "Readytostop",
+            "type": "boolean"
+          },
+          "runningByTaskType": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeTaskCountResponse"
+            },
+            "title": "Runningbytasktype",
+            "type": "array"
+          },
+          "runningWorkItemCount": {
+            "minimum": 0.0,
+            "title": "Runningworkitemcount",
+            "type": "integer"
+          },
+          "runningWorkflowCount": {
+            "minimum": 0.0,
+            "title": "Runningworkflowcount",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "draining",
+              "stopped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "drainRequestedAt",
+          "drainReason",
+          "runningWorkItemCount",
+          "runningWorkflowCount",
+          "runningByTaskType",
+          "readyToStop"
+        ],
+        "title": "RuntimeStateResponse",
+        "type": "object"
+      },
+      "RuntimeTaskCountResponse": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "taskType": {
+            "title": "Tasktype",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskType",
+          "count"
+        ],
+        "title": "RuntimeTaskCountResponse",
+        "type": "object"
+      },
+      "RuntimeTransitionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "RuntimeTransitionRequest",
+        "type": "object"
+      },
       "SelectedVideoSelectionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -6605,12 +7151,32 @@
             "title": "Displaytitle",
             "type": "string"
           },
+          "emptyReason": {
+            "anyOf": [
+              {
+                "const": "no_micro_events",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emptyreason"
+          },
           "episodes": {
             "items": {
               "$ref": "#/components/schemas/TimelineEpisodeResponse"
             },
             "title": "Episodes",
             "type": "array"
+          },
+          "generationMode": {
+            "enum": [
+              "codex",
+              "deterministic_empty"
+            ],
+            "title": "Generationmode",
+            "type": "string"
           },
           "mainTopics": {
             "items": {
@@ -6679,6 +7245,14 @@
             "title": "Summary",
             "type": "string"
           },
+          "timelineState": {
+            "enum": [
+              "ready",
+              "empty"
+            ],
+            "title": "Timelinestate",
+            "type": "string"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -6720,6 +7294,9 @@
           "status",
           "model",
           "reasoningEffort",
+          "timelineState",
+          "emptyReason",
+          "generationMode",
           "title",
           "summary",
           "displayTitle",
@@ -7339,6 +7916,93 @@
         "title": "TranscriptCueResponse",
         "type": "object"
       },
+      "TranscriptFallbackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "beamSize": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Beamsize",
+            "type": "integer"
+          },
+          "chunkMinutes": {
+            "default": 15,
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Chunkminutes",
+            "type": "integer"
+          },
+          "computeType": {
+            "default": "auto",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Computetype",
+            "type": "string"
+          },
+          "device": {
+            "default": "cuda",
+            "enum": [
+              "cuda",
+              "cpu",
+              "auto"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "graceSeconds": {
+            "default": 21600,
+            "maximum": 604800.0,
+            "minimum": 0.0,
+            "title": "Graceseconds",
+            "type": "integer"
+          },
+          "language": {
+            "default": "ko",
+            "maxLength": 16,
+            "minLength": 2,
+            "title": "Language",
+            "type": "string"
+          },
+          "mode": {
+            "default": "asr_after_grace",
+            "enum": [
+              "disabled",
+              "asr_after_grace"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model": {
+            "default": "turbo",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "overlapSeconds": {
+            "default": 3,
+            "maximum": 30.0,
+            "minimum": 0.0,
+            "title": "Overlapseconds",
+            "type": "integer"
+          },
+          "recheckIntervalSeconds": {
+            "default": 1800,
+            "maximum": 604800.0,
+            "minimum": 60.0,
+            "title": "Recheckintervalseconds",
+            "type": "integer"
+          },
+          "vadFilter": {
+            "default": true,
+            "title": "Vadfilter",
+            "type": "boolean"
+          }
+        },
+        "title": "TranscriptFallbackRequest",
+        "type": "object"
+      },
       "TranscriptMetadataResponse": {
         "properties": {
           "createdAt": {
@@ -7904,6 +8568,98 @@
         "title": "WorkBatchItemResponse",
         "type": "object"
       },
+      "WorkBatchListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkBatchSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "WorkBatchListResponse",
+        "type": "object"
+      },
+      "WorkBatchStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "succeeded",
+          "partial",
+          "failed",
+          "canceled"
+        ],
+        "title": "WorkBatchStatus",
+        "type": "string"
+      },
+      "WorkBatchSummaryResponse": {
+        "properties": {
+          "actorType": {
+            "title": "Actortype",
+            "type": "string"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "operationType": {
+            "title": "Operationtype",
+            "type": "string"
+          },
+          "requestedCount": {
+            "title": "Requestedcount",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "operationType",
+          "status",
+          "actorType",
+          "requestedCount",
+          "createdAt",
+          "completedAt"
+        ],
+        "title": "WorkBatchSummaryResponse",
+        "type": "object"
+      },
       "WorkItemDetailResponse": {
         "properties": {
           "attempts": {
@@ -8446,6 +9202,33 @@
       },
       "WorkflowRunDetailResponse": {
         "properties": {
+          "asrSlaDeadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asrsladeadline"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "title": "Availableat",
+            "type": "string"
+          },
+          "captionSlaDeadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captionsladeadline"
+          },
           "completedAt": {
             "anyOf": [
               {
@@ -8541,6 +9324,17 @@
             "title": "Videoid",
             "type": "integer"
           },
+          "waitingReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waitingreason"
+          },
           "workflowType": {
             "title": "Workflowtype",
             "type": "string"
@@ -8558,6 +9352,10 @@
           "inputHash",
           "status",
           "currentStage",
+          "waitingReason",
+          "availableAt",
+          "captionSlaDeadline",
+          "asrSlaDeadline",
           "options",
           "output",
           "errorCode",
@@ -8568,6 +9366,170 @@
           "steps"
         ],
         "title": "WorkflowRunDetailResponse",
+        "type": "object"
+      },
+      "WorkflowRunListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "WorkflowRunListResponse",
+        "type": "object"
+      },
+      "WorkflowRunSummaryResponse": {
+        "properties": {
+          "asrSlaDeadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asrsladeadline"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "title": "Availableat",
+            "type": "string"
+          },
+          "captionSlaDeadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captionsladeadline"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "currentStage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currentstage"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "videoId": {
+            "title": "Videoid",
+            "type": "integer"
+          },
+          "waitingReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waitingreason"
+          },
+          "workflowType": {
+            "title": "Workflowtype",
+            "type": "string"
+          },
+          "workflowVersion": {
+            "title": "Workflowversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workflowType",
+          "workflowVersion",
+          "videoId",
+          "status",
+          "currentStage",
+          "waitingReason",
+          "errorCode",
+          "errorMessage",
+          "availableAt",
+          "captionSlaDeadline",
+          "asrSlaDeadline",
+          "createdAt",
+          "updatedAt",
+          "completedAt"
+        ],
+        "title": "WorkflowRunSummaryResponse",
         "type": "object"
       },
       "WorkflowSelectionItemResponse": {
@@ -8617,8 +9579,33 @@
         "title": "WorkflowSelectionItemResponse",
         "type": "object"
       },
+      "WorkflowStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "waiting",
+          "succeeded",
+          "failed",
+          "blocked",
+          "canceled"
+        ],
+        "title": "WorkflowStatus",
+        "type": "string"
+      },
       "WorkflowStepResponse": {
         "properties": {
+          "availableAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availableat"
+          },
           "completedAt": {
             "anyOf": [
               {
@@ -8639,6 +9626,29 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "outcomeCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomecode"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
           },
           "position": {
             "title": "Position",
@@ -9098,6 +10108,171 @@
         ]
       }
     },
+    "/ops/automation/processes": {
+      "get": {
+        "operationId": "managed_processes_ops_automation_processes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedProcessInventoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Managed Processes",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
+    "/ops/automation/runtime/drain": {
+      "post": {
+        "operationId": "request_runtime_drain_ops_automation_runtime_drain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Runtime Drain",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
+    "/ops/automation/runtime/mark-stopped": {
+      "post": {
+        "operationId": "mark_runtime_stopped_ops_automation_runtime_mark_stopped_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Runtime Stopped",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
+    "/ops/automation/runtime/resume": {
+      "post": {
+        "operationId": "resume_runtime_ops_automation_runtime_resume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Runtime",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
+    "/ops/automation/status": {
+      "get": {
+        "operationId": "automation_status_ops_automation_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Automation Status",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
     "/ops/candidates/micro-event-ready": {
       "get": {
         "operationId": "list_ops_micro_event_ready_candidates_ops_candidates_micro_event_ready_get",
@@ -9359,6 +10534,17 @@
               "minimum": 1,
               "title": "Channel Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
             }
           }
         ],
@@ -10127,6 +11313,17 @@
               "title": "Entry Id",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -10378,6 +11575,17 @@
               "title": "Streamer Id",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -10420,6 +11628,17 @@
               "minimum": 1,
               "title": "Alias Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
             }
           }
         ],
@@ -10816,6 +12035,220 @@
         "summary": "List Operation Events",
         "tags": [
           "ops"
+        ]
+      }
+    },
+    "/ops/incidents": {
+      "get": {
+        "operationId": "list_incidents_ops_incidents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "acknowledged",
+                    "resolved",
+                    "suppressed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Incidents",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
+    "/ops/incidents/{incident_id}": {
+      "get": {
+        "operationId": "get_incident_ops_incidents__incident_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Incident Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Incident",
+        "tags": [
+          "ops-automation"
+        ]
+      },
+      "patch": {
+        "operationId": "update_incident_ops_incidents__incident_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Incident Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Incident",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
+    "/ops/incidents/{incident_id}/actions": {
+      "post": {
+        "operationId": "execute_incident_action_ops_incidents__incident_id__actions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Incident Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentActionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute Incident Action",
+        "tags": [
+          "ops-automation"
         ]
       }
     },
@@ -11425,6 +12858,17 @@
               "title": "Versionid",
               "type": "integer"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11609,6 +13053,17 @@
               "minimum": 1,
               "title": "Streamer Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
             }
           }
         ],
@@ -11957,6 +13412,17 @@
               "minimum": 1,
               "title": "Transcript Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
             }
           }
         ],
@@ -12573,6 +14039,101 @@
         ]
       }
     },
+    "/ops/work-batches": {
+      "get": {
+        "operationId": "list_work_batches_ops_work_batches_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "operationType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Operationtype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkBatchStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkBatchListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Work Batches",
+        "tags": [
+          "ops-work"
+        ]
+      }
+    },
     "/ops/work-batches/{batch_id}": {
       "get": {
         "operationId": "get_work_batch_ops_work_batches__batch_id__get",
@@ -12889,6 +14450,118 @@
           }
         },
         "summary": "Retry Work Item",
+        "tags": [
+          "ops-work"
+        ]
+      }
+    },
+    "/ops/workflows": {
+      "get": {
+        "operationId": "list_workflow_runs_ops_workflows_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workflowType",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workflowtype"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkflowStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "videoId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Videoid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Workflow Runs",
         "tags": [
           "ops-work"
         ]

@@ -7,6 +7,7 @@ from codex_sdk_cli.domains.codex.ports import (
     CodexRuntimePort,
     CodexRunUsageContext,
 )
+from codex_sdk_cli.domains.micro_events.output_validation import micro_event_output_schema
 from codex_sdk_cli.domains.micro_events.ports import (
     MicroEventExtractionRequest,
     MicroEventExtractionResult,
@@ -60,6 +61,7 @@ class CodexMicroEventExtractor(MicroEventExtractorPort):
                 persist=False,
                 base_instructions=" ",
                 developer_instructions=" ",
+                output_schema=micro_event_output_schema(),
                 usage_context=CodexRunUsageContext(
                     source="micro_event_extract",
                     operation=operation,

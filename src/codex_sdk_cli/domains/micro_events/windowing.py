@@ -180,6 +180,12 @@ def _repair_window_prompt(
             original_prompt,
             "# 고쳐야 할 원본 응답",
             original_response,
+            "# REPAIR_QUALITY_GUARD",
+            (
+                "Re-read the uncovered OWNED_RANGE cues. Do not turn a long uncovered span "
+                "into LOW_INFORMATION merely to satisfy coverage. Reconstruct evidence-backed "
+                "events when those cues contain meaningful discussion, topic changes, or reactions."
+            ),
         ]
     )
 

@@ -1,15 +1,3 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import dynamic from "next/dynamic";
-
-const ErdPage = dynamic(
-  () => import("@/components/pages/erd-page").then((module) => module.ErdPage),
-  {
-    ssr: false,
-    loading: () => <div className="ops-panel p-4 text-sm text-slate-600">Loading ERD…</div>,
-  },
-);
-
-export default function Page() {
-  return <ErdPage />;
-}
+export default function LegacySchemaPage() { redirect("/system/schema"); }

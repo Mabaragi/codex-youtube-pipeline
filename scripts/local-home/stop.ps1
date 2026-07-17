@@ -1,29 +1,22 @@
 param(
-    [switch]$StopInfra
+    [switch]$StopInfra,
+    [switch]$Force,
+    [ValidateRange(0, 1440)]
+    [int]$TimeoutMinutes = 30
 )
 
-. "$PSScriptRoot\common.ps1"
-
-Set-Location $script:RepoRoot
-Import-LocalHomeEnv
-
-Stop-ManagedProcess "ops-ui"
-Stop-ManagedProcess "workflow-coordinator"
-Stop-ManagedProcess "timeline-compose-worker"
-Stop-ManagedProcess "pipeline-scheduler"
-Stop-ManagedProcess "transcript-cue-worker"
-Stop-ManagedProcess "transcript-worker"
-Stop-ManagedProcess "micro-event-worker"
-Stop-ManagedProcess "api"
-Stop-LocalHomeRuntimeProcesses
-
-if ($StopInfra) {
-    Invoke-Checked "docker" @(
-        "compose",
-        "--project-name",
-        $script:ComposeProjectName,
-        "-f",
-        $script:InfraComposeFile,
-        "down"
-    )
+$runtime = Join-Path $PSScriptRoot "runtime.ps1"
+try {
+    & $runtime `
+        stop `
+        -TimeoutMinutes $TimeoutMinutes `
+        -StopInfra:$StopInfra `
+        -Force:$Force
+    if (-not $?) {
+        exit 1
+    }
+} catch {
+    Write-Error $_.Exception.Message
+    exit 1
 }
+exit 0

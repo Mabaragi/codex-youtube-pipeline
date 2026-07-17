@@ -20,8 +20,11 @@ operators can use them without private runtime context.
   milestones and remaining domain work. Read when scoping the next pipeline
   capability.
 - [Local native deployment](LOCAL_NATIVE_DEPLOYMENT.md): Home PC setup, local
-  process topology, scheduler prerequisites, MinIO, and R2 publishing. Read
+  process topology, PostgreSQL, MinIO, and R2 publishing. Read
   when deploying, starting, or recovering the local runtime.
+- [PostgreSQL local database](POSTGRESQL_LOCAL_DATABASE.md): worker concurrency,
+  SQLite migration, persistence, backup, and recovery. Read when changing the
+  database or diagnosing claim/heartbeat contention.
 - [Home PC deployment entrypoint](HOME_PC_DEPLOYMENT.md): short route to the
   current local-native deployment flow. Read when a legacy Docker deployment
   reference needs redirecting.
@@ -29,7 +32,7 @@ operators can use them without private runtime context.
   and repair guidance. Read when imports or domain boundaries change.
 - [Clean architecture](CLEAN_ARCHITECTURE.md): enforced package boundaries,
   Unit of Work ownership, unified execution model, and compatibility boundary.
-- [Work model cutover](WORK_MODEL_CUTOVER.md): offline SQLite rehearsal,
+- [Work model cutover](WORK_MODEL_CUTOVER.md): historical offline SQLite rehearsal,
   validation, atomic replacement, rollback, and contract-removal criteria.
 - [Archive publish](ARCHIVE_PUBLISH.md): archive API, object layout, cache
   policy, and required environment variables. Read when publishing or

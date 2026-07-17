@@ -60,6 +60,7 @@ def test_repository_lists_filters_updates_notes_and_deletes_metadata(
     assert result["updated_notes"] == "reviewed"
     assert result["cleared_notes"] is None
     assert result["existing_request_id"] == 3
+    assert result["reversed_request"] is None
     assert result["deleted"] is True
     assert result["missing_after_delete"] is None
     assert result["delete_missing"] is False
@@ -126,6 +127,11 @@ async def _exercise_metadata_crud(database_url: str) -> dict[str, object]:
                 requested_languages=("ko", "en"),
                 preserve_formatting=False,
             )
+            reversed_request = await repository.find_transcript_metadata_for_request(
+                video_id="dQw4w9WgXcQ",
+                requested_languages=("en", "ko"),
+                preserve_formatting=False,
+            )
             deleted = await repository.delete_transcript_metadata(2)
             missing_after_delete = await repository.get_transcript_metadata(2)
             delete_missing = await repository.delete_transcript_metadata(999)
@@ -142,6 +148,7 @@ async def _exercise_metadata_crud(database_url: str) -> dict[str, object]:
             "updated_notes": updated.notes,
             "cleared_notes": cleared.notes,
             "existing_request_id": existing_request.id,
+            "reversed_request": reversed_request,
             "deleted": deleted,
             "missing_after_delete": missing_after_delete,
             "delete_missing": delete_missing,

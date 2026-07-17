@@ -3,15 +3,18 @@ from __future__ import annotations
 from typing import cast
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typing_extensions import override
 
 from codex_sdk_cli.application.scheduler.ports import (
+    AutomationScheduleState,
+    PublishedPromptSnapshotPort,
     ScheduledChannel,
     ScheduledChannelReaderPort,
     SchedulerEvent,
     SchedulerEventRecorderPort,
+    WorkflowCandidateReaderPort,
 )
 from codex_sdk_cli.application.videos.ports import (
     VideoCollectionResult,
@@ -25,8 +28,9 @@ from codex_sdk_cli.domains.operation_events.ports import (
 from codex_sdk_cli.domains.operation_events.recorder import (
     BestEffortOperationEventRecorder,
 )
+from codex_sdk_cli.domains.videos.ports import VideoRecord
 from codex_sdk_cli.domains.videos.use_cases import CollectChannelVideosUseCase
-from codex_sdk_cli.domains.work.models import JsonObject
+from codex_sdk_cli.domains.work.models import JsonObject, WorkItemStatus
 from codex_sdk_cli.domains.youtube_data.exceptions import YouTubeDataConfigurationError
 from codex_sdk_cli.infra.channels.repository import (
     ChannelModel,
@@ -42,7 +46,9 @@ from codex_sdk_cli.infra.operation_events.repository import (
     OperationEventModel,
     SQLAlchemyOperationEventRepository,
 )
+from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
+from codex_sdk_cli.infra.work.models import WorkflowRunModel, WorkItemModel
 from codex_sdk_cli.infra.youtube_data.client import YouTubeDataClient
 from codex_sdk_cli.settings import CliSettings
 
@@ -98,6 +104,90 @@ class SqlAlchemySchedulerEventRecorder(SchedulerEventRecorderPort):
                     metadata_json=event.metadata_json or {},
                 )
             )
+
+
+class SqlAlchemyWorkflowCandidateReader(WorkflowCandidateReaderPort):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    @override
+    async def list_candidates(
+        self,
+        *,
+        state: AutomationScheduleState,
+        limit: int,
+    ) -> list[VideoRecord]:
+        published = exists(
+            select(WorkItemModel.id).where(
+                WorkItemModel.task_type == "archive_publish",
+                WorkItemModel.subject_type == "video",
+                WorkItemModel.subject_id == VideoModel.id,
+                WorkItemModel.status == WorkItemStatus.SUCCEEDED.value,
+                WorkItemModel.outcome_code.is_(None),
+            )
+        )
+        active_workflow = exists(
+            select(WorkflowRunModel.id).where(
+                WorkflowRunModel.video_id == VideoModel.id,
+                WorkflowRunModel.workflow_type == "process_to_publish",
+                WorkflowRunModel.workflow_version == "v2",
+                WorkflowRunModel.status.in_(("pending", "running", "waiting")),
+            )
+        )
+        terminal_automation_workflow = exists(
+            select(WorkflowRunModel.id).where(
+                WorkflowRunModel.video_id == VideoModel.id,
+                WorkflowRunModel.workflow_type == "process_to_publish",
+                WorkflowRunModel.workflow_version == "v2",
+                WorkflowRunModel.options_json["automation_mode"].as_string() == state.mode,
+                WorkflowRunModel.status.in_(("failed", "blocked", "canceled")),
+            )
+        )
+        async with self._session_factory() as session:
+            statement = (
+                select(VideoModel)
+                .join(ChannelModel, ChannelModel.id == VideoModel.channel_id)
+                .where(
+                    VideoModel.is_embeddable.is_not(False),
+                    ~published,
+                    ~active_workflow,
+                    ~terminal_automation_workflow,
+                )
+            )
+            if state.mode == "backfill":
+                statement = statement.where(VideoModel.created_at <= state.backfill_started_at)
+            else:
+                statement = statement.where(VideoModel.created_at > state.backfill_started_at)
+            models = list(
+                (
+                    await session.scalars(
+                        statement.order_by(
+                            VideoModel.published_at.desc(),
+                            VideoModel.id.desc(),
+                        ).limit(limit)
+                    )
+                ).all()
+            )
+        from codex_sdk_cli.infra.videos.repository import video_record_from_model
+
+        return [video_record_from_model(model) for model in models]
+
+
+class SqlAlchemyPublishedPromptSnapshot(PublishedPromptSnapshotPort):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    @override
+    async def active_version_ids(self) -> tuple[int, int]:
+        async with self._session_factory() as session:
+            repository = SqlAlchemyPromptRepository(session)
+            micro = await repository.get_active_version("micro_event_extract")
+            timeline = await repository.get_active_version("timeline_compose")
+        if micro is None or timeline is None:
+            raise RuntimeError(
+                "Published database prompts are required for automatic pipeline workflows."
+            )
+        return micro.id, timeline.id
 
 
 class WorkVideoCollector(VideoCollectorPort):

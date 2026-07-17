@@ -1,25 +1,30 @@
 import type { Metadata, Viewport } from "next";
-import "@xyflow/react/dist/style.css";
-import "./globals.css";
+import type { ReactNode } from "react";
+
 import { AppShell } from "@/components/app-shell";
+
+import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Codex Ops",
-  description: "Operational console for Codex SDK API workflows.",
+  title: { default: "Opus Ops v2", template: "%s · Opus Ops v2" },
+  description: "영상 파이프라인 운영 콘솔",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f6f7f9",
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f6f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#171a20" },
+  ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ko" suppressHydrationWarning>
       <body>
-        <Providers>
-          <AppShell>{children}</AppShell>
-        </Providers>
+        <Providers><AppShell>{children}</AppShell></Providers>
       </body>
     </html>
   );

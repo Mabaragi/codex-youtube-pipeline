@@ -174,6 +174,11 @@ class TimelineCompositionResponse(BaseModel):
     status: VideoTaskStatus
     model: str | None
     reasoning_effort: str | None = Field(alias="reasoningEffort")
+    timeline_state: Literal["ready", "empty"] = Field(alias="timelineState")
+    empty_reason: Literal["no_micro_events"] | None = Field(alias="emptyReason")
+    generation_mode: Literal["codex", "deterministic_empty"] = Field(
+        alias="generationMode"
+    )
     title: str
     summary: str
     display_title: str = Field(alias="displayTitle")

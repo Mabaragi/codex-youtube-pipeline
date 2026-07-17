@@ -39,6 +39,14 @@ class AudioTranscriptionResult:
     compute_type: str
 
 
+@dataclass(frozen=True, slots=True)
+class AudioChunkCheckpoint:
+    chunk_index: int
+    segments: tuple[AudioTranscriptionSegment, ...]
+    device: str
+    compute_type: str
+
+
 class YouTubeAudioDownloaderPort(Protocol):
     async def download_audio(self, *, video_id: str, output_dir: Path) -> Path:
         """Download best available YouTube audio and return the local file path."""
@@ -62,3 +70,9 @@ class AudioChunkerPort(Protocol):
 class AudioTranscriberPort(Protocol):
     async def transcribe(self, request: AudioTranscriptionRequest) -> AudioTranscriptionResult:
         """Transcribe one audio chunk."""
+
+
+class AudioChunkCheckpointPort(Protocol):
+    async def load(self, chunk_index: int) -> AudioChunkCheckpoint | None: ...
+
+    async def save(self, checkpoint: AudioChunkCheckpoint) -> None: ...

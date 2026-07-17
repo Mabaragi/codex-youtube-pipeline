@@ -83,6 +83,13 @@ The response contains `batchId` and one `workflowRunId` per selected video.
 | Batch detail | `GET /ops/work-batches/{batchId}` |
 | Workflow detail | `GET /ops/workflows/{workflowRunId}` |
 | Operation events | `GET /ops/events?workItemId={workItemId}` |
+| Automation status | `GET /ops/automation/status` |
+| Request runtime drain | `POST /ops/automation/runtime/drain` |
+| Mark drained runtime stopped | `POST /ops/automation/runtime/mark-stopped` |
+| Resume runtime | `POST /ops/automation/runtime/resume` |
+| Open incidents | `GET /ops/incidents?state=open&limit=50` |
+| Incident detail | `GET /ops/incidents/{incidentId}` |
+| Safe remediation | `POST /ops/incidents/{incidentId}/actions` |
 
 Retry body:
 
@@ -137,3 +144,46 @@ All production errors use one envelope:
 For a queued command, poll the returned work item until it reaches a terminal
 status. For a workflow, poll the workflow run; its `steps` identify the current
 work item. Do not infer completion from elapsed time or from an old legacy ID.
+
+Workflow v2 responses include `waitingReason`, `availableAt`, caption/ASR SLA
+deadlines, and step outputs. While ASR is running its step output includes the
+latest completed chunk count.
+
+Incident actions are limited to `retry`, `recover_lease`, `extend_timeout`, and
+`set_temporary_concurrency`. Model, prompt, code, secret, and destructive data
+changes are not accepted by this endpoint.
+
+`retry` and `extend_timeout` require an incident with a linked work item;
+otherwise the API returns `422 automation.incident_action_not_allowed`.
+`extend_timeout` accepts `extensionSeconds` as a bounded increment and also
+supports an absolute `timeoutSeconds` value for API clients.
+
+`GET /ops/automation/status` includes
+`runtime` and `dataIntegrity.orphanVideoCount`. Runtime state is `active`,
+`draining`, or `stopped`; `runningWorkItemCount`, `runningWorkflowCount`,
+`runningByTaskType`, and `readyToStop` are the source of truth for a safe local
+shutdown. `mark-stopped` returns `409 pipeline.runtime_not_drained` until both
+running counts reach zero. Videos whose `channel_id` no longer resolves
+to a channel are excluded from automatic workflow candidates and backfill
+completion counts. The supervisor records one deduplicated `data_integrity`
+incident with error code `pipeline.orphan_video_channel`; it does not delete or
+reassign the video.
+
+An incident `retry` action resets the failed work item and any linked failed or
+blocked workflow in one transaction. Its result includes `workflowRunIds` so
+the caller can poll the resumed workflows. Persistence, validator, and data
+integrity error codes are not automatically retried even if their message also
+contains a transient-looking word such as `connection`.
+Permanent YouTube download responses such as removed or private videos are
+reported as `asr.audio_unavailable`; automatic workflows do not retry them.
+When an incident retry resumes a legacy automatic workflow, its historical
+`retry_failed` option is cleared so downstream failures return to incident-led
+recovery instead of coordinator-level blanket retries.
+
+When a successful micro-event extraction contains zero events, timeline
+composition skips Codex and stores a deterministic guidance timeline. Timeline
+responses, work output, and archives report `timelineState: "empty"`,
+`emptyReason: "no_micro_events"`, and
+`generationMode: "deterministic_empty"`; `model`, `reasoningEffort`, and Codex
+thread/turn IDs are null. The single guidance episode spans the full video and
+publishes with an empty `microEvents` list.

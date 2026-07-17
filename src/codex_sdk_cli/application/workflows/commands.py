@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from codex_sdk_cli.application.operations.selection import VideoSelection, VideoSelectionPort
 from codex_sdk_cli.application.work.execution import WorkUnitOfWorkFactory
@@ -16,7 +16,7 @@ from codex_sdk_cli.domains.work.models import WorkBatchStatus
 from .models import WorkflowBatchResult, WorkflowSelectionItem
 
 PROCESS_TO_PUBLISH_WORKFLOW = "process_to_publish"
-PROCESS_TO_PUBLISH_VERSION = "v1"
+PROCESS_TO_PUBLISH_VERSION = "v2"
 Now = Callable[[], datetime]
 
 
@@ -27,11 +27,11 @@ class ProcessToPublishCommand:
     preserve_formatting: bool = False
     micro_window_minutes: int = 30
     micro_overlap_minutes: int = 5
-    micro_model: CodexModelChoice = "gpt-5.5"
+    micro_model: CodexModelChoice = "gpt-5.6-sol"
     micro_reasoning_effort: ReasoningEffortChoice = "medium"
     micro_prompt_version_id: int | None = None
-    timeline_model: CodexModelChoice = "gpt-5.5"
-    timeline_reasoning_effort: ReasoningEffortChoice = "high"
+    timeline_model: CodexModelChoice = "gpt-5.6-sol"
+    timeline_reasoning_effort: ReasoningEffortChoice = "medium"
     timeline_copy_style: CopyStyle = "LIGHT_FANDOM_V1"
     timeline_prompt_version_id: int | None = None
     publish_mode: str = "prod"
@@ -40,12 +40,26 @@ class ProcessToPublishCommand:
     schema_version: int = 1
     retry_failed: bool = False
     include_non_embeddable: bool = False
+    reuse_successful_stages: bool = True
+    transcript_fallback_mode: str = "asr_after_grace"
+    transcript_fallback_grace_seconds: int = 21600
+    transcript_recheck_interval_seconds: int = 1800
+    asr_model: str = "turbo"
+    asr_language: str = "ko"
+    asr_device: str = "cuda"
+    asr_compute_type: str = "auto"
+    asr_chunk_minutes: int = 15
+    asr_overlap_seconds: int = 3
+    asr_beam_size: int = 5
+    asr_vad_filter: bool = True
     transcript_timeout_seconds: int = 600
     cue_timeout_seconds: int = 600
-    micro_timeout_seconds: int = 3600
-    timeline_timeout_seconds: int = 3600
+    asr_timeout_seconds: int = 64800
+    micro_timeout_seconds: int = 14400
+    timeline_timeout_seconds: int = 7200
     archive_timeout_seconds: int = 600
     actor_type: str = "manual_api"
+    automation_mode: str = "manual"
 
 
 class StartProcessToPublishUseCase:
@@ -93,6 +107,14 @@ class StartProcessToPublishUseCase:
                         **_command_options(command),
                         "videoId": video.id,
                         "youtubeVideoId": video.youtube_video_id,
+                        "publishedAt": _aware(video.published_at).isoformat(),
+                        "discoveredAt": _aware(video.created_at).isoformat(),
+                        "captionSlaDeadline": (
+                            _aware(video.created_at) + timedelta(hours=6)
+                        ).isoformat(),
+                        "asrSlaDeadline": (
+                            _aware(video.created_at) + timedelta(hours=24)
+                        ).isoformat(),
                     }
                     input_hash = _hash(options)
                     workflow, created = await unit_of_work.workflows.create_or_get(
@@ -102,8 +124,18 @@ class StartProcessToPublishUseCase:
                             video_id=video.id,
                             input_hash=input_hash,
                             options_json=options,
+                            available_at=now,
                         )
                     )
+                    if (
+                        not created
+                        and command.retry_failed
+                        and workflow.status.value in {"failed", "blocked"}
+                    ):
+                        workflow = await unit_of_work.workflows.reset_for_retry(
+                            workflow_run_id=workflow.id,
+                            now=now,
+                        )
                     created_count += int(created)
                     reused_count += int(not created)
                     result = WorkflowSelectionItem(

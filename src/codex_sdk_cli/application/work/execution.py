@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from .ports import WorkUnitOfWorkPort
 Now = Callable[[], datetime]
 Sleep = Callable[[float], Awaitable[None]]
 WorkUnitOfWorkFactory = Callable[[], WorkUnitOfWorkPort]
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,10 +147,18 @@ class WorkExecutionEngine:
                 succeeded=False,
             )
         except Exception as exc:
+            error_code = _error_code(exc)
+            logger.exception(
+                "Work item %s attempt %s (%s) failed with %s.",
+                work_item.id,
+                attempt_id,
+                work_item.task_type,
+                error_code,
+            )
             await self._mark_failed(
                 work_item_id=work_item.id,
                 attempt_id=attempt_id,
-                error_code=_error_code(exc),
+                error_code=error_code,
                 error_type=type(exc).__name__,
                 error_message=str(exc) or type(exc).__name__,
                 timed_out=False,

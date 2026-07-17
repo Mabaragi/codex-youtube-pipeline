@@ -50,6 +50,7 @@ from .composition import (
 )
 from .composition import (
     _composition_create_with_repairs,
+    _empty_composition_create,
 )
 from .constants import (
     TIMELINE_COMPOSE_BATCH_SCAN_LIMIT,
@@ -91,7 +92,6 @@ from .task_events import TimelineTaskEventRecorder
 from .task_inputs import (
     _flatten_micro_events,
     _int_output,
-    _micro_event_count,
     _model_output,
     _reasoning_effort_output,
     _required_int,
@@ -498,9 +498,9 @@ class ComposeTimelineUseCase:
             video_id=video.id,
             video_task_id=source_task.id,
         )
-        if source_detail is None or _micro_event_count(source_detail) == 0:
+        if source_detail is None:
             raise TimelineCompositionPreconditionFailed(
-                "Micro-event extraction has no micro-events."
+                "Micro-event extraction was not found."
             )
         model = request.model or self._model
         reasoning_effort = request.reasoning_effort or TIMELINE_COMPOSE_DEFAULT_REASONING_EFFORT
@@ -559,8 +559,13 @@ class ComposeTimelineUseCase:
         if source_detail is None:
             raise TimelineCompositionPreconditionFailed("Source micro-event extraction not found.")
         micro_events = _flatten_micro_events(source_detail)
-        if not micro_events:
-            raise TimelineCompositionPreconditionFailed("Micro-events are required.")
+        normalized_input_json = {
+            **input_json,
+            "sourceMicroEventFingerprint": (
+                _str_output(input_json, "sourceMicroEventFingerprint")
+                or _source_micro_event_fingerprint(source_detail)
+            ),
+        }
         channel = await self._channels.get_channel(video.channel_id)
         streamer_name = None
         streamer_id = channel.streamer_id if channel is not None else None
@@ -574,7 +579,7 @@ class ComposeTimelineUseCase:
         candidate_id_by_synthetic_id = {
             value: key for key, value in synthetic_id_by_candidate_id.items()
         }
-        compose_prompt = await self._resolve_compose_prompt_from_input(input_json)
+        compose_prompt = await self._resolve_compose_prompt_from_input(normalized_input_json)
         repair_prompt = await self._prompt_resolver.resolve_prompt(
             TIMELINE_EPISODE_REPAIR_PROMPT_KEY
         )
@@ -587,13 +592,16 @@ class ComposeTimelineUseCase:
             micro_events=micro_events,
             synthetic_id_by_candidate_id=synthetic_id_by_candidate_id,
             candidate_id_by_synthetic_id=candidate_id_by_synthetic_id,
-            input_json=input_json,
-            input_hash=_required_str(input_json, "inputHash"),
-            model=_model_output(input_json) or self._model,
-            reasoning_effort=_reasoning_effort_output(input_json) or self._reasoning_effort,
+            input_json=normalized_input_json,
+            input_hash=_required_str(normalized_input_json, "inputHash"),
+            model=_model_output(normalized_input_json) or self._model,
+            reasoning_effort=(
+                _reasoning_effort_output(normalized_input_json) or self._reasoning_effort
+            ),
             copy_style=cast(
                 CopyStyle,
-                _str_output(input_json, "copyStyle") or TIMELINE_COMPOSE_DEFAULT_COPY_STYLE,
+                _str_output(normalized_input_json, "copyStyle")
+                or TIMELINE_COMPOSE_DEFAULT_COPY_STYLE,
             ),
             compose_prompt=compose_prompt,
             repair_prompt=repair_prompt,
@@ -619,6 +627,13 @@ class ComposeTimelineUseCase:
         composer_input: _ComposerInput,
         timeout_seconds: int,
     ) -> TimelineCompositionResponse:
+        if not composer_input.micro_events:
+            return await self._execute_empty_job_attempt(
+                job,
+                attempt,
+                task=task,
+                composer_input=composer_input,
+            )
         raw_responses: list[_TimelineRawResponse] = []
         failure_stage = "compose"
         try:
@@ -850,6 +865,72 @@ class ComposeTimelineUseCase:
                 composer_input=composer_input,
                 metadata={"compositionId": record.id},
             )
+        )
+        return _timeline_response(record)
+
+    async def _execute_empty_job_attempt(
+        self,
+        job: PipelineJobRecord,
+        attempt: PipelineJobAttemptRecord,
+        *,
+        task: VideoTaskRecord,
+        composer_input: _ComposerInput,
+    ) -> TimelineCompositionResponse:
+        try:
+            await self._timelines.delete_composition(task.id)
+            create = _empty_composition_create(
+                composer_input,
+                task=task,
+                job=job,
+                attempt=attempt,
+            )
+            record = await self._timelines.replace_composition(create)
+            if record is None:
+                raise TimelineCompositionOutputInvalid("Timeline composition was not stored.")
+        except Exception as exc:
+            error_type = type(exc).__name__
+            error_message = str(exc) or error_type
+            output_json = {
+                **_attempt_output_json(composer_input, job=job, attempt=attempt),
+                "failure": {
+                    "errorType": error_type,
+                    "errorMessage": error_message,
+                    "stage": "deterministic_empty",
+                },
+            }
+            await self._pipeline_jobs.mark_attempt_failed(
+                attempt.id,
+                error_type=error_type,
+                error_message=error_message,
+                output_json=output_json,
+            )
+            await self._pipeline_jobs.mark_job_failed(job.id)
+            await self._video_tasks.mark_task_failed(
+                task.id,
+                error_type=error_type,
+                error_message=error_message,
+                output_json=output_json,
+            )
+            raise
+        output_json = _output_json(record, composer_input, job=job, attempt=attempt)
+        await self._pipeline_jobs.mark_attempt_succeeded(
+            attempt.id,
+            output_json=output_json,
+        )
+        await self._pipeline_jobs.mark_job_succeeded(job.id)
+        updated = await self._video_tasks.mark_task_succeeded(
+            task.id,
+            output_transcript_id=None,
+            output_json=output_json,
+        )
+        await self._task_events.record(
+            "timeline_compose.task_succeeded",
+            "info",
+            "Deterministic empty timeline composed.",
+            task=updated,
+            video=composer_input.video,
+            reason="no_micro_events",
+            metadata_json=output_json,
         )
         return _timeline_response(record)
 

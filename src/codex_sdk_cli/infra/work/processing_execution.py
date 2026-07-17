@@ -161,6 +161,9 @@ class WorkTimelineProcessor(TimelineProcessorPort):
             topic_cluster_count=len(response.topic_clusters),
             review_flag_count=len(response.review_flags),
             validation_warning_count=len(response.validation_warnings),
+            timeline_state=response.timeline_state,
+            empty_reason=response.empty_reason,
+            generation_mode=response.generation_mode,
         )
 
 

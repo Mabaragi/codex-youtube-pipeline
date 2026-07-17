@@ -760,7 +760,8 @@ async def _request(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        response = await client.request(method, path, json=json)
+        headers = {"X-Operator-Reason": "legacy regression test"} if method == "DELETE" else None
+        response = await client.request(method, path, json=json, headers=headers)
 
     assert response.status_code == expected_status, response.text
     return response.json()

@@ -73,7 +73,10 @@ async def _exercise_api() -> dict[str, object]:
             params={"streamerId": streamer_id},
         )
         list_response.raise_for_status()
-        archived_response = await client.delete(f"/domain-entries/{created['entryId']}")
+        archived_response = await client.delete(
+            f"/domain-entries/{created['entryId']}",
+            headers={"X-Operator-Reason": "API regression test cleanup"},
+        )
         archived_response.raise_for_status()
         archived = archived_response.json()
         return {

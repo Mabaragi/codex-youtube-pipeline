@@ -29,6 +29,9 @@ class TimelineProcessResult:
     topic_cluster_count: int
     review_flag_count: int
     validation_warning_count: int
+    timeline_state: str = "ready"
+    empty_reason: str | None = None
+    generation_mode: str = "codex"
 
 
 class MicroEventProcessorPort(Protocol):

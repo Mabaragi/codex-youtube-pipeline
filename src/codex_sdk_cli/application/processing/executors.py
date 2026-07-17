@@ -76,6 +76,9 @@ class TimelineCompositionExecutor(WorkExecutorPort):
                 "topicClusterCount": result.topic_cluster_count,
                 "reviewFlagCount": result.review_flag_count,
                 "validationWarningCount": result.validation_warning_count,
+                "timelineState": result.timeline_state,
+                "emptyReason": result.empty_reason,
+                "generationMode": result.generation_mode,
             }
         )
 

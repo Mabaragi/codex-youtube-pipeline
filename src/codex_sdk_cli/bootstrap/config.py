@@ -36,6 +36,8 @@ class SchedulerConfig:
     transcript_limit: int
     no_transcript_recheck_interval_seconds: int
     no_transcript_limit: int
+    transcript_fallback_grace_seconds: int
+    transcript_recheck_interval_seconds: int
     scheduler_id: str | None
 
 
@@ -70,6 +72,12 @@ def application_config(settings: CliSettings) -> ApplicationConfig:
                 settings.pipeline_scheduler_no_transcript_recheck_interval_seconds
             ),
             no_transcript_limit=settings.pipeline_scheduler_no_transcript_limit,
+            transcript_fallback_grace_seconds=(
+                settings.pipeline_scheduler_transcript_fallback_grace_seconds
+            ),
+            transcript_recheck_interval_seconds=(
+                settings.pipeline_scheduler_transcript_recheck_interval_seconds
+            ),
             scheduler_id=settings.pipeline_scheduler_id,
         ),
         transcript=WorkerConfig(

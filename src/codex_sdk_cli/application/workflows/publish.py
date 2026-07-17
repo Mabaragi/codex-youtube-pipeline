@@ -20,8 +20,10 @@ from codex_sdk_cli.domains.work.models import (
     WorkItemStatus,
 )
 
-from .coordinator import ARCHIVE_PUBLISH_TASK, ARCHIVE_PUBLISH_VERSION
+from .models import CoordinatorRunResult
+from .models import coordinator_result as _coordinator_result
 from .ports import InlineWorkRunnerPort
+from .stage_policy import ARCHIVE_PUBLISH_TASK, ARCHIVE_PUBLISH_VERSION
 
 Now = Callable[[], datetime]
 
@@ -125,6 +127,29 @@ class PublishArchivesUseCase:
             skipped_count=sum(item.status == "skipped" for item in final),
             items=tuple(final),
         )
+
+
+async def wait_for_archive_publish_resume(
+    unit_of_work_factory: WorkUnitOfWorkFactory,
+    *,
+    workflow_run_id: int,
+    now: datetime,
+) -> CoordinatorRunResult:
+    async with unit_of_work_factory() as unit_of_work:
+        workflow = await unit_of_work.workflows.get(workflow_run_id)
+        if workflow is None:
+            return CoordinatorRunResult(
+                processed=True,
+                workflow_run_id=workflow_run_id,
+                status="missing",
+            )
+        waiting = await unit_of_work.workflows.set_waiting(
+            workflow_run_id=workflow.id,
+            current_stage=ARCHIVE_PUBLISH_TASK,
+            now=now,
+        )
+        await unit_of_work.commit()
+    return _coordinator_result(waiting)
 
 
 async def _prepare_video(

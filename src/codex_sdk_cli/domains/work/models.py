@@ -135,6 +135,7 @@ class WorkflowRun:
     error_message: str | None
     lease_owner: str | None
     lease_expires_at: datetime | None
+    available_at: datetime
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None

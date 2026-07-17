@@ -21,3 +21,7 @@ class MicroEventExtractionPersistenceError(MicroEventDomainError):
 
 class MicroEventExtractionOutputInvalid(MicroEventDomainError):
     """Raised when the extractor returns invalid JSON or invalid cue references."""
+
+
+class MicroEventWindowQualityRejected(MicroEventDomainError):
+    """Raised when a structurally valid window would hide likely semantic omissions."""

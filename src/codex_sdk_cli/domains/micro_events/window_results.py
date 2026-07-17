@@ -20,12 +20,14 @@ from .output_validation import (
     _support_level_confidence,
     _validate_event_cue_refs,
     _validate_extractor_output,
+    _validate_low_information_coverage,
     _validate_owned_range_coverage,
     _validate_range_cue_refs,
     _warnings_json,
 )
 from .ports import (
     AsrCorrectionCandidateCreate,
+    ExcludedRangeReason,
     MicroEventCandidateCreate,
     MicroEventExcludedRangeCreate,
     MicroEventExtractionDetailRecord,
@@ -272,6 +274,7 @@ def _validated_window(
             )
         )
     excluded_creates: list[MicroEventExcludedRangeCreate] = []
+    excluded_ranges_with_positions: list[tuple[ExcludedRangeReason, int, int]] = []
     for index, excluded_range in enumerate(output.excluded_ranges, start=1):
         (
             start_cue_id,
@@ -284,6 +287,9 @@ def _validated_window(
             cue_id_to_position,
         )
         ranges.append(("excluded_range", start_position, end_position))
+        excluded_ranges_with_positions.append(
+            (excluded_range.reason, start_position, end_position)
+        )
         excluded_creates.append(
             MicroEventExcludedRangeCreate(
                 range_index=index,
@@ -293,6 +299,10 @@ def _validated_window(
             )
         )
     _validate_owned_range_coverage(ranges, owned_cue_count=len(cue_window.owned_cues))
+    _validate_low_information_coverage(
+        excluded_ranges_with_positions,
+        owned_cue_count=len(cue_window.owned_cues),
+    )
     asr_creates: list[AsrCorrectionCandidateCreate] = []
     for index, candidate in enumerate(output.asr_correction_candidates, start=1):
         asr_creates.append(

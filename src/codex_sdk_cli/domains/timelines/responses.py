@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from codex_sdk_cli.domains.pipeline_jobs.ports import (
     JsonObject,
     PipelineJobAttemptRecord,
@@ -77,6 +79,7 @@ def _enqueue_item(
 
 
 def _timeline_response(record: TimelineCompositionRecord) -> TimelineCompositionResponse:
+    timeline_state, empty_reason, generation_mode = _timeline_metadata(record)
     return TimelineCompositionResponse(
         videoTaskId=record.video_task_id,
         videoId=record.video_id,
@@ -87,6 +90,9 @@ def _timeline_response(record: TimelineCompositionRecord) -> TimelineComposition
         status=record.status,
         model=record.model,
         reasoningEffort=record.reasoning_effort,
+        timelineState=timeline_state,
+        emptyReason=empty_reason,
+        generationMode=generation_mode,
         title=record.title,
         summary=record.summary,
         displayTitle=record.display_title,
@@ -158,6 +164,7 @@ def _output_json(
     job: PipelineJobRecord,
     attempt: PipelineJobAttemptRecord,
 ) -> JsonObject:
+    timeline_state, empty_reason, generation_mode = _timeline_metadata(record)
     return {
         "videoTaskId": record.video_task_id,
         "videoId": record.video_id,
@@ -167,6 +174,9 @@ def _output_json(
         "copyStyle": record.copy_style,
         "model": record.model,
         "reasoningEffort": record.reasoning_effort,
+        "timelineState": timeline_state,
+        "emptyReason": empty_reason,
+        "generationMode": generation_mode,
         "timelineTitle": record.title,
         "blockCount": len(record.blocks),
         "episodeCount": len(record.episodes),
@@ -176,6 +186,18 @@ def _output_json(
         "jobId": job.id,
         "jobAttemptId": attempt.id,
     }
+
+
+def _timeline_metadata(
+    record: TimelineCompositionRecord,
+) -> tuple[
+    Literal["ready", "empty"],
+    Literal["no_micro_events"] | None,
+    Literal["codex", "deterministic_empty"],
+]:
+    if record.output_json.get("timeline_state") == "empty":
+        return "empty", "no_micro_events", "deterministic_empty"
+    return "ready", None, "codex"
 
 
 def _attempt_output_json(

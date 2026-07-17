@@ -12,10 +12,14 @@ from codex_sdk_cli.application.work.execution import (
     WorkExecutionEngine,
     WorkExecutorRegistry,
 )
+from codex_sdk_cli.application.workflows.commands import StartProcessToPublishUseCase
+from codex_sdk_cli.infra.automation.repository import SqlAlchemyAutomationRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.work.scheduler import (
+    SqlAlchemyPublishedPromptSnapshot,
     SqlAlchemyScheduledChannelReader,
     SqlAlchemySchedulerEventRecorder,
+    SqlAlchemyWorkflowCandidateReader,
     WorkVideoCollector,
 )
 from codex_sdk_cli.infra.work.transcript_execution import YouTubeTranscriptMetadataReader
@@ -59,6 +63,13 @@ class PipelineSchedulerRuntime:
             unit_of_work_factory=unit_of_work_factory,
             inline_runner=inline_runner,
             events=SqlAlchemySchedulerEventRecorder(self.session_factory),
+            start_workflows=StartProcessToPublishUseCase(
+                videos=SqlAlchemyVideoSelection(self.session_factory),
+                unit_of_work_factory=unit_of_work_factory,
+            ),
+            workflow_candidates=SqlAlchemyWorkflowCandidateReader(self.session_factory),
+            automation_state=SqlAlchemyAutomationRepository(self.session_factory),
+            prompts=SqlAlchemyPublishedPromptSnapshot(self.session_factory),
             config=PipelineSchedulerConfig(
                 channel_interval_seconds=(
                     self.settings.pipeline_scheduler_channel_interval_seconds
@@ -68,6 +79,13 @@ class PipelineSchedulerRuntime:
                     self.settings.pipeline_scheduler_no_transcript_recheck_interval_seconds
                 ),
                 no_transcript_limit=self.settings.pipeline_scheduler_no_transcript_limit,
+                workflow_limit=self.settings.pipeline_scheduler_workflow_limit,
+                transcript_fallback_grace_seconds=(
+                    self.settings.pipeline_scheduler_transcript_fallback_grace_seconds
+                ),
+                transcript_recheck_interval_seconds=(
+                    self.settings.pipeline_scheduler_transcript_recheck_interval_seconds
+                ),
             ),
         )
 

@@ -24,6 +24,8 @@ from codex_sdk_cli.application.work.queries import (
     GetWorkBatchUseCase,
     GetWorkflowRunUseCase,
     GetWorkItemUseCase,
+    ListWorkBatchesUseCase,
+    ListWorkflowRunsUseCase,
     ListWorkItemsUseCase,
 )
 from codex_sdk_cli.application.workflows.commands import StartProcessToPublishUseCase
@@ -38,7 +40,9 @@ from codex_sdk_cli.bootstrap.operations import (
     get_work_batch_use_case,
     get_work_item_use_case,
     get_workflow_run_use_case,
+    list_work_batches_use_case,
     list_work_items_use_case,
+    list_workflow_runs_use_case,
     resolve_channel_use_case,
     retry_work_item_use_case,
 )
@@ -109,10 +113,22 @@ def get_get_work_batch_use_case(
     return get_work_batch_use_case(session_factory)
 
 
+def get_list_work_batches_use_case(
+    session_factory: DatabaseSessionFactoryDep,
+) -> ListWorkBatchesUseCase:
+    return list_work_batches_use_case(session_factory)
+
+
 def get_get_workflow_run_use_case(
     session_factory: DatabaseSessionFactoryDep,
 ) -> GetWorkflowRunUseCase:
     return get_workflow_run_use_case(session_factory)
+
+
+def get_list_workflow_runs_use_case(
+    session_factory: DatabaseSessionFactoryDep,
+) -> ListWorkflowRunsUseCase:
+    return list_workflow_runs_use_case(session_factory)
 
 
 def get_retry_work_item_use_case(
@@ -176,9 +192,17 @@ GetWorkBatchUseCaseDep = Annotated[
     GetWorkBatchUseCase,
     Depends(get_get_work_batch_use_case),
 ]
+ListWorkBatchesUseCaseDep = Annotated[
+    ListWorkBatchesUseCase,
+    Depends(get_list_work_batches_use_case),
+]
 GetWorkflowRunUseCaseDep = Annotated[
     GetWorkflowRunUseCase,
     Depends(get_get_workflow_run_use_case),
+]
+ListWorkflowRunsUseCaseDep = Annotated[
+    ListWorkflowRunsUseCase,
+    Depends(get_list_workflow_runs_use_case),
 ]
 RetryWorkItemUseCaseDep = Annotated[
     RetryWorkItemUseCase,

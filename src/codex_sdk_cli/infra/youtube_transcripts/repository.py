@@ -6,7 +6,7 @@ from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Index, Integer,
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.sql import select
+from sqlalchemy.sql import Select, select
 from typing_extensions import override
 
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptPersistenceError
@@ -92,25 +92,27 @@ class SqlAlchemyYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
         preserve_formatting: bool,
     ) -> YouTubeTranscriptMetadataRecord | None:
         try:
-            model = await self._session.scalar(
-                select(YouTubeTranscriptRecordModel)
-                .where(
-                    YouTubeTranscriptRecordModel.video_id == video_id,
-                    YouTubeTranscriptRecordModel.requested_languages
-                    == list(requested_languages),
-                    YouTubeTranscriptRecordModel.preserve_formatting
-                    == preserve_formatting,
+            models = await self._session.scalars(
+                _find_transcript_metadata_statement(
+                    video_id=video_id,
+                    preserve_formatting=preserve_formatting,
                 )
-                .order_by(YouTubeTranscriptRecordModel.id.desc())
             )
         except SQLAlchemyError as exc:
             raise YouTubeTranscriptPersistenceError(
                 "Transcript metadata persistence failed."
             ) from exc
+        model = next(
+            (
+                candidate
+                for candidate in models
+                if tuple(candidate.requested_languages) == requested_languages
+            ),
+            None,
+        )
         if model is None:
             return None
         return _metadata_record(model)
-
     @override
     async def list_transcript_metadata(
         self,
@@ -186,6 +188,21 @@ class SqlAlchemyYouTubeTranscriptRepository(YouTubeTranscriptRepositoryPort):
             raise YouTubeTranscriptPersistenceError(
                 "Transcript metadata persistence failed."
             ) from exc
+
+
+def _find_transcript_metadata_statement(
+    *,
+    video_id: str,
+    preserve_formatting: bool,
+) -> Select[YouTubeTranscriptRecordModel]:
+    return (
+        select(YouTubeTranscriptRecordModel)
+        .where(
+            YouTubeTranscriptRecordModel.video_id == video_id,
+            YouTubeTranscriptRecordModel.preserve_formatting == preserve_formatting,
+        )
+        .order_by(YouTubeTranscriptRecordModel.id.desc())
+    )
 
 
 def _apply_record(

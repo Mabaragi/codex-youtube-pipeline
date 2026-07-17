@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 from codex_sdk_cli.application.work.execution import WorkRunResult
+from codex_sdk_cli.domains.videos.ports import VideoRecord
 from codex_sdk_cli.domains.work.models import JsonObject
 
 
@@ -37,3 +39,29 @@ class SchedulerEventRecorderPort(Protocol):
 
 class InlineWorkRunnerPort(Protocol):
     async def run_inline(self, work_item_id: int) -> WorkRunResult: ...
+
+
+@dataclass(frozen=True, slots=True)
+class AutomationScheduleState:
+    mode: str
+    backfill_started_at: datetime
+    runtime_state: str = "active"
+
+
+class AutomationScheduleStatePort(Protocol):
+    async def get_state(self, *, now: datetime) -> AutomationScheduleState: ...
+
+    async def mark_steady(self, *, now: datetime) -> None: ...
+
+
+class WorkflowCandidateReaderPort(Protocol):
+    async def list_candidates(
+        self,
+        *,
+        state: AutomationScheduleState,
+        limit: int,
+    ) -> list[VideoRecord]: ...
+
+
+class PublishedPromptSnapshotPort(Protocol):
+    async def active_version_ids(self) -> tuple[int, int]: ...

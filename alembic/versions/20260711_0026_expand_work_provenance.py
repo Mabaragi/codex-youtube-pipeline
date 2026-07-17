@@ -8,6 +8,7 @@ Create Date: 2026-07-11 00:30:00.000000
 from __future__ import annotations
 
 from collections.abc import Sequence
+from hashlib import sha1
 
 import sqlalchemy as sa
 
@@ -28,7 +29,7 @@ def downgrade() -> None:
     for table_name, columns in reversed(tuple(_columns_by_table().items())):
         with op.batch_alter_table(table_name) as batch_op:
             for column_name, _target_table in reversed(columns):
-                batch_op.drop_index(f"ix_{table_name}_{column_name}")
+                batch_op.drop_index(_identifier("ix", table_name, column_name))
                 batch_op.drop_column(column_name)
 
 
@@ -38,13 +39,24 @@ def _add_provenance_columns() -> None:
             for column_name, target_table in columns:
                 batch_op.add_column(sa.Column(column_name, sa.Integer(), nullable=True))
                 batch_op.create_foreign_key(
-                    f"fk_{table_name}_{column_name}_{target_table}",
+                    _identifier("fk", table_name, column_name, target_table),
                     target_table,
                     [column_name],
                     ["id"],
                     ondelete="SET NULL",
                 )
-                batch_op.create_index(f"ix_{table_name}_{column_name}", [column_name])
+                batch_op.create_index(
+                    _identifier("ix", table_name, column_name),
+                    [column_name],
+                )
+
+
+def _identifier(*parts: str) -> str:
+    value = "_".join(parts)
+    if len(value) <= 63:
+        return value
+    digest = sha1(value.encode("ascii")).hexdigest()[:8]
+    return f"{value[:54]}_{digest}"
 
 
 def _columns_by_table() -> dict[str, list[tuple[str, str]]]:

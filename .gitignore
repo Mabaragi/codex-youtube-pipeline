@@ -23,6 +23,7 @@ __pycache__/
 node_modules/
 *.tsbuildinfo
 ops-ui/.next/
+ops-ui/.next-verify/
 ops-ui/coverage/
 ops-ui/*.log
 data/

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,8 @@ from codex_sdk_cli.infra.pipeline_jobs.repository import SqlAlchemyPipelineJobRe
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository, VideoModel
+from codex_sdk_cli.infra.work.execution_repositories import WorkPipelineJobRepository
+from codex_sdk_cli.infra.work.models import WorkAttemptModel, WorkItemModel
 from codex_sdk_cli.infra.youtube_transcripts.repository import (
     SqlAlchemyYouTubeTranscriptRepository,
 )
@@ -47,6 +50,66 @@ def test_pipeline_job_repository_filters_by_related_channel(
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
 
     asyncio.run(_exercise_channel_filter_repository(database_url))
+
+
+def test_bound_pipeline_repository_leaves_completion_to_work_engine(
+    migrated_database_path: Path,
+) -> None:
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
+
+    asyncio.run(_exercise_bound_repository(database_url))
+
+
+async def _exercise_bound_repository(database_url: str) -> None:
+    engine = create_database_engine(database_url)
+    session_factory = create_session_factory(engine)
+    now = datetime.now(UTC)
+    try:
+        async with session_factory() as session:
+            item = WorkItemModel(
+                task_type="video_collect",
+                subject_type="channel",
+                subject_id=1,
+                task_version="v1",
+                input_hash="bound",
+                idempotency_key="bound-video-collect",
+                execution_mode="inline",
+                status="running",
+                timeout_seconds=600,
+                input_json={"channelId": 1},
+                available_at=now,
+                started_at=now,
+            )
+            session.add(item)
+            await session.flush()
+            attempt = WorkAttemptModel(
+                work_item_id=item.id,
+                attempt_no=1,
+                status="running",
+                started_at=now,
+            )
+            session.add(attempt)
+            await session.flush()
+            repository = WorkPipelineJobRepository(
+                session,
+                current_work_item_id=item.id,
+                current_work_attempt_id=attempt.id,
+            )
+
+            returned_attempt = await repository.mark_attempt_succeeded(
+                attempt.id,
+                output_json={"createdCount": 0},
+            )
+            returned_job = await repository.mark_job_succeeded(item.id)
+            await session.refresh(item)
+            await session.refresh(attempt)
+
+            assert returned_attempt.status == "succeeded"
+            assert returned_job.status == "succeeded"
+            assert item.status == "running"
+            assert attempt.status == "running"
+    finally:
+        await engine.dispose()
 
 
 async def _exercise_repository(database_url: str) -> None:

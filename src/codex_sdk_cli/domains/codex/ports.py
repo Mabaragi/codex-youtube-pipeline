@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 from codex_sdk_cli.domains.codex.choices import ApprovalChoice, ReasoningEffortChoice, SandboxChoice
 
+JsonObject = dict[str, object]
+
 
 class CodexRunUsageContext(BaseModel):
     source: str
@@ -34,6 +36,7 @@ class CodexRunCommand(BaseModel):
     persist: bool
     base_instructions: str | None
     developer_instructions: str | None
+    output_schema: JsonObject | None = None
     usage_context: CodexRunUsageContext | None = None
 
     model_config = ConfigDict(frozen=True)

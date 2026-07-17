@@ -35,15 +35,18 @@ class FakeThread(ThreadLike):
     def __init__(self) -> None:
         self.inputs: list[str] = []
         self.efforts: list[ReasoningEffort | None] = []
+        self.output_schemas: list[dict[str, object] | None] = []
 
     async def run(
         self,
         input: str,
         *,
         effort: ReasoningEffort | None = None,
+        output_schema: dict[str, object] | None = None,
     ) -> FakeTurnResult:
         self.inputs.append(input)
         self.efforts.append(effort)
+        self.output_schemas.append(output_schema)
         return FakeTurnResult()
 
 

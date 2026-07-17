@@ -10,6 +10,7 @@ from typing_extensions import override
 from codex_sdk_cli.application.work.errors import WorkPersistenceError
 from codex_sdk_cli.application.work.ports import (
     CreateWorkBatch,
+    WorkBatchQuery,
     WorkBatchRepositoryPort,
 )
 from codex_sdk_cli.domains.work.models import WorkBatch, WorkBatchItem, WorkBatchStatus
@@ -46,6 +47,24 @@ class SqlAlchemyWorkBatchRepository(WorkBatchRepositoryPort):
         except SQLAlchemyError as exc:
             raise WorkPersistenceError() from exc
         return _batch(model) if model is not None else None
+
+    @override
+    async def list_batches(self, query: WorkBatchQuery) -> list[WorkBatch]:
+        statement = select(WorkBatchModel)
+        if query.operation_type is not None:
+            statement = statement.where(
+                WorkBatchModel.operation_type == query.operation_type
+            )
+        if query.status is not None:
+            statement = statement.where(WorkBatchModel.status == query.status.value)
+        if query.cursor is not None:
+            statement = statement.where(WorkBatchModel.id < query.cursor)
+        statement = statement.order_by(WorkBatchModel.id.desc()).limit(query.limit)
+        try:
+            models = list((await self._session.scalars(statement)).all())
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return [_batch(model) for model in models]
 
     @override
     async def list_items(self, batch_id: int) -> list[WorkBatchItem]:

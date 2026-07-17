@@ -1,75 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
+import { apiError } from "@/features/api-error";
 import { queryKeys } from "@/features/query-keys";
-import { requestJson } from "@/lib/api-client";
-import type {
-  CodexUsageByJobFilters,
-  CodexUsageByJobList,
-  CodexUsageByVideoFilters,
-  CodexUsageByVideoList,
-  CodexUsageFilters,
-  CodexUsageList,
-  OperationEventFilters,
-  OperationEventList,
-  OpsSchemaGraph,
-  OpsSummary,
-} from "@/lib/types";
+import type { components } from "@/generated/codex-api";
+import { browserApi } from "@/lib/api";
+import { adaptiveRefetchInterval } from "@/lib/polling";
 
-export function useOpsSummary() {
-  return useQuery({
-    queryKey: queryKeys.summary,
-    queryFn: () => requestJson<OpsSummary>("/ops/summary"),
-    refetchInterval: 10_000,
-  });
-}
+export type EventList = components["schemas"]["OperationEventListResponse"];
+export type UsageList = components["schemas"]["CodexUsageListResponse"];
+export type SchemaGraph = components["schemas"]["OpsSchemaGraphResponse"];
 
-export function useOperationEvents(filters: OperationEventFilters) {
-  return useQuery({
-    queryKey: queryKeys.events(filters),
-    queryFn: () => requestJson<OperationEventList>("/ops/events", { query: filters }),
-    refetchInterval: 5_000,
-  });
-}
+export interface EventFilters { severity?: string; eventType?: string; cursor?: number }
+export interface UsageFilters { source?: string; status?: string; model?: string; cursor?: number }
 
-export function useCodexUsage(filters: CodexUsageFilters) {
-  return useQuery({
-    queryKey: queryKeys.codexUsage(filters),
-    queryFn: () => requestJson<CodexUsageList>("/ops/codex-usage", { query: filters }),
-    refetchInterval: 10_000,
-  });
-}
-
-export function useCodexUsageByVideo(filters: CodexUsageByVideoFilters) {
-  return useQuery({
-    queryKey: queryKeys.codexUsageByVideo(filters),
-    queryFn: () =>
-      requestJson<CodexUsageByVideoList>("/ops/codex-usage/by-video", {
-        query: filters,
-      }),
-    refetchInterval: 10_000,
-  });
-}
-
-export function useCodexUsageByJob(
-  filters: CodexUsageByJobFilters,
-  enabled = true,
-) {
-  return useQuery({
-    queryKey: queryKeys.codexUsageByJob(filters),
-    queryFn: () =>
-      requestJson<CodexUsageByJobList>("/ops/codex-usage/by-job", {
-        query: filters,
-      }),
-    enabled,
-    refetchInterval: enabled ? 10_000 : false,
-  });
-}
-
-export function useSchemaGraph() {
-  return useQuery({
-    queryKey: queryKeys.schemaGraph,
-    queryFn: () => requestJson<OpsSchemaGraph>("/ops/schema-graph"),
-    staleTime: 60_000,
-  });
-}
+export function useEvents(filters: EventFilters, initialData?: EventList | null) { return useQuery({ queryKey: queryKeys.events(filters), queryFn: async () => { const { data, error } = await browserApi.GET("/ops/events", { params: { query: { severity: filters.severity as never, eventType: filters.eventType, cursor: filters.cursor, limit: 100 } } }); if (!data) throw apiError(error); return data; }, initialData: initialData ?? undefined, placeholderData: (previous) => previous, refetchInterval: () => adaptiveRefetchInterval([]) }); }
+export function useUsage(filters: UsageFilters, initialData?: UsageList | null) { return useQuery({ queryKey: [...queryKeys.usage, filters], queryFn: async () => { const { data, error } = await browserApi.GET("/ops/codex-usage", { params: { query: { source: filters.source, status: filters.status as never, model: filters.model, cursor: filters.cursor, limit: 100 } } }); if (!data) throw apiError(error); return data; }, initialData: initialData ?? undefined, placeholderData: (previous) => previous, refetchInterval: 15_000 }); }
+export function useSchemaGraph(initialData?: SchemaGraph | null) { return useQuery({ queryKey: queryKeys.schema, queryFn: async () => { const { data, error } = await browserApi.GET("/ops/schema-graph"); if (!data) throw apiError(error); return data; }, initialData: initialData ?? undefined }); }

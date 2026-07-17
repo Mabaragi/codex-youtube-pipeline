@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import and_, exists, func, or_, select, update
+from sqlalchemy import and_, exists, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql import Select
 from typing_extensions import override
 
 from codex_sdk_cli.application.work.errors import (
@@ -27,8 +28,10 @@ from codex_sdk_cli.domains.work.models import (
     WorkItem,
     WorkItemStatus,
 )
+from codex_sdk_cli.infra.videos.repository import VideoModel
 
 from .models import WorkAttemptModel, WorkItemDependencyModel, WorkItemModel
+from .runtime_gate import runtime_accepting_work
 
 
 class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
@@ -213,6 +216,8 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
             .returning(WorkItemModel.id)
         )
         try:
+            if not await runtime_accepting_work(self._session):
+                return None
             started_id = (await self._session.execute(statement)).scalar_one_or_none()
             if started_id is None:
                 return None
@@ -232,60 +237,36 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         now: datetime,
         lease_expires_at: datetime,
     ) -> WorkItem | None:
+        task_types = await _allowed_task_types(self._session, task_types, now)
         if not task_types:
             return None
-        upstream = aliased(WorkItemModel)
-        unsatisfied_dependency = exists(
-            select(WorkItemDependencyModel.work_item_id)
-            .join(
-                upstream,
-                upstream.id == WorkItemDependencyModel.dependency_work_item_id,
-            )
-            .where(
-                WorkItemDependencyModel.work_item_id == WorkItemModel.id,
-                or_(
-                    upstream.status != WorkItemStatus.SUCCEEDED.value,
-                    and_(
-                        WorkItemDependencyModel.requires_successful_output.is_(True),
-                        upstream.outcome_code.is_not(None),
-                    ),
-                ),
-            )
-        )
-        candidate_id = (
-            select(WorkItemModel.id)
-            .where(
-                WorkItemModel.status == WorkItemStatus.PENDING.value,
-                WorkItemModel.execution_mode == WorkExecutionMode.WORKER.value,
-                WorkItemModel.task_type.in_(task_types),
-                WorkItemModel.available_at <= now,
-                ~unsatisfied_dependency,
-            )
-            .order_by(
-                WorkItemModel.priority.desc(),
-                WorkItemModel.available_at,
-                WorkItemModel.id,
-            )
-            .limit(1)
-            .scalar_subquery()
-        )
-        statement = (
-            update(WorkItemModel)
-            .where(
-                WorkItemModel.id == candidate_id,
-                WorkItemModel.status == WorkItemStatus.PENDING.value,
-            )
-            .values(
-                status=WorkItemStatus.RUNNING.value,
-                lease_owner=worker_id,
-                lease_expires_at=lease_expires_at,
-                heartbeat_at=now,
-                started_at=func.coalesce(WorkItemModel.started_at, now),
-                updated_at=now,
-            )
-            .returning(WorkItemModel.id)
-        )
+        candidate_query = _claim_candidate_query(task_types=task_types, now=now)
         try:
+            if self._session.get_bind().dialect.name == "postgresql":
+                candidate_id = (
+                    await self._session.execute(candidate_query.with_for_update(skip_locked=True))
+                ).scalar_one_or_none()
+                if candidate_id is None:
+                    return None
+                candidate_filter = WorkItemModel.id == candidate_id
+            else:
+                candidate_filter = WorkItemModel.id == candidate_query.scalar_subquery()
+            statement = (
+                update(WorkItemModel)
+                .where(
+                    candidate_filter,
+                    WorkItemModel.status == WorkItemStatus.PENDING.value,
+                )
+                .values(
+                    status=WorkItemStatus.RUNNING.value,
+                    lease_owner=worker_id,
+                    lease_expires_at=lease_expires_at,
+                    heartbeat_at=now,
+                    started_at=func.coalesce(WorkItemModel.started_at, now),
+                    updated_at=now,
+                )
+                .returning(WorkItemModel.id)
+            )
             work_item_id = (await self._session.execute(statement)).scalar_one_or_none()
             if work_item_id is None:
                 return None
@@ -373,12 +354,14 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         work_item_id: int,
         now: datetime,
         allow_succeeded: bool,
+        available_at: datetime | None = None,
     ) -> WorkItem:
         model = await self._required(work_item_id)
         allowed = {
             WorkItemStatus.FAILED,
             WorkItemStatus.TIMED_OUT,
             WorkItemStatus.BLOCKED,
+            WorkItemStatus.CANCELED,
         }
         if allow_succeeded:
             allowed.add(WorkItemStatus.SUCCEEDED)
@@ -393,7 +376,7 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         model.lease_owner = None
         model.lease_expires_at = None
         model.heartbeat_at = None
-        model.available_at = now
+        model.available_at = available_at or now
         model.completed_at = None
         model.updated_at = now
         return await self._flush_item(model)
@@ -656,6 +639,84 @@ def _require_status(
     status = WorkItemStatus(model.status)
     if status not in allowed:
         raise WorkItemTransitionNotAllowed(model.id, status=status.value, transition=transition)
+
+
+def _claim_candidate_query(*, task_types: tuple[str, ...], now: datetime) -> Select[int]:
+    upstream = aliased(WorkItemModel)
+    unsatisfied_dependency = exists(
+        select(WorkItemDependencyModel.work_item_id)
+        .join(
+            upstream,
+            upstream.id == WorkItemDependencyModel.dependency_work_item_id,
+        )
+        .where(
+            WorkItemDependencyModel.work_item_id == WorkItemModel.id,
+            or_(
+                upstream.status != WorkItemStatus.SUCCEEDED.value,
+                and_(
+                    WorkItemDependencyModel.requires_successful_output.is_(True),
+                    upstream.outcome_code.is_not(None),
+                ),
+            ),
+        )
+    )
+    video_published_at = (
+        select(VideoModel.published_at)
+        .where(
+            WorkItemModel.subject_type == "video",
+            VideoModel.id == WorkItemModel.subject_id,
+        )
+        .scalar_subquery()
+    )
+    return (
+        select(WorkItemModel.id)
+        .where(
+            WorkItemModel.status == WorkItemStatus.PENDING.value,
+            WorkItemModel.execution_mode == WorkExecutionMode.WORKER.value,
+            WorkItemModel.task_type.in_(task_types),
+            WorkItemModel.available_at <= now,
+            ~unsatisfied_dependency,
+        )
+        .order_by(
+            WorkItemModel.priority.desc(),
+            video_published_at.desc().nulls_last(),
+            WorkItemModel.available_at,
+            WorkItemModel.id,
+        )
+        .limit(1)
+    )
+
+
+async def _allowed_task_types(
+    session: AsyncSession,
+    task_types: tuple[str, ...],
+    now: datetime,
+) -> tuple[str, ...]:
+    if not await runtime_accepting_work(session):
+        return ()
+    allowed: list[str] = []
+    for task_type in task_types:
+        control = (
+            await session.execute(
+                text(
+                    "SELECT max_concurrency FROM pipeline_runtime_controls "
+                    "WHERE task_type = :task_type AND expires_at > :now"
+                ),
+                {"task_type": task_type, "now": now},
+            )
+        ).scalar_one_or_none()
+        if control is None:
+            allowed.append(task_type)
+            continue
+        running = await session.scalar(
+            select(func.count(WorkItemModel.id)).where(
+                WorkItemModel.task_type == task_type,
+                WorkItemModel.status == WorkItemStatus.RUNNING.value,
+            )
+        )
+        if (running or 0) < int(control):
+            allowed.append(task_type)
+    return tuple(allowed)
 
 
 def _finish(model: WorkItemModel, now: datetime) -> None:

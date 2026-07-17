@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 
+from codex_sdk_cli.application.transcripts.errors import TranscriptPersistenceUnavailable
 from codex_sdk_cli.application.work.execution import (
     WorkExecutionContext,
     WorkExecutionEngine,
@@ -31,6 +33,15 @@ class FailingExecutor(WorkExecutorPort):
         raise RuntimeError("executor failed")
 
 
+class PersistenceFailingExecutor(WorkExecutorPort):
+    async def execute(self, context: WorkExecutionContext) -> WorkExecutionResult:
+        del context
+        try:
+            raise RuntimeError("operator does not exist: json = json")
+        except RuntimeError as exc:
+            raise TranscriptPersistenceUnavailable() from exc
+
+
 def test_work_execution_engine_resolves_only_claimed_executor_and_succeeds(
     monkeypatch: pytest.MonkeyPatch,
     migrated_database_path: Path,
@@ -49,6 +60,28 @@ def test_work_execution_engine_records_failure(
     monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
 
     asyncio.run(_exercise_failure(database_url))
+
+
+def test_work_execution_engine_records_safe_persistence_failure_and_logs_cause(
+    monkeypatch: pytest.MonkeyPatch,
+    migrated_database_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    database_url = f"sqlite+aiosqlite:///{migrated_database_path.as_posix()}"
+    monkeypatch.setenv("CODEX_CLI_DATABASE_URL", database_url)
+    caplog.set_level(logging.ERROR, logger="codex_sdk_cli.application.work.execution")
+
+    asyncio.run(_exercise_persistence_failure(database_url))
+
+    record = next(
+        record
+        for record in caplog.records
+        if record.name == "codex_sdk_cli.application.work.execution"
+    )
+    assert "Work item 1 attempt 1 (persisting) failed" in record.getMessage()
+    assert record.exc_info is not None
+    assert isinstance(record.exc_info[1], TranscriptPersistenceUnavailable)
+    assert isinstance(record.exc_info[1].__cause__, RuntimeError)
 
 
 def test_work_execution_engine_runs_inline_item(
@@ -128,6 +161,33 @@ async def _exercise_failure(database_url: str) -> None:
         assert item.status is WorkItemStatus.FAILED
         assert item.error_code == "work.execution_failed"
         assert item.error_message == "executor failed"
+    finally:
+        await engine.dispose()
+
+
+async def _exercise_persistence_failure(database_url: str) -> None:
+    engine, session_factory = await _database(database_url)
+    try:
+        item_id = await _enqueue(session_factory, task_type="persisting")
+        execution = WorkExecutionEngine(
+            unit_of_work_factory=lambda: SqlAlchemyWorkUnitOfWork(session_factory),
+            registry=WorkExecutorRegistry(
+                {"persisting": PersistenceFailingExecutor}
+            ),
+            task_types=("persisting",),
+            worker_id="worker:test",
+        )
+
+        assert await execution.run_once() is True
+
+        async with SqlAlchemyWorkUnitOfWork(session_factory) as unit_of_work:
+            item = await unit_of_work.work_items.get(item_id)
+        assert item is not None
+        assert item.status is WorkItemStatus.FAILED
+        assert item.error_code == "transcript.persistence_failed"
+        assert item.error_type == "TranscriptPersistenceUnavailable"
+        assert item.error_message == "Transcript metadata persistence failed."
+        assert "json = json" not in item.error_message
     finally:
         await engine.dispose()
 

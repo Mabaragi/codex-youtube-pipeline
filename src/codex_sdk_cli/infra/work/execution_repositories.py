@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from sqlalchemy import exists, func, or_, select, update
@@ -14,6 +16,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobListQuery,
     PipelineJobRecord,
     PipelineJobRepositoryPort,
+    PipelineJobStatus,
     PipelineJobSummaryRecord,
 )
 from codex_sdk_cli.domains.video_tasks.ports import (
@@ -36,8 +39,14 @@ from .models import WorkAttemptModel, WorkItemModel
 class WorkVideoTaskRepository(VideoTaskRepositoryPort):
     """Expose unified work rows to processing code that still uses task-shaped records."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        current_work_item_id: int | None = None,
+    ) -> None:
         self._session = session
+        self._current_work_item_id = current_work_item_id
 
     @override
     async def get_task(self, task_id: int) -> VideoTaskRecord | None:
@@ -356,6 +365,15 @@ class WorkVideoTaskRepository(VideoTaskRepositoryPort):
     ) -> VideoTaskRecord:
         del job_id, job_attempt_id
         model = await self._required(task_id)
+        if task_id == self._current_work_item_id:
+            return replace(
+                await self._required_record(model),
+                status="running",
+                worker_id=worker_id,
+                timeout_seconds=timeout_seconds,
+                started_at=model.started_at or _now(),
+                updated_at=_now(),
+            )
         model.status = WorkItemStatus.RUNNING.value
         model.lease_owner = worker_id
         model.timeout_seconds = timeout_seconds
@@ -409,6 +427,18 @@ class WorkVideoTaskRepository(VideoTaskRepositoryPort):
         output_json: JsonObject | None = None,
     ) -> VideoTaskRecord:
         model = await self._required(task_id)
+        if task_id == self._current_work_item_id:
+            now = _now()
+            return replace(
+                await self._required_record(model),
+                status="no_transcript",
+                worker_id=None,
+                output_json=output_json,
+                error_type="YouTubeTranscriptNotFound",
+                error_message=error_message,
+                completed_at=now,
+                updated_at=now,
+            )
         model.status = WorkItemStatus.SUCCEEDED.value
         model.outcome_code = "no_transcript"
         model.error_type = "YouTubeTranscriptNotFound"
@@ -500,6 +530,19 @@ class WorkVideoTaskRepository(VideoTaskRepositoryPort):
         output_json: JsonObject,
     ) -> VideoTaskRecord:
         model = await self._required(task_id)
+        if task_id == self._current_work_item_id:
+            now = _now()
+            return replace(
+                await self._required_record(model),
+                status=cast(VideoTaskStatus, status),
+                worker_id=None,
+                output_transcript_id=output_transcript_id,
+                output_json=output_json,
+                error_type=None,
+                error_message=None,
+                completed_at=now,
+                updated_at=now,
+            )
         model.status = status
         model.outcome_code = None
         model.output_transcript_id = output_transcript_id
@@ -523,6 +566,18 @@ class WorkVideoTaskRepository(VideoTaskRepositoryPort):
         timed_out: bool,
     ) -> VideoTaskRecord:
         model = await self._required(task_id)
+        if task_id == self._current_work_item_id:
+            now = _now()
+            return replace(
+                await self._required_record(model),
+                status="timed_out" if timed_out else "failed",
+                worker_id=None,
+                output_json=output_json,
+                error_type=error_type,
+                error_message=error_message,
+                completed_at=now,
+                updated_at=now,
+            )
         model.status = (
             WorkItemStatus.TIMED_OUT.value if timed_out else WorkItemStatus.FAILED.value
         )
@@ -577,7 +632,7 @@ class WorkVideoTaskRepository(VideoTaskRepositoryPort):
             completed_at=model.completed_at,
             created_at=model.created_at,
             updated_at=model.updated_at,
-            input_json=model.input_json,
+            input_json={**model.input_json, "inputHash": model.input_hash},
         )
 
     async def _youtube_video_id(self, video_id: int) -> str | None:
@@ -661,7 +716,7 @@ class WorkPipelineJobRepository(PipelineJobRepositoryPort):
                     & (WorkItemModel.subject_id == query.channel_id),
                     (WorkItemModel.subject_type == "video")
                     & WorkItemModel.subject_id.in_(video_ids),
-                    func.json_extract(WorkItemModel.input_json, "$.channelId")
+                    WorkItemModel.input_json["channelId"].as_integer()
                     == query.channel_id,
                     exists(
                         select(ChannelModel.id).where(
@@ -678,7 +733,7 @@ class WorkPipelineJobRepository(PipelineJobRepositoryPort):
                     exists(
                         select(WorkAttemptModel.id).where(
                             WorkAttemptModel.work_item_id == WorkItemModel.id,
-                            func.json_extract(WorkAttemptModel.output_json, "$.channelId")
+                            WorkAttemptModel.output_json["channelId"].as_integer()
                             == query.channel_id,
                         )
                     ),
@@ -748,6 +803,13 @@ class WorkPipelineJobRepository(PipelineJobRepositoryPort):
         output_json: JsonObject,
     ) -> PipelineJobAttemptRecord:
         model = await self._required_attempt(attempt_id)
+        if attempt_id == self._current_work_attempt_id:
+            return replace(
+                _attempt_record(model),
+                status="succeeded",
+                output_json=output_json,
+                finished_at=_now(),
+            )
         model.status = "succeeded"
         model.output_json = output_json
         model.error_code = None
@@ -767,6 +829,15 @@ class WorkPipelineJobRepository(PipelineJobRepositoryPort):
         output_json: JsonObject | None = None,
     ) -> PipelineJobAttemptRecord:
         model = await self._required_attempt(attempt_id)
+        if attempt_id == self._current_work_attempt_id:
+            return replace(
+                _attempt_record(model),
+                status="failed",
+                output_json=output_json,
+                error_type=error_type,
+                error_message=error_message,
+                finished_at=_now(),
+            )
         model.status = "failed"
         model.output_json = output_json
         model.error_code = "work.execution_failed"
@@ -790,6 +861,18 @@ class WorkPipelineJobRepository(PipelineJobRepositoryPort):
 
     async def _set_job_status(self, job_id: int, status: str) -> PipelineJobRecord:
         model = await self._required_model(job_id)
+        if job_id == self._current_work_item_id:
+            completed_at = (
+                _now()
+                if status in {WorkItemStatus.SUCCEEDED.value, WorkItemStatus.FAILED.value}
+                else None
+            )
+            return replace(
+                _job_record(model),
+                status=cast(PipelineJobStatus, status),
+                updated_at=_now(),
+                completed_at=completed_at,
+            )
         model.status = status
         model.updated_at = _now()
         if status in {WorkItemStatus.SUCCEEDED.value, WorkItemStatus.FAILED.value}:

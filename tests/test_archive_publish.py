@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -15,6 +16,7 @@ from alembic import command
 from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
     archive_publish_storage_factory,
 )
+from codex_sdk_cli.bootstrap import archive as archive_bootstrap
 from codex_sdk_cli.domains.archive_publish.exceptions import (
     ArchivePublishArtifactInvalid,
 )
@@ -164,6 +166,68 @@ def test_archive_publish_task_input_separates_dev_and_prod_modes() -> None:
     assert dev_input["variant"] == "dev-preview"
 
 
+def test_archive_publish_execution_adapters_defer_current_status_to_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    sentinel = object()
+
+    def video_tasks(
+        session: object,
+        *,
+        current_work_item_id: int | None = None,
+    ) -> object:
+        captured["videoSession"] = session
+        captured["videoWorkItemId"] = current_work_item_id
+        return object()
+
+    def pipeline_jobs(
+        session: object,
+        *,
+        current_work_item_id: int | None = None,
+        current_work_attempt_id: int | None = None,
+    ) -> object:
+        captured["pipelineSession"] = session
+        captured["pipelineWorkItemId"] = current_work_item_id
+        captured["pipelineWorkAttemptId"] = current_work_attempt_id
+        return object()
+
+    def use_case(
+        session: object,
+        settings: CliSettings,
+        *,
+        video_tasks: object,
+        pipeline_jobs: object,
+    ) -> object:
+        captured["useCaseSession"] = session
+        captured["settings"] = settings
+        captured["videoTasks"] = video_tasks
+        captured["pipelineJobs"] = pipeline_jobs
+        return sentinel
+
+    monkeypatch.setattr(archive_bootstrap, "WorkVideoTaskRepository", video_tasks)
+    monkeypatch.setattr(archive_bootstrap, "WorkPipelineJobRepository", pipeline_jobs)
+    monkeypatch.setattr(archive_bootstrap, "archive_publish_use_case", use_case)
+    session = object()
+    settings = CliSettings()
+
+    result = archive_bootstrap.archive_publish_execution_use_case(
+        cast(Any, session),
+        settings,
+        work_item_id=3712,
+        work_attempt_id=2950,
+    )
+
+    assert result is sentinel
+    assert captured["videoSession"] is session
+    assert captured["pipelineSession"] is session
+    assert captured["useCaseSession"] is session
+    assert captured["settings"] is settings
+    assert captured["videoWorkItemId"] == 3712
+    assert captured["pipelineWorkItemId"] == 3712
+    assert captured["pipelineWorkAttemptId"] == 2950
+
+
 def test_archive_publish_migration_creates_archive_tables(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -256,6 +320,51 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
         artifact.payload,
         ensure_ascii=False,
     )
+
+
+def test_timeline_artifact_publishes_empty_timeline_for_full_video_duration() -> None:
+    artifact = _timeline_artifact(
+        video=_video(),
+        channel=_channel(),
+        streamer=_streamer(),
+        composition=_empty_composition(),
+        micro_events=[],
+        cues=[],
+        prefix="archive",
+        public_base_url="https://pub.example.dev",
+        environment="prod",
+        variant="control",
+        schema_version=1,
+    )
+
+    assert artifact.payload["timelineState"] == "empty"
+    assert artifact.payload["emptyReason"] == "no_micro_events"
+    assert artifact.payload["generationMode"] == "deterministic_empty"
+    assert artifact.payload["reviewFlags"] == []
+    assert artifact.micro_event_count == 0
+    episodes = cast(list[dict[str, object]], artifact.payload["episodes"])
+    assert episodes == [
+        {
+            "episodeId": "episode_001",
+            "episodeIndex": 1,
+            "parentBlockId": "block_001",
+            "startMs": 0,
+            "endMs": 3_600_000,
+            "programMode": "MIXED",
+            "primaryContentKind": "OTHER",
+            "title": "분석 가능한 이벤트 없음",
+            "summary": "분석 가능한 마이크로 이벤트가 없습니다.",
+            "displayTitle": "분석 가능한 이벤트 없음",
+            "displaySummary": "분석 가능한 마이크로 이벤트가 없습니다.",
+            "topics": [],
+            "viewerTags": [],
+            "visibility": "DEFAULT",
+            "microEvents": [],
+        }
+    ]
+    blocks = cast(list[dict[str, object]], artifact.payload["blocks"])
+    assert blocks[0]["displayTitle"] == "안내"
+    assert cast(list[dict[str, object]], blocks[0]["episodes"])[0] == episodes[0]
 
 
 def test_public_catalog_row_includes_timeline_index() -> None:
@@ -555,6 +664,52 @@ def _composition() -> TimelineCompositionRecord:
                 updated_at=NOW,
             )
         ],
+    )
+
+
+def _empty_composition() -> TimelineCompositionRecord:
+    composition = _composition()
+    message = "분석 가능한 마이크로 이벤트가 없습니다."
+    block = replace(
+        composition.blocks[0],
+        block_type="MIXED",
+        title="안내",
+        summary=message,
+        display_title="안내",
+        display_summary=message,
+    )
+    episode = replace(
+        composition.episodes[0],
+        start_micro_event_candidate_id=None,
+        end_micro_event_candidate_id=None,
+        program_mode="MIXED",
+        primary_content_kind="OTHER",
+        title="분석 가능한 이벤트 없음",
+        summary=message,
+        display_title="분석 가능한 이벤트 없음",
+        display_summary=message,
+        topics=[],
+        viewer_tags=[],
+        highlight_micro_event_candidate_ids=[],
+    )
+    return replace(
+        composition,
+        model=None,
+        reasoning_effort=None,
+        title=_video().title,
+        summary=message,
+        display_title=_video().title,
+        display_summary=message,
+        main_topics=[],
+        output_json={
+            "timeline_state": "empty",
+            "empty_reason": "no_micro_events",
+            "generation_mode": "deterministic_empty",
+        },
+        blocks=[block],
+        episodes=[episode],
+        topic_clusters=[],
+        review_flags=[],
     )
 
 

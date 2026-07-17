@@ -39,6 +39,7 @@ from codex_sdk_cli.infra.database.session import (
     create_database_engine,
     create_session_factory,
 )
+from codex_sdk_cli.infra.work.execution_repositories import WorkVideoTaskRepository
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
 
@@ -160,6 +161,14 @@ async def _exercise_processing_work(database_path: Path) -> None:
         assert timeline_batch.created_count == 1
         timeline_work_item_id = timeline_batch.items[0].work_item_id
         assert timeline_work_item_id is not None
+
+        async with session_factory() as session:
+            timeline_task = await WorkVideoTaskRepository(session).get_task(
+                timeline_work_item_id
+            )
+        assert timeline_task is not None
+        assert timeline_task.input_json is not None
+        assert timeline_task.input_json["inputHash"] == timeline_task.input_hash
 
         timeline_processor = FakeTimelineProcessor()
         timeline_engine = WorkExecutionEngine(

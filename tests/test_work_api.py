@@ -96,7 +96,13 @@ async def _exercise_work_api(database_url: str) -> None:
 
         workflow_created = await client.post(
             "/ops/workflows/process-to-publish",
-            json={"selection": {"type": "selected", "videoIds": [1]}},
+            json={
+                "selection": {"type": "selected", "videoIds": [1]},
+                "transcriptFallback": {
+                    "graceSeconds": 21600,
+                    "recheckIntervalSeconds": 900,
+                },
+            },
         )
         assert workflow_created.status_code == 202
         workflow_body = workflow_created.json()
@@ -107,6 +113,9 @@ async def _exercise_work_api(database_url: str) -> None:
         assert workflow_detail.status_code == 200
         assert workflow_detail.json()["status"] == "pending"
         assert workflow_detail.json()["steps"] == []
+        assert workflow_detail.json()["options"][
+            "transcript_recheck_interval_seconds"
+        ] == 900
 
         batch_detail = await client.get(f"/ops/work-batches/{batch_id}")
         assert batch_detail.status_code == 200

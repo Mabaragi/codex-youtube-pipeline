@@ -109,10 +109,12 @@ async def _exercise_api() -> dict[str, object]:
         active_after_rollback = rollback_detail_response.json()["active"]["versionLabel"]
 
         archive_active_response = await client.post(
-            f"/prompts/micro_event_extract/versions/{created['id']}/archive"
+            f"/prompts/micro_event_extract/versions/{created['id']}/archive",
+            headers={"X-Operator-Reason": "API regression test cleanup"},
         )
         archive_inactive_response = await client.post(
-            f"/prompts/micro_event_extract/versions/{second['id']}/archive"
+            f"/prompts/micro_event_extract/versions/{second['id']}/archive",
+            headers={"X-Operator-Reason": "API regression test cleanup"},
         )
         archive_inactive_response.raise_for_status()
         draft_response = await client.post(
@@ -121,7 +123,8 @@ async def _exercise_api() -> dict[str, object]:
         )
         draft_response.raise_for_status()
         archive_draft_response = await client.post(
-            f"/prompts/micro_event_extract/versions/{draft_response.json()['id']}/archive"
+            f"/prompts/micro_event_extract/versions/{draft_response.json()['id']}/archive",
+            headers={"X-Operator-Reason": "API regression test cleanup"},
         )
         archive_draft_response.raise_for_status()
 

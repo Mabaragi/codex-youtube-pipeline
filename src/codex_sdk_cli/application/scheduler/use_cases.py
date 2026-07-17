@@ -14,6 +14,10 @@ from codex_sdk_cli.application.transcripts.commands import (
 )
 from codex_sdk_cli.application.work.execution import WorkUnitOfWorkFactory
 from codex_sdk_cli.application.work.ports import CreateWorkItem
+from codex_sdk_cli.application.workflows.commands import (
+    ProcessToPublishCommand,
+    StartProcessToPublishUseCase,
+)
 from codex_sdk_cli.domains.work.models import (
     JsonObject,
     WorkExecutionMode,
@@ -22,11 +26,14 @@ from codex_sdk_cli.domains.work.models import (
 )
 
 from .ports import (
+    AutomationScheduleStatePort,
     InlineWorkRunnerPort,
+    PublishedPromptSnapshotPort,
     ScheduledChannel,
     ScheduledChannelReaderPort,
     SchedulerEvent,
     SchedulerEventRecorderPort,
+    WorkflowCandidateReaderPort,
 )
 
 Now = Callable[[], datetime]
@@ -41,6 +48,9 @@ class PipelineSchedulerConfig:
     no_transcript_recheck_interval_seconds: int
     no_transcript_limit: int
     video_collect_timeout_seconds: int = 600
+    workflow_limit: int = 12
+    transcript_fallback_grace_seconds: int = 21600
+    transcript_recheck_interval_seconds: int = 1800
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +73,7 @@ class PipelineSchedulerTickResult:
     transcript_enqueued_count: int
     transcript_reused_count: int
     no_transcript_recheck_count: int
+    workflow_enqueued_count: int
     channels: tuple[PipelineSchedulerChannelResult, ...]
 
 
@@ -76,6 +87,10 @@ class RunPipelineSchedulerTickUseCase:
         inline_runner: InlineWorkRunnerPort,
         events: SchedulerEventRecorderPort,
         config: PipelineSchedulerConfig,
+        start_workflows: StartProcessToPublishUseCase | None = None,
+        workflow_candidates: WorkflowCandidateReaderPort | None = None,
+        automation_state: AutomationScheduleStatePort | None = None,
+        prompts: PublishedPromptSnapshotPort | None = None,
         now: Now | None = None,
     ) -> None:
         self._channels = channels
@@ -84,10 +99,25 @@ class RunPipelineSchedulerTickUseCase:
         self._inline_runner = inline_runner
         self._events = events
         self._config = config
+        self._start_workflows = start_workflows
+        self._workflow_candidates = workflow_candidates
+        self._automation_state = automation_state
+        self._prompts = prompts
         self._now = now or (lambda: datetime.now(UTC))
 
     async def execute_once(self) -> PipelineSchedulerTickResult:
         now = _aware(self._now())
+        if self._automation_state is not None:
+            state = await self._automation_state.get_state(now=now)
+            if state.runtime_state != "active":
+                result = _tick_result([], 0, 0)
+                await self._record(
+                    "pipeline_scheduler.tick_skipped",
+                    "info",
+                    "Tick skipped while pipeline runtime is paused.",
+                    metadata={"runtimeState": state.runtime_state},
+                )
+                return result
         await self._record("pipeline_scheduler.tick_started", "info", "Tick started.")
         try:
             result = await self._execute_once(now)
@@ -110,8 +140,13 @@ class RunPipelineSchedulerTickUseCase:
     async def _execute_once(self, now: datetime) -> PipelineSchedulerTickResult:
         channels = await self._channels.list_scheduled_channels()
         results = [await self._process_channel(channel, now) for channel in channels]
-        rechecked = await self._recheck_no_transcript(now)
-        return _tick_result(results, rechecked)
+        rechecked = (
+            0
+            if self._start_workflows is not None
+            else await self._recheck_no_transcript(now)
+        )
+        workflows = await self._enqueue_workflows(now)
+        return _tick_result(results, rechecked, workflows)
 
     async def _process_channel(
         self,
@@ -138,22 +173,83 @@ class RunPipelineSchedulerTickUseCase:
             await self._record_channel("pipeline_scheduler.channel_failed", channel, result)
             return result
 
-        transcript_batch = await self._collect_transcripts.execute(
-            CollectTranscriptsCommand(
-                selection=ChannelVideos(channel.id, self._config.transcript_limit),
-                actor_type="system",
+        transcript_batch = (
+            await self._collect_transcripts.execute(
+                CollectTranscriptsCommand(
+                    selection=ChannelVideos(channel.id, self._config.transcript_limit),
+                    actor_type="system",
+                )
             )
+            if self._start_workflows is None
+            else None
         )
         result = PipelineSchedulerChannelResult(
             channel_id=channel.id,
             status="processed",
             reason="processed",
             created_video_count=_created_count(run.output_json),
-            transcript_enqueued_count=transcript_batch.created_count,
-            transcript_reused_count=transcript_batch.reused_count,
+            transcript_enqueued_count=(transcript_batch.created_count if transcript_batch else 0),
+            transcript_reused_count=(transcript_batch.reused_count if transcript_batch else 0),
         )
         await self._record_channel("pipeline_scheduler.channel_processed", channel, result)
         return result
+
+    async def _enqueue_workflows(self, now: datetime) -> int:
+        if (
+            self._start_workflows is None
+            or self._workflow_candidates is None
+            or self._automation_state is None
+            or self._prompts is None
+        ):
+            return 0
+        state = await self._automation_state.get_state(now=now)
+        candidates = await self._workflow_candidates.list_candidates(
+            state=state,
+            limit=self._config.workflow_limit,
+        )
+        if not candidates and state.mode == "backfill":
+            await self._automation_state.mark_steady(now=now)
+            state = await self._automation_state.get_state(now=now)
+            candidates = await self._workflow_candidates.list_candidates(
+                state=state,
+                limit=self._config.workflow_limit,
+            )
+        if not candidates:
+            return 0
+        micro_prompt_id, timeline_prompt_id = await self._prompts.active_version_ids()
+        result = await self._start_workflows.execute(
+            ProcessToPublishCommand(
+                selection=SelectedVideos(tuple(item.id for item in candidates)),
+                micro_model="gpt-5.6-sol",
+                micro_reasoning_effort="medium",
+                micro_prompt_version_id=micro_prompt_id,
+                timeline_model="gpt-5.6-sol",
+                timeline_reasoning_effort="medium",
+                timeline_prompt_version_id=timeline_prompt_id,
+                retry_failed=False,
+                transcript_fallback_mode="asr_after_grace",
+                transcript_fallback_grace_seconds=(
+                    self._config.transcript_fallback_grace_seconds
+                ),
+                transcript_recheck_interval_seconds=(
+                    self._config.transcript_recheck_interval_seconds
+                ),
+                asr_model="turbo",
+                asr_language="ko",
+                asr_device="cuda",
+                asr_compute_type="auto",
+                asr_chunk_minutes=15,
+                asr_overlap_seconds=3,
+                asr_beam_size=5,
+                asr_vad_filter=True,
+                asr_timeout_seconds=64800,
+                micro_timeout_seconds=14400,
+                timeline_timeout_seconds=7200,
+                actor_type="system",
+                automation_mode=state.mode,
+            )
+        )
+        return result.created_count
 
     async def _prepare_video_collect(
         self,
@@ -296,6 +392,7 @@ def _created_count(output: JsonObject | None) -> int:
 def _tick_result(
     results: list[PipelineSchedulerChannelResult],
     rechecked: int,
+    workflows: int = 0,
 ) -> PipelineSchedulerTickResult:
     return PipelineSchedulerTickResult(
         channel_count=len(results),
@@ -306,6 +403,7 @@ def _tick_result(
         transcript_enqueued_count=sum(item.transcript_enqueued_count for item in results),
         transcript_reused_count=sum(item.transcript_reused_count for item in results),
         no_transcript_recheck_count=rechecked,
+        workflow_enqueued_count=workflows,
         channels=tuple(results),
     )
 
@@ -331,6 +429,7 @@ def _tick_metadata(result: PipelineSchedulerTickResult) -> JsonObject:
         "transcriptEnqueuedCount": result.transcript_enqueued_count,
         "transcriptReusedCount": result.transcript_reused_count,
         "noTranscriptRecheckCount": result.no_transcript_recheck_count,
+        "workflowEnqueuedCount": result.workflow_enqueued_count,
     }
 
 

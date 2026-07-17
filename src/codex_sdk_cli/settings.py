@@ -41,27 +41,39 @@ class CliSettings(BaseSettings):
     transcript_worker_id: str | None = None
     pipeline_scheduler_enabled: bool = True
     pipeline_scheduler_poll_interval_seconds: int = 300
-    pipeline_scheduler_channel_interval_seconds: int = 86400
+    pipeline_scheduler_channel_interval_seconds: int = 7200
     pipeline_scheduler_transcript_limit: int = 5
     pipeline_scheduler_no_transcript_recheck_interval_seconds: int = 604800
     pipeline_scheduler_no_transcript_limit: int = 2
+    pipeline_scheduler_workflow_limit: int = 12
+    pipeline_scheduler_transcript_fallback_grace_seconds: int = 21600
+    pipeline_scheduler_transcript_recheck_interval_seconds: int = 1800
     pipeline_scheduler_id: str | None = None
     transcript_cue_generate_timeout_seconds: int = 600
     transcript_cue_generate_concurrency_limit: int = 1
     transcript_cue_worker_poll_interval_seconds: int = 5
     transcript_cue_worker_id: str | None = None
-    micro_event_extract_timeout_seconds: int = 3600
-    micro_event_extract_concurrency_limit: int = 3
+    asr_transcribe_timeout_seconds: int = 64800
+    asr_transcribe_concurrency_limit: int = 1
+    asr_worker_poll_interval_seconds: int = 5
+    asr_worker_id: str | None = None
+    micro_event_extract_timeout_seconds: int = 14400
+    micro_event_extract_concurrency_limit: int = 1
+    micro_event_window_concurrency_limit: int = 6
     micro_event_worker_poll_interval_seconds: int = 5
     micro_event_worker_id: str | None = None
-    timeline_compose_timeout_seconds: int = 3600
+    timeline_compose_timeout_seconds: int = 7200
     timeline_compose_concurrency_limit: int = 3
     timeline_compose_worker_poll_interval_seconds: int = 5
     timeline_compose_worker_id: str | None = None
     workflow_coordinator_poll_interval_seconds: int = 5
     workflow_coordinator_id: str | None = None
+    pipeline_supervisor_enabled: bool = True
+    pipeline_supervisor_poll_interval_seconds: int = 60
+    pipeline_supervisor_id: str | None = None
     llm_trace_enabled: bool = True
     llm_trace_dir: Path = Path(".home-deploy/logs/llm-traces")
+    local_runtime_pid_dir: Path = Path(".home-deploy/pids")
     llm_trace_raw_response_enabled: bool = True
     llm_trace_retention_days: int = 14
     archive_publish_timeout_seconds: int = 600
@@ -110,9 +122,11 @@ class CliSettings(BaseSettings):
         "pipeline_scheduler_id",
         "transcript_worker_id",
         "transcript_cue_worker_id",
+        "asr_worker_id",
         "micro_event_worker_id",
         "timeline_compose_worker_id",
         "workflow_coordinator_id",
+        "pipeline_supervisor_id",
         "archive_publish_r2_endpoint",
         "archive_publish_r2_access_key",
         "archive_publish_r2_secret_key",
@@ -171,16 +185,24 @@ class CliSettings(BaseSettings):
         "pipeline_scheduler_transcript_limit",
         "pipeline_scheduler_no_transcript_recheck_interval_seconds",
         "pipeline_scheduler_no_transcript_limit",
+        "pipeline_scheduler_transcript_fallback_grace_seconds",
+        "pipeline_scheduler_transcript_recheck_interval_seconds",
+        "pipeline_scheduler_workflow_limit",
         "transcript_cue_generate_timeout_seconds",
         "transcript_cue_generate_concurrency_limit",
         "transcript_cue_worker_poll_interval_seconds",
+        "asr_transcribe_timeout_seconds",
+        "asr_transcribe_concurrency_limit",
+        "asr_worker_poll_interval_seconds",
         "micro_event_extract_timeout_seconds",
         "micro_event_extract_concurrency_limit",
+        "micro_event_window_concurrency_limit",
         "micro_event_worker_poll_interval_seconds",
         "timeline_compose_timeout_seconds",
         "timeline_compose_concurrency_limit",
         "timeline_compose_worker_poll_interval_seconds",
         "workflow_coordinator_poll_interval_seconds",
+        "pipeline_supervisor_poll_interval_seconds",
         "llm_trace_retention_days",
         "archive_publish_timeout_seconds",
         "prompt_cache_ttl_seconds",

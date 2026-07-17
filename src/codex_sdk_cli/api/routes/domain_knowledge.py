@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 
+from codex_sdk_cli.api.operator_context import OperatorReason
 from codex_sdk_cli.api.use_case_dependencies.domain_knowledge import (
     AddDomainEntryAliasUseCaseDep,
     AddDomainEntryStreamerUseCaseDep,
@@ -17,6 +18,9 @@ from codex_sdk_cli.api.use_case_dependencies.domain_knowledge import (
     RemoveDomainEntryStreamerUseCaseDep,
     UpdateDomainEntryAliasUseCaseDep,
     UpdateDomainEntryUseCaseDep,
+)
+from codex_sdk_cli.api.use_case_dependencies.operation_events import (
+    RecordOperatorMutationUseCaseDep,
 )
 from codex_sdk_cli.domains.domain_knowledge.schemas import (
     DeleteResponse,
@@ -104,9 +108,19 @@ async def update_domain_entry(
 @router.delete("/domain-entries/{entry_id}", response_model=DomainEntryResponse)
 async def archive_domain_entry(
     entry_id: Annotated[int, Path(ge=1)],
+    reason: OperatorReason,
     use_case: ArchiveDomainEntryUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> DomainEntryResponse:
-    return await use_case.execute(entry_id)
+    response = await use_case.execute(entry_id)
+    await audit.execute(
+        mutation="archived",
+        target_type="domain_entry",
+        target_id=entry_id,
+        action="archive",
+        reason=reason,
+    )
+    return response
 
 
 @router.post(
@@ -128,9 +142,20 @@ async def add_domain_entry_streamer(
 async def remove_domain_entry_streamer(
     entry_id: Annotated[int, Path(ge=1)],
     streamer_id: Annotated[int, Path(ge=1)],
+    reason: OperatorReason,
     use_case: RemoveDomainEntryStreamerUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> DeleteResponse:
-    return await use_case.execute(entry_id, streamer_id)
+    response = await use_case.execute(entry_id, streamer_id)
+    await audit.execute(
+        mutation="relationship_removed",
+        target_type="domain_entry_streamer",
+        target_id=entry_id,
+        action="unlink_streamer",
+        reason=reason,
+        metadata={"streamerId": streamer_id},
+    )
+    return response
 
 
 @router.post(
@@ -160,6 +185,16 @@ async def update_domain_entry_alias(
 @router.delete("/domain-entry-aliases/{alias_id}", response_model=DeleteResponse)
 async def delete_domain_entry_alias(
     alias_id: Annotated[int, Path(ge=1)],
+    reason: OperatorReason,
     use_case: DeleteDomainEntryAliasUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> DeleteResponse:
-    return await use_case.execute(alias_id)
+    response = await use_case.execute(alias_id)
+    await audit.execute(
+        mutation="deleted",
+        target_type="domain_entry_alias",
+        target_id=alias_id,
+        action="delete",
+        reason=reason,
+    )
+    return response

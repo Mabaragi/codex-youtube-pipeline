@@ -13,6 +13,7 @@ from codex_sdk_cli.application.work.errors import WorkPersistenceError
 from codex_sdk_cli.application.work.ports import (
     CreateWorkflowRun,
     WorkflowRepositoryPort,
+    WorkflowRunQuery,
 )
 from codex_sdk_cli.domains.work.models import (
     JsonObject,
@@ -20,8 +21,10 @@ from codex_sdk_cli.domains.work.models import (
     WorkflowStatus,
     WorkflowStep,
 )
+from codex_sdk_cli.infra.videos.repository import VideoModel
 
 from .models import WorkflowRunModel, WorkflowStepModel
+from .runtime_gate import runtime_accepting_work
 
 
 class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
@@ -40,6 +43,7 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
             input_hash=create.input_hash,
             status=WorkflowStatus.PENDING.value,
             options_json=create.options_json,
+            available_at=create.available_at,
         )
         try:
             async with self._session.begin_nested():
@@ -62,6 +66,26 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
         except SQLAlchemyError as exc:
             raise WorkPersistenceError() from exc
         return _run(model) if model is not None else None
+
+    @override
+    async def list_runs(self, query: WorkflowRunQuery) -> list[WorkflowRun]:
+        statement = select(WorkflowRunModel)
+        if query.workflow_type is not None:
+            statement = statement.where(
+                WorkflowRunModel.workflow_type == query.workflow_type
+            )
+        if query.status is not None:
+            statement = statement.where(WorkflowRunModel.status == query.status.value)
+        if query.video_id is not None:
+            statement = statement.where(WorkflowRunModel.video_id == query.video_id)
+        if query.cursor is not None:
+            statement = statement.where(WorkflowRunModel.id < query.cursor)
+        statement = statement.order_by(WorkflowRunModel.id.desc()).limit(query.limit)
+        try:
+            models = list((await self._session.scalars(statement)).all())
+        except SQLAlchemyError as exc:
+            raise WorkPersistenceError() from exc
+        return [_run(model) for model in models]
 
     @override
     async def list_steps(self, workflow_run_id: int) -> list[WorkflowStep]:
@@ -87,6 +111,13 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
         now: datetime,
         lease_expires_at: datetime,
     ) -> WorkflowRun | None:
+        if not await runtime_accepting_work(self._session):
+            return None
+        video_published_at = (
+            select(VideoModel.published_at)
+            .where(VideoModel.id == WorkflowRunModel.video_id)
+            .scalar_subquery()
+        )
         claimable = (
             select(WorkflowRunModel.id)
             .where(
@@ -97,8 +128,13 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
                     WorkflowRunModel.lease_expires_at.is_(None),
                     WorkflowRunModel.lease_expires_at <= now,
                 ),
+                WorkflowRunModel.available_at <= now,
             )
-            .order_by(WorkflowRunModel.updated_at.asc(), WorkflowRunModel.id.asc())
+            .order_by(
+                video_published_at.desc(),
+                WorkflowRunModel.updated_at.asc(),
+                WorkflowRunModel.id.asc(),
+            )
             .limit(1)
             .scalar_subquery()
         )
@@ -213,18 +249,82 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
         return max(rowcount if rowcount is not None else 0, 0)
 
     @override
+    async def reset_for_retry(
+        self,
+        *,
+        workflow_run_id: int,
+        now: datetime,
+    ) -> WorkflowRun:
+        model = await self._session.get(WorkflowRunModel, workflow_run_id)
+        if model is None:
+            raise WorkPersistenceError("Workflow run was not found.")
+        if model.status not in {WorkflowStatus.FAILED.value, WorkflowStatus.BLOCKED.value}:
+            return _run(model)
+        model.status = WorkflowStatus.PENDING.value
+        model.current_stage = None
+        model.error_code = None
+        model.error_message = None
+        model.lease_owner = None
+        model.lease_expires_at = None
+        model.available_at = now
+        model.completed_at = None
+        model.updated_at = now
+        await self._session.flush()
+        return _run(model)
+
+    @override
+    async def reset_linked_for_work_item_retry(
+        self,
+        *,
+        work_item_id: int,
+        now: datetime,
+    ) -> list[int]:
+        workflow_ids = list(
+            (
+                await self._session.scalars(
+                    select(WorkflowStepModel.workflow_run_id)
+                    .join(
+                        WorkflowRunModel,
+                        WorkflowRunModel.id == WorkflowStepModel.workflow_run_id,
+                    )
+                    .where(
+                        WorkflowStepModel.work_item_id == work_item_id,
+                        WorkflowRunModel.status.in_(
+                            (WorkflowStatus.FAILED.value, WorkflowStatus.BLOCKED.value)
+                        ),
+                    )
+                    .order_by(WorkflowStepModel.workflow_run_id)
+                )
+            ).all()
+        )
+        for workflow_run_id in workflow_ids:
+            workflow = await self._session.get(WorkflowRunModel, workflow_run_id)
+            if workflow is not None and workflow.options_json.get("automation_mode") in {
+                "backfill",
+                "steady",
+            }:
+                workflow.options_json = {
+                    **workflow.options_json,
+                    "retry_failed": False,
+                }
+            await self.reset_for_retry(workflow_run_id=workflow_run_id, now=now)
+        return workflow_ids
+
+    @override
     async def set_waiting(
         self,
         *,
         workflow_run_id: int,
         current_stage: str,
         now: datetime,
+        available_at: datetime | None = None,
     ) -> WorkflowRun:
         return await self._finish_transition(
             workflow_run_id,
             status=WorkflowStatus.WAITING,
             current_stage=current_stage,
             now=now,
+            available_at=available_at or now,
         )
 
     @override
@@ -275,6 +375,7 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
         error_code: str | None = None,
         error_message: str | None = None,
         completed_at: datetime | None = None,
+        available_at: datetime | None = None,
     ) -> WorkflowRun:
         try:
             model = await self._session.get(WorkflowRunModel, workflow_run_id)
@@ -289,6 +390,7 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
             model.lease_expires_at = None
             model.updated_at = now
             model.completed_at = completed_at
+            model.available_at = available_at or now
             await self._session.flush()
         except SQLAlchemyError as exc:
             raise WorkPersistenceError() from exc
@@ -323,6 +425,7 @@ def _run(model: WorkflowRunModel) -> WorkflowRun:
         error_message=model.error_message,
         lease_owner=model.lease_owner,
         lease_expires_at=model.lease_expires_at,
+        available_at=model.available_at,
         created_at=model.created_at,
         updated_at=model.updated_at,
         completed_at=model.completed_at,

@@ -4,11 +4,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, status
 
+from codex_sdk_cli.api.operator_context import OperatorReason
 from codex_sdk_cli.api.use_case_dependencies.channels import (
     CreateChannelUseCaseDep,
     DeleteChannelUseCaseDep,
     ListStreamerChannelsUseCaseDep,
     UpdateChannelUseCaseDep,
+)
+from codex_sdk_cli.api.use_case_dependencies.operation_events import (
+    RecordOperatorMutationUseCaseDep,
 )
 from codex_sdk_cli.domains.channels.schemas import (
     ChannelCreateRequest,
@@ -53,6 +57,16 @@ async def update_channel(
 @router.delete("/channels/{channel_id}", response_model=DeleteResponse)
 async def delete_channel(
     channel_id: Annotated[int, Path(ge=1)],
+    reason: OperatorReason,
     use_case: DeleteChannelUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> DeleteResponse:
-    return await use_case.execute(channel_id)
+    response = await use_case.execute(channel_id)
+    await audit.execute(
+        mutation="deleted",
+        target_type="channel",
+        target_id=channel_id,
+        action="delete",
+        reason=reason,
+    )
+    return response

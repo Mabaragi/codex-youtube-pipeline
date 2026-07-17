@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typing_extensions import override
 
+from codex_sdk_cli.application.transcripts.errors import TranscriptPersistenceUnavailable
 from codex_sdk_cli.application.transcripts.ports import (
     GeneratedCues,
     StoredTranscript,
@@ -17,6 +18,7 @@ from codex_sdk_cli.domains.transcript_cues.generation import (
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import (
     YouTubeTranscriptMetadataNotFound,
     YouTubeTranscriptNotFound,
+    YouTubeTranscriptPersistenceError,
     YouTubeTranscriptStorageError,
 )
 from codex_sdk_cli.domains.youtube_transcripts.ports import (
@@ -55,34 +57,39 @@ class StoredYouTubeTranscriptFetcher(TranscriptFetcherPort):
         languages: tuple[str, ...],
         preserve_formatting: bool,
     ) -> StoredTranscript | None:
-        async with self._session_factory() as session:
-            repository = SqlAlchemyYouTubeTranscriptRepository(session)
-            existing = await repository.find_transcript_metadata_for_request(
-                video_id=youtube_video_id,
-                requested_languages=languages,
-                preserve_formatting=preserve_formatting,
-            )
-            if existing is not None:
-                return _stored(existing, reused_existing=True)
-            fetcher = FetchYouTubeTranscriptUseCase(
-                self._client,
-                self._storage,
-                repository,
-                storage_prefix=self._storage_prefix,
-            )
-            try:
-                result = await fetcher.execute_with_metadata(
-                    TranscriptRequest(
-                        video=youtube_video_id,
-                        languages=list(languages),
-                        preserveFormatting=preserve_formatting,
-                    )
+        try:
+            async with self._session_factory() as session:
+                repository = SqlAlchemyYouTubeTranscriptRepository(session)
+                existing = await repository.find_transcript_metadata_for_request(
+                    video_id=youtube_video_id,
+                    requested_languages=languages,
+                    preserve_formatting=preserve_formatting,
                 )
-            except YouTubeTranscriptNotFound:
-                return None
-            metadata = await repository.get_transcript_metadata(result.metadata.id)
-            if metadata is None:
-                raise YouTubeTranscriptMetadataNotFound("Stored transcript metadata was not found.")
+                if existing is not None:
+                    return _stored(existing, reused_existing=True)
+                fetcher = FetchYouTubeTranscriptUseCase(
+                    self._client,
+                    self._storage,
+                    repository,
+                    storage_prefix=self._storage_prefix,
+                )
+                try:
+                    result = await fetcher.execute_with_metadata(
+                        TranscriptRequest(
+                            video=youtube_video_id,
+                            languages=list(languages),
+                            preserveFormatting=preserve_formatting,
+                        )
+                    )
+                except YouTubeTranscriptNotFound:
+                    return None
+                metadata = await repository.get_transcript_metadata(result.metadata.id)
+                if metadata is None:
+                    raise YouTubeTranscriptMetadataNotFound(
+                        "Stored transcript metadata was not found."
+                    )
+        except YouTubeTranscriptPersistenceError as exc:
+            raise TranscriptPersistenceUnavailable() from exc
         return _stored(metadata)
 
 
@@ -92,10 +99,13 @@ class YouTubeTranscriptMetadataReader(TranscriptMetadataReaderPort):
 
     @override
     async def get(self, transcript_id: int) -> StoredTranscript | None:
-        async with self._session_factory() as session:
-            metadata = await SqlAlchemyYouTubeTranscriptRepository(session).get_transcript_metadata(
-                transcript_id
-            )
+        try:
+            async with self._session_factory() as session:
+                metadata = await SqlAlchemyYouTubeTranscriptRepository(
+                    session
+                ).get_transcript_metadata(transcript_id)
+        except YouTubeTranscriptPersistenceError as exc:
+            raise TranscriptPersistenceUnavailable() from exc
         return _stored(metadata) if metadata is not None else None
 
     @override
@@ -106,14 +116,17 @@ class YouTubeTranscriptMetadataReader(TranscriptMetadataReaderPort):
         requested_languages: tuple[str, ...],
         preserve_formatting: bool,
     ) -> StoredTranscript | None:
-        async with self._session_factory() as session:
-            metadata = await SqlAlchemyYouTubeTranscriptRepository(
-                session
-            ).find_transcript_metadata_for_request(
-                video_id=youtube_video_id,
-                requested_languages=requested_languages,
-                preserve_formatting=preserve_formatting,
-            )
+        try:
+            async with self._session_factory() as session:
+                metadata = await SqlAlchemyYouTubeTranscriptRepository(
+                    session
+                ).find_transcript_metadata_for_request(
+                    video_id=youtube_video_id,
+                    requested_languages=requested_languages,
+                    preserve_formatting=preserve_formatting,
+                )
+        except YouTubeTranscriptPersistenceError as exc:
+            raise TranscriptPersistenceUnavailable() from exc
         return _stored(metadata) if metadata is not None else None
 
 
@@ -135,37 +148,40 @@ class StoredTranscriptCueGenerator(TranscriptCueGeneratorPort):
         work_item_id: int,
         work_attempt_id: int,
     ) -> GeneratedCues:
-        async with self._session_factory() as session:
-            transcripts = SqlAlchemyYouTubeTranscriptRepository(session)
-            metadata = await transcripts.get_transcript_metadata(transcript_id)
-            if metadata is None:
-                raise YouTubeTranscriptMetadataNotFound("Transcript metadata was not found.")
-            payload = await self._storage.read_transcript(
-                YouTubeTranscriptStorageReadRequest(object_name=metadata.storage_object_name)
-            )
-            try:
-                content = TranscriptResponse.model_validate_json(payload)
-            except ValueError as exc:
-                raise YouTubeTranscriptStorageError(
-                    "Stored transcript payload is invalid."
-                ) from exc
-            creates = build_transcript_cues(
-                transcript_id,
-                (
-                    TranscriptCueSegmentInput(
-                        text=segment.text,
-                        start_seconds=segment.start,
-                        duration_seconds=segment.duration,
-                    )
-                    for segment in content.segments
-                ),
-                source_work_item_id=work_item_id,
-                source_work_attempt_id=work_attempt_id,
-            )
-            records = await SqlAlchemyTranscriptCueRepository(session).replace_cues(
-                transcript_id,
-                creates,
-            )
+        try:
+            async with self._session_factory() as session:
+                transcripts = SqlAlchemyYouTubeTranscriptRepository(session)
+                metadata = await transcripts.get_transcript_metadata(transcript_id)
+                if metadata is None:
+                    raise YouTubeTranscriptMetadataNotFound("Transcript metadata was not found.")
+                payload = await self._storage.read_transcript(
+                    YouTubeTranscriptStorageReadRequest(object_name=metadata.storage_object_name)
+                )
+                try:
+                    content = TranscriptResponse.model_validate_json(payload)
+                except ValueError as exc:
+                    raise YouTubeTranscriptStorageError(
+                        "Stored transcript payload is invalid."
+                    ) from exc
+                creates = build_transcript_cues(
+                    transcript_id,
+                    (
+                        TranscriptCueSegmentInput(
+                            text=segment.text,
+                            start_seconds=segment.start,
+                            duration_seconds=segment.duration,
+                        )
+                        for segment in content.segments
+                    ),
+                    source_work_item_id=work_item_id,
+                    source_work_attempt_id=work_attempt_id,
+                )
+                records = await SqlAlchemyTranscriptCueRepository(session).replace_cues(
+                    transcript_id,
+                    creates,
+                )
+        except YouTubeTranscriptPersistenceError as exc:
+            raise TranscriptPersistenceUnavailable() from exc
         return GeneratedCues(
             transcript_id=transcript_id,
             cue_count=len(records),

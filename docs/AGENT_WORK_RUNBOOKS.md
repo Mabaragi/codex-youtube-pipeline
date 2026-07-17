@@ -44,6 +44,18 @@ Micro-event window retries preserve successful windows. Timeline repair keeps
 warnings in output and events. Never erase warning history to make a run look
 clean.
 
+For automated operation, inspect `GET /ops/incidents?state=open` first. Known
+transient errors are retried twice by the supervisor before they appear as open
+incidents. Use the incident action endpoint only for its validated safe actions;
+submit a new stage operation when model or prompt inputs must change.
+
+For a host shutdown or deploy, request `POST /ops/automation/runtime/drain`
+before stopping processes. While draining, scheduler ticks and new work/workflow
+claims are blocked, but running work keeps its heartbeat and may finish. Poll
+`GET /ops/automation/status` until `runtime.readyToStop=true`, then call
+`POST /ops/automation/runtime/mark-stopped`. Do not substitute work-item
+cancellation or data deletion for this sequence.
+
 ## Recheck No Transcript
 
 `no_transcript` is a successful terminal outcome. A generic retry does not mean
@@ -58,15 +70,28 @@ clean.
 
 The scheduler applies the configured no-transcript recheck interval separately.
 
+For workflow v2, no manual recheck is needed. Starting from the first
+`no_transcript` completion, the workflow rechecks every 30 minutes, performs a
+final check at the six-hour boundary, and only then sends the video to the
+single-GPU ASR worker when necessary. A discovered transcript proceeds directly
+to cue generation without creating ASR work.
+
 ## Publish Existing Timeline
 
 1. Confirm `GET /ops/videos/{videoId}/timelines/latest` succeeds.
 2. Call `POST /ops/operations/archive-publish` with a selected-video selection.
 3. Use `rerunSucceeded=true` only to publish a new immutable artifact version.
-4. Verify `GET /ops/archive/current` and `GET /ops/archive/videos`.
-5. Fetch the returned R2 URL as UTF-8 JSON and verify counts and video identity.
+4. Verify the returned work item and its latest attempt are both `succeeded`.
+5. Verify `GET /ops/archive/current` and `GET /ops/archive/videos`; the latest
+   artifact must have no public catalog sync error.
+6. Fetch the returned R2 URL as UTF-8 JSON and verify counts and video identity.
 
 Archive publish is inline; there is no archive worker.
+
+If the API reports a work-state transition error after an artifact was written,
+stop automatic retries. An artifact proves data-plane output, not a consistent
+work item/attempt pair. Read the work detail and API log, then correct the
+execution adapter or recover the interrupted inline attempt before rerunning.
 
 ## Domain Knowledge Alias
 

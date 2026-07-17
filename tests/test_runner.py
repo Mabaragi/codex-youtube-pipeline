@@ -39,15 +39,18 @@ class FakeThread(ThreadLike):
     def __init__(self) -> None:
         self.inputs: list[str] = []
         self.efforts: list[ReasoningEffort | None] = []
+        self.output_schemas: list[dict[str, object] | None] = []
 
     async def run(
         self,
         input: str,
         *,
         effort: ReasoningEffort | None = None,
+        output_schema: dict[str, object] | None = None,
     ) -> FakeTurnResult:
         self.inputs.append(input)
         self.efforts.append(effort)
+        self.output_schemas.append(output_schema)
         return FakeTurnResult()
 
 
@@ -173,6 +176,7 @@ def test_run_prompt_starts_new_thread() -> None:
         persist=False,
         base_instructions=None,
         developer_instructions=None,
+        output_schema={"type": "object", "additionalProperties": False},
     )
 
     output = asyncio.run(run_prompt(codex, request))
@@ -181,6 +185,9 @@ def test_run_prompt_starts_new_thread() -> None:
     assert codex.resumed_thread_id is None
     assert codex.thread.inputs == ["hello"]
     assert codex.thread.efforts == [ReasoningEffort.high]
+    assert codex.thread.output_schemas == [
+        {"type": "object", "additionalProperties": False}
+    ]
     assert codex.thread_kwargs == {
         "approval_mode": ApprovalMode.deny_all,
         "base_instructions": None,

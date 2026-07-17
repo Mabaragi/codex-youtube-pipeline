@@ -53,6 +53,7 @@ class CodexRuntimeClient(CodexRuntimePort):
                         persist=command.persist,
                         base_instructions=command.base_instructions,
                         developer_instructions=command.developer_instructions,
+                        output_schema=command.output_schema,
                     ),
                 )
             return CodexRunResult(

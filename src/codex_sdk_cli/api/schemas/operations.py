@@ -155,21 +155,52 @@ class TimelineOperationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
+class TranscriptFallbackRequest(BaseModel):
+    mode: Literal["disabled", "asr_after_grace"] = "asr_after_grace"
+    grace_seconds: int = Field(default=21600, alias="graceSeconds", ge=0, le=604800)
+    recheck_interval_seconds: int = Field(
+        default=1800,
+        alias="recheckIntervalSeconds",
+        ge=60,
+        le=604800,
+    )
+    model: str = Field(default="turbo", min_length=1, max_length=64)
+    language: str = Field(default="ko", min_length=2, max_length=16)
+    device: Literal["cuda", "cpu", "auto"] = "cuda"
+    compute_type: str = Field(default="auto", alias="computeType", min_length=1, max_length=32)
+    chunk_minutes: int = Field(default=15, alias="chunkMinutes", ge=1, le=60)
+    overlap_seconds: int = Field(default=3, alias="overlapSeconds", ge=0, le=30)
+    beam_size: int = Field(default=5, alias="beamSize", ge=1, le=20)
+    vad_filter: bool = Field(default=True, alias="vadFilter")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class ProcessToPublishOperationRequest(BaseModel):
     selection: VideoSelectionRequest
     languages: tuple[str, ...] = Field(default=("ko", "en"), min_length=1, max_length=10)
     preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
     micro_window_minutes: int = Field(default=30, alias="microWindowMinutes", ge=1, le=240)
     micro_overlap_minutes: int = Field(default=5, alias="microOverlapMinutes", ge=0, le=239)
-    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = "gpt-5.5"
+    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = "gpt-5.6-sol"
     micro_reasoning_effort: ReasoningEffortChoice = Field(
         default="medium",
         alias="microReasoningEffort",
     )
-    timeline_model: Annotated[CodexModelChoice, Field(alias="timelineModel")] = "gpt-5.5"
+    micro_prompt_version_id: int | None = Field(
+        default=None, alias="microPromptVersionId", ge=1
+    )
+    timeline_model: Annotated[CodexModelChoice, Field(alias="timelineModel")] = "gpt-5.6-sol"
     timeline_reasoning_effort: ReasoningEffortChoice = Field(
-        default="high",
+        default="medium",
         alias="timelineReasoningEffort",
+    )
+    timeline_prompt_version_id: int | None = Field(
+        default=None, alias="timelinePromptVersionId", ge=1
+    )
+    transcript_fallback: TranscriptFallbackRequest = Field(
+        default_factory=TranscriptFallbackRequest,
+        alias="transcriptFallback",
     )
     publish_mode: Literal["prod", "dev"] = Field(default="prod", alias="publishMode")
     environment: str = Field(default="prod", min_length=1, max_length=64)

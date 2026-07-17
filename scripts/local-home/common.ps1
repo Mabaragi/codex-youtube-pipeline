@@ -63,7 +63,11 @@ function Import-LocalHomeEnv {
         }
     }
 
-    Set-DefaultEnv "CODEX_CLI_DATABASE_URL" "sqlite+aiosqlite:///./data/app.db"
+    Set-DefaultEnv "POSTGRES_DB" "codex"
+    Set-DefaultEnv "POSTGRES_USER" "codex"
+    Set-DefaultEnv "POSTGRES_PASSWORD" "CHANGE_ME_POSTGRES_PASSWORD"
+    Set-DefaultEnv "POSTGRES_PORT" "5432"
+    Set-DefaultEnv "CODEX_CLI_DATABASE_URL" "postgresql+asyncpg://codex:CHANGE_ME_POSTGRES_PASSWORD@127.0.0.1:5432/codex"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_ENDPOINT" "127.0.0.1:9000"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_ACCESS_KEY" "CHANGE_ME_MINIO_ACCESS_KEY"
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_SECRET_KEY" "CHANGE_ME_MINIO_SECRET"
@@ -72,7 +76,11 @@ function Import-LocalHomeEnv {
     Set-DefaultEnv "CODEX_CLI_TRANSCRIPT_MINIO_SECURE" "false"
     Set-DefaultEnv "CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX" "external-api-calls"
     Set-DefaultEnv "CODEX_CLI_PIPELINE_SCHEDULER_ENABLED" "true"
-    Set-DefaultEnv "CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT" "6"
+    Set-DefaultEnv "CODEX_CLI_PIPELINE_SCHEDULER_CHANNEL_INTERVAL_SECONDS" "7200"
+    Set-DefaultEnv "CODEX_CLI_PIPELINE_SCHEDULER_TRANSCRIPT_FALLBACK_GRACE_SECONDS" "21600"
+    Set-DefaultEnv "CODEX_CLI_PIPELINE_SCHEDULER_TRANSCRIPT_RECHECK_INTERVAL_SECONDS" "1800"
+    Set-DefaultEnv "CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT" "1"
+    Set-DefaultEnv "CODEX_CLI_MICRO_EVENT_WINDOW_CONCURRENCY_LIMIT" "6"
     Set-DefaultEnv "CODEX_CLI_SANDBOX" "workspace-write"
     Set-DefaultEnv "CODEX_CLI_APPROVAL" "auto-review"
     Set-DefaultEnv "CODEX_OPS_BACKEND_BASE_URL" "http://127.0.0.1:8000"
@@ -152,6 +160,37 @@ function Get-PidPath {
     return Join-Path $script:PidDir "$Name.pid"
 }
 
+function Test-ManagedProcessIdentity {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][int]$ProcessId
+    )
+
+    $runtime = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+    if (-not $runtime -or [string]::IsNullOrWhiteSpace($runtime.CommandLine)) {
+        return $false
+    }
+    $commandLine = $runtime.CommandLine.ToLowerInvariant()
+    $repoRoot = $script:RepoRoot.ToLowerInvariant()
+    $marker = switch ($Name) {
+        "api" { "codex_sdk_cli.api.main:app" }
+        "micro-event-worker" { "codex_sdk_cli.workers.micro_events" }
+        "transcript-worker" { "run_transcript; run_transcript()" }
+        "transcript-cue-worker" { "run_transcript_cue; run_transcript_cue()" }
+        "asr-worker" { "codex_sdk_cli.workers.asr" }
+        "pipeline-scheduler" { "codex_sdk_cli.workers.pipeline_scheduler" }
+        "pipeline-supervisor" { "codex_sdk_cli.workers.pipeline_supervisor" }
+        "timeline-compose-worker" { "codex_sdk_cli.workers.timelines" }
+        "workflow-coordinator" { "codex_sdk_cli.workers.workflow_coordinator" }
+        "ops-ui" { "pnpm -c ops-ui start" }
+        default { return $false }
+    }
+    if (-not $commandLine.Contains($marker)) {
+        return $false
+    }
+    return $Name -eq "ops-ui" -or $commandLine.Contains($repoRoot)
+}
+
 function Get-ManagedProcess {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -167,7 +206,11 @@ function Get-ManagedProcess {
     if (-not [int]::TryParse($rawPid, [ref]$processId)) {
         return $null
     }
-    return Get-Process -Id $processId -ErrorAction SilentlyContinue
+    $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    if (-not $process -or -not (Test-ManagedProcessIdentity -Name $Name -ProcessId $processId)) {
+        return $null
+    }
+    return $process
 }
 
 function Stop-ProcessTree {
@@ -218,8 +261,12 @@ function Get-LocalHomeRuntimeProcesses {
             $lowerCommandLine -match "codex-transcript-worker" -or
             $lowerCommandLine -match "codex-transcript-cue-worker" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.transcripts" -or
+            $lowerCommandLine -match "codex-asr-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.asr" -or
             $lowerCommandLine -match "codex-pipeline-scheduler" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_scheduler" -or
+            $lowerCommandLine -match "codex-pipeline-supervisor" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_supervisor" -or
             $lowerCommandLine -match "codex-timeline-compose-worker" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.timelines" -or
             $lowerCommandLine -match "codex-workflow-coordinator" -or
@@ -322,4 +369,24 @@ function Start-LocalMinio {
         "-d",
         "minio"
     )
+}
+
+function Start-LocalPostgres {
+    Import-LocalHomeEnv
+    Invoke-Checked "docker" @(
+        "compose",
+        "--project-name",
+        $script:ComposeProjectName,
+        "-f",
+        $script:InfraComposeFile,
+        "up",
+        "-d",
+        "--wait",
+        "postgres"
+    )
+}
+
+function Start-LocalInfra {
+    Start-LocalPostgres
+    Start-LocalMinio
 }

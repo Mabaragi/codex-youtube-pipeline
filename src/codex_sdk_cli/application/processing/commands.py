@@ -361,6 +361,7 @@ def _should_reset(item: WorkItem, retry_failed: bool, rerun_succeeded: bool) -> 
         WorkItemStatus.FAILED,
         WorkItemStatus.TIMED_OUT,
         WorkItemStatus.BLOCKED,
+        WorkItemStatus.CANCELED,
     }:
         return retry_failed
     return item.status is WorkItemStatus.SUCCEEDED and rerun_succeeded

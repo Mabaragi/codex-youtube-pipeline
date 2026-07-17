@@ -1,5 +1,3 @@
-import { ChannelsPage } from "@/components/pages/channels-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <ChannelsPage />;
-}
+export default function LegacyChannelsPage() { redirect("/configuration/channels"); }

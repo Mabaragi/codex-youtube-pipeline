@@ -4,6 +4,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Path, status
 
+from codex_sdk_cli.api.operator_context import OperatorReason
+from codex_sdk_cli.api.use_case_dependencies.operation_events import (
+    RecordOperatorMutationUseCaseDep,
+)
 from codex_sdk_cli.api.use_case_dependencies.prompts import (
     ArchivePromptVersionUseCaseDep,
     CreatePromptVersionUseCaseDep,
@@ -98,6 +102,17 @@ async def publish_prompt_version(
 async def archive_prompt_version(
     prompt_key: Annotated[PromptKey, Path(alias="promptKey")],
     version_id: Annotated[int, Path(alias="versionId", ge=1)],
+    reason: OperatorReason,
     use_case: ArchivePromptVersionUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> PromptVersionResponse:
-    return await use_case.execute(prompt_key, version_id)
+    response = await use_case.execute(prompt_key, version_id)
+    await audit.execute(
+        mutation="archived",
+        target_type="prompt_version",
+        target_id=version_id,
+        action="archive",
+        reason=reason,
+        metadata={"promptKey": prompt_key},
+    )
+    return response

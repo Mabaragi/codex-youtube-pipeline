@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from functools import lru_cache
 from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -275,6 +276,28 @@ class _ExtractorOutput(BaseModel):
 
 
 MicroEventOutputWarning = JsonObject
+
+
+@lru_cache(maxsize=1)
+def micro_event_output_schema() -> JsonObject:
+    """Return the strict JSON Schema supplied to Codex structured output."""
+    schema = cast(JsonObject, _ExtractorOutput.model_json_schema())
+    _make_json_schema_strict(schema)
+    return schema
+
+
+def _make_json_schema_strict(node: object) -> None:
+    if isinstance(node, dict):
+        properties = node.get("properties")
+        if node.get("type") == "object" and isinstance(properties, dict):
+            node["additionalProperties"] = False
+            node["required"] = list(properties)
+        for value in node.values():
+            _make_json_schema_strict(value)
+        return
+    if isinstance(node, list):
+        for value in node:
+            _make_json_schema_strict(value)
 
 
 def _warnings_json(warnings: list[MicroEventOutputWarning]) -> str | None:
@@ -729,6 +752,8 @@ def _validate_event_cue_refs(
             cue_id_to_position,
             warnings=warnings,
             path=f"events[{event_index}].evidence_cue_ids",
+            min_position=start_position,
+            max_position=end_position,
         )
         if start_position <= cue_id_to_position[resolved_cue_id] <= end_position:
             valid_evidence_cue_ids.append(resolved_cue_id)
@@ -789,9 +814,16 @@ def _resolve_cue_id(
     *,
     warnings: list[MicroEventOutputWarning] | None = None,
     path: str | None = None,
+    min_position: int | None = None,
+    max_position: int | None = None,
 ) -> str:
     if cue_id not in cue_id_to_position:
-        resolved_cue_id = _unique_nearby_cue_id(cue_id, cue_id_to_position)
+        resolved_cue_id = _unique_nearby_cue_id(
+            cue_id,
+            cue_id_to_position,
+            min_position=min_position,
+            max_position=max_position,
+        )
         if resolved_cue_id is not None:
             if warnings is not None:
                 warnings.append(
@@ -812,6 +844,9 @@ def _resolve_cue_id(
 def _unique_nearby_cue_id(
     cue_id: str,
     cue_id_to_position: dict[str, int],
+    *,
+    min_position: int | None = None,
+    max_position: int | None = None,
 ) -> str | None:
     split = cue_id.rsplit("-c", maxsplit=1)
     if len(split) != 2:
@@ -819,11 +854,33 @@ def _unique_nearby_cue_id(
     prefix, suffix = split
     matches = [
         candidate
-        for candidate in cue_id_to_position
+        for candidate, position in cue_id_to_position.items()
         if candidate.startswith(f"{prefix}-c")
+        and (min_position is None or position >= min_position)
+        and (max_position is None or position <= max_position)
         and _edit_distance_at_most_one(candidate.rsplit("-c", maxsplit=1)[1], suffix)
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def _validate_low_information_coverage(
+    ranges: list[tuple[ExcludedRangeReason, int, int]],
+    *,
+    owned_cue_count: int,
+) -> None:
+    if owned_cue_count <= 0:
+        return
+    for reason, start_position, end_position in ranges:
+        cue_count = end_position - start_position + 1
+        if (
+            reason == "LOW_INFORMATION"
+            and cue_count >= 100
+            and cue_count / owned_cue_count >= 0.5
+        ):
+            raise MicroEventExtractionOutputInvalid(
+                "Extractor classified an implausibly large LOW_INFORMATION range "
+                f"({cue_count}/{owned_cue_count} owned cues)."
+            )
 
 
 def _edit_distance_at_most_one(left: str, right: str) -> bool:

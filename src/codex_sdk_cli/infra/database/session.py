@@ -14,7 +14,16 @@ from sqlalchemy.ext.asyncio import (
 def create_database_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
     _register_database_models()
     ensure_sqlite_parent(database_url)
-    return create_async_engine(database_url, echo=echo)
+    url = make_url(database_url)
+    options: dict[str, object] = {"echo": echo}
+    if url.drivername.startswith("postgresql"):
+        options.update(
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+        )
+    return create_async_engine(database_url, **options)
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

@@ -157,6 +157,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/automation/processes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Managed Processes */
+        get: operations["managed_processes_ops_automation_processes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/automation/runtime/drain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Runtime Drain */
+        post: operations["request_runtime_drain_ops_automation_runtime_drain_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/automation/runtime/mark-stopped": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Runtime Stopped */
+        post: operations["mark_runtime_stopped_ops_automation_runtime_mark_stopped_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/automation/runtime/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume Runtime */
+        post: operations["resume_runtime_ops_automation_runtime_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/automation/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Automation Status */
+        get: operations["automation_status_ops_automation_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/candidates/micro-event-ready": {
         parameters: {
             query?: never;
@@ -412,6 +497,58 @@ export interface paths {
         get: operations["list_operation_events_ops_events_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Incidents */
+        get: operations["list_incidents_ops_incidents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/incidents/{incident_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Incident */
+        get: operations["get_incident_ops_incidents__incident_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Incident */
+        patch: operations["update_incident_ops_incidents__incident_id__patch"];
+        trace?: never;
+    };
+    "/ops/incidents/{incident_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Execute Incident Action */
+        post: operations["execute_incident_action_ops_incidents__incident_id__actions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -951,6 +1088,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/work-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Work Batches */
+        get: operations["list_work_batches_ops_work_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/work-batches/{batch_id}": {
         parameters: {
             query?: never;
@@ -1030,6 +1184,23 @@ export interface paths {
         put?: never;
         /** Retry Work Item */
         post: operations["retry_work_item_ops_work_items__work_item_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Workflow Runs */
+        get: operations["list_workflow_runs_ops_workflows_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1337,6 +1508,30 @@ export interface components {
              * Format: date-time
              */
             updatedAt: string;
+        };
+        /** AutomationDataIntegrityResponse */
+        AutomationDataIntegrityResponse: {
+            /** Orphanvideocount */
+            orphanVideoCount: number;
+        };
+        /** AutomationStatusResponse */
+        AutomationStatusResponse: {
+            /** Backfillstartedat */
+            backfillStartedAt: string | null;
+            dataIntegrity: components["schemas"]["AutomationDataIntegrityResponse"];
+            /** Mode */
+            mode: string;
+            /** Observedat */
+            observedAt: string;
+            /** Openincidentcount */
+            openIncidentCount: number;
+            /** Queues */
+            queues: {
+                [key: string]: unknown;
+            }[];
+            runtime: components["schemas"]["RuntimeStateResponse"];
+            /** Steadystartedat */
+            steadyStartedAt: string | null;
         };
         /** CancelWorkItemRequest */
         CancelWorkItemRequest: {
@@ -1960,6 +2155,90 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** IncidentActionRequest */
+        IncidentActionRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "retry" | "recover_lease" | "extend_timeout" | "set_temporary_concurrency";
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Parameters */
+            parameters?: {
+                [key: string]: unknown;
+            };
+        };
+        /** IncidentActionResponse */
+        IncidentActionResponse: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "retry" | "recover_lease" | "extend_timeout" | "set_temporary_concurrency";
+            /** Incidentid */
+            incidentId: number;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+        };
+        /** IncidentListResponse */
+        IncidentListResponse: {
+            /** Items */
+            items: components["schemas"]["IncidentResponse"][];
+        };
+        /** IncidentResponse */
+        IncidentResponse: {
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Errortype */
+            errorType: string | null;
+            /** Fingerprint */
+            fingerprint: string;
+            /**
+             * Firstseenat
+             * Format: date-time
+             */
+            firstSeenAt: string;
+            /** Id */
+            id: number;
+            /** Incidenttype */
+            incidentType: string;
+            /**
+             * Lastseenat
+             * Format: date-time
+             */
+            lastSeenAt: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Occurrencecount */
+            occurrenceCount: number;
+            /** Resolvedat */
+            resolvedAt: string | null;
+            /** Severity */
+            severity: string;
+            /** State */
+            state: string;
+            /** Tasktype */
+            taskType: string | null;
+            /** Workitemid */
+            workItemId: number | null;
+            /** Workflowrunid */
+            workflowRunId: number | null;
+        };
+        /** IncidentUpdateRequest */
+        IncidentUpdateRequest: {
+            /** Note */
+            note?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "open" | "acknowledged" | "resolved" | "suppressed";
+        };
         /** LoginResponse */
         LoginResponse: {
             /** Error */
@@ -1971,6 +2250,37 @@ export interface components {
         LogoutResponse: {
             /** Success */
             success: boolean;
+        };
+        /** ManagedProcessInventoryResponse */
+        ManagedProcessInventoryResponse: {
+            /** Hostname */
+            hostName: string;
+            /** Items */
+            items: components["schemas"]["ManagedProcessResponse"][];
+            /**
+             * Observedat
+             * Format: date-time
+             */
+            observedAt: string;
+            /** Platform */
+            platform: string;
+        };
+        /** ManagedProcessResponse */
+        ManagedProcessResponse: {
+            /** Detailcode */
+            detailCode: string | null;
+            /** Name */
+            name: string;
+            /** Pid */
+            pid: number | null;
+            /** Role */
+            role: string;
+            /** Source */
+            source: string;
+            /** Startedat */
+            startedAt: string | null;
+            /** State */
+            state: string;
         };
         /** MicroEventCandidateResponse */
         MicroEventCandidateResponse: {
@@ -2908,7 +3218,7 @@ export interface components {
             languages: string[];
             /**
              * Micromodel
-             * @default gpt-5.5
+             * @default gpt-5.6-sol
              * @enum {string}
              */
             microModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
@@ -2917,6 +3227,8 @@ export interface components {
              * @default 5
              */
             microOverlapMinutes: number;
+            /** Micropromptversionid */
+            microPromptVersionId?: number | null;
             /**
              * Microreasoningeffort
              * @default medium
@@ -2953,16 +3265,19 @@ export interface components {
             selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
             /**
              * Timelinemodel
-             * @default gpt-5.5
+             * @default gpt-5.6-sol
              * @enum {string}
              */
             timelineModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
+            /** Timelinepromptversionid */
+            timelinePromptVersionId?: number | null;
             /**
              * Timelinereasoningeffort
-             * @default high
+             * @default medium
              * @enum {string}
              */
             timelineReasoningEffort: "low" | "medium" | "high" | "xhigh";
+            transcriptFallback?: components["schemas"]["TranscriptFallbackRequest"];
             /**
              * Variant
              * @default control
@@ -3151,6 +3466,38 @@ export interface components {
             /** Usage */
             usage?: unknown | null;
         };
+        /** RuntimeStateResponse */
+        RuntimeStateResponse: {
+            /** Drainreason */
+            drainReason: string | null;
+            /** Drainrequestedat */
+            drainRequestedAt: string | null;
+            /** Readytostop */
+            readyToStop: boolean;
+            /** Runningbytasktype */
+            runningByTaskType: components["schemas"]["RuntimeTaskCountResponse"][];
+            /** Runningworkitemcount */
+            runningWorkItemCount: number;
+            /** Runningworkflowcount */
+            runningWorkflowCount: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "active" | "draining" | "stopped";
+        };
+        /** RuntimeTaskCountResponse */
+        RuntimeTaskCountResponse: {
+            /** Count */
+            count: number;
+            /** Tasktype */
+            taskType: string;
+        };
+        /** RuntimeTransitionRequest */
+        RuntimeTransitionRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** SelectedVideoSelectionRequest */
         SelectedVideoSelectionRequest: {
             /**
@@ -3231,8 +3578,15 @@ export interface components {
             displaySummary: string;
             /** Displaytitle */
             displayTitle: string;
+            /** Emptyreason */
+            emptyReason: "no_micro_events" | null;
             /** Episodes */
             episodes: components["schemas"]["TimelineEpisodeResponse"][];
+            /**
+             * Generationmode
+             * @enum {string}
+             */
+            generationMode: "codex" | "deterministic_empty";
             /** Maintopics */
             mainTopics: string[];
             /** Model */
@@ -3256,6 +3610,11 @@ export interface components {
             status: "pending" | "running" | "succeeded" | "failed" | "timed_out" | "no_transcript" | "skipped" | "canceled";
             /** Summary */
             summary: string;
+            /**
+             * Timelinestate
+             * @enum {string}
+             */
+            timelineState: "ready" | "empty";
             /** Title */
             title: string;
             /** Topicclusters */
@@ -3499,6 +3858,66 @@ export interface components {
              */
             updatedAt: string;
         };
+        /** TranscriptFallbackRequest */
+        TranscriptFallbackRequest: {
+            /**
+             * Beamsize
+             * @default 5
+             */
+            beamSize: number;
+            /**
+             * Chunkminutes
+             * @default 15
+             */
+            chunkMinutes: number;
+            /**
+             * Computetype
+             * @default auto
+             */
+            computeType: string;
+            /**
+             * Device
+             * @default cuda
+             * @enum {string}
+             */
+            device: "cuda" | "cpu" | "auto";
+            /**
+             * Graceseconds
+             * @default 21600
+             */
+            graceSeconds: number;
+            /**
+             * Language
+             * @default ko
+             */
+            language: string;
+            /**
+             * Mode
+             * @default asr_after_grace
+             * @enum {string}
+             */
+            mode: "disabled" | "asr_after_grace";
+            /**
+             * Model
+             * @default turbo
+             */
+            model: string;
+            /**
+             * Overlapseconds
+             * @default 3
+             */
+            overlapSeconds: number;
+            /**
+             * Recheckintervalseconds
+             * @default 1800
+             */
+            recheckIntervalSeconds: number;
+            /**
+             * Vadfilter
+             * @default true
+             */
+            vadFilter: boolean;
+        };
         /** TranscriptMetadataResponse */
         TranscriptMetadataResponse: {
             /**
@@ -3704,6 +4123,38 @@ export interface components {
             /** Workflowrunid */
             workflowRunId: number | null;
         };
+        /** WorkBatchListResponse */
+        WorkBatchListResponse: {
+            /** Items */
+            items: components["schemas"]["WorkBatchSummaryResponse"][];
+            /** Nextcursor */
+            nextCursor: number | null;
+        };
+        /**
+         * WorkBatchStatus
+         * @enum {string}
+         */
+        WorkBatchStatus: "pending" | "running" | "succeeded" | "partial" | "failed" | "canceled";
+        /** WorkBatchSummaryResponse */
+        WorkBatchSummaryResponse: {
+            /** Actortype */
+            actorType: string;
+            /** Completedat */
+            completedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: number;
+            /** Operationtype */
+            operationType: string;
+            /** Requestedcount */
+            requestedCount: number;
+            /** Status */
+            status: string;
+        };
         /** WorkItemDetailResponse */
         WorkItemDetailResponse: {
             /** Attempts */
@@ -3867,6 +4318,15 @@ export interface components {
         };
         /** WorkflowRunDetailResponse */
         WorkflowRunDetailResponse: {
+            /** Asrsladeadline */
+            asrSlaDeadline: string | null;
+            /**
+             * Availableat
+             * Format: date-time
+             */
+            availableAt: string;
+            /** Captionsladeadline */
+            captionSlaDeadline: string | null;
             /** Completedat */
             completedAt: string | null;
             /**
@@ -3903,6 +4363,57 @@ export interface components {
             updatedAt: string;
             /** Videoid */
             videoId: number;
+            /** Waitingreason */
+            waitingReason: string | null;
+            /** Workflowtype */
+            workflowType: string;
+            /** Workflowversion */
+            workflowVersion: string;
+        };
+        /** WorkflowRunListResponse */
+        WorkflowRunListResponse: {
+            /** Items */
+            items: components["schemas"]["WorkflowRunSummaryResponse"][];
+            /** Nextcursor */
+            nextCursor: number | null;
+        };
+        /** WorkflowRunSummaryResponse */
+        WorkflowRunSummaryResponse: {
+            /** Asrsladeadline */
+            asrSlaDeadline: string | null;
+            /**
+             * Availableat
+             * Format: date-time
+             */
+            availableAt: string;
+            /** Captionsladeadline */
+            captionSlaDeadline: string | null;
+            /** Completedat */
+            completedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Currentstage */
+            currentStage: string | null;
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Videoid */
+            videoId: number;
+            /** Waitingreason */
+            waitingReason: string | null;
             /** Workflowtype */
             workflowType: string;
             /** Workflowversion */
@@ -3921,8 +4432,15 @@ export interface components {
             /** Youtubevideoid */
             youtubeVideoId: string | null;
         };
+        /**
+         * WorkflowStatus
+         * @enum {string}
+         */
+        WorkflowStatus: "pending" | "running" | "waiting" | "succeeded" | "failed" | "blocked" | "canceled";
         /** WorkflowStepResponse */
         WorkflowStepResponse: {
+            /** Availableat */
+            availableAt?: string | null;
             /** Completedat */
             completedAt: string | null;
             /**
@@ -3932,6 +4450,12 @@ export interface components {
             createdAt: string;
             /** Id */
             id: number;
+            /** Outcomecode */
+            outcomeCode?: string | null;
+            /** Output */
+            output?: {
+                [key: string]: unknown;
+            } | null;
             /** Position */
             position: number;
             /** Stagename */
@@ -4199,6 +4723,145 @@ export interface operations {
             };
         };
     };
+    managed_processes_ops_automation_processes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedProcessInventoryResponse"];
+                };
+            };
+        };
+    };
+    request_runtime_drain_ops_automation_runtime_drain_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_runtime_stopped_ops_automation_runtime_mark_stopped_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_runtime_ops_automation_runtime_resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    automation_status_ops_automation_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationStatusResponse"];
+                };
+            };
+        };
+    };
     list_ops_micro_event_ready_candidates_ops_candidates_micro_event_ready_get: {
         parameters: {
             query?: {
@@ -4292,7 +4955,9 @@ export interface operations {
     delete_channel_ops_channels__channel_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 channel_id: number;
             };
@@ -4572,7 +5237,9 @@ export interface operations {
     archive_domain_entry_ops_domain_entries__entry_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 entry_id: number;
             };
@@ -4708,7 +5375,9 @@ export interface operations {
     remove_domain_entry_streamer_ops_domain_entries__entry_id__streamers__streamer_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 entry_id: number;
                 streamer_id: number;
@@ -4740,7 +5409,9 @@ export interface operations {
     delete_domain_entry_alias_ops_domain_entry_aliases__alias_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 alias_id: number;
             };
@@ -4886,6 +5557,139 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OperationEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_incidents_ops_incidents_get: {
+        parameters: {
+            query?: {
+                state?: ("open" | "acknowledged" | "resolved" | "suppressed") | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_incident_ops_incidents__incident_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_incident_ops_incidents__incident_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_incident_action_ops_incidents__incident_id__actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentActionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5321,7 +6125,9 @@ export interface operations {
     archive_prompt_version_ops_prompts__promptKey__versions__versionId__archive_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
                 versionId: number;
@@ -5489,7 +6295,9 @@ export interface operations {
     delete_streamer_ops_streamers__streamer_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 streamer_id: number;
             };
@@ -5706,7 +6514,9 @@ export interface operations {
     delete_youtube_transcript_metadata_ops_transcripts__transcript_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 transcript_id: number;
             };
@@ -6055,6 +6865,40 @@ export interface operations {
             };
         };
     };
+    list_work_batches_ops_work_batches_get: {
+        parameters: {
+            query?: {
+                operationType?: string | null;
+                status?: components["schemas"]["WorkBatchStatus"] | null;
+                cursor?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkBatchListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_work_batch_ops_work_batches__batch_id__get: {
         parameters: {
             query?: never;
@@ -6210,6 +7054,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_workflow_runs_ops_workflows_get: {
+        parameters: {
+            query?: {
+                workflowType?: string | null;
+                status?: components["schemas"]["WorkflowStatus"] | null;
+                videoId?: number | null;
+                cursor?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunListResponse"];
                 };
             };
             /** @description Validation Error */

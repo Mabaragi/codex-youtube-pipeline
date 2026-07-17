@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "aiosqlite>=0.21,<1",
     "alembic>=1.16,<2",
+    "asyncpg>=0.30,<1",
     "click>=8.1",
     "fastapi[standard]>=0.115",
     "faster-whisper>=1.1,<2",
@@ -14,6 +15,7 @@ dependencies = [
     "minio>=7.2,<8",
     "openai-codex>=0.1.0b3,<0.2",
     "pydantic-settings>=2.2",
+    "psutil>=7.0,<8",
     "sqlalchemy[asyncio]>=2.0,<3",
     "structlog>=26.1,<27",
     "typing-extensions>=4.12",
@@ -25,7 +27,9 @@ dependencies = [
 codex-api = "codex_sdk_cli.api.main:run"
 codex-demo = "codex_sdk_cli.cli:main"
 codex-micro-event-worker = "codex_sdk_cli.workers.micro_events:run"
+codex-asr-worker = "codex_sdk_cli.workers.asr:run"
 codex-pipeline-scheduler = "codex_sdk_cli.workers.pipeline_scheduler:run"
+codex-pipeline-supervisor = "codex_sdk_cli.workers.pipeline_supervisor:run"
 codex-timeline-compose-worker = "codex_sdk_cli.workers.timelines:run"
 codex-transcript-worker = "codex_sdk_cli.workers.transcripts:run_transcript"
 codex-transcript-cue-worker = "codex_sdk_cli.workers.transcripts:run_transcript_cue"
@@ -38,6 +42,7 @@ dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.8",
     "ruff>=0.15.0",
+    "types-psutil>=7.0,<8",
 ]
 
 [build-system]

@@ -82,6 +82,114 @@ def _composition_create(
     )
 
 
+def _empty_composition_create(
+    composer_input: _ComposerInput,
+    *,
+    task: VideoTaskRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+) -> TimelineCompositionCreate:
+    message = "분석 가능한 마이크로 이벤트가 없습니다."
+    block = TimelineBlockCreate(
+        block_id="block_001",
+        block_index=1,
+        block_type="MIXED",
+        title="안내",
+        summary=message,
+        display_title="안내",
+        display_summary=message,
+        episode_ids=["episode_001"],
+    )
+    episode = TimelineEpisodeCreate(
+        episode_id="episode_001",
+        episode_index=1,
+        parent_block_id=block.block_id,
+        start_micro_event_candidate_id=None,
+        end_micro_event_candidate_id=None,
+        program_mode="MIXED",
+        primary_content_kind="OTHER",
+        title="분석 가능한 이벤트 없음",
+        summary=message,
+        display_title="분석 가능한 이벤트 없음",
+        display_summary=message,
+        topics=[],
+        viewer_tags=[],
+        highlight_micro_event_candidate_ids=[],
+        visibility="DEFAULT",
+    )
+    output_json: JsonObject = {
+        "timeline_state": "empty",
+        "empty_reason": "no_micro_events",
+        "generation_mode": "deterministic_empty",
+        "video_summary": {
+            "title": composer_input.video.title,
+            "summary": message,
+            "display_title": composer_input.video.title,
+            "display_summary": message,
+            "main_topics": [],
+        },
+        "blocks": [
+            {
+                "block_id": block.block_id,
+                "block_type": block.block_type,
+                "title": block.title,
+                "summary": block.summary,
+                "display_title": block.display_title,
+                "display_summary": block.display_summary,
+                "episode_ids": block.episode_ids,
+            }
+        ],
+        "episodes": [
+            {
+                "episode_id": episode.episode_id,
+                "parent_block_id": episode.parent_block_id,
+                "start_micro_event_id": None,
+                "end_micro_event_id": None,
+                "program_mode": episode.program_mode,
+                "primary_content_kind": episode.primary_content_kind,
+                "title": episode.title,
+                "summary": episode.summary,
+                "display_title": episode.display_title,
+                "display_summary": episode.display_summary,
+                "topics": [],
+                "viewer_tags": [],
+                "highlight_micro_event_ids": [],
+                "visibility": episode.visibility,
+            }
+        ],
+        "topic_clusters": [],
+        "review_flags": [],
+    }
+    return TimelineCompositionCreate(
+        video_task_id=task.id,
+        video_id=composer_input.video.id,
+        source_micro_event_task_id=composer_input.source_task.id,
+        source_micro_event_fingerprint=_required_str(
+            composer_input.input_json,
+            "sourceMicroEventFingerprint",
+        ),
+        copy_style=composer_input.copy_style,
+        model=None,
+        reasoning_effort=None,
+        title=composer_input.video.title,
+        summary=message,
+        display_title=composer_input.video.title,
+        display_summary=message,
+        main_topics=[],
+        output_json=output_json,
+        validation_warnings=[],
+        source_job_id=job.id,
+        source_job_attempt_id=attempt.id,
+        codex_thread_id=None,
+        codex_turn_id=None,
+        raw_response_text=None,
+        blocks=[block],
+        episodes=[episode],
+        topic_clusters=[],
+        review_flags=[],
+    )
+
+
 async def _composition_create_with_repairs(
     composer_input: _ComposerInput,
     result: TimelineComposeResult,

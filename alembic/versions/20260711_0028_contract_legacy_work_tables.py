@@ -89,19 +89,31 @@ _FOREIGN_KEYS = {
 
 def upgrade() -> None:
     connection = op.get_bind()
-    _backfill_post_expand_refs(connection)
-    _map_legacy_ids(connection, _JOB_COLUMNS, "pipeline_job", "work_item_id")
-    _map_legacy_ids(
-        connection,
-        _ATTEMPT_COLUMNS,
-        "pipeline_job_attempt",
-        "work_attempt_id",
-    )
+    if connection.dialect.name == "sqlite":
+        _backfill_post_expand_refs(connection)
+        _map_legacy_ids(connection, _JOB_COLUMNS, "pipeline_job", "work_item_id")
+        _map_legacy_ids(
+            connection,
+            _ATTEMPT_COLUMNS,
+            "pipeline_job_attempt",
+            "work_attempt_id",
+        )
+    else:
+        legacy_count = connection.execute(
+            sa.text(
+                "SELECT (SELECT COUNT(*) FROM video_tasks) + "
+                "(SELECT COUNT(*) FROM pipeline_jobs)"
+            )
+        ).scalar_one()
+        if legacy_count:
+            raise RuntimeError(
+                "Legacy execution rows must be contracted on SQLite before moving to PostgreSQL."
+            )
     for table_name, constraints in _FOREIGN_KEYS.items():
         _rewire_table(table_name, constraints)
+    op.drop_table("video_tasks")
     op.drop_table("pipeline_job_attempts")
     op.drop_table("pipeline_jobs")
-    op.drop_table("video_tasks")
     _create_compatibility_views(connection)
 
 

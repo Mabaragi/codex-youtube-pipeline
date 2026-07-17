@@ -4,6 +4,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, status
 
+from codex_sdk_cli.api.operator_context import OperatorReason
+from codex_sdk_cli.api.use_case_dependencies.operation_events import (
+    RecordOperatorMutationUseCaseDep,
+)
 from codex_sdk_cli.api.use_case_dependencies.streamers import (
     CreateStreamerUseCaseDep,
     DeleteStreamerUseCaseDep,
@@ -58,6 +62,16 @@ async def update_streamer(
 @router.delete("/streamers/{streamer_id}", response_model=DeleteResponse)
 async def delete_streamer(
     streamer_id: Annotated[int, Path(ge=1)],
+    reason: OperatorReason,
     use_case: DeleteStreamerUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> DeleteResponse:
-    return await use_case.execute(streamer_id)
+    response = await use_case.execute(streamer_id)
+    await audit.execute(
+        mutation="deleted",
+        target_type="streamer",
+        target_id=streamer_id,
+        action="delete",
+        reason=reason,
+    )
+    return response

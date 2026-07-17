@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 
 from openai_codex import ApprovalMode, AsyncCodex, CodexConfig, Sandbox
 from openai_codex import AsyncThread as SdkAsyncThread
 from openai_codex.generated.v2_all import ReasoningEffort
+from openai_codex.models import JsonObject as SdkJsonObject
 
 from .settings import ApprovalChoice, ReasoningEffortChoice, SandboxChoice
 
@@ -34,6 +35,7 @@ class RunRequest:
     persist: bool
     base_instructions: str | None
     developer_instructions: str | None
+    output_schema: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +81,7 @@ class ThreadLike(Protocol):
         input: str,
         *,
         effort: ReasoningEffort | None = None,
+        output_schema: dict[str, object] | None = None,
     ) -> Awaitable[TurnResultLike]:
         """Run a Codex turn."""
 
@@ -160,8 +163,13 @@ class SdkThreadAdapter(ThreadLike):
         input: str,
         *,
         effort: ReasoningEffort | None = None,
+        output_schema: dict[str, object] | None = None,
     ) -> TurnResultLike:
-        return await self._thread.run(input, effort=effort)
+        return await self._thread.run(
+            input,
+            effort=effort,
+            output_schema=cast(SdkJsonObject | None, output_schema),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,7 +290,11 @@ async def run_prompt(codex: CodexLike, request: RunRequest) -> RunOutput:
             sandbox=request.sandbox,
         )
 
-    result = await thread.run(request.prompt, effort=request.reasoning_effort)
+    result = await thread.run(
+        request.prompt,
+        effort=request.reasoning_effort,
+        output_schema=request.output_schema,
+    )
 
     return RunOutput(
         thread_id=thread.id,

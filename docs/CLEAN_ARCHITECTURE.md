@@ -63,6 +63,16 @@ heartbeat, timeout, lease recovery, and terminal state recording. Registries
 store lazy factories so only the selected task type resolves its external
 dependencies.
 
+Terminal state has one owner. An executor may persist domain output, artifacts,
+and provenance, but it returns `WorkExecutionResult` instead of completing the
+current `work_item` or `work_attempt`. The engine then records both terminal
+rows in one unit of work. Compatibility adapters receive the current item and
+attempt IDs so legacy-shaped processing code can report a projected terminal
+record without mutating those rows early. Always configure the current
+`WorkVideoTaskRepository` and `WorkPipelineJobRepository` together; configuring
+only one recreates split ownership and can leave a succeeded item paired with a
+running attempt.
+
 - Inline: channel resolve, video collect, archive publish.
 - Worker: transcript collect, cue generation, micro-event extraction, timeline
   composition.
@@ -83,6 +93,9 @@ Micro-event, timeline, archive, channel resolution, and video collection now
 execute against the current work item/attempt supplied by `WorkExecutionEngine`.
 They do not enqueue a second task or create a second job. Startup recovery also
 updates only unified work rows.
+
+See [Work terminal-state ownership](learnings/topics/work-terminal-state-ownership.md)
+for the failure signature, composition rule, and regression-test checklist.
 
 `legacy_work_refs` is retained as immutable audit provenance. Removing the
 read-only views is a separate query-model cleanup and does not block the work

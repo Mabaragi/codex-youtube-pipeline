@@ -28,6 +28,8 @@ from codex_sdk_cli.application.work.queries import (
     GetWorkBatchUseCase,
     GetWorkflowRunUseCase,
     GetWorkItemUseCase,
+    ListWorkBatchesUseCase,
+    ListWorkflowRunsUseCase,
     ListWorkItemsUseCase,
 )
 from codex_sdk_cli.infra.work.archive_execution import InlineWorkExecutionRunner
@@ -175,7 +177,19 @@ def get_work_batch_use_case(
     return GetWorkBatchUseCase(work_unit_of_work_factory(session_factory))
 
 
+def list_work_batches_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> ListWorkBatchesUseCase:
+    return ListWorkBatchesUseCase(work_unit_of_work_factory(session_factory))
+
+
 def get_workflow_run_use_case(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> GetWorkflowRunUseCase:
     return GetWorkflowRunUseCase(work_unit_of_work_factory(session_factory))
+
+
+def list_workflow_runs_use_case(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> ListWorkflowRunsUseCase:
+    return ListWorkflowRunsUseCase(work_unit_of_work_factory(session_factory))

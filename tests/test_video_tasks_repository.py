@@ -34,7 +34,11 @@ def test_video_task_repository_lifecycle(
     result = asyncio.run(_exercise_repository(database_url))
 
     assert result["same_task_id"] is True
-    assert result["queued_input_json"] == {"videoId": 1, "queued": True}
+    assert result["queued_input_json"] == {
+        "videoId": 1,
+        "queued": True,
+        "inputHash": "a" * 64,
+    }
     assert result["claimed_worker_id"] == "worker-claim"
     assert result["attached_job_id"] == result["task_id"]
     assert result["running_count"] == 1

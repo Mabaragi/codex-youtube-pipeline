@@ -113,3 +113,26 @@ def archive_publish_use_case(
         public_catalog_sync=public_catalog,
         public_catalog_sync_enabled=settings.archive_public_catalog_sync_enabled,
     )
+
+
+def archive_publish_execution_use_case(
+    session: AsyncSession,
+    settings: CliSettings,
+    *,
+    work_item_id: int,
+    work_attempt_id: int,
+) -> ArchivePublishUseCase:
+    """Build a publisher that leaves current execution state to the work engine."""
+    return archive_publish_use_case(
+        session,
+        settings,
+        video_tasks=WorkVideoTaskRepository(
+            session,
+            current_work_item_id=work_item_id,
+        ),
+        pipeline_jobs=WorkPipelineJobRepository(
+            session,
+            current_work_item_id=work_item_id,
+            current_work_attempt_id=work_attempt_id,
+        ),
+    )

@@ -1,0 +1,1 @@
+"""Pipeline automation incident domain."""

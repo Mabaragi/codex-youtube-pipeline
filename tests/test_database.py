@@ -19,6 +19,7 @@ def test_database_base_registers_app_tables() -> None:
     assert set(Base.metadata.tables) == {
         "archive_index_publications",
         "archive_video_artifacts",
+        "asr_chunk_checkpoints",
         "asr_correction_candidates",
         "channels",
         "codex_run_usages",
@@ -33,6 +34,10 @@ def test_database_base_registers_app_tables() -> None:
         "operation_events",
         "pipeline_job_attempts",
         "pipeline_jobs",
+        "pipeline_automation_state",
+        "pipeline_incidents",
+        "pipeline_remediation_actions",
+        "pipeline_runtime_controls",
         "prompt_active_versions",
         "prompt_versions",
         "streamers",
@@ -91,10 +96,14 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert blank_settings.youtube_data_api_key_value() is None
     assert blank_settings.model == "gpt-5.5"
     assert blank_settings.reasoning_effort == "medium"
-    assert blank_settings.micro_event_extract_concurrency_limit == 3
+    assert blank_settings.micro_event_extract_concurrency_limit == 1
+    assert blank_settings.micro_event_window_concurrency_limit == 6
     assert blank_settings.micro_event_worker_poll_interval_seconds == 5
     assert blank_settings.micro_event_worker_id is None
     assert blank_settings.timeline_compose_concurrency_limit == 3
+    assert blank_settings.pipeline_scheduler_channel_interval_seconds == 7200
+    assert blank_settings.pipeline_scheduler_transcript_fallback_grace_seconds == 21600
+    assert blank_settings.pipeline_scheduler_transcript_recheck_interval_seconds == 1800
 
     monkeypatch.setenv("CODEX_CLI_MODEL", " ")
     monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", " ")
@@ -110,6 +119,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     monkeypatch.setenv("CODEX_CLI_TRANSCRIPT_COLLECT_DELAY_SECONDS", "30")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_TIMEOUT_SECONDS", "1200")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_EXTRACT_CONCURRENCY_LIMIT", "3")
+    monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WINDOW_CONCURRENCY_LIMIT", "2")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WORKER_POLL_INTERVAL_SECONDS", "7")
     monkeypatch.setenv("CODEX_CLI_MICRO_EVENT_WORKER_ID", "micro-event-worker:test")
     monkeypatch.setenv("CODEX_CLI_TIMELINE_COMPOSE_CONCURRENCY_LIMIT", "2")
@@ -125,6 +135,7 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert settings.transcript_collect_delay_seconds == 30
     assert settings.micro_event_extract_timeout_seconds == 1200
     assert settings.micro_event_extract_concurrency_limit == 3
+    assert settings.micro_event_window_concurrency_limit == 2
     assert settings.micro_event_worker_poll_interval_seconds == 7
     assert settings.micro_event_worker_id == "micro-event-worker:test"
     assert settings.timeline_compose_concurrency_limit == 2

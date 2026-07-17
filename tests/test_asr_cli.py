@@ -45,9 +45,17 @@ from codex_sdk_cli.domains.youtube_transcripts.schemas import (
     TranscriptSegmentResponse,
     TranscriptStorageResponse,
 )
+from codex_sdk_cli.infra.asr.faster_whisper import _candidate_configurations
 
 VIDEO_ID = "dQw4w9WgXcQ"
 NOW = datetime(2026, 7, 1, tzinfo=UTC)
+
+
+def test_cuda_auto_compute_retries_int8_float16_without_cpu_fallback() -> None:
+    assert _candidate_configurations("cuda", "auto") == (
+        ("cuda", "float16"),
+        ("cuda", "int8_float16"),
+    )
 
 
 def test_faster_whisper_use_case_stores_transcript_and_cues() -> None:

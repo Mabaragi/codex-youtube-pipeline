@@ -1,5 +1,10 @@
 # Work Model Cutover
 
+> Historical note: this work-model contract was completed while the local
+> runtime still used SQLite. Current operations use PostgreSQL; see
+> `docs/POSTGRESQL_LOCAL_DATABASE.md`. These commands remain only for restoring
+> and inspecting a pre-PostgreSQL SQLite backup.
+
 The work-model migration is an offline SQLite candidate migration. Never run
 Alembic directly against the only production DB for this transition.
 

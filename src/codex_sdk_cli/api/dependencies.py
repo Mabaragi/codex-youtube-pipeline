@@ -321,6 +321,10 @@ async def get_youtube_transcript_storage(
 SettingsDep = Annotated[CliSettings, Depends(get_settings)]
 CodexRuntimeDep = Annotated[CodexRuntimePort, Depends(get_codex_runtime)]
 DatabaseSessionDep = Annotated[AsyncSession, Depends(get_database_session)]
+DatabaseSessionFactoryDep = Annotated[
+    async_sessionmaker[AsyncSession],
+    Depends(get_database_session_factory),
+]
 CodexUsageRepositoryDep = Annotated[
     CodexUsageRepositoryPort,
     Depends(get_codex_usage_repository),

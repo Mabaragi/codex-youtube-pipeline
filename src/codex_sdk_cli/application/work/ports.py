@@ -10,8 +10,10 @@ from codex_sdk_cli.domains.work.models import (
     WorkAttempt,
     WorkBatch,
     WorkBatchItem,
+    WorkBatchStatus,
     WorkExecutionMode,
     WorkflowRun,
+    WorkflowStatus,
     WorkflowStep,
     WorkItem,
     WorkItemStatus,
@@ -45,6 +47,23 @@ class WorkItemQuery:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkflowRunQuery:
+    workflow_type: str | None = None
+    status: WorkflowStatus | None = None
+    video_id: int | None = None
+    cursor: int | None = None
+    limit: int = 50
+
+
+@dataclass(frozen=True, slots=True)
+class WorkBatchQuery:
+    operation_type: str | None = None
+    status: WorkBatchStatus | None = None
+    cursor: int | None = None
+    limit: int = 50
+
+
+@dataclass(frozen=True, slots=True)
 class CreateWorkBatch:
     operation_type: str
     actor_type: str
@@ -60,6 +79,7 @@ class CreateWorkflowRun:
     video_id: int
     input_hash: str
     options_json: JsonObject
+    available_at: datetime
 
 
 class WorkItemRepositoryPort(Protocol):
@@ -152,6 +172,7 @@ class WorkItemRepositoryPort(Protocol):
         work_item_id: int,
         now: datetime,
         allow_succeeded: bool,
+        available_at: datetime | None = None,
     ) -> WorkItem: ...
 
     async def cancel(self, *, work_item_id: int, now: datetime, reason: str) -> WorkItem: ...
@@ -203,6 +224,8 @@ class WorkBatchRepositoryPort(Protocol):
 
     async def get(self, batch_id: int) -> WorkBatch | None: ...
 
+    async def list_batches(self, query: WorkBatchQuery) -> list[WorkBatch]: ...
+
     async def list_items(self, batch_id: int) -> list[WorkBatchItem]: ...
 
     async def complete(
@@ -231,6 +254,8 @@ class WorkflowRepositoryPort(Protocol):
 
     async def get(self, workflow_run_id: int) -> WorkflowRun | None: ...
 
+    async def list_runs(self, query: WorkflowRunQuery) -> list[WorkflowRun]: ...
+
     async def list_steps(self, workflow_run_id: int) -> list[WorkflowStep]: ...
 
     async def claim_next(
@@ -252,6 +277,20 @@ class WorkflowRepositoryPort(Protocol):
 
     async def recover_expired_leases(self, *, now: datetime) -> int: ...
 
+    async def reset_for_retry(
+        self,
+        *,
+        workflow_run_id: int,
+        now: datetime,
+    ) -> WorkflowRun: ...
+
+    async def reset_linked_for_work_item_retry(
+        self,
+        *,
+        work_item_id: int,
+        now: datetime,
+    ) -> list[int]: ...
+
     async def add_step(
         self,
         *,
@@ -269,6 +308,7 @@ class WorkflowRepositoryPort(Protocol):
         workflow_run_id: int,
         current_stage: str,
         now: datetime,
+        available_at: datetime | None = None,
     ) -> WorkflowRun: ...
 
     async def mark_succeeded(

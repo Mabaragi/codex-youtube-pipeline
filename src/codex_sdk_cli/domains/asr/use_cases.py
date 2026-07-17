@@ -12,9 +12,12 @@ from pathlib import Path
 from codex_sdk_cli.domains.asr.exceptions import AudioTranscriptionOutputInvalid
 from codex_sdk_cli.domains.asr.ports import (
     AudioChunk,
+    AudioChunkCheckpoint,
+    AudioChunkCheckpointPort,
     AudioChunkerPort,
     AudioTranscriberPort,
     AudioTranscriptionRequest,
+    AudioTranscriptionResult,
     AudioTranscriptionSegment,
     YouTubeAudioDownloaderPort,
 )
@@ -53,6 +56,7 @@ class FasterWhisperTranscribeRequest:
     beam_size: int = 5
     vad_filter: bool = True
     keep_temp: bool = False
+    generate_cues: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +102,7 @@ class TranscribeYouTubeAudioUseCase:
         storage: YouTubeTranscriptStoragePort,
         transcripts: YouTubeTranscriptRepositoryPort,
         cues: TranscriptCueRepositoryPort,
+        checkpoints: AudioChunkCheckpointPort | None = None,
         storage_prefix: str = "youtube/transcripts",
         date_provider: Callable[[], date] | None = None,
         monotonic: Callable[[], float] | None = None,
@@ -108,6 +113,7 @@ class TranscribeYouTubeAudioUseCase:
         self._storage = storage
         self._transcripts = transcripts
         self._cues = cues
+        self._checkpoints = checkpoints
         self._storage_prefix = storage_prefix
         self._date_provider = date_provider or _utc_today
         self._monotonic = monotonic or time.monotonic
@@ -151,9 +157,13 @@ class TranscribeYouTubeAudioUseCase:
             request=request,
             segments=segments,
         )
-        cue_records = await self._cues.replace_cues(
-            transcript.metadata_id,
-            _cue_creates(transcript.metadata_id, transcript.response.segments),
+        cue_records = (
+            await self._cues.replace_cues(
+                transcript.metadata_id,
+                _cue_creates(transcript.metadata_id, transcript.response.segments),
+            )
+            if request.generate_cues
+            else []
         )
         return FasterWhisperTranscribeResult(
             youtube_video_id=video_id,
@@ -215,17 +225,38 @@ class TranscribeYouTubeAudioUseCase:
         resolved_device = request.device
         resolved_compute_type = request.compute_type
         for chunk in chunks:
-            result = await self._transcriber.transcribe(
-                AudioTranscriptionRequest(
-                    audio_path=chunk.path,
-                    language=request.language,
-                    model_size=request.model_size,
-                    device=request.device,
-                    compute_type=request.compute_type,
-                    beam_size=request.beam_size,
-                    vad_filter=request.vad_filter,
-                )
+            checkpoint = (
+                await self._checkpoints.load(chunk.index)
+                if self._checkpoints is not None
+                else None
             )
+            if checkpoint is None:
+                result = await self._transcriber.transcribe(
+                    AudioTranscriptionRequest(
+                        audio_path=chunk.path,
+                        language=request.language,
+                        model_size=request.model_size,
+                        device=request.device,
+                        compute_type=request.compute_type,
+                        beam_size=request.beam_size,
+                        vad_filter=request.vad_filter,
+                    )
+                )
+                if self._checkpoints is not None:
+                    await self._checkpoints.save(
+                        AudioChunkCheckpoint(
+                            chunk_index=chunk.index,
+                            segments=result.segments,
+                            device=result.device,
+                            compute_type=result.compute_type,
+                        )
+                    )
+            else:
+                result = AudioTranscriptionResult(
+                    segments=checkpoint.segments,
+                    device=checkpoint.device,
+                    compute_type=checkpoint.compute_type,
+                )
             resolved_device = result.device
             resolved_compute_type = result.compute_type
             for segment in _mergeable_segments(chunk, result.segments):

@@ -1338,7 +1338,7 @@ class _Fakes:
         self.prompt_resolver = FakePromptResolver()
         self.settings = CliSettings(
             micro_event_extract_timeout_seconds=60,
-            micro_event_extract_concurrency_limit=1,
+            micro_event_window_concurrency_limit=1,
             model="gpt-5.4",
             reasoning_effort="high",
         )
@@ -2619,6 +2619,100 @@ def test_micro_event_extract_repairs_unique_nearby_cue_id_typo() -> None:
     assert "evidenceCueIds" not in detail["windows"][0]["asrCorrectionCandidates"][0]
 
 
+def test_micro_event_extract_repairs_evidence_cue_typo_within_event_range() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[index * 1_000 for index in range(200)])
+    fakes.extractor.responses = [
+        _extractor_json_for_ranges(
+            event_ranges=[
+                ("tr1-c000001", "tr1-c000046", ["tr1-c000001"]),
+                ("tr1-c000047", "tr1-c000096", ["tr1-c00065"]),
+                ("tr1-c000097", "tr1-c000200", ["tr1-c000097"]),
+            ],
+        )
+    ]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert fakes.extractor.repair_requests == []
+    assert detail["windows"][0]["microEvents"][1]["evidenceCueIds"] == [
+        "tr1-c000065"
+    ]
+    assert "repaired_cue_id" in _warning_types(
+        detail["windows"][0]["validationError"]
+    )
+
+
+def test_micro_event_extract_retries_when_repair_pads_large_low_information_range() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[index * 1_000 for index in range(400)])
+    original_response = _extractor_json_for_ranges(
+        event_ranges=[
+            ("tr1-c000001", "tr1-c000280", ["tr1-c000001"]),
+        ],
+    )
+    padded_repair_response = _extractor_json_for_ranges(
+        event_ranges=[
+            ("tr1-c000001", "tr1-c000280", ["tr1-c000001"]),
+        ],
+        excluded_ranges=[
+            ("tr1-c000281", "tr1-c000400", "LOW_INFORMATION"),
+        ],
+    )
+    valid_retry_response = _extractor_json_for_ranges(
+        event_ranges=[
+            ("tr1-c000001", "tr1-c000400", ["tr1-c000001"]),
+        ],
+    )
+    fakes.extractor.responses = [original_response, valid_retry_response]
+    fakes.extractor.repair_responses = [padded_repair_response]
+
+    response = asyncio.run(_extract(fakes))
+    detail = asyncio.run(_get_detail(fakes, video_task_id=response["videoTaskId"]))
+
+    assert response["status"] == "succeeded"
+    assert len(fakes.extractor.requests) == 2
+    assert len(fakes.extractor.repair_requests) == 1
+    assert detail["windows"][0]["microEvents"][0]["endCueId"] == "tr1-c000400"
+    repair_failed_events = [
+        event
+        for event in fakes.events.events
+        if event.event_type == "micro_event_extract.window_repair_failed"
+    ]
+    assert len(repair_failed_events) == 1
+    assert repair_failed_events[0].error_message == (
+        "Repair added implausibly large LOW_INFORMATION coverage (120/400 owned cues)."
+    )
+
+
+def test_micro_event_extract_retries_implausibly_large_low_information_output() -> None:
+    fakes = _seed_ready_fakes()
+    _seed_cues(fakes, cue_starts_ms=[index * 1_000 for index in range(400)])
+    anomalous_response = _extractor_json_for_ranges(
+        event_ranges=[
+            ("tr1-c000001", "tr1-c000150", ["tr1-c000001"]),
+        ],
+        excluded_ranges=[
+            ("tr1-c000151", "tr1-c000400", "LOW_INFORMATION"),
+        ],
+    )
+    valid_retry_response = _extractor_json_for_ranges(
+        event_ranges=[
+            ("tr1-c000001", "tr1-c000400", ["tr1-c000001"]),
+        ],
+    )
+    fakes.extractor.responses = [anomalous_response, valid_retry_response]
+    fakes.extractor.repair_responses = [anomalous_response]
+
+    response = asyncio.run(_extract(fakes))
+
+    assert response["status"] == "succeeded"
+    assert len(fakes.extractor.requests) == 2
+    assert len(fakes.extractor.repair_requests) == 1
+
+
 def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap() -> None:
     fakes = _seed_ready_fakes()
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000])
@@ -2636,7 +2730,7 @@ def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap
 def test_micro_event_extract_runs_windows_with_bounded_worker_pool() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(
         fakes,
@@ -2666,7 +2760,7 @@ def test_micro_event_extract_runs_windows_with_bounded_worker_pool() -> None:
 def test_micro_event_extract_validation_failure_keeps_completed_parallel_windows() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(
         fakes,
@@ -2702,7 +2796,7 @@ def test_micro_event_extract_runtime_failure_retries_failed_window_and_succeeds(
         clock=lambda: datetime(2026, 6, 29, 12, tzinfo=UTC),
     )
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
     fakes.extractor.delays_by_window = {1: 0.05, 3: 0.05}
@@ -2734,7 +2828,7 @@ def test_micro_event_extract_runtime_failure_retries_failed_window_and_succeeds(
 def test_micro_event_extract_runtime_retry_exhaustion_stores_partial_windows() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
     fakes.extractor.failures_by_window = {
@@ -2771,7 +2865,7 @@ def test_micro_event_extract_runtime_retry_exhaustion_stores_partial_windows() -
 def test_micro_event_retry_failed_task_resumes_successful_windows() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
     fakes.extractor.failures_by_window = {
@@ -2810,7 +2904,7 @@ def test_micro_event_retry_failed_task_resumes_successful_windows() -> None:
 def test_micro_event_retry_failed_task_runs_missing_windows_only() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
     fakes.extractor.responses_by_window = {
@@ -2845,7 +2939,7 @@ def test_micro_event_retry_failed_task_runs_missing_windows_only() -> None:
 def test_micro_event_retry_stale_partial_reexecutes_all_windows() -> None:
     fakes = _seed_ready_fakes()
     fakes.settings = fakes.settings.model_copy(
-        update={"micro_event_extract_concurrency_limit": 3}
+        update={"micro_event_window_concurrency_limit": 3}
     )
     _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
     fakes.extractor.responses_by_window = {
@@ -3031,7 +3125,7 @@ def _use_case(fakes: _Fakes) -> ExtractVideoMicroEventsUseCase:
         extractor=fakes.extractor,
         prompt_resolver=fakes.prompt_resolver,
         timeout_seconds=fakes.settings.micro_event_extract_timeout_seconds,
-        concurrency_limit=fakes.settings.micro_event_extract_concurrency_limit,
+        concurrency_limit=fakes.settings.micro_event_window_concurrency_limit,
         model=fakes.settings.model,
         reasoning_effort=fakes.settings.reasoning_effort,
         events=fakes.events,
@@ -3255,6 +3349,41 @@ def _extractor_json(
             ],
         },
         ensure_ascii=False,
+    )
+
+
+def _extractor_json_for_ranges(
+    *,
+    event_ranges: list[tuple[str, str, list[str]]],
+    excluded_ranges: list[tuple[str, str, str]] | None = None,
+) -> str:
+    return json.dumps(
+        {
+            "events": [
+                {
+                    "start_cue_id": start_cue_id,
+                    "end_cue_id": end_cue_id,
+                    "event": "The streamer discusses a distinct topic.",
+                    "program_mode": "JUST_CHATTING",
+                    "content_kind": "META_CHAT",
+                    "topics": ["topic"],
+                    "relation_to_previous": "NEW_TOPIC",
+                    "continues_to_next": False,
+                    "evidence_cue_ids": evidence_cue_ids,
+                    "support_level": "DIRECT",
+                }
+                for start_cue_id, end_cue_id, evidence_cue_ids in event_ranges
+            ],
+            "excluded_ranges": [
+                {
+                    "start_cue_id": start_cue_id,
+                    "end_cue_id": end_cue_id,
+                    "reason": reason,
+                }
+                for start_cue_id, end_cue_id, reason in (excluded_ranges or [])
+            ],
+            "asr_correction_candidates": [],
+        }
     )
 
 

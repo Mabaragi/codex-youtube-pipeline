@@ -77,7 +77,7 @@ def micro_event_use_case(
         ),
         prompt_resolver=_prompt_resolver(session, settings),
         timeout_seconds=settings.micro_event_extract_timeout_seconds,
-        concurrency_limit=settings.micro_event_extract_concurrency_limit,
+        concurrency_limit=settings.micro_event_window_concurrency_limit,
         model=settings.model,
         reasoning_effort=settings.reasoning_effort,
         events=_event_recorder(session),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 
 from codex_sdk_cli.domains.llm_traces.ports import LlmTraceRecorderPort
@@ -9,7 +10,10 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRecord
 
-from .exceptions import MicroEventExtractionOutputInvalid
+from .exceptions import (
+    MicroEventExtractionOutputInvalid,
+    MicroEventWindowQualityRejected,
+)
 from .output_validation import MicroEventOutputWarning
 from .ports import (
     MicroEventExtractionResult,
@@ -154,6 +158,11 @@ class MicroEventWindowRepairService:
             "repairTurnId": repair_result.turn_id,
         }
         try:
+            _validate_repair_low_information_delta(
+                original_response=original_result.final_response,
+                repair_response=repair_result.final_response,
+                cue_window=cue_window,
+            )
             repaired_window = _validated_window(
                 task=task,
                 job=job,
@@ -177,6 +186,8 @@ class MicroEventWindowRepairService:
                 repair_result=repair_result,
                 repair_error=exc,
             )
+            if _is_window_quality_rejection(str(exc)):
+                raise MicroEventWindowQualityRejected(str(exc)) from exc
             return None
 
         await self._llm_traces.record_event(
@@ -327,5 +338,82 @@ def _is_recoverable_window_validation_error(error_message: str) -> bool:
         "Extractor did not cover every owned cue exactly once.",
         "start_cue_id must not come after end_cue_id.",
         "Extractor must cover OWNED_RANGE with events or excluded_ranges.",
+        "Extractor classified an implausibly large LOW_INFORMATION range",
     )
     return any(fragment in error_message for fragment in recoverable_fragments)
+
+
+def _validate_repair_low_information_delta(
+    *,
+    original_response: str,
+    repair_response: str,
+    cue_window: _CueWindow,
+) -> None:
+    cue_id_to_position = {
+        cue.cue_id: position for position, cue in enumerate(cue_window.owned_cues)
+    }
+    original_positions = _low_information_positions(
+        original_response,
+        cue_id_to_position=cue_id_to_position,
+    )
+    repaired_positions = _low_information_positions(
+        repair_response,
+        cue_id_to_position=cue_id_to_position,
+    )
+    added_positions = repaired_positions - original_positions
+    owned_cue_count = len(cue_window.owned_cues)
+    if (
+        owned_cue_count > 0
+        and len(added_positions) >= 100
+        and len(added_positions) / owned_cue_count >= 0.25
+    ):
+        raise MicroEventExtractionOutputInvalid(
+            "Repair added implausibly large LOW_INFORMATION coverage "
+            f"({len(added_positions)}/{owned_cue_count} owned cues)."
+        )
+
+
+def _low_information_positions(
+    raw_response: str,
+    *,
+    cue_id_to_position: dict[str, int],
+) -> set[int]:
+    try:
+        parsed = json.loads(raw_response)
+    except json.JSONDecodeError:
+        return set()
+    if not isinstance(parsed, dict):
+        return set()
+    raw_ranges = parsed.get("excluded_ranges")
+    if not isinstance(raw_ranges, list):
+        return set()
+    positions: set[int] = set()
+    for raw_range in raw_ranges:
+        if not isinstance(raw_range, dict):
+            continue
+        reason = raw_range.get("reason")
+        if not isinstance(reason, str) or _normalized_reason(reason) != "LOW_INFORMATION":
+            continue
+        start_cue_id = raw_range.get("start_cue_id")
+        end_cue_id = raw_range.get("end_cue_id")
+        if not isinstance(start_cue_id, str) or not isinstance(end_cue_id, str):
+            continue
+        start_position = cue_id_to_position.get(start_cue_id)
+        end_position = cue_id_to_position.get(end_cue_id)
+        if start_position is None or end_position is None or start_position > end_position:
+            continue
+        positions.update(range(start_position, end_position + 1))
+    return positions
+
+
+def _normalized_reason(reason: str) -> str:
+    return reason.strip().upper().replace("-", "_").replace(" ", "_")
+
+
+def _is_window_quality_rejection(error_message: str) -> bool:
+    return error_message.startswith(
+        (
+            "Repair added implausibly large LOW_INFORMATION coverage",
+            "Extractor classified an implausibly large LOW_INFORMATION range",
+        )
+    )

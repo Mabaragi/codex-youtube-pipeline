@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "20260711_0027"
@@ -18,9 +20,17 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "UPDATE work_items SET input_json = '{}' "
-        "WHERE input_json IS NULL OR json_type(input_json) = 'null'"
+    connection = op.get_bind()
+    null_json_predicate = (
+        "json_type(input_json) = 'null'"
+        if connection.dialect.name == "sqlite"
+        else "CAST(input_json AS TEXT) = 'null'"
+    )
+    connection.execute(
+        sa.text(
+            "UPDATE work_items SET input_json = '{}' "
+            f"WHERE input_json IS NULL OR {null_json_predicate}"
+        )
     )
 
 

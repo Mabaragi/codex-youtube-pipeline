@@ -285,6 +285,18 @@ def _create_batch_and_workflow_tables() -> None:
 
 def _migrate_legacy_work() -> None:
     connection = op.get_bind()
+    if connection.dialect.name != "sqlite":
+        legacy_count = connection.execute(
+            sa.text(
+                "SELECT (SELECT COUNT(*) FROM video_tasks) + "
+                "(SELECT COUNT(*) FROM pipeline_jobs)"
+            )
+        ).scalar_one()
+        if legacy_count:
+            raise RuntimeError(
+                "Legacy execution rows must be migrated on SQLite before moving to PostgreSQL."
+            )
+        return
     connection.execute(sa.text(_VIDEO_TASK_ITEMS_SQL))
     max_video_task_id = int(
         connection.execute(sa.text("SELECT COALESCE(MAX(id), 0) FROM video_tasks")).scalar_one()

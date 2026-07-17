@@ -9,6 +9,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    environmentOptions: { jsdom: { url: "http://localhost:3000/ops" } },
     globals: true,
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

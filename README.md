@@ -16,7 +16,7 @@ ignored.
 - Workflow coordinator for transcript -> cue -> micro-event -> timeline ->
   archive.
 - Periodic channel/video/transcript scheduler.
-- SQLite metadata DB and MinIO raw storage; optional Cloudflare R2/D1 publish.
+- Docker PostgreSQL metadata DB and MinIO raw storage; optional Cloudflare R2/D1 publish.
 
 ## Quick Start
 

@@ -14,6 +14,11 @@
 7. `archive_publish` writes immutable R2 artifacts and syncs the public D1
    catalog when configured.
 
+`process_to_publish` v2 treats `no_transcript` as a branch rather than a
+workflow failure. It waits until the configured grace deadline, checks YouTube
+once more, and then creates `asr_transcribe` when captions are still absent.
+ASR output rejoins the common cue, micro-event, timeline, and archive stages.
+
 ## Work Lifecycle
 
 Statuses are:
@@ -48,7 +53,25 @@ micro-event result.
 3. rechecks old no-transcript outcomes on their separate interval.
 
 It does not run micro-events or timelines directly. The workflow coordinator is
-responsible for full process-to-publish runs.
+responsible for full process-to-publish runs. In automation mode the scheduler
+creates bounded v2 workflows with active published database prompt IDs
+snapshotted into each workflow. It drains the initial backfill before switching
+to steady mode.
+
+## ASR And Supervision
+
+- ASR uses one GPU worker and durable 15-minute chunk checkpoints. A retry
+  downloads/chunks the source again but does not transcribe completed chunks.
+- CUDA `float16` falls back once to `int8_float16`; automatic workflows do not
+  silently fall back to CPU.
+- `codex-pipeline-supervisor` runs every minute. It recovers expired leases,
+  retries classified transient failures at 5- and 20-minute delays, and opens
+  deduplicated incidents for exhausted, stalled, or SLA-breaching work.
+- Runtime concurrency controls expire automatically and are enforced during
+  work-item claims.
+- Persistent runtime state supports safe host maintenance. `draining` and
+  `stopped` block scheduler work, worker/inline claims, and workflow claims
+  while allowing current heartbeats, checkpoints, and completion writes.
 
 ## Validation And Recovery
 

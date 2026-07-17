@@ -669,9 +669,18 @@ class ArchivePublishUseCase:
                 raise ArchivePublishPreconditionFailed(
                     "Video is not embeddable and is excluded from archive publish."
                 )
+            source_timeline_task_id = _int_output(
+                job.input_json,
+                "sourceTimelineWorkItemId",
+            )
+            if source_timeline_task_id is None:
+                source_timeline_task_id = _required_int(
+                    job.input_json,
+                    "sourceTimelineTaskId",
+                )
             composition = await self._timelines.get_composition(
                 video_id=video.id,
-                video_task_id=_required_int(job.input_json, "sourceTimelineTaskId"),
+                video_task_id=source_timeline_task_id,
             )
             if composition is None:
                 raise ArchivePublishPreconditionFailed("Timeline composition not found.")
@@ -934,6 +943,12 @@ def _timeline_artifact(
 ) -> ArchiveTimelineArtifact:
     candidate_by_id = {candidate.id: candidate for candidate in micro_events}
     cue_by_id = {cue.cue_id: cue for cue in cues}
+    timeline_state = (
+        "empty" if composition.output_json.get("timeline_state") == "empty" else "ready"
+    )
+    empty_reason = "no_micro_events" if timeline_state == "empty" else None
+    generation_mode = "deterministic_empty" if timeline_state == "empty" else "codex"
+    duration_seconds = _duration_seconds(video.duration)
     version = _version()
     object_key = (
         f"{prefix}/archive/v{schema_version}/videos/{video.id}/"
@@ -946,6 +961,8 @@ def _timeline_artifact(
             candidate_by_id=candidate_by_id,
             cue_by_id=cue_by_id,
             streamer_subject_aliases=_streamer_subject_aliases(streamer.name),
+            empty_timeline=timeline_state == "empty",
+            video_duration_ms=(duration_seconds or 0) * 1000,
         )
         for episode in composition.episodes
     ]
@@ -961,6 +978,9 @@ def _timeline_artifact(
         "generatedAt": _now_iso(),
         "videoId": video.id,
         "youtubeVideoId": video.youtube_video_id,
+        "timelineState": timeline_state,
+        "emptyReason": empty_reason,
+        "generationMode": generation_mode,
         "video": {
             "id": video.id,
             "youtubeId": video.youtube_video_id,
@@ -969,7 +989,7 @@ def _timeline_artifact(
             "channel": _channel_json(channel),
             "publishedAt": video.published_at.isoformat(),
             "duration": video.duration,
-            "durationSec": _duration_seconds(video.duration),
+            "durationSec": duration_seconds,
             "thumbnailUrl": video.thumbnail_url,
             "isEmbeddable": video.is_embeddable,
             "summary": composition.summary,
@@ -1008,6 +1028,8 @@ def _timeline_artifact(
             for topic in composition.topic_clusters
         ],
     }
+    if timeline_state == "empty":
+        payload["reviewFlags"] = []
     payload_bytes = _json_bytes(payload)
     return ArchiveTimelineArtifact(
         object_key=object_key,
@@ -1032,7 +1054,31 @@ def _episode_json(
     candidate_by_id: dict[int, MicroEventCandidateRecord],
     cue_by_id: dict[str, TranscriptCueRecord],
     streamer_subject_aliases: tuple[str, ...],
+    empty_timeline: bool,
+    video_duration_ms: int,
 ) -> JsonObject:
+    if (
+        empty_timeline
+        and episode.start_micro_event_candidate_id is None
+        and episode.end_micro_event_candidate_id is None
+    ):
+        return {
+            "episodeId": episode.episode_id,
+            "episodeIndex": episode.episode_index,
+            "parentBlockId": episode.parent_block_id,
+            "startMs": 0,
+            "endMs": video_duration_ms,
+            "programMode": episode.program_mode,
+            "primaryContentKind": episode.primary_content_kind,
+            "title": episode.title,
+            "summary": episode.summary,
+            "displayTitle": episode.display_title,
+            "displaySummary": episode.display_summary,
+            "topics": episode.topics,
+            "viewerTags": episode.viewer_tags,
+            "visibility": episode.visibility,
+            "microEvents": [],
+        }
     start_candidate = _candidate(candidate_by_id, episode.start_micro_event_candidate_id)
     end_candidate = _candidate(candidate_by_id, episode.end_micro_event_candidate_id)
     start_cue = _cue(cue_by_id, start_candidate.start_cue_id)

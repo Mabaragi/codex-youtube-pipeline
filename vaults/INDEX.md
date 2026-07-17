@@ -16,6 +16,10 @@ for the current task. Public product and operations documentation lives in
 
 ## Project Context
 
+- [Drain-based local runtime decision](decisions/2026-07-14-drain-based-local-runtime-orchestration.md):
+  explains why runtime intent is persisted as `active/draining/stopped`, which
+  operations drain blocks, and why timeout never escalates to force. Read before
+  changing local start, stop, deploy, claim gating, or runtime-state semantics.
 - [Public docs](../docs/INDEX.md): architecture, API, pipeline, deployment, and
   archive references.
 - [API operations](../docs/AGENT_API_OPERATIONS.md): source for API-only agent

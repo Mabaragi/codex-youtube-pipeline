@@ -4,6 +4,13 @@ from codex_sdk_cli.infra.archive_publish.repository import (
     ArchiveIndexPublicationModel,
     ArchiveVideoArtifactModel,
 )
+from codex_sdk_cli.infra.asr.checkpoints import AsrChunkCheckpointModel
+from codex_sdk_cli.infra.automation.repository import (
+    PipelineAutomationStateModel,
+    PipelineIncidentModel,
+    PipelineRemediationActionModel,
+    PipelineRuntimeControlModel,
+)
 from codex_sdk_cli.infra.channels.repository import ChannelModel
 from codex_sdk_cli.infra.codex_usage.repository import CodexRunUsageModel
 from codex_sdk_cli.infra.domain_knowledge.repository import (
@@ -55,6 +62,11 @@ __all__ = [
     "ChannelModel",
     "ArchiveIndexPublicationModel",
     "ArchiveVideoArtifactModel",
+    "AsrChunkCheckpointModel",
+    "PipelineAutomationStateModel",
+    "PipelineIncidentModel",
+    "PipelineRemediationActionModel",
+    "PipelineRuntimeControlModel",
     "AsrCorrectionCandidateModel",
     "CodexRunUsageModel",
     "DomainEntryAliasModel",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from codex_sdk_cli.application.asr.executors import AsrTranscriptionExecutor
 from codex_sdk_cli.application.processing.executors import (
     MicroEventExtractionExecutor,
     TimelineCompositionExecutor,
@@ -22,6 +23,7 @@ from codex_sdk_cli.infra.work.archive_execution import (
     InlineWorkExecutionRunner,
     WorkArchivePublisher,
 )
+from codex_sdk_cli.infra.work.asr_execution import StoredAsrTranscriber
 from codex_sdk_cli.infra.work.execution_repositories import (
     WorkPipelineJobRepository,
     WorkVideoTaskRepository,
@@ -29,6 +31,9 @@ from codex_sdk_cli.infra.work.execution_repositories import (
 from codex_sdk_cli.infra.work.processing_execution import (
     WorkMicroEventProcessor,
     WorkTimelineProcessor,
+)
+from codex_sdk_cli.infra.work.transcript_artifacts import (
+    SqlAlchemyTranscriptArtifactReader,
 )
 from codex_sdk_cli.infra.work.transcript_execution import (
     StoredTranscriptCueGenerator,
@@ -39,7 +44,7 @@ from codex_sdk_cli.infra.youtube_transcripts.client import YouTubeTranscriptClie
 from codex_sdk_cli.infra.youtube_transcripts.storage import MinioTranscriptStorage
 from codex_sdk_cli.settings import CliSettings
 
-from .archive import archive_publish_use_case
+from .archive import archive_publish_execution_use_case
 from .processing import micro_event_use_case, timeline_use_case
 
 
@@ -66,6 +71,8 @@ class WorkRuntime:
         factories: dict[str, WorkExecutorFactory] = {}
         if "transcript_collect" in task_types:
             factories["transcript_collect"] = self._transcript_executor
+        if "asr_transcribe" in task_types:
+            factories["asr_transcribe"] = self._asr_executor
         if "transcript_cue_generate" in task_types:
             factories["transcript_cue_generate"] = self._cue_executor
         if "micro_event_extract" in task_types:
@@ -89,6 +96,7 @@ class WorkRuntime:
         return ProcessToPublishCoordinator(
             unit_of_work_factory=lambda: SqlAlchemyWorkUnitOfWork(self.session_factory),
             inline_runner=InlineWorkExecutionRunner(archive_engine),
+            transcript_artifacts=SqlAlchemyTranscriptArtifactReader(self.session_factory),
             worker_id=worker_id,
         )
 
@@ -99,6 +107,14 @@ class WorkRuntime:
                 client=YouTubeTranscriptClient.from_settings(self.settings),
                 storage=MinioTranscriptStorage.from_settings(self.settings),
                 storage_prefix=self.settings.transcript_minio_prefix,
+            )
+        )
+
+    def _asr_executor(self) -> AsrTranscriptionExecutor:
+        return AsrTranscriptionExecutor(
+            StoredAsrTranscriber(
+                session_factory=self.session_factory,
+                settings=self.settings,
             )
         )
 
@@ -119,7 +135,10 @@ class WorkRuntime:
                         session,
                         self.session_factory,
                         self.settings,
-                        video_tasks=WorkVideoTaskRepository(session),
+                        video_tasks=WorkVideoTaskRepository(
+                            session,
+                            current_work_item_id=work_item_id,
+                        ),
                         pipeline_jobs=WorkPipelineJobRepository(
                             session,
                             current_work_item_id=work_item_id,
@@ -138,7 +157,10 @@ class WorkRuntime:
                     session,
                     self.session_factory,
                     self.settings,
-                    video_tasks=WorkVideoTaskRepository(session),
+                    video_tasks=WorkVideoTaskRepository(
+                        session,
+                        current_work_item_id=work_item_id,
+                    ),
                     pipeline_jobs=WorkPipelineJobRepository(
                         session,
                         current_work_item_id=work_item_id,
@@ -153,15 +175,11 @@ class WorkRuntime:
             WorkArchivePublisher(
                 session_factory=self.session_factory,
                 use_case_factory=lambda session, work_item_id, work_attempt_id: (
-                    archive_publish_use_case(
+                    archive_publish_execution_use_case(
                         session,
                         self.settings,
-                        video_tasks=WorkVideoTaskRepository(session),
-                        pipeline_jobs=WorkPipelineJobRepository(
-                            session,
-                            current_work_item_id=work_item_id,
-                            current_work_attempt_id=work_attempt_id,
-                        ),
+                        work_item_id=work_item_id,
+                        work_attempt_id=work_attempt_id,
                     )
                 ),
             )
