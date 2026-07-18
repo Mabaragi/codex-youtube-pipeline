@@ -41,6 +41,7 @@ from .infra.timelines.style_backfill import normalize_timeline_style_backfill
 from .infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
 from .infra.youtube_transcripts.repository import SqlAlchemyYouTubeTranscriptRepository
 from .infra.youtube_transcripts.storage import MinioTranscriptStorage
+from .publication_cli import publication as publication_command
 from .runner import (
     BLANK_BASE_INSTRUCTIONS,
     BLANK_DEVELOPER_INSTRUCTIONS,
@@ -782,3 +783,6 @@ def _echo_login_result(success: bool, error: str | None) -> None:
     if error:
         message = f"{message} {error}"
     raise click.ClickException(message)
+
+
+main.add_command(publication_command)

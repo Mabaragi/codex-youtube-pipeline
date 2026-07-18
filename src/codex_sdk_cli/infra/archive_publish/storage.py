@@ -9,16 +9,12 @@ from minio import Minio
 from minio.error import MinioException
 from typing_extensions import override
 
-from codex_sdk_cli.domains.archive_publish.exceptions import (
-    ArchivePublishConfigurationError,
-    ArchivePublishStorageError,
-)
+from codex_sdk_cli.domains.archive_publish.exceptions import ArchivePublishStorageError
 from codex_sdk_cli.domains.archive_publish.ports import (
     ArchiveObjectLocation,
     ArchiveObjectSaveRequest,
     ArchivePublishStoragePort,
 )
-from codex_sdk_cli.settings import CliSettings
 
 
 class R2ClientLike(Protocol):
@@ -48,25 +44,6 @@ class R2ArchivePublishStorage(ArchivePublishStoragePort):
         self._client = client
         self._bucket = bucket
         self._public_base_url = public_base_url.rstrip("/")
-
-    @classmethod
-    def from_settings(cls, settings: CliSettings) -> R2ArchivePublishStorage:
-        if (
-            settings.archive_publish_r2_endpoint is None
-            or settings.archive_publish_r2_access_key is None
-            or settings.archive_publish_r2_secret_key is None
-            or settings.archive_publish_r2_bucket is None
-            or settings.archive_publish_public_base_url is None
-        ):
-            raise ArchivePublishConfigurationError("Archive publish R2 storage is not configured.")
-        return cls.from_values(
-            endpoint=settings.archive_publish_r2_endpoint,
-            access_key=settings.archive_publish_r2_access_key.get_secret_value(),
-            secret_key=settings.archive_publish_r2_secret_key.get_secret_value(),
-            bucket=settings.archive_publish_r2_bucket,
-            public_base_url=settings.archive_publish_public_base_url,
-            secure=settings.archive_publish_r2_secure,
-        )
 
     @classmethod
     def from_values(

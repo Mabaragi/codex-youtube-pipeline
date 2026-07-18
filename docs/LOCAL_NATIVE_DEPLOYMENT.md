@@ -22,6 +22,7 @@ Windows process: Next.js ops-ui on 127.0.0.1:3000
 Docker container: MinIO on 127.0.0.1:9000 and console on 127.0.0.1:9001
 Docker container: PostgreSQL on 127.0.0.1:5432
 Database volume: codex-sdk-home_postgres-data
+PostgreSQL databases: codex control plane and codex_public_catalog projection
 Runtime state: ./.home-deploy/
 ```
 
@@ -59,6 +60,19 @@ notepad .home-deploy/local.env
 Keep `.home-deploy/local.env` private. It contains the PostgreSQL password and
 may contain API keys and local MinIO credentials. Replace every `CHANGE_ME`
 value before the first start.
+
+Create the private publication connection registry from the tracked,
+public-safe template and replace its placeholders locally:
+
+```powershell
+Copy-Item scripts/local-home/publish-connections.example.json `
+  .home-deploy/publish-connections.json
+notepad .home-deploy/publish-connections.json
+```
+
+The registry contains physical object/catalog endpoints and credentials. The
+control database stores only `connectionRef` values, and the API never returns
+secrets. `CODEX_CLI_PUBLISH_CONNECTIONS_FILE` selects this ignored file.
 
 `codex-pipeline-scheduler` starts by default and needs
 `CODEX_CLI_YOUTUBE_DATA_API_KEY` to collect channel/video metadata. Set the key
@@ -102,7 +116,8 @@ This performs:
   that may keep `.next/standalone` locked
 - PostgreSQL and MinIO start through `compose.local-infra.yaml`
 - Docker-volume DB migration if needed
-- `uv run alembic upgrade head`
+- `uv run python -m alembic upgrade head` for the `codex` control database
+- creation and dedicated Alembic migration of `codex_public_catalog`
 - `pnpm -C ops-ui build`
 - local API, worker, and Ops UI process start
 
@@ -215,12 +230,27 @@ CODEX_CLI_TRANSCRIPT_MINIO_PREFIX=youtube/transcripts
 CODEX_CLI_EXTERNAL_API_CALL_MINIO_PREFIX=external-api-calls
 ```
 
+Publication storage is configured by connection reference rather than MinIO-
+specific environment variables. The sample registry defines the private
+`archive-artifacts` canonical bucket, private `archive-publication-staging`,
+and the local `archive-public` publication bucket. Create these buckets before
+publishing; keep the canonical and staging buckets private.
+
 ## PostgreSQL
 
 PostgreSQL uses `postgres:17-alpine`, binds only to `127.0.0.1:5432`, and stores
 data in the `codex-sdk-home_postgres-data` named volume. All API, scheduler,
 worker, and coordinator processes share the asyncpg URL from
 `CODEX_CLI_DATABASE_URL`.
+
+That URL targets the `codex` control database. The connection registry's
+`local-public-catalog` entry targets a separate `codex_public_catalog` database.
+Its video upsert and child-row replacement are committed in one target-database
+transaction. Migrate it independently when needed:
+
+```powershell
+.\scripts\local-home\migrate-public-catalog.ps1
+```
 
 Workers claim rows with PostgreSQL `FOR UPDATE SKIP LOCKED`, so concurrent slots
 claim different pending work without SQLite's database-wide writer lock.
@@ -237,32 +267,28 @@ verifies every table's row count, resets sequences, and restarts the runtime.
 The SQLite source and timestamped `data/app.pre-postgres.*.db` backup remain
 untouched. See `docs/POSTGRESQL_LOCAL_DATABASE.md` for recovery details.
 
-## R2 Archive Publish
+## Streamer-scoped Archive Publication
 
-Timeline archive publishing is optional and uses Cloudflare R2 instead of local
-MinIO. Configure these only when `/ops/archive` should publish public artifacts:
+Each streamer has a required publish profile. Its active immutable revision
+selects a route for `(publishMode, environment)`, and that route binds one or
+more local/remote object and catalog destinations. Physical endpoints and
+credentials are read from `.home-deploy/publish-connections.json`; active
+runtime configuration does not use the legacy R2/D1-named environment settings.
 
-```text
-CODEX_CLI_ARCHIVE_PUBLISH_R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-CODEX_CLI_ARCHIVE_PUBLISH_R2_ACCESS_KEY=...
-CODEX_CLI_ARCHIVE_PUBLISH_R2_SECRET_KEY=...
-CODEX_CLI_ARCHIVE_PUBLISH_R2_BUCKET=...
-CODEX_CLI_ARCHIVE_PUBLISH_R2_SECURE=true
-CODEX_CLI_ARCHIVE_PUBLISH_PUBLIC_BASE_URL=https://<public-bucket-or-domain>
-CODEX_CLI_ARCHIVE_PUBLISH_PREFIX=archive
-CODEX_CLI_ARCHIVE_PUBLISH_ENVIRONMENT=prod
+The canonical timeline artifact is stored only in the private local
+`archive-artifacts` bucket. Timeline projections, catalog rows,
+destination-specific indices, and pointers are then delivered to the configured
+publication destinations. The existing remote object destination can remain
+primary while a local `archive-public` object destination and local
+`codex_public_catalog` destination receive the same publication.
 
-# Optional dev review bucket. Endpoint/key/secret fall back to the prod values
-# above when these optional dev-specific connection values are omitted.
-CODEX_CLI_ARCHIVE_PUBLISH_DEV_R2_BUCKET=...
-CODEX_CLI_ARCHIVE_PUBLISH_DEV_PUBLIC_BASE_URL=https://<dev-public-bucket-or-domain>
-CODEX_CLI_ARCHIVE_PUBLISH_DEV_PREFIX=archive-dev
-CODEX_CLI_ARCHIVE_PUBLISH_DEV_ENVIRONMENT=dev
-```
-
-Archive publish runs synchronously in `POST /ops/operations/archive-publish`; there
-is no local archive publish worker process. See `docs/ARCHIVE_PUBLISH.md` for
-object keys and API usage.
+Archive publish runs synchronously in `POST /ops/operations/archive-publish`;
+there is no local publication worker. Explicit stage endpoints reuse successful
+checkpoints and support object, catalog, index, and pointer recovery without
+rebuilding the canonical artifact. See [Archive publish](ARCHIVE_PUBLISH.md) for
+profiles, stage APIs, and cutovers. Follow
+[Publication data migration](PUBLICATION_MIGRATION.md) before importing legacy
+objects or catalog state.
 
 ## Historical Work Model Database Cutover
 

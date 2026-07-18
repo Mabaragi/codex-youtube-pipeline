@@ -42,7 +42,11 @@ async def _exercise_api() -> dict[str, object]:
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        streamer_response = await client.post("/streamers", json={"name": "Streamer"})
+        streamer_response = await client.post(
+            "/streamers",
+            json={"name": "Streamer", "publishProfileId": 1},
+            headers={"X-Operator-Reason": "domain knowledge API fixture"},
+        )
         streamer_response.raise_for_status()
         streamer_id = streamer_response.json()["id"]
         created_response = await client.post(

@@ -440,7 +440,12 @@ def _insert_streamer(database_file: Path) -> None:
     engine = create_engine(f"sqlite:///{database_file.as_posix()}")
     try:
         with engine.begin() as connection:
-            connection.execute(text("INSERT INTO streamers (name) VALUES ('Streamer')"))
+            connection.execute(
+                text(
+                    "INSERT INTO streamers (name, publish_profile_id) "
+                    "VALUES ('Streamer', 1)"
+                )
+            )
     finally:
         engine.dispose()
 
@@ -509,7 +514,12 @@ def _insert_timeline_style_fixture(database_file: Path) -> None:
     engine = create_engine(f"sqlite:///{database_file.as_posix()}")
     try:
         with engine.begin() as connection:
-            connection.execute(text("INSERT INTO streamers (id, name) VALUES (1, 'Streamer')"))
+            connection.execute(
+                text(
+                    "INSERT INTO streamers (id, name, publish_profile_id) "
+                    "VALUES (1, 'Streamer', 1)"
+                )
+            )
             connection.execute(
                 text(
                     "INSERT INTO channels "
@@ -623,7 +633,12 @@ def _insert_stuck_task_fixture(database_file: Path) -> None:
     engine = create_engine(f"sqlite:///{database_file.as_posix()}")
     try:
         with engine.begin() as connection:
-            connection.execute(text("INSERT INTO streamers (id, name) VALUES (1, 'Streamer')"))
+            connection.execute(
+                text(
+                    "INSERT INTO streamers (id, name, publish_profile_id) "
+                    "VALUES (1, 'Streamer', 1)"
+                )
+            )
             connection.execute(
                 text(
                     "INSERT INTO channels "

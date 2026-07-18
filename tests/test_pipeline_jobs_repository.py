@@ -182,7 +182,7 @@ async def _exercise_repository(database_url: str) -> None:
             videos = SqlAlchemyVideoRepository(session)
             transcripts = SqlAlchemyYouTubeTranscriptRepository(session)
             cues = SqlAlchemyTranscriptCueRepository(session)
-            streamer = await streamers.create_streamer(name="Google")
+            streamer = await streamers.create_streamer(name="Google", publish_profile_id=1)
             await channels.create_channel(
                 ChannelCreate(
                     streamer_id=streamer.id,
@@ -303,7 +303,9 @@ async def _exercise_channel_filter_repository(database_url: str) -> None:
             pipeline_jobs = SqlAlchemyPipelineJobRepository(session)
             streamers = SqlAlchemyStreamerRepository(session)
             channels = SqlAlchemyChannelRepository(session)
-            streamer = await streamers.create_streamer(name="Filter Streamer")
+            streamer = await streamers.create_streamer(
+                name="Filter Streamer", publish_profile_id=1
+            )
 
             produced_channel_job = await _create_job(
                 pipeline_jobs,

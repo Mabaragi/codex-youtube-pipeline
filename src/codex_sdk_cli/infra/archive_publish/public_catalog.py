@@ -25,9 +25,7 @@ class HttpArchivePublicCatalogSync(ArchivePublicCatalogSyncPort):
         self._timeout_seconds = timeout_seconds
 
     async def upsert_video(self, row: ArchivePublicCatalogVideoRow) -> None:
-        payload: dict[str, object] = {"videos": [_row_json(row)]}
-        if row.timeline_index is not None:
-            payload["timelineIndex"] = _timeline_index_json(row.timeline_index)
+        payload = archive_public_catalog_payload(row)
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(self._timeout_seconds)
@@ -47,6 +45,16 @@ class HttpArchivePublicCatalogSync(ArchivePublicCatalogSyncPort):
             raise ArchivePublishCatalogSyncError(
                 f"Public catalog sync failed with HTTP {response.status_code}: {message}"
             )
+
+
+def archive_public_catalog_payload(
+    row: ArchivePublicCatalogVideoRow,
+) -> dict[str, object]:
+    """Serialize the stable HTTP catalog contract for all publisher adapters."""
+    payload: dict[str, object] = {"videos": [_row_json(row)]}
+    if row.timeline_index is not None:
+        payload["timelineIndex"] = _timeline_index_json(row.timeline_index)
+    return payload
 
 
 def _row_json(row: ArchivePublicCatalogVideoRow) -> dict[str, object]:

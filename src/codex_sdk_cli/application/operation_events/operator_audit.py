@@ -8,7 +8,14 @@ from codex_sdk_cli.domains.operation_events.ports import (
 )
 from codex_sdk_cli.domains.operation_events.recording import record_operation_event
 
-OperatorMutation = Literal["deleted", "archived", "relationship_removed"]
+OperatorMutation = Literal[
+    "created",
+    "updated",
+    "activated",
+    "deleted",
+    "archived",
+    "relationship_removed",
+]
 
 
 class RecordOperatorMutationUseCase:
@@ -26,6 +33,9 @@ class RecordOperatorMutationUseCase:
         metadata: dict[str, object] | None = None,
     ) -> None:
         event_type = {
+            "created": "operator.resource_created",
+            "updated": "operator.resource_updated",
+            "activated": "operator.resource_activated",
             "deleted": "operator.resource_deleted",
             "archived": "operator.resource_archived",
             "relationship_removed": "operator.relationship_removed",

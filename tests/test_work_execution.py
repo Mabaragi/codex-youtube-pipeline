@@ -225,7 +225,12 @@ async def _database(database_url: str):
     engine = create_database_engine(database_url)
     session_factory = create_session_factory(engine)
     async with session_factory() as session:
-        await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Nagi')"))
+        await session.execute(
+            text(
+                "INSERT INTO streamers(id, name, publish_profile_id) "
+                "VALUES (1, 'Nagi', 1)"
+            )
+        )
         await session.execute(
             text(
                 "INSERT INTO channels(id, streamer_id, handle, name) VALUES (1, 1, '@nagi', 'Nagi')"

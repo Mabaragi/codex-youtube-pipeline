@@ -2,7 +2,8 @@
 
 Local Python/FastAPI and React operations project for collecting YouTube video
 metadata and transcripts, generating cue-based micro-events and timelines, and
-publishing playback-ready JSON to Cloudflare R2/D1.
+publishing playback-ready projections through streamer-scoped profiles to local
+and remote object/catalog destinations.
 
 The repository contains public-safe code and sample prompt fallbacks. Local DB,
 runtime logs, raw media/transcripts, production prompt packs, and secrets are
@@ -16,7 +17,9 @@ ignored.
 - Workflow coordinator for transcript -> cue -> micro-event -> timeline ->
   archive.
 - Periodic channel/video/transcript scheduler.
-- Docker PostgreSQL metadata DB and MinIO raw storage; optional Cloudflare R2/D1 publish.
+- Docker PostgreSQL for the `codex` control DB and `codex_public_catalog`, plus
+  MinIO for raw data, private canonical artifacts, and local publication objects.
+- Vendor-neutral publication connections configured outside the control DB.
 
 ## Quick Start
 
@@ -25,8 +28,13 @@ uv sync --dev --locked
 corepack enable
 pnpm install --frozen-lockfile
 Copy-Item scripts/local-home/local.env.example .home-deploy/local.env
+Copy-Item scripts/local-home/publish-connections.example.json `
+  .home-deploy/publish-connections.json
 .\scripts\local-home\deploy.ps1
 ```
+
+Replace every `CHANGE_ME` value in the two ignored `.home-deploy` files before
+deploying.
 
 Check the runtime:
 
@@ -78,7 +86,9 @@ src/codex_sdk_cli/
 
 Read [Clean Architecture](docs/CLEAN_ARCHITECTURE.md) and
 [Agent API Operations](docs/AGENT_API_OPERATIONS.md) before changing boundaries
-or operating the pipeline.
+or operating the pipeline. Publication behavior and offline legacy data handling
+are documented in [Archive Publish](docs/ARCHIVE_PUBLISH.md) and
+[Publication Data Migration](docs/PUBLICATION_MIGRATION.md).
 
 ## Verification
 

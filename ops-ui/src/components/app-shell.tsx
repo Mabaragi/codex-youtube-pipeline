@@ -14,6 +14,7 @@ import {
   Megaphone,
   Network,
   Radio,
+  Route,
   ScrollText,
   SlidersHorizontal,
 } from "lucide-react";
@@ -42,6 +43,7 @@ const NAVIGATION: readonly NavigationGroup[] = [
   ] },
   { label: "구성", items: [
     { href: "/configuration/channels", label: "채널 & 스트리머", icon: Radio },
+    { href: "/configuration/publishing", label: "퍼블리시 경로", icon: Route },
     { href: "/configuration/knowledge", label: "도메인 지식", icon: BookOpen },
     { href: "/configuration/prompts", label: "프롬프트", icon: ScrollText },
   ] },

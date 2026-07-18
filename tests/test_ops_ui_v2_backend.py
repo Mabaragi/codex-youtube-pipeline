@@ -184,7 +184,12 @@ async def _exercise_workflow_and_batch_lists(database_path: Path) -> None:
     now = datetime(2026, 7, 14, tzinfo=UTC)
     try:
         async with session_factory() as session:
-            await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Ops')"))
+            await session.execute(
+                text(
+                    "INSERT INTO streamers(id, name, publish_profile_id) "
+                    "VALUES (1, 'Ops', 1)"
+                )
+            )
             await session.execute(
                 text(
                     "INSERT INTO channels(id, streamer_id, handle, name) "

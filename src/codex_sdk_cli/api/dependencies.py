@@ -8,6 +8,9 @@ import httpx
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from codex_sdk_cli.application.publication_config.ports import (
+    PublishConfigurationRepositoryPort,
+)
 from codex_sdk_cli.domains.archive_publish.ports import ArchivePublishRepositoryPort
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.codex.ports import CodexRuntimePort
@@ -74,6 +77,9 @@ from codex_sdk_cli.infra.micro_events.repository import (
 from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
 from codex_sdk_cli.infra.ops.repository import SqlAlchemyOpsRepository
 from codex_sdk_cli.infra.prompts.repository import SqlAlchemyPromptRepository
+from codex_sdk_cli.infra.publication_config.repository import (
+    SqlAlchemyPublishConfigurationRepository,
+)
 from codex_sdk_cli.infra.streamers.repository import SqlAlchemyStreamerRepository
 from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
 from codex_sdk_cli.infra.timelines.repository import (
@@ -203,6 +209,12 @@ async def get_prompt_repository(
     session: DatabaseSessionDep,
 ) -> PromptRepositoryPort:
     return SqlAlchemyPromptRepository(session)
+
+
+async def get_publish_configuration_repository(
+    session: DatabaseSessionDep,
+) -> PublishConfigurationRepositoryPort:
+    return SqlAlchemyPublishConfigurationRepository(session)
 
 
 def get_prompt_cache() -> PromptCache:
@@ -336,6 +348,10 @@ DomainKnowledgeRepositoryDep = Annotated[
 PromptRepositoryDep = Annotated[
     PromptRepositoryPort,
     Depends(get_prompt_repository),
+]
+PublishConfigurationRepositoryDep = Annotated[
+    PublishConfigurationRepositoryPort,
+    Depends(get_publish_configuration_repository),
 ]
 PromptCacheDep = Annotated[
     PromptCache,

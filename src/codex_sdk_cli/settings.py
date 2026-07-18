@@ -97,6 +97,11 @@ class CliSettings(BaseSettings):
     archive_public_catalog_sync_token: SecretStr | None = None
     archive_public_catalog_sync_enabled: bool = True
     archive_public_catalog_sync_timeout_seconds: float = 15.0
+    publish_connections_file: Path | None = Path(
+        ".home-deploy/publish-connections.json"
+    )
+    publication_artifact_store_ref: str = "local-artifact-store"
+    publication_staging_store_ref: str = "local-publication-staging"
     prompt_cache_ttl_seconds: int = 60
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
@@ -139,6 +144,7 @@ class CliSettings(BaseSettings):
         "archive_publish_dev_public_base_url",
         "archive_public_catalog_sync_url",
         "archive_public_catalog_sync_token",
+        "publish_connections_file",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
         "transcript_minio_secret_key",

@@ -12,11 +12,19 @@ class StreamerCreateRequest(BaseModel):
         description="Display name of the streamer.",
         examples=["Chzzk Archive"],
     )
+    publish_profile_id: int = Field(
+        ge=1,
+        alias="publishProfileId",
+        description="Active publication profile assigned to the streamer.",
+    )
 
     model_config = ConfigDict(
         extra="forbid",
         str_strip_whitespace=True,
-        json_schema_extra={"examples": [{"name": "Chzzk Archive"}]},
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [{"name": "Chzzk Archive", "publishProfileId": 1}]
+        },
     )
 
 
@@ -28,25 +36,39 @@ class StreamerUpdateRequest(BaseModel):
         description="New display name of the streamer.",
         examples=["Chzzk Archive KR"],
     )
+    publish_profile_id: int | None = Field(
+        default=None,
+        ge=1,
+        alias="publishProfileId",
+        description="New active publication profile assignment.",
+    )
 
     model_config = ConfigDict(
         extra="forbid",
         str_strip_whitespace=True,
-        json_schema_extra={"examples": [{"name": "Chzzk Archive KR"}]},
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [{"name": "Chzzk Archive KR", "publishProfileId": 2}]
+        },
     )
 
     @model_validator(mode="after")
-    def require_name(self) -> Self:
-        if "name" not in self.model_fields_set:
+    def require_update(self) -> Self:
+        if not self.model_fields_set:
             raise ValueError("At least one field must be provided.")
-        if self.name is None:
+        if "name" in self.model_fields_set and self.name is None:
             raise ValueError("name cannot be null.")
+        if "publish_profile_id" in self.model_fields_set and self.publish_profile_id is None:
+            raise ValueError("publishProfileId cannot be null.")
         return self
 
 
 class StreamerResponse(BaseModel):
     id: int
     name: str
+    publish_profile_id: int = Field(alias="publishProfileId")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class DeleteResponse(BaseModel):

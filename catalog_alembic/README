@@ -1,0 +1,9 @@
+This migration environment owns only the codex_public_catalog projection schema.
+
+Run it with:
+
+    uv run alembic -c catalog-alembic.ini upgrade head
+
+The database URL is resolved from CODEX_CLI_PUBLISH_CONNECTIONS_FILE using the
+`connection_ref` configured in catalog-alembic.ini. Override it with
+`-x connection_ref=<ref>` when necessary.

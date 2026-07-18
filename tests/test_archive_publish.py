@@ -13,12 +13,10 @@ from pydantic import ValidationError
 from sqlalchemy import inspect
 
 from alembic import command
-from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
-    archive_publish_storage_factory,
-)
 from codex_sdk_cli.bootstrap import archive as archive_bootstrap
 from codex_sdk_cli.domains.archive_publish.exceptions import (
     ArchivePublishArtifactInvalid,
+    ArchivePublishConfigurationError,
 )
 from codex_sdk_cli.domains.archive_publish.ports import (
     ArchiveChannelRecord,
@@ -45,7 +43,7 @@ from codex_sdk_cli.domains.timelines.ports import (
 )
 from codex_sdk_cli.domains.transcript_cues.ports import TranscriptCueRecord
 from codex_sdk_cli.domains.videos.ports import VideoRecord
-from codex_sdk_cli.infra.archive_publish.storage import R2ArchivePublishStorage
+from codex_sdk_cli.infra.archive_publish.repository import ArchiveVideoArtifactModel
 from codex_sdk_cli.infra.database.session import create_database_engine
 from codex_sdk_cli.settings import CliSettings
 from tests.support.legacy_api import app
@@ -62,12 +60,8 @@ def test_archive_publish_openapi_paths_are_registered() -> None:
     assert "/ops/archive/videos" in schema["paths"]
     current_parameters = schema["paths"]["/ops/archive/current"]["get"]["parameters"]
     assert any(parameter["name"] == "publishMode" for parameter in current_parameters)
-    assert "publishMode" in schema["components"]["schemas"]["ArchivePublishRequest"][
-        "properties"
-    ]
-    assert "publishMode" in schema["components"]["schemas"]["ProcessToPublishRequest"][
-        "properties"
-    ]
+    assert "publishMode" in schema["components"]["schemas"]["ArchivePublishRequest"]["properties"]
+    assert "publishMode" in schema["components"]["schemas"]["ProcessToPublishRequest"]["properties"]
 
 
 def test_archive_publish_has_no_active_worker_module() -> None:
@@ -90,46 +84,15 @@ def test_archive_publish_dev_mode_defaults_and_rejects_prod_environment() -> Non
         )
 
 
-def test_archive_publish_dev_storage_factory_uses_dev_bucket_and_public_base_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, object] = {}
-
-    class FakeStorage:
-        pass
-
-    def fake_from_values(cls: type[R2ArchivePublishStorage], **kwargs: object) -> Any:
-        captured.update(kwargs)
-        return FakeStorage()
-
-    monkeypatch.setattr(
-        R2ArchivePublishStorage,
-        "from_values",
-        classmethod(fake_from_values),
-    )
-    settings = CliSettings(
-        archive_publish_r2_endpoint="https://prod-r2.example",
-        archive_publish_r2_access_key="prod-access-key",
-        archive_publish_r2_secret_key="prod-secret-key",
-        archive_publish_r2_bucket="prod-bucket",
-        archive_publish_r2_secure=True,
-        archive_publish_public_base_url="https://prod-cdn.example",
-        archive_publish_dev_r2_bucket="dev-bucket",
-        archive_publish_dev_public_base_url="https://dev-cdn.example",
-    )
-
-    factory = archive_publish_storage_factory(settings, publish_mode="dev")
-
-    assert factory is not None
-    assert factory().__class__ is FakeStorage
-    assert captured == {
-        "endpoint": "https://prod-r2.example",
-        "access_key": "prod-access-key",
-        "secret_key": "prod-secret-key",
-        "bucket": "dev-bucket",
-        "public_base_url": "https://dev-cdn.example",
-        "secure": True,
-    }
+def test_archive_publish_runtime_requires_connection_registry() -> None:
+    with pytest.raises(
+        ArchivePublishConfigurationError,
+        match="CODEX_CLI_PUBLISH_CONNECTIONS_FILE",
+    ):
+        archive_bootstrap.publication_stage_service(
+            cast(Any, object()),
+            CliSettings(publish_connections_file=None),
+        )
 
 
 def test_archive_publish_task_input_separates_dev_and_prod_modes() -> None:
@@ -240,9 +203,29 @@ def test_archive_publish_migration_creates_archive_tables(
     tables = asyncio.run(_table_names(database_url))
     assert "archive_video_artifacts" in tables
     assert "archive_index_publications" in tables
+    assert "archive_artifact_object_deliveries" in tables
+    assert "archive_artifact_catalog_deliveries" in tables
+    assert "archive_publications" in tables
+    assert "archive_publication_artifacts" in tables
+    assert "archive_publication_deliveries" in tables
     artifact_columns = asyncio.run(_column_names(database_url, "archive_video_artifacts"))
     assert "public_catalog_synced_at" in artifact_columns
     assert "public_catalog_sync_error" in artifact_columns
+    assert "build_key" in artifact_columns
+    assert "artifact_status" in artifact_columns
+    assert "artifact_store_ref" in artifact_columns
+    assert "artifact_key" in artifact_columns
+    model_store_ref_length = cast(
+        Any,
+        ArchiveVideoArtifactModel.__table__.c.artifact_store_ref.type,
+    ).length
+    assert (
+        asyncio.run(
+            _column_type_length(database_url, "archive_video_artifacts", "artifact_store_ref")
+        )
+        == model_store_ref_length
+        == 255
+    )
 
 
 def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
@@ -292,9 +275,10 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
     blocks = cast(list[dict[str, object]], artifact.payload["blocks"])
     block_episodes = cast(list[dict[str, object]], blocks[0]["episodes"])
     assert block_episodes[0]["episodeId"] == "episode_001"
-    assert cast(list[dict[str, object]], block_episodes[0]["microEvents"])[1][
-        "event"
-    ] == "채팅이 공략을 제안하고 받아들인다. 파냐가 옆에서 웃는다."
+    assert (
+        cast(list[dict[str, object]], block_episodes[0]["microEvents"])[1]["event"]
+        == "채팅이 공략을 제안하고 받아들인다. 파냐가 옆에서 웃는다."
+    )
     assert "rawResponseText" not in artifact.payload
     assert "reviewFlags" not in artifact.payload
     assert "sourceTimelineCompositionId" not in artifact.payload
@@ -404,9 +388,7 @@ def test_public_catalog_row_includes_timeline_index() -> None:
     assert row.timeline_index.blocks[0].block_id == "block_001"
     assert row.timeline_index.blocks[0].start_ms == 10_000
     assert row.timeline_index.episodes[0].episode_id == "episode_001"
-    assert row.timeline_index.micro_events[0].micro_event_id == (
-        "episode_001-event-001"
-    )
+    assert row.timeline_index.micro_events[0].micro_event_id == ("episode_001-event-001")
     assert row.timeline_index.topic_clusters[0].topic_id == "topic_001"
 
 
@@ -497,9 +479,28 @@ async def _column_names(database_url: str, table_name: str) -> set[str]:
             return set(
                 await connection.run_sync(
                     lambda sync_conn: [
-                        column["name"]
-                        for column in inspect(sync_conn).get_columns(table_name)
+                        column["name"] for column in inspect(sync_conn).get_columns(table_name)
                     ]
+                )
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _column_type_length(database_url: str, table_name: str, column_name: str) -> int | None:
+    engine = create_database_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return await connection.run_sync(
+                lambda sync_conn: (
+                    cast(
+                        Any,
+                        next(
+                            column["type"]
+                            for column in inspect(sync_conn).get_columns(table_name)
+                            if column["name"] == column_name
+                        ),
+                    ).length
                 )
             )
     finally:
@@ -556,6 +557,12 @@ def _video_artifact() -> ArchiveVideoArtifactRecord:
         variant="control",
         schema_version=1,
         version="20260627T120000Z",
+        build_key="test-artifact-15",
+        artifact_status="ready",
+        artifact_store_ref="local-artifact-store",
+        artifact_key="artifacts/sha256/bb/" + "b" * 64 + ".json",
+        unavailable_code=None,
+        unavailable_detail=None,
         object_key="archive/archive/v1/videos/71/timeline.20260627T120000Z.control.json",
         public_url="https://pub.example.dev/archive/archive/v1/videos/71/timeline.json",
         sha256="b" * 64,

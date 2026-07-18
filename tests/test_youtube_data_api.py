@@ -300,8 +300,17 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         self.streamers: dict[int, StreamerRecord] = {}
         self.next_streamer_id = 1
 
-    async def create_streamer(self, *, name: str) -> StreamerRecord:
-        record = StreamerRecord(id=self.next_streamer_id, name=name)
+    async def create_streamer(
+        self,
+        *,
+        name: str,
+        publish_profile_id: int = 1,
+    ) -> StreamerRecord:
+        record = StreamerRecord(
+            id=self.next_streamer_id,
+            name=name,
+            publish_profile_id=publish_profile_id,
+        )
         self.streamers[record.id] = record
         self.next_streamer_id += 1
         return record
@@ -312,13 +321,33 @@ class FakeStreamerRepository(StreamerRepositoryPort):
     async def get_streamer(self, streamer_id: int) -> StreamerRecord | None:
         return self.streamers.get(streamer_id)
 
-    async def update_streamer(self, streamer_id: int, *, name: str) -> StreamerRecord | None:
+    async def update_streamer(
+        self,
+        streamer_id: int,
+        *,
+        name: str | None = None,
+        publish_profile_id: int | None = None,
+    ) -> StreamerRecord | None:
         record = self.streamers.get(streamer_id)
         if record is None:
             return None
-        updated = replace(record, name=name)
+        updated = replace(
+            record,
+            name=name if name is not None else record.name,
+            publish_profile_id=(
+                publish_profile_id
+                if publish_profile_id is not None
+                else record.publish_profile_id
+            ),
+        )
         self.streamers[streamer_id] = updated
         return updated
+
+    async def is_publish_profile_active(self, publish_profile_id: int) -> bool:
+        return publish_profile_id == 1
+
+    async def has_archive_artifacts(self, streamer_id: int) -> bool:
+        return False
 
     async def delete_streamer(self, streamer_id: int) -> bool:
         return self.streamers.pop(streamer_id, None) is not None
@@ -412,7 +441,7 @@ def test_youtube_data_resolve_creates_one_channel_for_streamer() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Google")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Google", publish_profile_id=1)
 
     response = asyncio.run(
         _request(
@@ -463,7 +492,7 @@ def test_youtube_data_resolve_rejects_request_youtube_channel_id() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Google")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Google", publish_profile_id=1)
 
     response = asyncio.run(
         _request(
@@ -511,7 +540,7 @@ def test_youtube_data_resolve_maps_missing_channel_to_not_found() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Missing")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Missing", publish_profile_id=1)
 
     response = asyncio.run(
         _request(
@@ -537,7 +566,7 @@ def test_youtube_data_resolve_maps_upstream_errors() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Blocked")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Blocked", publish_profile_id=1)
 
     response = asyncio.run(
         _request(
@@ -561,7 +590,7 @@ def test_youtube_data_resolve_requires_api_key_configuration() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Google")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Google", publish_profile_id=1)
 
     response = asyncio.run(
         _request_without_client_override(
@@ -583,7 +612,7 @@ def test_youtube_data_resolve_reuses_existing_channel_for_same_streamer() -> Non
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Google")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Google", publish_profile_id=1)
     channels.channels[7] = ChannelRecord(
         id=7,
         streamer_id=1,
@@ -621,8 +650,8 @@ def test_youtube_data_resolve_rejects_existing_channel_for_other_streamer() -> N
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Google")
-    streamers.streamers[2] = StreamerRecord(id=2, name="Other")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Google", publish_profile_id=1)
+    streamers.streamers[2] = StreamerRecord(id=2, name="Other", publish_profile_id=1)
     channels.channels[7] = ChannelRecord(
         id=7,
         streamer_id=1,
@@ -658,7 +687,7 @@ def test_pipeline_retry_retries_failed_channel_resolve_job() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Google")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Google", publish_profile_id=1)
     _seed_channel_resolve_job(pipeline_jobs, status="failed")
     _seed_failed_attempt(pipeline_jobs, job_id=1)
 
@@ -741,7 +770,7 @@ def test_pipeline_retry_records_failed_attempt_on_upstream_error() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository()
     pipeline_jobs = FakePipelineJobRepository()
-    streamers.streamers[1] = StreamerRecord(id=1, name="Blocked")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Blocked", publish_profile_id=1)
     _seed_channel_resolve_job(pipeline_jobs, status="failed")
 
     response = asyncio.run(

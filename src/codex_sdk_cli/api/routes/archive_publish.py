@@ -40,6 +40,11 @@ async def list_archive_videos(
     use_case: ArchivePublishUseCaseDep,
     environment: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
     channel_id: Annotated[int | None, Query(ge=1, alias="channelId")] = None,
+    streamer_id: Annotated[int | None, Query(ge=1, alias="streamerId")] = None,
+    publish_profile_id: Annotated[
+        int | None,
+        Query(ge=1, alias="profileId"),
+    ] = None,
     publish_status: Annotated[
         ArchivePublishStatusFilterLiteral | None,
         Query(alias="publishStatus"),
@@ -51,6 +56,8 @@ async def list_archive_videos(
     return await use_case.list_ops_videos(
         environment=environment,
         channel_id=channel_id,
+        streamer_id=streamer_id,
+        publish_profile_id=publish_profile_id,
         publish_status=publish_status,
         search=search,
         limit=limit,

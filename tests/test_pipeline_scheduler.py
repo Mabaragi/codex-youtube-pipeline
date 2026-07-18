@@ -257,7 +257,12 @@ def _scheduler(
 
 async def _insert_catalog(session_factory, *, channel_ids: tuple[int, ...]) -> None:
     async with session_factory() as session:
-        await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Nagi')"))
+        await session.execute(
+            text(
+                "INSERT INTO streamers(id, name, publish_profile_id) "
+                "VALUES (1, 'Nagi', 1)"
+            )
+        )
         for channel_id in channel_ids:
             await session.execute(
                 text(

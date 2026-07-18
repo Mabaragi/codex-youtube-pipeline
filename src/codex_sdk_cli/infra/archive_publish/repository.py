@@ -58,6 +58,10 @@ from codex_sdk_cli.infra.videos.repository import VideoModel
 class ArchiveVideoArtifactModel(Base):
     __tablename__ = "archive_video_artifacts"
     __table_args__ = (
+        CheckConstraint(
+            "artifact_status IN ('pending', 'ready', 'failed', 'unavailable')",
+            name="archive_video_artifacts_artifact_status_allowed",
+        ),
         CheckConstraint("schema_version >= 1", name="archive_video_artifacts_schema_min"),
         CheckConstraint("byte_size >= 1", name="archive_video_artifacts_byte_size_min"),
         CheckConstraint("block_count >= 0", name="archive_video_artifacts_block_count_min"),
@@ -144,6 +148,14 @@ class ArchiveVideoArtifactModel(Base):
     variant: Mapped[str] = mapped_column(String(64), nullable=False)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     version: Mapped[str] = mapped_column(String(64), nullable=False)
+    build_key: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    artifact_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="pending"
+    )
+    artifact_store_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    artifact_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    unavailable_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    unavailable_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     object_key: Mapped[str] = mapped_column(Text, nullable=False)
     public_url: Mapped[str] = mapped_column(Text, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -343,6 +355,12 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
                 variant=create.variant,
                 schema_version=create.schema_version,
                 version=create.version,
+                build_key=create.build_key,
+                artifact_status=create.artifact_status,
+                artifact_store_ref=create.artifact_store_ref,
+                artifact_key=create.artifact_key,
+                unavailable_code=create.unavailable_code,
+                unavailable_detail=create.unavailable_detail,
                 object_key=create.object_key,
                 public_url=create.public_url,
                 sha256=create.sha256,
@@ -406,10 +424,14 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
         *,
         environment: str,
         schema_version: int,
+        publish_profile_id: int | None = None,
+        streamer_id: int | None = None,
+        ready_only: bool = False,
     ) -> list[ArchiveVideoArtifactWithVideoRecord]:
         latest_artifact = _latest_artifact_subquery(
             environment=environment,
             schema_version=schema_version,
+            ready_only=ready_only,
         )
         statement = (
             select(ArchiveVideoArtifactModel, VideoModel, ChannelModel, StreamerModel)
@@ -420,6 +442,12 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
             .where(VideoModel.is_embeddable.is_not(False))
             .order_by(VideoModel.published_at.desc(), VideoModel.id.desc())
         )
+        if publish_profile_id is not None:
+            statement = statement.where(StreamerModel.publish_profile_id == publish_profile_id)
+        if streamer_id is not None:
+            statement = statement.where(StreamerModel.id == streamer_id)
+        if ready_only:
+            statement = statement.where(ArchiveVideoArtifactModel.artifact_status == "ready")
         try:
             rows = (await self._session.execute(statement)).all()
             return [
@@ -496,6 +524,7 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
                 func.count().over().label("total"),
             )
             .join(ChannelModel, VideoModel.channel_id == ChannelModel.id)
+            .join(StreamerModel, ChannelModel.streamer_id == StreamerModel.id)
             .outerjoin(latest_timeline, latest_timeline.c.video_id == VideoModel.id)
             .outerjoin(
                 TimelineCompositionModel,
@@ -514,6 +543,10 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
         )
         if query.channel_id is not None:
             base = base.where(VideoModel.channel_id == query.channel_id)
+        if query.streamer_id is not None:
+            base = base.where(StreamerModel.id == query.streamer_id)
+        if query.publish_profile_id is not None:
+            base = base.where(StreamerModel.publish_profile_id == query.publish_profile_id)
         if query.search:
             term = f"%{query.search}%"
             base = base.where(
@@ -640,20 +673,21 @@ def _latest_artifact_subquery(
     *,
     environment: str,
     schema_version: int,
+    ready_only: bool,
 ) -> Subquery:
-    return (
-        select(
-            ArchiveVideoArtifactModel.video_id.label("video_id"),
-            ArchiveVideoArtifactModel.variant.label("variant"),
-            func.max(ArchiveVideoArtifactModel.id).label("artifact_id"),
-        )
-        .where(
-            ArchiveVideoArtifactModel.environment == environment,
-            ArchiveVideoArtifactModel.schema_version == schema_version,
-        )
-        .group_by(ArchiveVideoArtifactModel.video_id, ArchiveVideoArtifactModel.variant)
-        .subquery()
+    statement = select(
+        ArchiveVideoArtifactModel.video_id.label("video_id"),
+        ArchiveVideoArtifactModel.variant.label("variant"),
+        func.max(ArchiveVideoArtifactModel.id).label("artifact_id"),
+    ).where(
+        ArchiveVideoArtifactModel.environment == environment,
+        ArchiveVideoArtifactModel.schema_version == schema_version,
     )
+    if ready_only:
+        statement = statement.where(ArchiveVideoArtifactModel.artifact_status == "ready")
+    return statement.group_by(
+        ArchiveVideoArtifactModel.video_id, ArchiveVideoArtifactModel.variant
+    ).subquery()
 
 
 def _latest_artifact_per_video_subquery(
@@ -688,6 +722,12 @@ def _artifact_record(model: ArchiveVideoArtifactModel) -> ArchiveVideoArtifactRe
         variant=model.variant,
         schema_version=model.schema_version,
         version=model.version,
+        build_key=model.build_key,
+        artifact_status=model.artifact_status,
+        artifact_store_ref=model.artifact_store_ref,
+        artifact_key=model.artifact_key,
+        unavailable_code=model.unavailable_code,
+        unavailable_detail=model.unavailable_detail,
         object_key=model.object_key,
         public_url=model.public_url,
         sha256=model.sha256,

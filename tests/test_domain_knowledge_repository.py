@@ -126,7 +126,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
 
 
 async def _create_streamer(session: AsyncSession) -> int:
-    streamer = StreamerModel(name="Streamer")
+    streamer = StreamerModel(name="Streamer", publish_profile_id=1)
     session.add(streamer)
     await session.commit()
     await session.refresh(streamer)

@@ -8,7 +8,7 @@ micro-events, composes a navigable timeline, and publishes a public archive.
 
 ```text
 channel resolve -> video collect -> transcript collect -> cue generation
-    -> micro-event extraction -> timeline composition -> R2/D1 publish
+    -> micro-event extraction -> timeline composition -> profile-routed publication
 ```
 
 Official YouTube transcripts are preferred. The CLI also supports local
@@ -32,11 +32,17 @@ The old public video-task and pipeline-job mutation APIs are not mounted.
 
 ## Storage
 
-- PostgreSQL: normalized metadata, concurrent work state, outputs, provenance,
-  usage, and events. SQLite remains the fast isolated test database.
-- MinIO: raw transcript and external API-call JSON.
-- R2: immutable public timeline/index artifacts plus a short-cache pointer.
-- D1: public list/search hierarchy and interaction analytics.
+- PostgreSQL `codex`: normalized metadata, concurrent work state, outputs,
+  provenance, usage, publication configuration/checkpoints, and events. SQLite
+  remains the fast isolated test database.
+- Local MinIO: raw transcript and external API-call JSON plus the private,
+  content-addressed canonical artifact store. The canonical artifact is never
+  copied to a remote canonical store.
+- Publication object destinations: timeline projections, destination-specific
+  immutable indices, and mutable pointers in local or remote S3-compatible
+  storage selected by the streamer's active publish profile revision.
+- Publication catalogs: the independent local PostgreSQL
+  `codex_public_catalog` database and optional remote SQL/HTTP destinations.
 
 Raw transcript text, LLM trace output, and secrets are not committed.
 
@@ -59,7 +65,7 @@ adapter note.
 The Next.js UI uses the same-origin BFF at `/ops/api/backend/*`. TanStack Query
 owns server state; generated OpenAPI types are the frontend contract. Main
 screens cover overview, channels, videos, work, logs, usage, archive, prompts,
-domain knowledge, and ERD.
+domain knowledge, publication routing/status, and ERD.
 
 ## Configuration
 
@@ -71,16 +77,18 @@ All backend settings use the `CODEX_CLI_` prefix. Copy
 - YouTube API and transcript proxy;
 - model/reasoning/prompt defaults;
 - scheduler and worker concurrency;
-- R2 and public catalog sync;
+- the private publication connection registry and canonical/staging connection
+  references;
 - local trace settings.
 
 ## Operations
 
-- API catalog: `docs/AGENT_API_OPERATIONS.md`.
-- Agent procedures: `docs/AGENT_WORK_RUNBOOKS.md`.
-- Local deployment: `docs/LOCAL_NATIVE_DEPLOYMENT.md`.
-- Work DB migration: `docs/WORK_MODEL_CUTOVER.md`.
-- Archive format: `docs/ARCHIVE_PUBLISH.md`.
+- API catalog: [Agent API operations](AGENT_API_OPERATIONS.md).
+- Agent procedures: [Agent work runbooks](AGENT_WORK_RUNBOOKS.md).
+- Local deployment: [Local native deployment](LOCAL_NATIVE_DEPLOYMENT.md).
+- Work DB migration: [Work model cutover](WORK_MODEL_CUTOVER.md).
+- Streamer-scoped publication: [Archive publish](ARCHIVE_PUBLISH.md).
+- Publication data migration: [Publication data migration](PUBLICATION_MIGRATION.md).
 
 ## Quality Gates
 

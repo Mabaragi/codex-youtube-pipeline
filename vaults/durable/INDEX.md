@@ -14,3 +14,6 @@ than once. Promote the rule to a narrower source of truth when appropriate.
 - [Drain before local runtime shutdown](2026-07-14-safe-local-runtime-shutdown.md):
   block new enqueue and claim work, wait for `readyToStop`, and never turn a
   timeout or forced stop into an implicit resume.
+- [Streamer-scoped publication routing](../../docs/ARCHIVE_PUBLISH.md): keep the
+  canonical artifact in private local storage, route only publication outputs,
+  and model object/catalog destinations with vendor-neutral connection refs.

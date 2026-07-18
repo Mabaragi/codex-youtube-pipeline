@@ -20,6 +20,9 @@ from codex_sdk_cli.api.routes.operation_events import router as operation_events
 from codex_sdk_cli.api.routes.operations import router as operations_router
 from codex_sdk_cli.api.routes.ops import router as ops_router
 from codex_sdk_cli.api.routes.prompts import router as prompts_router
+from codex_sdk_cli.api.routes.publication import router as publication_router
+from codex_sdk_cli.api.routes.publication_config import router as publication_config_router
+from codex_sdk_cli.api.routes.publication_stages import router as publication_stages_router
 from codex_sdk_cli.api.routes.streamers import router as streamers_router
 from codex_sdk_cli.api.routes.timelines import router as timelines_router
 from codex_sdk_cli.api.routes.work_items import router as work_items_router
@@ -70,8 +73,19 @@ def create_app() -> FastAPI:
     app.include_router(codex_usage_router, prefix="/ops", tags=["ops"])
     app.include_router(domain_knowledge_router, prefix="/ops", tags=["ops-domain-knowledge"])
     app.include_router(prompts_router, prefix="/ops", tags=["ops-prompts"])
+    app.include_router(publication_router, prefix="/ops", tags=["ops-publication"])
+    app.include_router(
+        publication_config_router,
+        prefix="/ops",
+        tags=["ops-publication-config"],
+    )
     app.include_router(operation_events_router, prefix="/ops", tags=["ops"])
     app.include_router(operations_router, prefix="/ops", tags=["ops-operations"])
+    app.include_router(
+        publication_stages_router,
+        prefix="/ops",
+        tags=["ops-publication-stages"],
+    )
     app.include_router(work_items_router, prefix="/ops", tags=["ops-work"])
     app.include_router(streamers_router, prefix="/ops", tags=["ops-streamers"])
     app.include_router(channels_router, prefix="/ops", tags=["ops-channels"])

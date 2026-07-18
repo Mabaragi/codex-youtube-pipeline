@@ -890,10 +890,16 @@ class FakeChannelRepository(ChannelRepositoryPort):
 class FakeStreamerRepository(StreamerRepositoryPort):
     def __init__(self) -> None:
         self.streamers: dict[int, StreamerRecord] = {
-            1: StreamerRecord(id=1, name="Choseungdal")
+            1: StreamerRecord(id=1, name="Choseungdal", publish_profile_id=1)
         }
 
-    async def create_streamer(self, *, name: str) -> StreamerRecord:
+    async def create_streamer(
+        self,
+        *,
+        name: str,
+        publish_profile_id: int = 1,
+    ) -> StreamerRecord:
+        del name, publish_profile_id
         raise NotImplementedError
 
     async def list_streamers(self) -> list[StreamerRecord]:
@@ -906,9 +912,17 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         self,
         streamer_id: int,
         *,
-        name: str,
+        name: str | None = None,
+        publish_profile_id: int | None = None,
     ) -> StreamerRecord | None:
+        del streamer_id, name, publish_profile_id
         raise NotImplementedError
+
+    async def is_publish_profile_active(self, publish_profile_id: int) -> bool:
+        return publish_profile_id == 1
+
+    async def has_archive_artifacts(self, streamer_id: int) -> bool:
+        return False
 
     async def delete_streamer(self, streamer_id: int) -> bool:
         raise NotImplementedError

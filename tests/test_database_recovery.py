@@ -44,7 +44,7 @@ async def _exercise_recovery(database_url: str) -> dict[str, object]:
         session_factory = create_session_factory(engine)
         async with session_factory() as session:
             now = datetime(2026, 6, 22, tzinfo=UTC)
-            streamer = StreamerModel(name="Creator")
+            streamer = StreamerModel(name="Creator", publish_profile_id=1)
             session.add(streamer)
             await session.flush()
             channel = ChannelModel(

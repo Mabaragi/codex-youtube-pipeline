@@ -60,6 +60,12 @@ class ArchiveVideoArtifactCreate:
     topic_cluster_count: int
     review_flag_count: int
     micro_event_count: int
+    build_key: str | None
+    artifact_status: str
+    artifact_store_ref: str | None
+    artifact_key: str | None
+    unavailable_code: str | None
+    unavailable_detail: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +243,8 @@ class ArchivePublishCandidateQuery:
 class ArchiveOpsVideoQuery:
     environment: str
     channel_id: int | None
+    streamer_id: int | None
+    publish_profile_id: int | None
     publish_status: ArchivePublishStatusFilter | None
     search: str | None
     limit: int
@@ -315,6 +323,9 @@ class ArchivePublishRepositoryPort(Protocol):
         *,
         environment: str,
         schema_version: int,
+        publish_profile_id: int | None = None,
+        streamer_id: int | None = None,
+        ready_only: bool = False,
     ) -> list[ArchiveVideoArtifactWithVideoRecord]:
         """List latest artifact per video and variant for index generation."""
 
@@ -371,3 +382,59 @@ class ArchiveIndexArtifact:
     pointer_byte_size: int
     pointer_public_url: str
     artifact_ids: list[int] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class RoutedArchivePublishContext:
+    profile_id: int
+    profile_key: str
+    profile_revision_id: int
+    route_id: int
+    publish_mode: str
+    environment: str
+    primary_object_binding_id: int
+    primary_destination_id: int
+    primary_key_prefix: str
+    primary_public_base_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class RoutedArchivePublishResult:
+    publication_id: int
+    primary_index_key: str
+    primary_index_url: str
+    primary_pointer_key: str
+    primary_pointer_url: str
+    index_version: str
+    index_sha256: str
+    index_byte_size: int
+    video_count: int
+    status: str
+
+
+class RoutedArchivePublicationPort(Protocol):
+    async def prepare_route(
+        self,
+        *,
+        streamer_id: int,
+        publish_mode: str,
+        environment: str,
+    ) -> RoutedArchivePublishContext:
+        """Resolve and snapshot the streamer's active publication route."""
+
+    async def build_canonical(
+        self,
+        *,
+        artifact: ArchiveVideoArtifactRecord,
+        payload: bytes,
+    ) -> ArchiveVideoArtifactRecord:
+        """Persist and verify the private canonical artifact."""
+
+    async def publish_composite(
+        self,
+        *,
+        artifact_ids: tuple[int, ...],
+        context: RoutedArchivePublishContext,
+        schema_version: int,
+    ) -> RoutedArchivePublishResult:
+        """Run destination delivery, catalog, index, and pointer stages inline."""

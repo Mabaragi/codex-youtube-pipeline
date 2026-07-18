@@ -555,6 +555,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/operations/archive-artifact-build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build Archive Artifacts */
+        post: operations["build_archive_artifacts_ops_operations_archive_artifact_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/operations/archive-catalog-publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Archive Catalogs */
+        post: operations["publish_archive_catalogs_ops_operations_archive_catalog_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/operations/archive-object-deliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deliver Archive Objects */
+        post: operations["deliver_archive_objects_ops_operations_archive_object_deliver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/operations/archive-pointer-publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Archive Pointer */
+        post: operations["publish_archive_pointer_ops_operations_archive_pointer_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/operations/archive-publication-build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build Archive Publication */
+        post: operations["build_archive_publication_ops_operations_archive_publication_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/operations/archive-publish": {
         parameters: {
             query?: never;
@@ -804,6 +889,197 @@ export interface paths {
         put?: never;
         /** Publish Prompt Version */
         post: operations["publish_prompt_version_ops_prompts__promptKey__versions__versionId__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/catalog-destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Catalog Destinations */
+        get: operations["list_catalog_destinations_ops_publish_catalog_destinations_get"];
+        put?: never;
+        /** Create Catalog Destination */
+        post: operations["create_catalog_destination_ops_publish_catalog_destinations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Publication Connections */
+        get: operations["list_publication_connections_ops_publish_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/cutovers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Publication Cutovers */
+        get: operations["list_publication_cutovers_ops_publish_cutovers_get"];
+        put?: never;
+        /** Prepare Publication Cutover */
+        post: operations["prepare_publication_cutover_ops_publish_cutovers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/cutovers/{cutoverId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Publication Cutover */
+        get: operations["get_publication_cutover_ops_publish_cutovers__cutoverId__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/cutovers/{cutoverId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume Publication Cutover */
+        post: operations["resume_publication_cutover_ops_publish_cutovers__cutoverId__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/object-destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Object Destinations */
+        get: operations["list_object_destinations_ops_publish_object_destinations_get"];
+        put?: never;
+        /** Create Object Destination */
+        post: operations["create_object_destination_ops_publish_object_destinations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Publish Profiles */
+        get: operations["list_publish_profiles_ops_publish_profiles_get"];
+        put?: never;
+        /** Create Publish Profile */
+        post: operations["create_publish_profile_ops_publish_profiles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/profiles/{profileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Publish Profile */
+        get: operations["get_publish_profile_ops_publish_profiles__profileId__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/profiles/{profileId}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Publish Profile Revision */
+        post: operations["create_publish_profile_revision_ops_publish_profiles__profileId__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/profiles/{profileId}/revisions/{revisionId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Publish Profile Revision */
+        post: operations["activate_publish_profile_revision_ops_publish_profiles__profileId__revisions__revisionId__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/publish/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Publications */
+        get: operations["list_publications_ops_publish_publications_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1262,6 +1538,47 @@ export interface components {
              */
             apiKey: string;
         };
+        /** ArchiveArtifactBuildOperationRequest */
+        ArchiveArtifactBuildOperationRequest: {
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+            /**
+             * Rerunsucceeded
+             * @default false
+             */
+            rerunSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /**
+             * Schemaversion
+             * @default 1
+             */
+            schemaVersion: number;
+            /**
+             * Variant
+             * @default control
+             */
+            variant: string;
+            /** Videoids */
+            videoIds: number[];
+        };
         /** ArchiveCurrentResponse */
         ArchiveCurrentResponse: {
             /** Environment */
@@ -1410,8 +1727,16 @@ export interface components {
         ArchiveVideoArtifactResponse: {
             /** Artifactid */
             artifactId: number;
+            /** Artifactkey */
+            artifactKey: string | null;
+            /** Artifactstatus */
+            artifactStatus: string;
+            /** Artifactstoreref */
+            artifactStoreRef: string | null;
             /** Blockcount */
             blockCount: number;
+            /** Buildkey */
+            buildKey: string | null;
             /** Bytesize */
             byteSize: number;
             /**
@@ -1451,6 +1776,10 @@ export interface components {
             sourceTimelineTaskId: number;
             /** Topicclustercount */
             topicClusterCount: number;
+            /** Unavailablecode */
+            unavailableCode: string | null;
+            /** Unavailabledetail */
+            unavailableDetail: string | null;
             /** Variant */
             variant: string;
             /** Version */
@@ -1540,6 +1869,31 @@ export interface components {
              * @default Canceled by operator.
              */
             reason: string;
+        };
+        /** CatalogDestinationCreateRequest */
+        CatalogDestinationCreateRequest: {
+            /** Connectionref */
+            connectionRef: string;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /** CatalogDestinationResponse */
+        CatalogDestinationResponse: {
+            /** Connectionref */
+            connectionRef: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: number;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
         };
         /**
          * ChannelCreateRequest
@@ -2525,6 +2879,31 @@ export interface components {
              */
             type: "nextEligible";
         };
+        /** ObjectDestinationCreateRequest */
+        ObjectDestinationCreateRequest: {
+            /** Connectionref */
+            connectionRef: string;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /** ObjectDestinationResponse */
+        ObjectDestinationResponse: {
+            /** Connectionref */
+            connectionRef: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: number;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
         /** OperationBatchResponse */
         OperationBatchResponse: {
             /** Batchid */
@@ -3399,6 +3778,417 @@ export interface components {
             /** Sourcenote */
             sourceNote?: string | null;
         };
+        /** PublicationArtifactStageRequest */
+        PublicationArtifactStageRequest: {
+            /** Artifactids */
+            artifactIds: number[];
+            /** Destinationids */
+            destinationIds?: number[] | null;
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /** Profilerevisionid */
+            profileRevisionId: number;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+        };
+        /** PublicationBuildStageRequest */
+        PublicationBuildStageRequest: {
+            /** Artifactids */
+            artifactIds: number[];
+            /** Destinationids */
+            destinationIds?: number[] | null;
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /** Profilerevisionid */
+            profileRevisionId: number;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+            /**
+             * Schemaversion
+             * @default 1
+             */
+            schemaVersion: number;
+        };
+        /** PublicationConnectionListResponse */
+        PublicationConnectionListResponse: {
+            /** Items */
+            items: components["schemas"]["PublicationConnectionResponse"][];
+            /** Total */
+            total: number;
+        };
+        /** PublicationConnectionResponse */
+        PublicationConnectionResponse: {
+            /** Configured */
+            configured: boolean;
+            /** Connectionref */
+            connectionRef: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "s3_compatible_object" | "http_catalog" | "sql_catalog";
+            /** Publicbaseurl */
+            publicBaseUrl?: string | null;
+            /** Secretfields */
+            secretFields?: string[];
+            /** Target */
+            target: string;
+        };
+        /** PublicationCutoverPrepareRequest */
+        PublicationCutoverPrepareRequest: {
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+            /**
+             * Schemaversion
+             * @default 1
+             */
+            schemaVersion: number;
+            /** Streamerid */
+            streamerId: number;
+            /** Targetprofileid */
+            targetProfileId: number;
+        };
+        /** PublicationCutoverResponse */
+        PublicationCutoverResponse: {
+            /** Artifactids */
+            artifactIds: number[];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Environment */
+            environment: string;
+            /** Id */
+            id: number;
+            /** Lastcompletedstep */
+            lastCompletedStep: string | null;
+            /** Lasterrorcode */
+            lastErrorCode: string | null;
+            /** Lasterrormessage */
+            lastErrorMessage: string | null;
+            /** Lasterrorstep */
+            lastErrorStep: string | null;
+            /** Publishmode */
+            publishMode: string;
+            /** Schemaversion */
+            schemaVersion: number;
+            /** Sourcepointerpublishedat */
+            sourcePointerPublishedAt: string | null;
+            /** Sourceprofileid */
+            sourceProfileId: number;
+            /** Sourceprofilerevisionid */
+            sourceProfileRevisionId: number;
+            /** Sourcepublicationid */
+            sourcePublicationId: number | null;
+            /** Sourcerouteid */
+            sourceRouteId: number;
+            /** Status */
+            status: string;
+            /** Streamerassignedat */
+            streamerAssignedAt: string | null;
+            /** Streamerid */
+            streamerId: number;
+            /** Targetpointerpublishedat */
+            targetPointerPublishedAt: string | null;
+            /** Targetprofileid */
+            targetProfileId: number;
+            /** Targetprofilerevisionid */
+            targetProfileRevisionId: number;
+            /** Targetpublicationid */
+            targetPublicationId: number | null;
+            /** Targetrouteid */
+            targetRouteId: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** PublicationDeliveryStatusResponse */
+        PublicationDeliveryStatusResponse: {
+            /** Destinationid */
+            destinationId: number;
+            /** Destinationkey */
+            destinationKey: string;
+            /** Destinationname */
+            destinationName: string;
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Id */
+            id: number;
+            /** Indexpublicurl */
+            indexPublicUrl: string | null;
+            /** Objectbindingid */
+            objectBindingId: number;
+            /** Pointerpublicurl */
+            pointerPublicUrl: string | null;
+            /** Required */
+            required: boolean;
+            /** Status */
+            status: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** PublicationDestinationResultResponse */
+        PublicationDestinationResultResponse: {
+            /** Bindingid */
+            bindingId: number;
+            /** Destinationid */
+            destinationId: number;
+            /**
+             * Destinationtype
+             * @enum {string}
+             */
+            destinationType: "object" | "catalog";
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Publicurl */
+            publicUrl: string | null;
+            /** Required */
+            required: boolean;
+            /** Reused */
+            reused: boolean;
+            /** Status */
+            status: string;
+        };
+        /** PublicationPointerStageRequest */
+        PublicationPointerStageRequest: {
+            /** Artifactids */
+            artifactIds: number[];
+            /** Destinationids */
+            destinationIds?: number[] | null;
+            /** Environment */
+            environment: string;
+            /** Profilerevisionid */
+            profileRevisionId: number;
+            /** Publicationid */
+            publicationId: number;
+            /**
+             * Publishmode
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+        };
+        /** PublicationStageResponse */
+        PublicationStageResponse: {
+            /** Artifactids */
+            artifactIds: number[];
+            /** Destinationresults */
+            destinationResults: components["schemas"]["PublicationDestinationResultResponse"][];
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Missingpreconditions */
+            missingPreconditions: {
+                [key: string]: unknown;
+            }[];
+            /** Profilerevisionid */
+            profileRevisionId: number | null;
+            /** Publicationid */
+            publicationId: number | null;
+            /** Routeid */
+            routeId: number | null;
+            /** Stage */
+            stage: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "succeededWithWarnings" | "failed";
+        };
+        /** PublicationStatusListResponse */
+        PublicationStatusListResponse: {
+            /** Items */
+            items: components["schemas"]["PublicationStatusResponse"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** PublicationStatusResponse */
+        PublicationStatusResponse: {
+            /** Artifactcount */
+            artifactCount: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Deliveries */
+            deliveries: components["schemas"]["PublicationDeliveryStatusResponse"][];
+            /** Environment */
+            environment: string;
+            /** Errorcode */
+            errorCode: string | null;
+            /** Errormessage */
+            errorMessage: string | null;
+            /** Id */
+            id: number;
+            /** Profileid */
+            profileId: number;
+            /** Profilekey */
+            profileKey: string;
+            /** Profilename */
+            profileName: string;
+            /** Profilerevisionid */
+            profileRevisionId: number;
+            /** Publishmode */
+            publishMode: string;
+            /** Routeid */
+            routeId: number;
+            /** Schemaversion */
+            schemaVersion: number;
+            /** Status */
+            status: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Version */
+            version: string;
+            /** Videocount */
+            videoCount: number;
+        };
+        /** PublishProfileCreateRequest */
+        PublishProfileCreateRequest: {
+            /** Description */
+            description?: string | null;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /** PublishProfileDetailResponse */
+        PublishProfileDetailResponse: {
+            /** Activerevisionid */
+            activeRevisionId: number | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: number;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Revisions */
+            revisions: components["schemas"]["PublishProfileRevisionResponse"][];
+        };
+        /** PublishProfileRevisionCreateRequest */
+        PublishProfileRevisionCreateRequest: {
+            /** Routes */
+            routes: components["schemas"]["PublishProfileRouteCreateRequest"][];
+        };
+        /** PublishProfileRevisionResponse */
+        PublishProfileRevisionResponse: {
+            /** Activatedat */
+            activatedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: number;
+            /** Profileid */
+            profileId: number;
+            /** Revisionnumber */
+            revisionNumber: number;
+            /** Routes */
+            routes: components["schemas"]["PublishProfileRouteResponse"][];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "draft" | "active" | "retired";
+        };
+        /** PublishProfileRouteCreateRequest */
+        PublishProfileRouteCreateRequest: {
+            /** Catalogbindings */
+            catalogBindings?: components["schemas"]["RouteCatalogBindingCreateRequest"][];
+            /** Environment */
+            environment: string;
+            /** Objectbindings */
+            objectBindings: components["schemas"]["RouteObjectBindingCreateRequest"][];
+            /**
+             * Publishmode
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+        };
+        /** PublishProfileRouteResponse */
+        PublishProfileRouteResponse: {
+            /** Catalogbindings */
+            catalogBindings: components["schemas"]["RouteCatalogBindingResponse"][];
+            /** Environment */
+            environment: string;
+            /** Id */
+            id: number;
+            /** Objectbindings */
+            objectBindings: components["schemas"]["RouteObjectBindingResponse"][];
+            /**
+             * Publishmode
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+        };
+        /** PublishProfileSummaryResponse */
+        PublishProfileSummaryResponse: {
+            /** Activerevisionid */
+            activeRevisionId: number | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: number;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
         /** RetryWorkItemRequest */
         RetryWorkItemRequest: {
             /**
@@ -3406,6 +4196,67 @@ export interface components {
              * @default false
              */
             rerunSucceeded: boolean;
+        };
+        /** RouteCatalogBindingCreateRequest */
+        RouteCatalogBindingCreateRequest: {
+            /** Destinationid */
+            destinationId: number;
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+            /** Sourceobjectdestinationid */
+            sourceObjectDestinationId: number;
+        };
+        /** RouteCatalogBindingResponse */
+        RouteCatalogBindingResponse: {
+            /** Connectionref */
+            connectionRef: string;
+            /** Destinationid */
+            destinationId: number;
+            /** Destinationkey */
+            destinationKey: string;
+            /** Id */
+            id: number;
+            /** Required */
+            required: boolean;
+            /** Sourceobjectbindingid */
+            sourceObjectBindingId: number;
+        };
+        /** RouteObjectBindingCreateRequest */
+        RouteObjectBindingCreateRequest: {
+            /** Destinationid */
+            destinationId: number;
+            /**
+             * Isprimary
+             * @default false
+             */
+            isPrimary: boolean;
+            /** Keyprefix */
+            keyPrefix: string;
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+        };
+        /** RouteObjectBindingResponse */
+        RouteObjectBindingResponse: {
+            /** Connectionref */
+            connectionRef: string;
+            /** Destinationid */
+            destinationId: number;
+            /** Destinationkey */
+            destinationKey: string;
+            /** Id */
+            id: number;
+            /** Isprimary */
+            isPrimary: boolean;
+            /** Keyprefix */
+            keyPrefix: string;
+            /** Required */
+            required: boolean;
         };
         /**
          * RunRequest
@@ -3511,7 +4362,8 @@ export interface components {
         /**
          * StreamerCreateRequest
          * @example {
-         *       "name": "Chzzk Archive"
+         *       "name": "Chzzk Archive",
+         *       "publishProfileId": 1
          *     }
          */
         StreamerCreateRequest: {
@@ -3521,6 +4373,11 @@ export interface components {
              * @example Chzzk Archive
              */
             name: string;
+            /**
+             * Publishprofileid
+             * @description Active publication profile assigned to the streamer.
+             */
+            publishProfileId: number;
         };
         /** StreamerResponse */
         StreamerResponse: {
@@ -3528,11 +4385,14 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+            /** Publishprofileid */
+            publishProfileId: number;
         };
         /**
          * StreamerUpdateRequest
          * @example {
-         *       "name": "Chzzk Archive KR"
+         *       "name": "Chzzk Archive KR",
+         *       "publishProfileId": 2
          *     }
          */
         StreamerUpdateRequest: {
@@ -3542,6 +4402,11 @@ export interface components {
              * @example Chzzk Archive KR
              */
             name?: string | null;
+            /**
+             * Publishprofileid
+             * @description New active publication profile assignment.
+             */
+            publishProfileId?: number | null;
         };
         /** TimelineBlockResponse */
         TimelineBlockResponse: {
@@ -4692,6 +5557,8 @@ export interface operations {
             query?: {
                 environment?: string | null;
                 channelId?: number | null;
+                streamerId?: number | null;
+                profileId?: number | null;
                 publishStatus?: ("not_ready" | "ready" | "pending" | "running" | "failed" | "published") | null;
                 search?: string | null;
                 limit?: number;
@@ -5703,6 +6570,171 @@ export interface operations {
             };
         };
     };
+    build_archive_artifacts_ops_operations_archive_artifact_build_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveArtifactBuildOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationStageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_archive_catalogs_ops_operations_archive_catalog_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationArtifactStageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationStageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deliver_archive_objects_ops_operations_archive_object_deliver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationArtifactStageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationStageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_archive_pointer_ops_operations_archive_pointer_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationPointerStageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationStageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    build_archive_publication_ops_operations_archive_publication_build_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationBuildStageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationStageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     publish_archives_ops_operations_archive_publish_post: {
         parameters: {
             query?: never;
@@ -6188,6 +7220,460 @@ export interface operations {
             };
         };
     };
+    list_catalog_destinations_ops_publish_catalog_destinations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogDestinationResponse"][];
+                };
+            };
+        };
+    };
+    create_catalog_destination_ops_publish_catalog_destinations_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogDestinationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogDestinationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_publication_connections_ops_publish_connections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationConnectionListResponse"];
+                };
+            };
+        };
+    };
+    list_publication_cutovers_ops_publish_cutovers_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationCutoverResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_publication_cutover_ops_publish_cutovers_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationCutoverPrepareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationCutoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_publication_cutover_ops_publish_cutovers__cutoverId__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cutoverId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationCutoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_publication_cutover_ops_publish_cutovers__cutoverId__resume_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path: {
+                cutoverId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationCutoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_object_destinations_ops_publish_object_destinations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectDestinationResponse"][];
+                };
+            };
+        };
+    };
+    create_object_destination_ops_publish_object_destinations_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObjectDestinationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectDestinationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_publish_profiles_ops_publish_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishProfileSummaryResponse"][];
+                };
+            };
+        };
+    };
+    create_publish_profile_ops_publish_profiles_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishProfileCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishProfileSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_publish_profile_ops_publish_profiles__profileId__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishProfileDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_publish_profile_revision_ops_publish_profiles__profileId__revisions_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path: {
+                profileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishProfileRevisionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishProfileRevisionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_publish_profile_revision_ops_publish_profiles__profileId__revisions__revisionId__activate_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
+            path: {
+                profileId: number;
+                revisionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishProfileRevisionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_publications_ops_publish_publications_get: {
+        parameters: {
+            query?: {
+                streamerId?: number | null;
+                profileId?: number | null;
+                publishMode?: ("prod" | "dev") | null;
+                environment?: string | null;
+                status?: ("building" | "ready" | "partially_published" | "published" | "failed" | "unavailable") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationStatusListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_ops_schema_graph_ops_schema_graph_get: {
         parameters: {
             query?: never;
@@ -6231,7 +7717,9 @@ export interface operations {
     create_streamer_ops_streamers_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6328,7 +7816,9 @@ export interface operations {
     update_streamer_ops_streamers__streamer_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Operator-Reason": string;
+            };
             path: {
                 streamer_id: number;
             };

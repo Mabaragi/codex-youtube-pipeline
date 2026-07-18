@@ -150,7 +150,12 @@ async def _insert_video(database_url: str) -> None:
     session_factory = create_session_factory(engine)
     try:
         async with session_factory() as session:
-            await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Nagi')"))
+            await session.execute(
+                text(
+                    "INSERT INTO streamers(id, name, publish_profile_id) "
+                    "VALUES (1, 'Nagi', 1)"
+                )
+            )
             await session.execute(
                 text(
                     "INSERT INTO channels(id, streamer_id, handle, name) "

@@ -83,6 +83,7 @@ from .ports import (
     ArchiveVideoArtifactCreate,
     ArchiveVideoArtifactRecord,
     ArchiveVideoArtifactWithVideoRecord,
+    RoutedArchivePublicationPort,
 )
 from .schemas import (
     ArchiveCurrentResponse,
@@ -96,6 +97,16 @@ from .schemas import (
     ArchiveStorageConfigResponse,
     ArchiveVideoArtifactResponse,
     ArchiveVideoTaskSummaryResponse,
+)
+from .task_inputs import (
+    _int_output,
+    _publish_mode,
+    _required_int,
+    _required_str,
+    _routed_context_from_input,
+    _str_output,
+    _task_input_hash,
+    _task_input_json,
 )
 
 ArchivePublishStorageFactory = Callable[[], ArchivePublishStoragePort]
@@ -163,6 +174,7 @@ class ArchivePublishUseCase:
         dev_storage_factory: ArchivePublishStorageFactory | None = None,
         public_catalog_sync: ArchivePublicCatalogSyncPort | None = None,
         public_catalog_sync_enabled: bool = False,
+        routed_publication: RoutedArchivePublicationPort | None = None,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -176,6 +188,7 @@ class ArchivePublishUseCase:
         self._default_schema_version = default_schema_version
         self._public_catalog_sync = public_catalog_sync
         self._public_catalog_sync_enabled = public_catalog_sync_enabled
+        self._routed_publication = routed_publication
         self._profiles: dict[ArchivePublishModeLiteral, _ArchivePublishProfile] = {
             "prod": _ArchivePublishProfile(
                 publish_mode="prod",
@@ -201,6 +214,8 @@ class ArchivePublishUseCase:
         self,
         request: ArchivePublishRequest,
     ) -> ArchivePublishResponse:
+        if request.stop_after_stage is not None and self._routed_publication is None:
+            raise ArchivePublishConfigurationError("Canonical artifact storage is not configured.")
         counters = _PublishCounters()
         items: list[ArchivePublishItemResponse] = []
         if request.target == "selected_videos":
@@ -221,10 +236,7 @@ class ArchivePublishUseCase:
         )
         for candidate in candidates:
             counters.scanned_count += 1
-            if (
-                candidate.video.is_embeddable is False
-                and not request.include_non_embeddable
-            ):
+            if candidate.video.is_embeddable is False and not request.include_non_embeddable:
                 counters.ineligible_count += 1
                 continue
             item = await self._publish_candidate(candidate, request, counters)
@@ -263,7 +275,11 @@ class ArchivePublishUseCase:
             environment=resolved_environment,
             storage=ArchiveStorageConfigResponse(
                 configured=(
-                    profile.public_base_url is not None and profile.storage_factory is not None
+                    self._routed_publication is not None
+                    or (
+                        profile.public_base_url is not None
+                        and profile.storage_factory is not None
+                    )
                 ),
                 bucket=profile.storage_bucket,
                 endpoint=profile.storage_endpoint,
@@ -280,6 +296,8 @@ class ArchivePublishUseCase:
         *,
         environment: str | None,
         channel_id: int | None,
+        streamer_id: int | None,
+        publish_profile_id: int | None,
         publish_status: str | None,
         search: str | None,
         limit: int,
@@ -289,6 +307,8 @@ class ArchivePublishUseCase:
             ArchiveOpsVideoQuery(
                 environment=environment or self._profile("prod").default_environment,
                 channel_id=channel_id,
+                streamer_id=streamer_id,
+                publish_profile_id=publish_profile_id,
                 publish_status=_publish_status_filter(publish_status),
                 search=search,
                 limit=limit,
@@ -421,7 +441,7 @@ class ArchivePublishUseCase:
                 publish_mode=request.publish_mode,
             )
         try:
-            prepared = self._prepare(candidate, request)
+            prepared = await self._prepare(candidate, request)
         except ArchivePublishPreconditionFailed as exc:
             counters.ineligible_count += 1
             return _publish_item(
@@ -602,7 +622,7 @@ class ArchivePublishUseCase:
             publish_mode=request.publish_mode,
         )
 
-    def _prepare(
+    async def _prepare(
         self,
         candidate: ArchivePublishCandidateRecord,
         request: ArchivePublishRequest,
@@ -615,6 +635,15 @@ class ArchivePublishUseCase:
             raise ArchivePublishPreconditionFailed(
                 "Video is not embeddable and is excluded from archive publish."
             )
+        route_context = (
+            await self._routed_publication.prepare_route(
+                streamer_id=candidate.streamer.id,
+                publish_mode=request.publish_mode,
+                environment=request.environment,
+            )
+            if self._routed_publication is not None
+            else None
+        )
         input_hash = _task_input_hash(
             video=candidate.video,
             composition=candidate.composition,
@@ -622,6 +651,8 @@ class ArchivePublishUseCase:
             environment=request.environment,
             variant=request.variant,
             schema_version=request.schema_version,
+            route_context=route_context,
+            stop_after_stage=request.stop_after_stage,
         )
         input_json = _task_input_json(
             video=candidate.video,
@@ -632,6 +663,8 @@ class ArchivePublishUseCase:
             variant=request.variant,
             schema_version=request.schema_version,
             timeout_seconds=self._timeout_seconds,
+            route_context=route_context,
+            stop_after_stage=request.stop_after_stage,
         )
         return _PreparedArchivePublish(
             video=candidate.video,
@@ -641,7 +674,7 @@ class ArchivePublishUseCase:
             existing_artifact=candidate.latest_artifact,
         )
 
-    async def _execute_job_attempt(
+    async def _execute_job_attempt(  # noqa: C901
         self,
         job: PipelineJobRecord,
         attempt: PipelineJobAttemptRecord,
@@ -652,7 +685,6 @@ class ArchivePublishUseCase:
         try:
             publish_mode = _publish_mode(job.input_json)
             profile = self._profile(publish_mode)
-            storage = self._storage(profile)
             environment = _required_str(job.input_json, "environment")
             variant = _required_str(job.input_json, "variant")
             schema_version = _required_int(job.input_json, "schemaVersion")
@@ -665,6 +697,14 @@ class ArchivePublishUseCase:
             if candidate is None:
                 raise VideoNotFound("Video not found.")
             video = candidate.video
+            routed_context = _routed_context_from_input(job.input_json)
+            if self._routed_publication is not None and routed_context is None:
+                routed_context = await self._routed_publication.prepare_route(
+                    streamer_id=candidate.streamer.id,
+                    publish_mode=publish_mode,
+                    environment=environment,
+                )
+            storage = self._storage(profile) if self._routed_publication is None else None
             if video.is_embeddable is False:
                 raise ArchivePublishPreconditionFailed(
                     "Video is not embeddable and is excluded from archive publish."
@@ -698,19 +738,28 @@ class ArchivePublishUseCase:
                 composition=composition,
                 micro_events=_flatten_micro_events(micro_detail.windows),
                 cues=cues,
-                prefix=profile.prefix,
-                public_base_url=_required_public_base_url(profile.public_base_url),
+                prefix=(
+                    routed_context.primary_key_prefix
+                    if routed_context is not None
+                    else profile.prefix
+                ),
+                public_base_url=(
+                    routed_context.primary_public_base_url
+                    if routed_context is not None
+                    else _required_public_base_url(profile.public_base_url)
+                ),
                 environment=environment,
                 variant=variant,
                 schema_version=schema_version,
             )
-            await storage.save_json(
-                ArchiveObjectSaveRequest(
-                    object_key=timeline_artifact.object_key,
-                    payload=timeline_artifact.payload_bytes,
-                    cache_control=ARCHIVE_IMMUTABLE_CACHE_CONTROL,
+            if storage is not None:
+                await storage.save_json(
+                    ArchiveObjectSaveRequest(
+                        object_key=timeline_artifact.object_key,
+                        payload=timeline_artifact.payload_bytes,
+                        cache_control=ARCHIVE_IMMUTABLE_CACHE_CONTROL,
+                    )
                 )
-            )
             artifact = await self._archive.create_video_artifact(
                 ArchiveVideoArtifactCreate(
                     video_id=video.id,
@@ -723,6 +772,12 @@ class ArchivePublishUseCase:
                     variant=variant,
                     schema_version=schema_version,
                     version=timeline_artifact.version,
+                    build_key=f"legacy-runtime:{task.id}:{attempt.id}",
+                    artifact_status="pending",
+                    artifact_store_ref=None,
+                    artifact_key=None,
+                    unavailable_code=None,
+                    unavailable_detail=None,
                     object_key=timeline_artifact.object_key,
                     public_url=timeline_artifact.public_url,
                     sha256=timeline_artifact.sha256,
@@ -734,58 +789,111 @@ class ArchivePublishUseCase:
                     micro_event_count=timeline_artifact.micro_event_count,
                 )
             )
-            artifact = await self._sync_public_catalog(
-                artifact=artifact,
-                timeline_artifact=timeline_artifact,
-                video=video,
-                channel=candidate.channel,
-                streamer=candidate.streamer,
-                composition=composition,
-            )
-            index_artifact = _index_artifact(
-                artifacts=await self._archive.list_latest_video_artifacts(
+            if self._routed_publication is not None:
+                if routed_context is None:
+                    raise ArchivePublishConfigurationError("Publication route snapshot is missing.")
+                artifact = await self._routed_publication.build_canonical(
+                    artifact=artifact,
+                    payload=timeline_artifact.payload_bytes,
+                )
+                if job.input_json.get("stopAfterStage") == "artifact":
+                    output = _artifact_only_output_json(
+                        artifact=artifact,
+                        job=job,
+                        attempt=attempt,
+                    )
+                else:
+                    membership = await self._archive.list_latest_video_artifacts(
+                        environment=environment,
+                        schema_version=schema_version,
+                        publish_profile_id=routed_context.profile_id,
+                        ready_only=True,
+                    )
+                    routed = await self._routed_publication.publish_composite(
+                        artifact_ids=tuple(item.artifact.id for item in membership),
+                        context=routed_context,
+                        schema_version=schema_version,
+                    )
+                    index_record = await self._archive.create_index_publication(
+                        ArchiveIndexPublicationCreate(
+                            environment=environment,
+                            schema_version=schema_version,
+                            version=routed.index_version,
+                            pointer_key=routed.primary_pointer_key,
+                            index_key=routed.primary_index_key,
+                            public_url=routed.primary_index_url,
+                            sha256=routed.index_sha256,
+                            byte_size=routed.index_byte_size,
+                            video_count=routed.video_count,
+                        )
+                    )
+                    output = _publish_output_json(
+                        artifact=artifact,
+                        index=index_record,
+                        pointer_public_url=routed.primary_pointer_url,
+                        job=job,
+                        attempt=attempt,
+                    )
+                    output["publicationId"] = routed.publication_id
+                    output["profileRevisionId"] = routed_context.profile_revision_id
+                    output["publicationStatus"] = routed.status
+            else:
+                artifact = await self._sync_public_catalog(
+                    artifact=artifact,
+                    timeline_artifact=timeline_artifact,
+                    video=video,
+                    channel=candidate.channel,
+                    streamer=candidate.streamer,
+                    composition=composition,
+                )
+                index_artifact = _index_artifact(
+                    artifacts=await self._archive.list_latest_video_artifacts(
+                        environment=environment,
+                        schema_version=schema_version,
+                    ),
+                    prefix=profile.prefix,
+                    public_base_url=_required_public_base_url(profile.public_base_url),
                     environment=environment,
                     schema_version=schema_version,
-                ),
-                prefix=profile.prefix,
-                public_base_url=_required_public_base_url(profile.public_base_url),
-                environment=environment,
-                schema_version=schema_version,
-            )
-            await storage.save_json(
-                ArchiveObjectSaveRequest(
-                    object_key=index_artifact.object_key,
-                    payload=index_artifact.payload_bytes,
-                    cache_control=ARCHIVE_IMMUTABLE_CACHE_CONTROL,
                 )
-            )
-            index_record = await self._archive.create_index_publication(
-                ArchiveIndexPublicationCreate(
-                    environment=_required_str(job.input_json, "environment"),
-                    schema_version=_required_int(job.input_json, "schemaVersion"),
-                    version=index_artifact.version,
-                    pointer_key=index_artifact.pointer_key,
-                    index_key=index_artifact.object_key,
-                    public_url=index_artifact.public_url,
-                    sha256=index_artifact.sha256,
-                    byte_size=index_artifact.byte_size,
-                    video_count=index_artifact.video_count,
+                if storage is None:
+                    raise ArchivePublishConfigurationError(
+                        "Archive publish storage is not configured."
+                    )
+                await storage.save_json(
+                    ArchiveObjectSaveRequest(
+                        object_key=index_artifact.object_key,
+                        payload=index_artifact.payload_bytes,
+                        cache_control=ARCHIVE_IMMUTABLE_CACHE_CONTROL,
+                    )
                 )
-            )
-            await storage.save_json(
-                ArchiveObjectSaveRequest(
-                    object_key=index_artifact.pointer_key,
-                    payload=index_artifact.pointer_payload_bytes,
-                    cache_control=ARCHIVE_POINTER_CACHE_CONTROL,
+                index_record = await self._archive.create_index_publication(
+                    ArchiveIndexPublicationCreate(
+                        environment=environment,
+                        schema_version=schema_version,
+                        version=index_artifact.version,
+                        pointer_key=index_artifact.pointer_key,
+                        index_key=index_artifact.object_key,
+                        public_url=index_artifact.public_url,
+                        sha256=index_artifact.sha256,
+                        byte_size=index_artifact.byte_size,
+                        video_count=index_artifact.video_count,
+                    )
                 )
-            )
-            output = _publish_output_json(
-                artifact=artifact,
-                index=index_record,
-                pointer_public_url=index_artifact.pointer_public_url,
-                job=job,
-                attempt=attempt,
-            )
+                await storage.save_json(
+                    ArchiveObjectSaveRequest(
+                        object_key=index_artifact.pointer_key,
+                        payload=index_artifact.pointer_payload_bytes,
+                        cache_control=ARCHIVE_POINTER_CACHE_CONTROL,
+                    )
+                )
+                output = _publish_output_json(
+                    artifact=artifact,
+                    index=index_record,
+                    pointer_public_url=index_artifact.pointer_public_url,
+                    job=job,
+                    attempt=attempt,
+                )
             await self._pipeline_jobs.mark_attempt_succeeded(
                 attempt.id,
                 output_json=output,
@@ -1345,9 +1453,7 @@ def _public_catalog_timeline_index(
 ) -> ArchivePublicCatalogTimelineIndex:
     payload = timeline_artifact.payload
     episodes = _json_object_list(payload.get("episodes"))
-    episodes_by_id = {
-        _json_string(episode.get("episodeId"), ""): episode for episode in episodes
-    }
+    episodes_by_id = {_json_string(episode.get("episodeId"), ""): episode for episode in episodes}
     blocks = _json_object_list(payload.get("blocks"))
     return ArchivePublicCatalogTimelineIndex(
         environment=artifact.environment,
@@ -1356,17 +1462,11 @@ def _public_catalog_timeline_index(
         timeline_version=artifact.version,
         updated_at=updated_at,
         blocks=[
-            _public_catalog_block_index(block, episodes_by_id=episodes_by_id)
-            for block in blocks
+            _public_catalog_block_index(block, episodes_by_id=episodes_by_id) for block in blocks
         ],
-        episodes=[
-            _public_catalog_episode_index(episode)
-            for episode in episodes
-        ],
+        episodes=[_public_catalog_episode_index(episode) for episode in episodes],
         micro_events=[
-            event
-            for episode in episodes
-            for event in _public_catalog_micro_event_indexes(episode)
+            event for episode in episodes for event in _public_catalog_micro_event_indexes(episode)
         ],
         topic_clusters=[
             _public_catalog_topic_index(topic)
@@ -1382,9 +1482,7 @@ def _public_catalog_block_index(
 ) -> ArchivePublicCatalogTimelineIndexBlock:
     episode_ids = _json_string_list(block.get("episodeIds"))
     block_episodes = [
-        episodes_by_id[episode_id]
-        for episode_id in episode_ids
-        if episode_id in episodes_by_id
+        episodes_by_id[episode_id] for episode_id in episode_ids if episode_id in episodes_by_id
     ]
     start_ms = _json_int(block_episodes[0].get("startMs"), 0) if block_episodes else 0
     end_ms = _json_int(block_episodes[-1].get("endMs"), start_ms) if block_episodes else 0
@@ -1544,59 +1642,6 @@ def _flatten_micro_events(
     ]
 
 
-def _task_input_hash(
-    *,
-    video: VideoRecord,
-    composition: TimelineCompositionRecord,
-    publish_mode: ArchivePublishModeLiteral,
-    environment: str,
-    variant: str,
-    schema_version: int,
-) -> str:
-    payload = {
-        "environment": environment,
-        "publishMode": publish_mode,
-        "schemaVersion": schema_version,
-        "sourceMicroEventTaskId": composition.source_micro_event_task_id,
-        "sourceTimelineCompositionId": composition.id,
-        "sourceTimelineTaskId": composition.video_task_id,
-        "taskVersion": ARCHIVE_PUBLISH_TASK_VERSION,
-        "variant": variant,
-        "videoId": video.id,
-        "youtubeVideoId": video.youtube_video_id,
-    }
-    return hashlib.sha256(
-        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    ).hexdigest()
-
-
-def _task_input_json(
-    *,
-    video: VideoRecord,
-    composition: TimelineCompositionRecord,
-    input_hash: str,
-    publish_mode: ArchivePublishModeLiteral,
-    environment: str,
-    variant: str,
-    schema_version: int,
-    timeout_seconds: int,
-) -> JsonObject:
-    return {
-        "videoId": video.id,
-        "youtubeVideoId": video.youtube_video_id,
-        "sourceTimelineCompositionId": composition.id,
-        "sourceTimelineTaskId": composition.video_task_id,
-        "sourceMicroEventTaskId": composition.source_micro_event_task_id,
-        "taskVersion": ARCHIVE_PUBLISH_TASK_VERSION,
-        "inputHash": input_hash,
-        "publishMode": publish_mode,
-        "environment": environment,
-        "variant": variant,
-        "schemaVersion": schema_version,
-        "timeoutSeconds": timeout_seconds,
-    }
-
-
 def _publish_response(
     request: ArchivePublishRequest,
     counters: _PublishCounters,
@@ -1727,6 +1772,12 @@ def _artifact_response(artifact: ArchiveVideoArtifactRecord) -> ArchiveVideoArti
         variant=artifact.variant,
         schemaVersion=artifact.schema_version,
         version=artifact.version,
+        buildKey=artifact.build_key,
+        artifactStatus=artifact.artifact_status,
+        artifactStoreRef=artifact.artifact_store_ref,
+        artifactKey=artifact.artifact_key,
+        unavailableCode=artifact.unavailable_code,
+        unavailableDetail=artifact.unavailable_detail,
         objectKey=artifact.object_key,
         publicUrl=artifact.public_url,
         sha256=artifact.sha256,
@@ -1783,6 +1834,31 @@ def _publish_output_json(
         "pointerKey": index.pointer_key,
         "pointerUrl": pointer_public_url,
         "publishMode": _publish_mode(job.input_json),
+        "jobId": job.id,
+        "jobAttemptId": attempt.id,
+    }
+
+
+def _artifact_only_output_json(
+    *,
+    artifact: ArchiveVideoArtifactRecord,
+    job: PipelineJobRecord,
+    attempt: PipelineJobAttemptRecord,
+) -> JsonObject:
+    return {
+        "videoTaskId": artifact.publish_task_id,
+        "videoId": artifact.video_id,
+        "artifactId": artifact.id,
+        "artifactStatus": artifact.artifact_status,
+        "artifactStoreRef": artifact.artifact_store_ref,
+        "artifactKey": artifact.artifact_key,
+        "objectKey": artifact.object_key,
+        "publicUrl": artifact.public_url,
+        "version": artifact.version,
+        "sha256": artifact.sha256,
+        "byteSize": artifact.byte_size,
+        "publishMode": _publish_mode(job.input_json),
+        "completedStage": "artifact",
         "jobId": job.id,
         "jobAttemptId": attempt.id,
     }
@@ -1850,34 +1926,6 @@ def _required_public_base_url(value: str | None) -> str:
 
 def _public_url(public_base_url: str, object_key: str) -> str:
     return f"{public_base_url}/{object_key.lstrip('/')}"
-
-
-def _int_output(input_json: JsonObject, key: str) -> int | None:
-    value = input_json.get(key)
-    return value if isinstance(value, int) else None
-
-
-def _str_output(input_json: JsonObject, key: str) -> str | None:
-    value = input_json.get(key)
-    return value if isinstance(value, str) else None
-
-
-def _publish_mode(input_json: JsonObject) -> ArchivePublishModeLiteral:
-    return "dev" if _str_output(input_json, "publishMode") == "dev" else "prod"
-
-
-def _required_str(input_json: JsonObject, key: str) -> str:
-    value = input_json.get(key)
-    if not isinstance(value, str) or not value:
-        raise VideoTaskRetryNotAllowed(f"Task input is missing string '{key}'.")
-    return value
-
-
-def _required_int(input_json: JsonObject, key: str) -> int:
-    value = input_json.get(key)
-    if not isinstance(value, int):
-        raise VideoTaskRetryNotAllowed(f"Task input is missing integer '{key}'.")
-    return value
 
 
 def _publish_status_filter(value: str | None) -> ArchivePublishStatusFilter | None:

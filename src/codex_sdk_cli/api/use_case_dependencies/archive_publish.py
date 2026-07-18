@@ -5,10 +5,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from codex_sdk_cli.api.dependencies import DatabaseSessionDep, SettingsDep
-from codex_sdk_cli.bootstrap.archive import (
-    archive_publish_storage_factory,
-    archive_publish_use_case,
-)
+from codex_sdk_cli.bootstrap.archive import archive_publish_use_case
 from codex_sdk_cli.domains.archive_publish.use_cases import ArchivePublishUseCase
 
 
@@ -26,6 +23,5 @@ ArchivePublishUseCaseDep = Annotated[
 
 __all__ = [
     "ArchivePublishUseCaseDep",
-    "archive_publish_storage_factory",
     "get_archive_publish_use_case",
 ]

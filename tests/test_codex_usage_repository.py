@@ -210,7 +210,7 @@ async def _exercise_repository(database_url: str) -> dict[str, int | str | None]
 
 async def _create_video(session: AsyncSession) -> VideoModel:
     now = datetime.now(UTC)
-    streamer = StreamerModel(name="Streamer")
+    streamer = StreamerModel(name="Streamer", publish_profile_id=1)
     session.add(streamer)
     await session.flush()
     channel = ChannelModel(

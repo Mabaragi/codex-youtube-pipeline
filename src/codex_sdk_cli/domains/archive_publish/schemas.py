@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .ports import ArchivePublishStatusFilter, ArchivePublishTarget
 
 ArchivePublishModeLiteral = Literal["prod", "dev"]
+ArchivePublishStopStageLiteral = Literal["artifact"]
 
 
 class ArchivePublishRequest(BaseModel):
@@ -23,6 +24,10 @@ class ArchivePublishRequest(BaseModel):
     retry_failed: bool = Field(default=False, alias="retryFailed")
     regenerate_succeeded: bool = Field(default=False, alias="regenerateSucceeded")
     include_non_embeddable: bool = Field(default=False, alias="includeNonEmbeddable")
+    stop_after_stage: ArchivePublishStopStageLiteral | None = Field(
+        default=None,
+        alias="stopAfterStage",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -148,6 +153,12 @@ class ArchiveVideoArtifactResponse(BaseModel):
     variant: str
     schema_version: int = Field(alias="schemaVersion")
     version: str
+    build_key: str | None = Field(alias="buildKey")
+    artifact_status: str = Field(alias="artifactStatus")
+    artifact_store_ref: str | None = Field(alias="artifactStoreRef")
+    artifact_key: str | None = Field(alias="artifactKey")
+    unavailable_code: str | None = Field(alias="unavailableCode")
+    unavailable_detail: str | None = Field(alias="unavailableDetail")
     object_key: str = Field(alias="objectKey")
     public_url: str = Field(alias="publicUrl")
     sha256: str

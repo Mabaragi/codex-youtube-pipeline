@@ -46,11 +46,26 @@ from codex_sdk_cli.domains.prompts.exceptions import (
     PromptNotFound,
     PromptPersistenceError,
 )
+from codex_sdk_cli.domains.publication.exceptions import (
+    PublicationCatalogPublishError,
+    PublicationConnectionConfigurationError,
+    PublicationConnectionNotFoundError,
+    PublicationError,
+    PublicationObjectStoreError,
+)
+from codex_sdk_cli.domains.publication_config.exceptions import (
+    PublishConfigurationConflict,
+    PublishConfigurationDomainError,
+    PublishConfigurationNotFound,
+    PublishConfigurationPersistenceError,
+)
 from codex_sdk_cli.domains.streamers.exceptions import (
     StreamerDomainError,
     StreamerHasChannels,
     StreamerNotFound,
     StreamerPersistenceError,
+    StreamerPublishProfileCutoverRequired,
+    StreamerPublishProfileUnavailable,
 )
 from codex_sdk_cli.domains.timelines.exceptions import (
     TimelineCompositionNotFound,
@@ -103,6 +118,8 @@ DOMAIN_ERROR_TYPES: tuple[type[Exception], ...] = (
     OpsDomainError,
     PipelineJobDomainError,
     PromptDomainError,
+    PublicationError,
+    PublishConfigurationDomainError,
     StreamerDomainError,
     TimelineDomainError,
     TranscriptCueDomainError,
@@ -119,7 +136,10 @@ _NOT_FOUND_ERRORS = (
     OpsVideoNotFound,
     PipelineJobNotFound,
     PromptNotFound,
+    PublicationConnectionNotFoundError,
+    PublishConfigurationNotFound,
     StreamerNotFound,
+    StreamerPublishProfileUnavailable,
     TimelineCompositionNotFound,
     VideoTaskNotFound,
     VideoNotFound,
@@ -135,7 +155,9 @@ _CONFLICT_ERRORS = (
     MicroEventExtractionPreconditionFailed,
     PipelineJobRetryNotAllowed,
     PromptConflict,
+    PublishConfigurationConflict,
     StreamerHasChannels,
+    StreamerPublishProfileCutoverRequired,
     TimelineCompositionPreconditionFailed,
     TranscriptCollectAlreadyRunning,
     VideoAlreadyExists,
@@ -153,6 +175,9 @@ _UNAVAILABLE_ERRORS = (
     OperationEventDomainError,
     PipelineJobPersistenceError,
     PromptPersistenceError,
+    PublicationConnectionConfigurationError,
+    PublicationObjectStoreError,
+    PublishConfigurationPersistenceError,
     StreamerPersistenceError,
     TimelineCompositionPersistenceError,
     TranscriptCuePersistenceError,
@@ -162,7 +187,12 @@ _UNAVAILABLE_ERRORS = (
     YouTubeTranscriptPersistenceError,
     YouTubeTranscriptStorageError,
 )
-_UPSTREAM_ERRORS = (CodexRuntimeError, YouTubeDataUpstreamError, YouTubeTranscriptUpstreamError)
+_UPSTREAM_ERRORS = (
+    CodexRuntimeError,
+    PublicationCatalogPublishError,
+    YouTubeDataUpstreamError,
+    YouTubeTranscriptUpstreamError,
+)
 
 
 def domain_error_status(exc: Exception) -> int:

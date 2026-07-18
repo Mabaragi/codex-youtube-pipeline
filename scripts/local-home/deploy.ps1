@@ -2,7 +2,8 @@ param(
     [switch]$SkipSync,
     [switch]$SkipUiBuild,
     [switch]$NoUi,
-    [switch]$SkipDockerVolumeDbMigration
+    [switch]$SkipDockerVolumeDbMigration,
+    [switch]$SkipPublicCatalogMigration
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -83,6 +84,13 @@ if (
 }
 
 Invoke-Checked "uv" @("run", "python", "-m", "alembic", "upgrade", "head")
+
+if (-not $SkipPublicCatalogMigration) {
+    & (Join-Path $PSScriptRoot "migrate-public-catalog.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Public catalog database migration failed."
+    }
+}
 
 if (-not $NoUi -and -not $SkipUiBuild) {
     Invoke-Checked "pnpm" @("-C", "ops-ui", "build")

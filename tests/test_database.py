@@ -18,6 +18,11 @@ def test_database_base_registers_app_tables() -> None:
 
     assert set(Base.metadata.tables) == {
         "archive_index_publications",
+        "archive_artifact_catalog_deliveries",
+        "archive_artifact_object_deliveries",
+        "archive_publication_artifacts",
+        "archive_publication_deliveries",
+        "archive_publications",
         "archive_video_artifacts",
         "asr_chunk_checkpoints",
         "asr_correction_candidates",
@@ -40,6 +45,14 @@ def test_database_base_registers_app_tables() -> None:
         "pipeline_runtime_controls",
         "prompt_active_versions",
         "prompt_versions",
+        "publish_catalog_destinations",
+        "publish_object_destinations",
+        "publish_profile_revisions",
+        "publish_profile_routes",
+        "publish_profiles",
+        "publish_profile_cutovers",
+        "publish_route_catalog_bindings",
+        "publish_route_object_bindings",
         "streamers",
         "transcript_cues",
         "timeline_blocks",
@@ -179,6 +192,12 @@ def test_alembic_upgrade_creates_app_tables(
             column["name"] for column in inspector.get_columns("youtube_transcripts")
         }
         streamer_columns = {column["name"] for column in inspector.get_columns("streamers")}
+        archive_publication_columns = {
+            column["name"] for column in inspector.get_columns("archive_publications")
+        }
+        archive_publication_unique_constraints = inspector.get_unique_constraints(
+            "archive_publications"
+        )
         channel_columns = {column["name"] for column in inspector.get_columns("channels")}
         channel_foreign_keys = inspector.get_foreign_keys("channels")
         channel_unique_constraints = inspector.get_unique_constraints("channels")
@@ -325,6 +344,19 @@ def test_alembic_upgrade_creates_app_tables(
         "notes",
     }.issubset(transcript_columns)
     assert {"id", "name"}.issubset(streamer_columns)
+    assert "identity_key" in archive_publication_columns
+    assert any(
+        constraint["column_names"] == ["route_id", "identity_key"]
+        for constraint in archive_publication_unique_constraints
+    )
+    assert any(
+        constraint["column_names"] == ["route_id", "legacy_index_publication_id"]
+        for constraint in archive_publication_unique_constraints
+    )
+    assert not any(
+        constraint["column_names"] == ["route_id", "schema_version", "membership_sha256"]
+        for constraint in archive_publication_unique_constraints
+    )
     assert {
         "id",
         "streamer_id",

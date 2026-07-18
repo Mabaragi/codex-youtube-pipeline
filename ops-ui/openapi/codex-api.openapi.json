@@ -30,6 +30,70 @@
         "title": "ApiKeyLoginRequest",
         "type": "object"
       },
+      "ArchiveArtifactBuildOperationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "default": "prod",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          },
+          "rerunSucceeded": {
+            "default": false,
+            "title": "Rerunsucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "variant": {
+            "default": "control",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Variant",
+            "type": "string"
+          },
+          "videoIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Videoids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "videoIds"
+        ],
+        "title": "ArchiveArtifactBuildOperationRequest",
+        "type": "object"
+      },
       "ArchiveCurrentResponse": {
         "properties": {
           "environment": {
@@ -441,9 +505,46 @@
             "title": "Artifactid",
             "type": "integer"
           },
+          "artifactKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifactkey"
+          },
+          "artifactStatus": {
+            "title": "Artifactstatus",
+            "type": "string"
+          },
+          "artifactStoreRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifactstoreref"
+          },
           "blockCount": {
             "title": "Blockcount",
             "type": "integer"
+          },
+          "buildKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buildkey"
           },
           "byteSize": {
             "title": "Bytesize",
@@ -533,6 +634,28 @@
             "title": "Topicclustercount",
             "type": "integer"
           },
+          "unavailableCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailablecode"
+          },
+          "unavailableDetail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailabledetail"
+          },
           "variant": {
             "title": "Variant",
             "type": "string"
@@ -553,6 +676,12 @@
           "variant",
           "schemaVersion",
           "version",
+          "buildKey",
+          "artifactStatus",
+          "artifactStoreRef",
+          "artifactKey",
+          "unavailableCode",
+          "unavailableDetail",
           "objectKey",
           "publicUrl",
           "sha256",
@@ -802,6 +931,71 @@
           }
         },
         "title": "CancelWorkItemRequest",
+        "type": "object"
+      },
+      "CatalogDestinationCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "connectionRef"
+        ],
+        "title": "CatalogDestinationCreateRequest",
+        "type": "object"
+      },
+      "CatalogDestinationResponse": {
+        "properties": {
+          "connectionRef": {
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "connectionRef",
+          "createdAt"
+        ],
+        "title": "CatalogDestinationResponse",
         "type": "object"
       },
       "ChannelCreateRequest": {
@@ -3937,6 +4131,71 @@
         "title": "NextEligibleVideoSelectionRequest",
         "type": "object"
       },
+      "ObjectDestinationCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "connectionRef"
+        ],
+        "title": "ObjectDestinationCreateRequest",
+        "type": "object"
+      },
+      "ObjectDestinationResponse": {
+        "properties": {
+          "connectionRef": {
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "connectionRef",
+          "createdAt"
+        ],
+        "title": "ObjectDestinationResponse",
+        "type": "object"
+      },
       "OperationBatchResponse": {
         "properties": {
           "batchId": {
@@ -6701,6 +6960,1228 @@
         "title": "PromptVersionUpdateRequest",
         "type": "object"
       },
+      "PublicationArtifactStageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Artifactids",
+            "type": "array"
+          },
+          "destinationIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destinationids"
+          },
+          "environment": {
+            "default": "prod",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "profileRevisionId": {
+            "minimum": 1.0,
+            "title": "Profilerevisionid",
+            "type": "integer"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactIds",
+          "profileRevisionId"
+        ],
+        "title": "PublicationArtifactStageRequest",
+        "type": "object"
+      },
+      "PublicationBuildStageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Artifactids",
+            "type": "array"
+          },
+          "destinationIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destinationids"
+          },
+          "environment": {
+            "default": "prod",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "profileRevisionId": {
+            "minimum": 1.0,
+            "title": "Profilerevisionid",
+            "type": "integer"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Schemaversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifactIds",
+          "profileRevisionId"
+        ],
+        "title": "PublicationBuildStageRequest",
+        "type": "object"
+      },
+      "PublicationConnectionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationConnectionResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PublicationConnectionListResponse",
+        "type": "object"
+      },
+      "PublicationConnectionResponse": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "connectionRef": {
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "s3_compatible_object",
+              "http_catalog",
+              "sql_catalog"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "publicBaseUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicbaseurl"
+          },
+          "secretFields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secretfields",
+            "type": "array"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionRef",
+          "kind",
+          "target",
+          "configured"
+        ],
+        "title": "PublicationConnectionResponse",
+        "type": "object"
+      },
+      "PublicationCutoverPrepareRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "default": "prod",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "streamerId": {
+            "minimum": 1.0,
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "targetProfileId": {
+            "minimum": 1.0,
+            "title": "Targetprofileid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "streamerId",
+          "targetProfileId"
+        ],
+        "title": "PublicationCutoverPrepareRequest",
+        "type": "object"
+      },
+      "PublicationCutoverResponse": {
+        "properties": {
+          "artifactIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Artifactids",
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lastCompletedStep": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcompletedstep"
+          },
+          "lastErrorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterrorcode"
+          },
+          "lastErrorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterrormessage"
+          },
+          "lastErrorStep": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterrorstep"
+          },
+          "publishMode": {
+            "title": "Publishmode",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "sourcePointerPublishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcepointerpublishedat"
+          },
+          "sourceProfileId": {
+            "title": "Sourceprofileid",
+            "type": "integer"
+          },
+          "sourceProfileRevisionId": {
+            "title": "Sourceprofilerevisionid",
+            "type": "integer"
+          },
+          "sourcePublicationId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcepublicationid"
+          },
+          "sourceRouteId": {
+            "title": "Sourcerouteid",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "streamerAssignedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Streamerassignedat"
+          },
+          "streamerId": {
+            "title": "Streamerid",
+            "type": "integer"
+          },
+          "targetPointerPublishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetpointerpublishedat"
+          },
+          "targetProfileId": {
+            "title": "Targetprofileid",
+            "type": "integer"
+          },
+          "targetProfileRevisionId": {
+            "title": "Targetprofilerevisionid",
+            "type": "integer"
+          },
+          "targetPublicationId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetpublicationid"
+          },
+          "targetRouteId": {
+            "title": "Targetrouteid",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "streamerId",
+          "sourceProfileId",
+          "targetProfileId",
+          "sourceProfileRevisionId",
+          "targetProfileRevisionId",
+          "sourceRouteId",
+          "targetRouteId",
+          "publishMode",
+          "environment",
+          "schemaVersion",
+          "artifactIds",
+          "status",
+          "lastCompletedStep",
+          "targetPublicationId",
+          "sourcePublicationId",
+          "targetPointerPublishedAt",
+          "streamerAssignedAt",
+          "sourcePointerPublishedAt",
+          "lastErrorStep",
+          "lastErrorCode",
+          "lastErrorMessage",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "PublicationCutoverResponse",
+        "type": "object"
+      },
+      "PublicationDeliveryStatusResponse": {
+        "properties": {
+          "destinationId": {
+            "title": "Destinationid",
+            "type": "integer"
+          },
+          "destinationKey": {
+            "title": "Destinationkey",
+            "type": "string"
+          },
+          "destinationName": {
+            "title": "Destinationname",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "indexPublicUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexpublicurl"
+          },
+          "objectBindingId": {
+            "title": "Objectbindingid",
+            "type": "integer"
+          },
+          "pointerPublicUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointerpublicurl"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "objectBindingId",
+          "destinationId",
+          "destinationKey",
+          "destinationName",
+          "required",
+          "status",
+          "indexPublicUrl",
+          "pointerPublicUrl",
+          "errorCode",
+          "errorMessage",
+          "updatedAt"
+        ],
+        "title": "PublicationDeliveryStatusResponse",
+        "type": "object"
+      },
+      "PublicationDestinationResultResponse": {
+        "properties": {
+          "bindingId": {
+            "title": "Bindingid",
+            "type": "integer"
+          },
+          "destinationId": {
+            "title": "Destinationid",
+            "type": "integer"
+          },
+          "destinationType": {
+            "enum": [
+              "object",
+              "catalog"
+            ],
+            "title": "Destinationtype",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "publicUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicurl"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "reused": {
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destinationId",
+          "bindingId",
+          "destinationType",
+          "required",
+          "status",
+          "reused",
+          "publicUrl",
+          "errorCode",
+          "errorMessage"
+        ],
+        "title": "PublicationDestinationResultResponse",
+        "type": "object"
+      },
+      "PublicationPointerStageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactIds": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Artifactids",
+            "type": "array"
+          },
+          "destinationIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destinationids"
+          },
+          "environment": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "profileRevisionId": {
+            "minimum": 1.0,
+            "title": "Profilerevisionid",
+            "type": "integer"
+          },
+          "publicationId": {
+            "minimum": 1.0,
+            "title": "Publicationid",
+            "type": "integer"
+          },
+          "publishMode": {
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "publicationId",
+          "artifactIds",
+          "profileRevisionId",
+          "publishMode",
+          "environment"
+        ],
+        "title": "PublicationPointerStageRequest",
+        "type": "object"
+      },
+      "PublicationStageResponse": {
+        "properties": {
+          "artifactIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Artifactids",
+            "type": "array"
+          },
+          "destinationResults": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationDestinationResultResponse"
+            },
+            "title": "Destinationresults",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "missingPreconditions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Missingpreconditions",
+            "type": "array"
+          },
+          "profileRevisionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profilerevisionid"
+          },
+          "publicationId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicationid"
+          },
+          "routeId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routeid"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "succeededWithWarnings",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "status",
+          "artifactIds",
+          "profileRevisionId",
+          "routeId",
+          "publicationId",
+          "destinationResults",
+          "missingPreconditions",
+          "metadata"
+        ],
+        "title": "PublicationStageResponse",
+        "type": "object"
+      },
+      "PublicationStatusListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationStatusResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PublicationStatusListResponse",
+        "type": "object"
+      },
+      "PublicationStatusResponse": {
+        "properties": {
+          "artifactCount": {
+            "title": "Artifactcount",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationDeliveryStatusResponse"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "profileId": {
+            "title": "Profileid",
+            "type": "integer"
+          },
+          "profileKey": {
+            "title": "Profilekey",
+            "type": "string"
+          },
+          "profileName": {
+            "title": "Profilename",
+            "type": "string"
+          },
+          "profileRevisionId": {
+            "title": "Profilerevisionid",
+            "type": "integer"
+          },
+          "publishMode": {
+            "title": "Publishmode",
+            "type": "string"
+          },
+          "routeId": {
+            "title": "Routeid",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "videoCount": {
+            "title": "Videocount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "profileId",
+          "profileKey",
+          "profileName",
+          "profileRevisionId",
+          "routeId",
+          "publishMode",
+          "environment",
+          "schemaVersion",
+          "version",
+          "status",
+          "videoCount",
+          "artifactCount",
+          "errorCode",
+          "errorMessage",
+          "createdAt",
+          "updatedAt",
+          "deliveries"
+        ],
+        "title": "PublicationStatusResponse",
+        "type": "object"
+      },
+      "PublishProfileCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "PublishProfileCreateRequest",
+        "type": "object"
+      },
+      "PublishProfileDetailResponse": {
+        "properties": {
+          "activeRevisionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activerevisionid"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/PublishProfileRevisionResponse"
+            },
+            "title": "Revisions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "description",
+          "activeRevisionId",
+          "createdAt",
+          "revisions"
+        ],
+        "title": "PublishProfileDetailResponse",
+        "type": "object"
+      },
+      "PublishProfileRevisionCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/PublishProfileRouteCreateRequest"
+            },
+            "minItems": 1,
+            "title": "Routes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "routes"
+        ],
+        "title": "PublishProfileRevisionCreateRequest",
+        "type": "object"
+      },
+      "PublishProfileRevisionResponse": {
+        "properties": {
+          "activatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activatedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "profileId": {
+            "title": "Profileid",
+            "type": "integer"
+          },
+          "revisionNumber": {
+            "title": "Revisionnumber",
+            "type": "integer"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/PublishProfileRouteResponse"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "active",
+              "retired"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "profileId",
+          "revisionNumber",
+          "state",
+          "createdAt",
+          "activatedAt",
+          "routes"
+        ],
+        "title": "PublishProfileRevisionResponse",
+        "type": "object"
+      },
+      "PublishProfileRouteCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "catalogBindings": {
+            "items": {
+              "$ref": "#/components/schemas/RouteCatalogBindingCreateRequest"
+            },
+            "title": "Catalogbindings",
+            "type": "array"
+          },
+          "environment": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "objectBindings": {
+            "items": {
+              "$ref": "#/components/schemas/RouteObjectBindingCreateRequest"
+            },
+            "minItems": 1,
+            "title": "Objectbindings",
+            "type": "array"
+          },
+          "publishMode": {
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "publishMode",
+          "environment",
+          "objectBindings"
+        ],
+        "title": "PublishProfileRouteCreateRequest",
+        "type": "object"
+      },
+      "PublishProfileRouteResponse": {
+        "properties": {
+          "catalogBindings": {
+            "items": {
+              "$ref": "#/components/schemas/RouteCatalogBindingResponse"
+            },
+            "title": "Catalogbindings",
+            "type": "array"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "objectBindings": {
+            "items": {
+              "$ref": "#/components/schemas/RouteObjectBindingResponse"
+            },
+            "title": "Objectbindings",
+            "type": "array"
+          },
+          "publishMode": {
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "publishMode",
+          "environment",
+          "objectBindings",
+          "catalogBindings"
+        ],
+        "title": "PublishProfileRouteResponse",
+        "type": "object"
+      },
+      "PublishProfileSummaryResponse": {
+        "properties": {
+          "activeRevisionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activerevisionid"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "description",
+          "activeRevisionId",
+          "createdAt"
+        ],
+        "title": "PublishProfileSummaryResponse",
+        "type": "object"
+      },
       "RetryWorkItemRequest": {
         "additionalProperties": false,
         "properties": {
@@ -6711,6 +8192,145 @@
           }
         },
         "title": "RetryWorkItemRequest",
+        "type": "object"
+      },
+      "RouteCatalogBindingCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "destinationId": {
+            "minimum": 1.0,
+            "title": "Destinationid",
+            "type": "integer"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "sourceObjectDestinationId": {
+            "minimum": 1.0,
+            "title": "Sourceobjectdestinationid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "destinationId",
+          "sourceObjectDestinationId"
+        ],
+        "title": "RouteCatalogBindingCreateRequest",
+        "type": "object"
+      },
+      "RouteCatalogBindingResponse": {
+        "properties": {
+          "connectionRef": {
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "destinationId": {
+            "title": "Destinationid",
+            "type": "integer"
+          },
+          "destinationKey": {
+            "title": "Destinationkey",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "sourceObjectBindingId": {
+            "title": "Sourceobjectbindingid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "destinationId",
+          "destinationKey",
+          "connectionRef",
+          "sourceObjectBindingId",
+          "required"
+        ],
+        "title": "RouteCatalogBindingResponse",
+        "type": "object"
+      },
+      "RouteObjectBindingCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "destinationId": {
+            "minimum": 1.0,
+            "title": "Destinationid",
+            "type": "integer"
+          },
+          "isPrimary": {
+            "default": false,
+            "title": "Isprimary",
+            "type": "boolean"
+          },
+          "keyPrefix": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Keyprefix",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "destinationId",
+          "keyPrefix"
+        ],
+        "title": "RouteObjectBindingCreateRequest",
+        "type": "object"
+      },
+      "RouteObjectBindingResponse": {
+        "properties": {
+          "connectionRef": {
+            "title": "Connectionref",
+            "type": "string"
+          },
+          "destinationId": {
+            "title": "Destinationid",
+            "type": "integer"
+          },
+          "destinationKey": {
+            "title": "Destinationkey",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "isPrimary": {
+            "title": "Isprimary",
+            "type": "boolean"
+          },
+          "keyPrefix": {
+            "title": "Keyprefix",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "destinationId",
+          "destinationKey",
+          "connectionRef",
+          "keyPrefix",
+          "required",
+          "isPrimary"
+        ],
+        "title": "RouteObjectBindingResponse",
         "type": "object"
       },
       "RunRequest": {
@@ -6997,7 +8617,8 @@
         "additionalProperties": false,
         "examples": [
           {
-            "name": "Chzzk Archive"
+            "name": "Chzzk Archive",
+            "publishProfileId": 1
           }
         ],
         "properties": {
@@ -7010,10 +8631,17 @@
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "publishProfileId": {
+            "description": "Active publication profile assigned to the streamer.",
+            "minimum": 1.0,
+            "title": "Publishprofileid",
+            "type": "integer"
           }
         },
         "required": [
-          "name"
+          "name",
+          "publishProfileId"
         ],
         "title": "StreamerCreateRequest",
         "type": "object"
@@ -7027,11 +8655,16 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "publishProfileId": {
+            "title": "Publishprofileid",
+            "type": "integer"
           }
         },
         "required": [
           "id",
-          "name"
+          "name",
+          "publishProfileId"
         ],
         "title": "StreamerResponse",
         "type": "object"
@@ -7040,7 +8673,8 @@
         "additionalProperties": false,
         "examples": [
           {
-            "name": "Chzzk Archive KR"
+            "name": "Chzzk Archive KR",
+            "publishProfileId": 2
           }
         ],
         "properties": {
@@ -7060,6 +8694,19 @@
               "Chzzk Archive KR"
             ],
             "title": "Name"
+          },
+          "publishProfileId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "New active publication profile assignment.",
+            "title": "Publishprofileid"
           }
         },
         "title": "StreamerUpdateRequest",
@@ -10016,6 +11663,40 @@
           },
           {
             "in": "query",
+            "name": "streamerId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Streamerid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profileId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Profileid"
+            }
+          },
+          {
+            "in": "query",
             "name": "publishStatus",
             "required": false,
             "schema": {
@@ -12252,6 +13933,211 @@
         ]
       }
     },
+    "/ops/operations/archive-artifact-build": {
+      "post": {
+        "operationId": "build_archive_artifacts_ops_operations_archive_artifact_build_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveArtifactBuildOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Archive Artifacts",
+        "tags": [
+          "ops-publication-stages"
+        ]
+      }
+    },
+    "/ops/operations/archive-catalog-publish": {
+      "post": {
+        "operationId": "publish_archive_catalogs_ops_operations_archive_catalog_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationArtifactStageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Archive Catalogs",
+        "tags": [
+          "ops-publication-stages"
+        ]
+      }
+    },
+    "/ops/operations/archive-object-deliver": {
+      "post": {
+        "operationId": "deliver_archive_objects_ops_operations_archive_object_deliver_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationArtifactStageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deliver Archive Objects",
+        "tags": [
+          "ops-publication-stages"
+        ]
+      }
+    },
+    "/ops/operations/archive-pointer-publish": {
+      "post": {
+        "operationId": "publish_archive_pointer_ops_operations_archive_pointer_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationPointerStageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Archive Pointer",
+        "tags": [
+          "ops-publication-stages"
+        ]
+      }
+    },
+    "/ops/operations/archive-publication-build": {
+      "post": {
+        "operationId": "build_archive_publication_ops_operations_archive_publication_build_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationBuildStageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Archive Publication",
+        "tags": [
+          "ops-publication-stages"
+        ]
+      }
+    },
     "/ops/operations/archive-publish": {
       "post": {
         "operationId": "publish_archives_ops_operations_archive_publish_post",
@@ -12956,6 +14842,779 @@
         ]
       }
     },
+    "/ops/publish/catalog-destinations": {
+      "get": {
+        "operationId": "list_catalog_destinations_ops_publish_catalog_destinations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogDestinationResponse"
+                  },
+                  "title": "Response List Catalog Destinations Ops Publish Catalog Destinations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Catalog Destinations",
+        "tags": [
+          "ops-publication-config"
+        ]
+      },
+      "post": {
+        "operationId": "create_catalog_destination_ops_publish_catalog_destinations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogDestinationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogDestinationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Catalog Destination",
+        "tags": [
+          "ops-publication-config"
+        ]
+      }
+    },
+    "/ops/publish/connections": {
+      "get": {
+        "operationId": "list_publication_connections_ops_publish_connections_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationConnectionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Publication Connections",
+        "tags": [
+          "ops-publication"
+        ]
+      }
+    },
+    "/ops/publish/cutovers": {
+      "get": {
+        "operationId": "list_publication_cutovers_ops_publish_cutovers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicationCutoverResponse"
+                  },
+                  "title": "Response List Publication Cutovers Ops Publish Cutovers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Publication Cutovers",
+        "tags": [
+          "ops-publication"
+        ]
+      },
+      "post": {
+        "operationId": "prepare_publication_cutover_ops_publish_cutovers_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationCutoverPrepareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCutoverResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prepare Publication Cutover",
+        "tags": [
+          "ops-publication"
+        ]
+      }
+    },
+    "/ops/publish/cutovers/{cutoverId}": {
+      "get": {
+        "operationId": "get_publication_cutover_ops_publish_cutovers__cutoverId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cutoverId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Cutoverid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCutoverResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Publication Cutover",
+        "tags": [
+          "ops-publication"
+        ]
+      }
+    },
+    "/ops/publish/cutovers/{cutoverId}/resume": {
+      "post": {
+        "operationId": "resume_publication_cutover_ops_publish_cutovers__cutoverId__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cutoverId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Cutoverid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCutoverResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Publication Cutover",
+        "tags": [
+          "ops-publication"
+        ]
+      }
+    },
+    "/ops/publish/object-destinations": {
+      "get": {
+        "operationId": "list_object_destinations_ops_publish_object_destinations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ObjectDestinationResponse"
+                  },
+                  "title": "Response List Object Destinations Ops Publish Object Destinations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Object Destinations",
+        "tags": [
+          "ops-publication-config"
+        ]
+      },
+      "post": {
+        "operationId": "create_object_destination_ops_publish_object_destinations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectDestinationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectDestinationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Object Destination",
+        "tags": [
+          "ops-publication-config"
+        ]
+      }
+    },
+    "/ops/publish/profiles": {
+      "get": {
+        "operationId": "list_publish_profiles_ops_publish_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublishProfileSummaryResponse"
+                  },
+                  "title": "Response List Publish Profiles Ops Publish Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Publish Profiles",
+        "tags": [
+          "ops-publication-config"
+        ]
+      },
+      "post": {
+        "operationId": "create_publish_profile_ops_publish_profiles_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishProfileCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishProfileSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Publish Profile",
+        "tags": [
+          "ops-publication-config"
+        ]
+      }
+    },
+    "/ops/publish/profiles/{profileId}": {
+      "get": {
+        "operationId": "get_publish_profile_ops_publish_profiles__profileId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profileId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Profileid",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishProfileDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Publish Profile",
+        "tags": [
+          "ops-publication-config"
+        ]
+      }
+    },
+    "/ops/publish/profiles/{profileId}/revisions": {
+      "post": {
+        "operationId": "create_publish_profile_revision_ops_publish_profiles__profileId__revisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profileId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Profileid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishProfileRevisionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishProfileRevisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Publish Profile Revision",
+        "tags": [
+          "ops-publication-config"
+        ]
+      }
+    },
+    "/ops/publish/profiles/{profileId}/revisions/{revisionId}/activate": {
+      "post": {
+        "operationId": "activate_publish_profile_revision_ops_publish_profiles__profileId__revisions__revisionId__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profileId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Profileid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Revisionid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishProfileRevisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Publish Profile Revision",
+        "tags": [
+          "ops-publication-config"
+        ]
+      }
+    },
+    "/ops/publish/publications": {
+      "get": {
+        "operationId": "list_publications_ops_publish_publications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "streamerId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Streamerid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profileId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Profileid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "publishMode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "prod",
+                    "dev"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Publishmode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "building",
+                    "ready",
+                    "partially_published",
+                    "published",
+                    "failed",
+                    "unavailable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStatusListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Publications",
+        "tags": [
+          "ops-publication"
+        ]
+      }
+    },
     "/ops/schema-graph": {
       "get": {
         "operationId": "get_ops_schema_graph_ops_schema_graph_get",
@@ -13003,6 +15662,19 @@
       },
       "post": {
         "operationId": "create_streamer_ops_streamers_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -13146,6 +15818,17 @@
               "minimum": 1,
               "title": "Streamer Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator-Reason",
+            "required": true,
+            "schema": {
+              "maxLength": 1500,
+              "minLength": 3,
+              "title": "X-Operator-Reason",
+              "type": "string"
             }
           }
         ],

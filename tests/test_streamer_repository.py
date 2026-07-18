@@ -31,7 +31,7 @@ async def _exercise_repositories(database_url: str) -> None:
             streamers = SqlAlchemyStreamerRepository(session)
             channels = SqlAlchemyChannelRepository(session)
 
-            streamer = await streamers.create_streamer(name="Alpha")
+            streamer = await streamers.create_streamer(name="Alpha", publish_profile_id=1)
             assert streamer.id == 1
             assert streamer.name == "Alpha"
             assert await streamers.list_streamers() == [streamer]

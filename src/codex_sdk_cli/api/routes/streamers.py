@@ -32,9 +32,20 @@ router = APIRouter()
 )
 async def create_streamer(
     request: StreamerCreateRequest,
+    reason: OperatorReason,
     use_case: CreateStreamerUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> StreamerResponse:
-    return await use_case.execute(request)
+    response = await use_case.execute(request)
+    await audit.execute(
+        mutation="created",
+        target_type="streamer",
+        target_id=response.id,
+        action="create",
+        reason=reason,
+        metadata={"publishProfileId": response.publish_profile_id},
+    )
+    return response
 
 
 @router.get("/streamers", response_model=list[StreamerResponse])
@@ -54,9 +65,23 @@ async def get_streamer(
 async def update_streamer(
     streamer_id: Annotated[int, Path(ge=1)],
     request: StreamerUpdateRequest,
+    reason: OperatorReason,
     use_case: UpdateStreamerUseCaseDep,
+    audit: RecordOperatorMutationUseCaseDep,
 ) -> StreamerResponse:
-    return await use_case.execute(streamer_id, request)
+    response = await use_case.execute(streamer_id, request)
+    await audit.execute(
+        mutation="updated",
+        target_type="streamer",
+        target_id=streamer_id,
+        action="update",
+        reason=reason,
+        metadata={
+            "publishProfileId": response.publish_profile_id,
+            "publishProfileChanged": request.publish_profile_id is not None,
+        },
+    )
+    return response
 
 
 @router.delete("/streamers/{streamer_id}", response_model=DeleteResponse)

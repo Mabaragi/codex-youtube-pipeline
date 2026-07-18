@@ -7,6 +7,9 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from codex_sdk_cli.api.dependencies import get_channel_repository, get_streamer_repository
+from codex_sdk_cli.api.use_case_dependencies.operation_events import (
+    get_record_operator_mutation_use_case,
+)
 from codex_sdk_cli.domains.channels.exceptions import (
     ChannelAlreadyExists,
     ChannelPersistenceError,
@@ -32,9 +35,18 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         self.next_streamer_id = 1
         self.fail_persistence = False
 
-    async def create_streamer(self, *, name: str) -> StreamerRecord:
+    async def create_streamer(
+        self,
+        *,
+        name: str,
+        publish_profile_id: int = 1,
+    ) -> StreamerRecord:
         self._raise_if_failed()
-        record = StreamerRecord(id=self.next_streamer_id, name=name)
+        record = StreamerRecord(
+            id=self.next_streamer_id,
+            name=name,
+            publish_profile_id=publish_profile_id,
+        )
         self.streamers[record.id] = record
         self.next_streamer_id += 1
         return record
@@ -47,14 +59,36 @@ class FakeStreamerRepository(StreamerRepositoryPort):
         self._raise_if_failed()
         return self.streamers.get(streamer_id)
 
-    async def update_streamer(self, streamer_id: int, *, name: str) -> StreamerRecord | None:
+    async def update_streamer(
+        self,
+        streamer_id: int,
+        *,
+        name: str | None = None,
+        publish_profile_id: int | None = None,
+    ) -> StreamerRecord | None:
         self._raise_if_failed()
         record = self.streamers.get(streamer_id)
         if record is None:
             return None
-        updated = replace(record, name=name)
+        updated = replace(
+            record,
+            name=name if name is not None else record.name,
+            publish_profile_id=(
+                publish_profile_id
+                if publish_profile_id is not None
+                else record.publish_profile_id
+            ),
+        )
         self.streamers[streamer_id] = updated
         return updated
+
+    async def is_publish_profile_active(self, publish_profile_id: int) -> bool:
+        self._raise_if_failed()
+        return publish_profile_id == 1
+
+    async def has_archive_artifacts(self, streamer_id: int) -> bool:
+        self._raise_if_failed()
+        return False
 
     async def delete_streamer(self, streamer_id: int) -> bool:
         self._raise_if_failed()
@@ -176,6 +210,14 @@ class FakeChannelRepository(ChannelRepositoryPort):
             raise ChannelPersistenceError("Channel persistence failed.")
 
 
+class RecordingOperatorAudit:
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    async def execute(self, **event: object) -> None:
+        self.events.append(event)
+
+
 def test_streamer_and_channel_crud_api() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository(streamers)
@@ -186,17 +228,17 @@ def test_streamer_and_channel_crud_api() -> None:
             channels,
             "POST",
             "/streamers",
-            json={"name": " Alpha "},
+            json={"name": " Alpha ", "publishProfileId": 1},
             expected_status=201,
         )
     )
-    assert streamer == {"id": 1, "name": "Alpha"}
+    assert streamer == {"id": 1, "name": "Alpha", "publishProfileId": 1}
     assert asyncio.run(_request(streamers, channels, "GET", "/streamers")) == [streamer]
 
     updated_streamer = asyncio.run(
         _request(streamers, channels, "PATCH", "/streamers/1", json={"name": "Beta"})
     )
-    assert updated_streamer == {"id": 1, "name": "Beta"}
+    assert updated_streamer == {"id": 1, "name": "Beta", "publishProfileId": 1}
 
     channel = asyncio.run(
         _request(
@@ -246,6 +288,65 @@ def test_streamer_and_channel_crud_api() -> None:
     }
 
 
+def test_streamer_profile_mutations_require_reason_and_record_audit() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+    audit = RecordingOperatorAudit()
+
+    missing_reason = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers",
+            json={"name": "Alpha", "publishProfileId": 1},
+            expected_status=422,
+            operator_reason=None,
+            audit=audit,
+        )
+    )
+    assert missing_reason["detail"][0]["loc"][-1] == "X-Operator-Reason"
+
+    created = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers",
+            json={"name": "Alpha", "publishProfileId": 1},
+            expected_status=201,
+            operator_reason="assign publication route",
+            audit=audit,
+        )
+    )
+    asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "PATCH",
+            f"/streamers/{created['id']}",
+            json={"publishProfileId": 1},
+            operator_reason="confirm publication route",
+            audit=audit,
+        )
+    )
+
+    assert [event["mutation"] for event in audit.events] == ["created", "updated"]
+    assert audit.events[0]["metadata"] == {"publishProfileId": 1}
+    assert audit.events[1]["metadata"] == {
+        "publishProfileId": 1,
+        "publishProfileChanged": True,
+    }
+
+
+def test_streamer_mutation_openapi_requires_operator_reason() -> None:
+    schema = create_app().openapi()
+    for method, path in (("post", "/streamers"), ("patch", "/streamers/{streamer_id}")):
+        parameters = schema["paths"][path][method]["parameters"]
+        reason = next(item for item in parameters if item["name"] == "X-Operator-Reason")
+        assert reason["required"] is True
+
+
 def test_streamer_api_maps_not_found_and_delete_conflict() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository(streamers)
@@ -261,7 +362,7 @@ def test_streamer_api_maps_not_found_and_delete_conflict() -> None:
             channels,
             "POST",
             "/streamers",
-            json={"name": "Alpha"},
+            json={"name": "Alpha", "publishProfileId": 1},
             expected_status=201,
         )
     )
@@ -280,6 +381,24 @@ def test_streamer_api_maps_not_found_and_delete_conflict() -> None:
         _request(streamers, channels, "DELETE", "/streamers/1", expected_status=409)
     )
     assert conflict == {"detail": "Streamer has channels and cannot be deleted."}
+
+
+def test_streamer_api_rejects_an_inactive_publish_profile() -> None:
+    streamers = FakeStreamerRepository()
+    channels = FakeChannelRepository(streamers)
+
+    response = asyncio.run(
+        _request(
+            streamers,
+            channels,
+            "POST",
+            "/streamers",
+            json={"name": "Alpha", "publishProfileId": 2},
+            expected_status=404,
+        )
+    )
+
+    assert response == {"detail": "Publish profile does not exist or has no active revision."}
 
 
 def test_channel_api_maps_missing_streamer_to_not_found() -> None:
@@ -311,7 +430,7 @@ def test_streamer_api_maps_persistence_errors() -> None:
             channels,
             "POST",
             "/streamers",
-            json={"name": "Alpha"},
+            json={"name": "Alpha", "publishProfileId": 1},
             expected_status=503,
         )
     )
@@ -322,7 +441,7 @@ def test_streamer_api_maps_persistence_errors() -> None:
 def test_channel_create_reuses_same_streamer_youtube_channel_id() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository(streamers)
-    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha", publish_profile_id=1)
 
     first = asyncio.run(
         _request(
@@ -352,8 +471,8 @@ def test_channel_create_reuses_same_streamer_youtube_channel_id() -> None:
 def test_channel_create_rejects_youtube_channel_id_owned_by_other_streamer() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository(streamers)
-    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha")
-    streamers.streamers[2] = StreamerRecord(id=2, name="Beta")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha", publish_profile_id=1)
+    streamers.streamers[2] = StreamerRecord(id=2, name="Beta", publish_profile_id=1)
 
     asyncio.run(
         _request(
@@ -382,7 +501,7 @@ def test_channel_create_rejects_youtube_channel_id_owned_by_other_streamer() -> 
 def test_channel_patch_rejects_duplicate_youtube_channel_id() -> None:
     streamers = FakeStreamerRepository()
     channels = FakeChannelRepository(streamers)
-    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha")
+    streamers.streamers[1] = StreamerRecord(id=1, name="Alpha", publish_profile_id=1)
 
     asyncio.run(
         _request(
@@ -449,16 +568,28 @@ async def _request(
     *,
     json: dict[str, Any] | None = None,
     expected_status: int = 200,
+    operator_reason: str | None = "legacy regression test",
+    audit: RecordingOperatorAudit | None = None,
 ) -> Any:
     app = create_app()
     app.dependency_overrides[get_streamer_repository] = lambda: streamers
     app.dependency_overrides[get_channel_repository] = lambda: channels
+    app.dependency_overrides[get_record_operator_mutation_use_case] = lambda: (
+        audit or RecordingOperatorAudit()
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
-        headers = {"X-Operator-Reason": "legacy regression test"} if method == "DELETE" else None
+        needs_reason = method == "DELETE" or (
+            path == "/streamers" and method == "POST"
+        ) or (path.startswith("/streamers/") and method == "PATCH")
+        headers = (
+            {"X-Operator-Reason": operator_reason}
+            if needs_reason and operator_reason is not None
+            else None
+        )
         response = await client.request(method, path, json=json, headers=headers)
 
     assert response.status_code == expected_status, response.text

@@ -69,7 +69,7 @@ async def _exercise_repository(database_url: str) -> dict[str, object]:
             transcripts = SqlAlchemyYouTubeTranscriptRepository(session)
             video_tasks = SqlAlchemyVideoTaskRepository(session)
 
-            streamer = await streamers.create_streamer(name="Creator")
+            streamer = await streamers.create_streamer(name="Creator", publish_profile_id=1)
             channel = await channels.create_channel(
                 ChannelCreate(
                     streamer_id=streamer.id,

@@ -20,7 +20,8 @@ operators can use them without private runtime context.
   milestones and remaining domain work. Read when scoping the next pipeline
   capability.
 - [Local native deployment](LOCAL_NATIVE_DEPLOYMENT.md): Home PC setup, local
-  process topology, PostgreSQL, MinIO, and R2 publishing. Read
+  process topology, the control/public-catalog PostgreSQL databases, MinIO, and
+  publication connection registry. Read
   when deploying, starting, or recovering the local runtime.
 - [PostgreSQL local database](POSTGRESQL_LOCAL_DATABASE.md): worker concurrency,
   SQLite migration, persistence, backup, and recovery. Read when changing the
@@ -34,9 +35,12 @@ operators can use them without private runtime context.
   Unit of Work ownership, unified execution model, and compatibility boundary.
 - [Work model cutover](WORK_MODEL_CUTOVER.md): historical offline SQLite rehearsal,
   validation, atomic replacement, rollback, and contract-removal criteria.
-- [Archive publish](ARCHIVE_PUBLISH.md): archive API, object layout, cache
-  policy, and required environment variables. Read when publishing or
-  validating public timeline artifacts.
+- [Archive publish](ARCHIVE_PUBLISH.md): streamer profiles, canonical local
+  artifacts, multi-destination routes, recovery stages, status, and cutover.
+  Read when publishing or validating timeline projections.
+- [Publication data migration](PUBLICATION_MIGRATION.md): offline preparation,
+  canonical/local copy, historical index preservation, catalog replay, resume,
+  and verification. Read before migrating existing archive data.
 - [CI/CD status](CICD.md): current manual GitHub Actions behavior and local
   quality gates. Read when changing verification or deployment automation.
 - [Human learnings](learnings/INDEX.md): public-safe discoveries, debugging

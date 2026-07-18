@@ -30,7 +30,12 @@ async def _exercise_work_repository(database_url: str) -> None:
     now = datetime.now(UTC)
     try:
         async with session_factory() as session:
-            await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Nagi')"))
+            await session.execute(
+                text(
+                    "INSERT INTO streamers(id, name, publish_profile_id) "
+                    "VALUES (1, 'Nagi', 1)"
+                )
+            )
             await session.execute(
                 text(
                     "INSERT INTO channels(id, streamer_id, handle, name) "
@@ -179,7 +184,12 @@ async def _exercise_current_work_video_task_adapter(database_path: Path) -> None
     now = datetime.now(UTC)
     try:
         async with session_factory() as session:
-            await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Nagi')"))
+            await session.execute(
+                text(
+                    "INSERT INTO streamers(id, name, publish_profile_id) "
+                    "VALUES (1, 'Nagi', 1)"
+                )
+            )
             await session.execute(
                 text(
                     "INSERT INTO channels(id, streamer_id, handle, name) "

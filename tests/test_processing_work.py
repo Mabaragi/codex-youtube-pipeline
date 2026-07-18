@@ -244,7 +244,12 @@ async def _create_succeeded_cue_work(
 
 async def _insert_video_and_transcript(session_factory) -> None:
     async with session_factory() as session:
-        await session.execute(text("INSERT INTO streamers(id, name) VALUES (1, 'Nagi')"))
+        await session.execute(
+            text(
+                "INSERT INTO streamers(id, name, publish_profile_id) "
+                "VALUES (1, 'Nagi', 1)"
+            )
+        )
         await session.execute(
             text(
                 "INSERT INTO channels(id, streamer_id, handle, name) VALUES (1, 1, '@nagi', 'Nagi')"

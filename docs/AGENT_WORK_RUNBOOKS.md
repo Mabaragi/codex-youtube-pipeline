@@ -12,7 +12,8 @@ They are designed for agents that have not explored the repository.
 5. For a failed step, read its `workItemId`, then inspect
    `GET /ops/work-items/{workItemId}` and
    `GET /ops/events?workItemId={workItemId}`.
-6. Report artifact URLs from the workflow output or archive read model.
+6. Report the publication ID, primary URL, and destination status from the
+   workflow output and publication read model.
 
 Do not manually enqueue every downstream step when the requested behavior is
 the standard transcript -> cue -> micro-event -> timeline -> archive flow.
@@ -79,14 +80,41 @@ to cue generation without creating ASR work.
 ## Publish Existing Timeline
 
 1. Confirm `GET /ops/videos/{videoId}/timelines/latest` succeeds.
-2. Call `POST /ops/operations/archive-publish` with a selected-video selection.
-3. Use `rerunSucceeded=true` only to publish a new immutable artifact version.
-4. Verify the returned work item and its latest attempt are both `succeeded`.
-5. Verify `GET /ops/archive/current` and `GET /ops/archive/videos`; the latest
-   artifact must have no public catalog sync error.
-6. Fetch the returned R2 URL as UTF-8 JSON and verify counts and video identity.
+2. Confirm the streamer's publish profile has an active revision and a route for
+   the requested `publishMode` and `environment`.
+3. Call `POST /ops/operations/archive-publish` with a selected-video selection.
+4. Use `rerunSucceeded=true` only when the source timeline should produce a new
+   immutable artifact version.
+5. Verify the returned work item and its latest attempt are both `succeeded` or
+   that an optional-destination failure is reported as `succeededWithWarnings`.
+6. Query `GET /ops/publish/publications` with the streamer/profile/mode/
+   environment filters and inspect each destination's index, pointer, and error.
+7. Fetch the returned primary timeline URL as UTF-8 JSON and verify counts and
+   video identity. Do not assume the primary object service is a specific vendor.
 
 Archive publish is inline; there is no archive worker.
+
+For stage recovery, use the explicit endpoints in predecessor order:
+
+```text
+POST /ops/operations/archive-artifact-build
+POST /ops/operations/archive-object-deliver
+POST /ops/operations/archive-catalog-publish
+POST /ops/operations/archive-publication-build
+POST /ops/operations/archive-pointer-publish
+```
+
+Stages after artifact build require artifact IDs, the snapshotted profile
+revision, mode, and environment. A 409 response lists missing predecessors and
+does not execute them implicitly. Successful checkpoints are reused, so retry
+only the failed stage; for example, an index-success/pointer-failure case should
+retry pointer publication only. Required failures fail the operation, while
+optional failures complete with warnings.
+
+Do not directly edit the profile on a streamer that already has published
+artifacts. Prepare and resume `/ops/publish/cutovers`; it records each step and
+orders target pointer, DB assignment, source index rebuild, and source pointer.
+See [Archive publish](ARCHIVE_PUBLISH.md) for the complete contract.
 
 If the API reports a work-state transition error after an artifact was written,
 stop automatic retries. An artifact proves data-plane output, not a consistent

@@ -161,7 +161,7 @@ async def _exercise_repository(database_file: Path):
         session_factory = create_session_factory(engine)
         async with session_factory() as session:
             now = datetime.now(UTC)
-            streamer = StreamerModel(name="Streamer")
+            streamer = StreamerModel(name="Streamer", publish_profile_id=1)
             session.add(streamer)
             await session.flush()
             channel = ChannelModel(

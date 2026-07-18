@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "connections": {
+    "local-artifact-store": {
+      "kind": "s3_compatible_object",
+      "endpoint": "127.0.0.1:9000",
+      "accessKey": "CHANGE_ME_MINIO_ACCESS_KEY",
+      "secretKey": "CHANGE_ME_MINIO_SECRET",
+      "bucket": "archive-artifacts",
+      "secure": false,
+      "region": "auto",
+      "publicBaseUrl": "http://127.0.0.1:9000/archive-artifacts"
+    },
+    "local-publication-staging": {
+      "kind": "s3_compatible_object",
+      "endpoint": "127.0.0.1:9000",
+      "accessKey": "CHANGE_ME_MINIO_ACCESS_KEY",
+      "secretKey": "CHANGE_ME_MINIO_SECRET",
+      "bucket": "archive-publication-staging",
+      "secure": false,
+      "region": "auto",
+      "publicBaseUrl": "http://127.0.0.1:9000/archive-publication-staging"
+    },
+    "local-public-object": {
+      "kind": "s3_compatible_object",
+      "endpoint": "127.0.0.1:9000",
+      "accessKey": "CHANGE_ME_MINIO_ACCESS_KEY",
+      "secretKey": "CHANGE_ME_MINIO_SECRET",
+      "bucket": "archive-public",
+      "secure": false,
+      "region": "auto",
+      "publicBaseUrl": "http://127.0.0.1:9000/archive-public"
+    },
+    "local-public-catalog": {
+      "kind": "sql_catalog",
+      "databaseUrl": "postgresql+asyncpg://codex:CHANGE_ME_POSTGRES_PASSWORD@127.0.0.1:5432/codex_public_catalog",
+      "echo": false
+    },
+    "legacy-remote-object": {
+      "kind": "s3_compatible_object",
+      "endpoint": "https://OBJECT_ENDPOINT.example",
+      "accessKey": "CHANGE_ME_REMOTE_ACCESS_KEY",
+      "secretKey": "CHANGE_ME_REMOTE_SECRET",
+      "bucket": "CHANGE_ME_REMOTE_BUCKET",
+      "secure": true,
+      "region": "auto",
+      "publicBaseUrl": "https://cdn.example"
+    },
+    "legacy-dev-remote-object": {
+      "kind": "s3_compatible_object",
+      "endpoint": "https://DEV_OBJECT_ENDPOINT.example",
+      "accessKey": "CHANGE_ME_DEV_REMOTE_ACCESS_KEY",
+      "secretKey": "CHANGE_ME_DEV_REMOTE_SECRET",
+      "bucket": "CHANGE_ME_DEV_REMOTE_BUCKET",
+      "secure": true,
+      "region": "auto",
+      "publicBaseUrl": "https://dev-cdn.example"
+    },
+    "legacy-remote-catalog": {
+      "kind": "http_catalog",
+      "url": "https://catalog.example/api/admin/archive/videos/upsert",
+      "token": "CHANGE_ME_REMOTE_CATALOG_TOKEN",
+      "timeoutSeconds": 15
+    }
+  }
+}

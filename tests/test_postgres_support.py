@@ -6,6 +6,9 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from codex_sdk_cli.infra.publication_config.repository import (
+    _profile_for_activation_statement,
+)
 from codex_sdk_cli.infra.work.item_repository import _claim_candidate_query
 from codex_sdk_cli.infra.work.runtime_gate import _runtime_state_statement
 from codex_sdk_cli.infra.youtube_transcripts.repository import (
@@ -28,6 +31,18 @@ def test_postgres_claim_uses_skip_locked() -> None:
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "FOR UPDATE SKIP LOCKED" in compiled
+
+
+def test_publish_profile_activation_locks_the_profile_row() -> None:
+    compiled = str(
+        _profile_for_activation_statement(7).compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+
+    assert "publish_profiles.id = 7" in compiled
+    assert compiled.endswith("FOR UPDATE")
 
 
 def test_postgres_runtime_gate_holds_state_until_claim_commits() -> None:
@@ -62,7 +77,7 @@ def test_postgres_migration_normalizes_dsn_and_timestamp() -> None:
         == "postgresql://codex:secret@127.0.0.1:5432/codex"
     )
     assert _datetime("2026-07-12T00:00:00", timezone=True) == datetime(2026, 7, 12, tzinfo=UTC)
-    assert _expected_alembic_head() == "20260714_0030"
+    assert _expected_alembic_head() == "20260718_0034"
 
 
 def test_sqlite_migration_blocks_foreign_key_debt_unless_explicit() -> None:

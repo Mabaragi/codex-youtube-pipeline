@@ -11,13 +11,23 @@
    events, exclusions, corrections, warnings, and repair history.
 6. `timeline_compose` merges micro-events into blocks, episodes, topic clusters,
    review flags, and user-facing copy.
-7. `archive_publish` writes immutable R2 artifacts and syncs the public D1
-   catalog when configured.
+7. `archive_publish` writes the canonical artifact to private local MinIO, then
+   publishes timeline/catalog/index/pointer projections through the active
+   profile assigned to the video's streamer.
 
 `process_to_publish` v2 treats `no_transcript` as a branch rather than a
 workflow failure. It waits until the configured grace deadline, checks YouTube
 once more, and then creates `asr_transcribe` when captions are still absent.
 ASR output rejoins the common cue, micro-event, timeline, and archive stages.
+The archive step remains inline; its reusable recovery stages are not registered
+as background workers.
+
+Publication profiles have immutable active revisions and routes scoped by
+`(publishMode, environment)`. Each route can bind multiple local or remote
+object/catalog destinations. A catalog binding uses its paired object delivery's
+timeline URL, and destination-specific indices and pointers prevent membership
+from leaking across profiles. See [Archive publish](ARCHIVE_PUBLISH.md) for the
+stage and checkpoint rules.
 
 ## Work Lifecycle
 

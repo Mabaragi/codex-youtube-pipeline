@@ -5,10 +5,12 @@ from inspect import isawaitable
 from typing import Annotated, Any, cast
 
 from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from codex_sdk_cli.api.dependencies import (
     ArchivePublishRepositoryDep,
     ChannelRepositoryDep,
+    DatabaseSessionDep,
     DomainKnowledgeRepositoryDep,
     LlmTraceRecorderDep,
     MicroEventExtractionRepositoryDep,
@@ -27,13 +29,10 @@ from codex_sdk_cli.api.dependencies import (
     get_youtube_transcript_client,
     get_youtube_transcript_storage,
 )
-from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
-    archive_publish_storage_factory,
-)
 from codex_sdk_cli.api.use_case_dependencies.prompts import PromptResolverDep
+from codex_sdk_cli.bootstrap.archive import archive_publish_use_case
 from codex_sdk_cli.domains.archive_publish.constants import ARCHIVE_PUBLISH_TASK_NAME
 from codex_sdk_cli.domains.archive_publish.ports import ArchivePublishRepositoryPort
-from codex_sdk_cli.domains.archive_publish.use_cases import ArchivePublishUseCase
 from codex_sdk_cli.domains.channels.ports import ChannelRepositoryPort
 from codex_sdk_cli.domains.channels.use_cases import ResolveYouTubeChannelUseCase
 from codex_sdk_cli.domains.domain_knowledge.ports import DomainKnowledgeRepositoryPort
@@ -153,6 +152,7 @@ def get_generate_transcript_cues_use_case_factory(
 
 
 def get_retry_pipeline_job_use_case(
+    session: DatabaseSessionDep,
     pipeline_jobs: PipelineJobRepositoryDep,
     client: YouTubeDataClientDep,
     channels: ChannelRepositoryDep,
@@ -242,6 +242,7 @@ def get_retry_pipeline_job_use_case(
                 llm_traces=llm_traces,
             ),
             ARCHIVE_PUBLISH_TASK_NAME: _LazyArchivePublishRetryExecutor(
+                session=session,
                 videos=videos,
                 video_tasks=video_tasks,
                 timelines=timelines,
@@ -478,6 +479,7 @@ class _LazyArchivePublishRetryExecutor(PipelineRetryExecutor):
     def __init__(
         self,
         *,
+        session: AsyncSession,
         videos: VideoRepositoryPort,
         video_tasks: VideoTaskRepositoryPort,
         timelines: TimelineCompositionRepositoryPort,
@@ -488,6 +490,7 @@ class _LazyArchivePublishRetryExecutor(PipelineRetryExecutor):
         settings: CliSettings,
         events: OperationEventRecorderPort,
     ) -> None:
+        self._session = session
         self._videos = videos
         self._video_tasks = video_tasks
         self._timelines = timelines
@@ -503,35 +506,11 @@ class _LazyArchivePublishRetryExecutor(PipelineRetryExecutor):
         job: PipelineJobRecord,
         attempt: PipelineJobAttemptRecord,
     ) -> JsonObject:
-        use_case = ArchivePublishUseCase(
-            videos=self._videos,
+        use_case = archive_publish_use_case(
+            self._session,
+            self._settings,
             video_tasks=self._video_tasks,
-            timelines=self._timelines,
-            micro_events=self._micro_events,
-            transcript_cues=self._transcript_cues,
             pipeline_jobs=self._pipeline_jobs,
-            archive=self._archive,
-            events=self._events,
-            timeout_seconds=self._settings.archive_publish_timeout_seconds,
-            public_base_url=self._settings.archive_publish_public_base_url,
-            prefix=self._settings.archive_publish_prefix,
-            default_environment=self._settings.archive_publish_environment,
-            default_schema_version=1,
-            storage_factory=archive_publish_storage_factory(self._settings),
-            storage_bucket=self._settings.archive_publish_r2_bucket,
-            storage_endpoint=self._settings.archive_publish_r2_endpoint,
-            dev_public_base_url=self._settings.archive_publish_dev_public_base_url,
-            dev_prefix=self._settings.archive_publish_dev_prefix,
-            dev_default_environment=self._settings.archive_publish_dev_environment,
-            dev_storage_factory=archive_publish_storage_factory(
-                self._settings,
-                publish_mode="dev",
-            ),
-            dev_storage_bucket=self._settings.archive_publish_dev_r2_bucket,
-            dev_storage_endpoint=(
-                self._settings.archive_publish_dev_r2_endpoint
-                or self._settings.archive_publish_r2_endpoint
-            ),
         )
         return await use_case.execute_retry_job_attempt(job, attempt)
 
