@@ -128,6 +128,7 @@ def test_process_inventory_validates_identity_without_exposing_sensitive_values(
     assert items["micro-event-worker"].state == "stale_pid"
     assert items["workflow-coordinator"].state == "identity_mismatch"
     assert items["pipeline-scheduler"].state == "unreadable"
+    assert items["video-availability-worker"].state == "stopped"
     assert items["ops-ui"].state == "stopped"
     serialized = repr(inventory)
     assert "secret-token" not in serialized

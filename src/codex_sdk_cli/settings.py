@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from openai_codex import CodexConfig
 from pydantic import SecretStr, field_validator
@@ -26,6 +27,7 @@ class CliSettings(BaseSettings):
     sandbox: SandboxChoice = "workspace-write"
     approval: ApprovalChoice = "auto-review"
     codex_bin: Path | None = None
+    codex_config_overrides: tuple[str, ...] = ()
     api_key: SecretStr | None = None
     youtube_http_proxy: str | None = None
     youtube_https_proxy: str | None = None
@@ -46,6 +48,9 @@ class CliSettings(BaseSettings):
     pipeline_scheduler_no_transcript_recheck_interval_seconds: int = 604800
     pipeline_scheduler_no_transcript_limit: int = 2
     pipeline_scheduler_workflow_limit: int = 12
+    pipeline_scheduler_daily_workflow_limit: int = 40
+    pipeline_scheduler_channel_daily_minimum: int = 2
+    pipeline_scheduler_quota_timezone: str = "Asia/Seoul"
     pipeline_scheduler_transcript_fallback_grace_seconds: int = 21600
     pipeline_scheduler_transcript_recheck_interval_seconds: int = 1800
     pipeline_scheduler_id: str | None = None
@@ -97,9 +102,19 @@ class CliSettings(BaseSettings):
     archive_public_catalog_sync_token: SecretStr | None = None
     archive_public_catalog_sync_enabled: bool = True
     archive_public_catalog_sync_timeout_seconds: float = 15.0
+    archive_video_availability_enabled: bool = False
+    archive_video_availability_api_base_url: str | None = None
+    archive_video_availability_admin_token: SecretStr | None = None
+    archive_video_availability_timeout_seconds: float = 15.0
+    archive_video_availability_poll_interval_seconds: int = 5
+    archive_video_availability_claim_limit: int = 50
+    archive_video_availability_lease_seconds: int = 120
+    archive_video_availability_cleanup_interval_seconds: int = 86400
+    archive_video_availability_worker_id: str | None = None
     publish_connections_file: Path | None = Path(
         ".home-deploy/publish-connections.json"
     )
+    evaluation_connections_file: Path = Path(".home-deploy/evaluation-connections.json")
     publication_artifact_store_ref: str = "local-artifact-store"
     publication_staging_store_ref: str = "local-publication-staging"
     prompt_cache_ttl_seconds: int = 60
@@ -144,6 +159,9 @@ class CliSettings(BaseSettings):
         "archive_publish_dev_public_base_url",
         "archive_public_catalog_sync_url",
         "archive_public_catalog_sync_token",
+        "archive_video_availability_api_base_url",
+        "archive_video_availability_admin_token",
+        "archive_video_availability_worker_id",
         "publish_connections_file",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
@@ -182,6 +200,13 @@ class CliSettings(BaseSettings):
             return DEFAULT_DATABASE_URL
         return value
 
+    @field_validator("evaluation_connections_file", mode="before")
+    @classmethod
+    def _blank_evaluation_connections_file_to_default(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return Path(".home-deploy/evaluation-connections.json")
+        return value
+
     @field_validator(
         "transcript_collect_timeout_seconds",
         "transcript_collect_concurrency_limit",
@@ -191,6 +216,8 @@ class CliSettings(BaseSettings):
         "pipeline_scheduler_transcript_limit",
         "pipeline_scheduler_no_transcript_recheck_interval_seconds",
         "pipeline_scheduler_no_transcript_limit",
+        "pipeline_scheduler_daily_workflow_limit",
+        "pipeline_scheduler_channel_daily_minimum",
         "pipeline_scheduler_transcript_fallback_grace_seconds",
         "pipeline_scheduler_transcript_recheck_interval_seconds",
         "pipeline_scheduler_workflow_limit",
@@ -212,12 +239,33 @@ class CliSettings(BaseSettings):
         "llm_trace_retention_days",
         "archive_publish_timeout_seconds",
         "prompt_cache_ttl_seconds",
+        "archive_video_availability_poll_interval_seconds",
+        "archive_video_availability_claim_limit",
+        "archive_video_availability_lease_seconds",
+        "archive_video_availability_cleanup_interval_seconds",
     )
     @classmethod
     def _positive_int(cls, value: int) -> int:
         if value < 1:
             raise ValueError("value must be greater than or equal to 1")
         return value
+
+    @field_validator("archive_video_availability_claim_limit")
+    @classmethod
+    def _availability_claim_limit(cls, value: int) -> int:
+        if value > 50:
+            raise ValueError("value must be less than or equal to 50")
+        return value
+
+    @field_validator("pipeline_scheduler_quota_timezone")
+    @classmethod
+    def _valid_timezone(cls, value: str) -> str:
+        timezone = value.strip()
+        try:
+            ZoneInfo(timezone)
+        except (ValueError, ZoneInfoNotFoundError) as error:
+            raise ValueError("value must be a valid IANA timezone") from error
+        return timezone
 
     @field_validator("transcript_collect_delay_seconds")
     @classmethod
@@ -226,7 +274,10 @@ class CliSettings(BaseSettings):
             raise ValueError("value must be greater than or equal to 0")
         return value
 
-    @field_validator("archive_public_catalog_sync_timeout_seconds")
+    @field_validator(
+        "archive_public_catalog_sync_timeout_seconds",
+        "archive_video_availability_timeout_seconds",
+    )
     @classmethod
     def _positive_float(cls, value: float) -> float:
         if value <= 0:
@@ -234,7 +285,10 @@ class CliSettings(BaseSettings):
         return value
 
     def codex_config(self) -> CodexConfig:
-        return CodexConfig(codex_bin=str(self.codex_bin) if self.codex_bin else None)
+        return CodexConfig(
+            codex_bin=str(self.codex_bin) if self.codex_bin else None,
+            config_overrides=self.codex_config_overrides,
+        )
 
     def api_key_value(self) -> str | None:
         if self.api_key is None:
@@ -245,3 +299,12 @@ class CliSettings(BaseSettings):
         if self.youtube_data_api_key is None:
             return None
         return self.youtube_data_api_key.get_secret_value()
+
+    def archive_video_availability_admin_token_value(self) -> str | None:
+        token = (
+            self.archive_video_availability_admin_token
+            or self.archive_public_catalog_sync_token
+        )
+        if token is None:
+            return None
+        return token.get_secret_value()

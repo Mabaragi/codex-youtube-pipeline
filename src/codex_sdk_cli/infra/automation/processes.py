@@ -48,6 +48,11 @@ _MANAGED_PROCESSES = (
     ManagedProcessDefinition(
         "pipeline-scheduler", "scheduler", "codex_sdk_cli.workers.pipeline_scheduler"
     ),
+    ManagedProcessDefinition(
+        "video-availability-worker",
+        "worker",
+        "codex_sdk_cli.workers.video_availability",
+    ),
     ManagedProcessDefinition("ops-ui", "ui", "ops-ui"),
 )
 

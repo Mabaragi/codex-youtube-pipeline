@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,7 @@ def test_new_work_paths_are_exported() -> None:
 
 async def _exercise_work_api(database_url: str) -> None:
     await _insert_video(database_url)
+    await _insert_legacy_micro_event_items(database_url)
     async with AsyncClient(
         transport=ASGITransport(app=create_app()),
         base_url="http://testserver",
@@ -144,6 +146,50 @@ async def _exercise_work_api(database_url: str) -> None:
             "youtube_transcript_metadata_not_found"
         )
 
+        superseded = await client.post("/ops/work-items/100/retry", json={})
+        assert superseded.status_code == 409
+        assert superseded.json() == {
+            "error": {
+                "code": "work_item.retry_superseded",
+                "message": "A newer succeeded work item already replaces this work item.",
+                "details": {"workItemId": 100, "replacementWorkItemId": 101},
+            }
+        }
+
+        incomplete = await client.post("/ops/work-items/102/retry", json={})
+        assert incomplete.status_code == 409
+        assert incomplete.json()["error"] == {
+            "code": "work_item.retry_input_unavailable",
+            "message": "The stored work input is incomplete and cannot be retried safely.",
+            "details": {
+                "workItemId": 102,
+                "invalidFields": [
+                    "videoId",
+                    "transcriptId",
+                    "windowMinutes",
+                    "overlapMinutes",
+                    "model",
+                    "reasoningEffort",
+                ],
+            },
+        }
+        unchanged = await client.get("/ops/work-items/102")
+        assert unchanged.json()["status"] == "failed"
+
+        complete = await client.post("/ops/work-items/103/retry", json={})
+        assert complete.status_code == 200
+        assert complete.json()["status"] == "pending"
+
+        distinct_input = await client.post("/ops/work-items/105/retry", json={})
+        assert distinct_input.status_code == 200
+        assert distinct_input.json()["status"] == "pending"
+
+        resumed_workflow = await client.get("/ops/workflows/200")
+        assert resumed_workflow.status_code == 200
+        assert resumed_workflow.json()["status"] == "pending"
+        assert resumed_workflow.json()["currentStage"] is None
+        assert resumed_workflow.json()["errorCode"] is None
+
 
 async def _insert_video(database_url: str) -> None:
     engine = create_database_engine(database_url)
@@ -167,7 +213,112 @@ async def _insert_video(database_url: str) -> None:
                     "INSERT INTO videos(id, channel_id, youtube_video_id, title, "
                     "description, published_at, is_embeddable) VALUES "
                     "(1, 1, 'abcdefghijk', 'Test', '', "
-                    "'2026-07-01T00:00:00+00:00', 1)"
+                    "'2026-07-01T00:00:00+00:00', 1), "
+                    "(2, 1, 'lmnopqrstuv', 'Test 2', '', "
+                    "'2026-07-02T00:00:00+00:00', 1), "
+                    "(3, 1, 'wxyzabcdefg', 'Test 3', '', "
+                    "'2026-07-03T00:00:00+00:00', 1)"
+                )
+            )
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+
+async def _insert_legacy_micro_event_items(database_url: str) -> None:
+    engine = create_database_engine(database_url)
+    session_factory = create_session_factory(engine)
+    try:
+        async with session_factory() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO work_items("
+                    "id, task_type, subject_type, subject_id, external_key, task_version, "
+                    "input_hash, idempotency_key, execution_mode, status, priority, "
+                    "timeout_seconds, input_json) VALUES "
+                    "(100, 'micro_event_extract', 'video', 1, 'abcdefghijk', 'v1', "
+                    "'legacy-failed', 'legacy:video_task:100', 'worker', 'failed', 0, 3600, '{}'), "
+                    "(101, 'micro_event_extract', 'video', 1, 'abcdefghijk', 'v2', "
+                    "'replacement-success', 'legacy:video_task:101', 'worker', "
+                    "'succeeded', 0, 3600, '{}'), "
+                    "(102, 'micro_event_extract', 'video', 2, 'lmnopqrstuv', 'v1', "
+                    "'legacy-incomplete', 'legacy:video_task:102', 'worker', "
+                    "'failed', 0, 3600, '{}')"
+                )
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO work_items("
+                    "id, task_type, subject_type, subject_id, external_key, task_version, "
+                    "input_hash, idempotency_key, execution_mode, status, priority, "
+                    "timeout_seconds, input_json) VALUES "
+                    "(103, 'micro_event_extract', 'video', 2, 'lmnopqrstuv', 'v2', "
+                    "'complete-retry', 'micro:complete-retry', 'worker', "
+                    "'failed', 0, 3600, :input_json)"
+                ),
+                {
+                    "input_json": json.dumps(
+                        {
+                            "videoId": 2,
+                            "transcriptId": 2,
+                            "windowMinutes": 30,
+                            "overlapMinutes": 5,
+                            "model": "gpt-5.6-sol",
+                            "reasoningEffort": "high",
+                        }
+                    )
+                },
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO work_items("
+                    "id, task_type, subject_type, subject_id, external_key, task_version, "
+                    "input_hash, idempotency_key, execution_mode, status, priority, "
+                    "timeout_seconds, input_json) VALUES "
+                    "(105, 'micro_event_extract', 'video', 3, 'wxyzabcdefg', 'v2', "
+                    "'retry-this-input', 'micro:retry-this-input', 'worker', "
+                    "'failed', 0, 3600, :failed_input), "
+                    "(106, 'micro_event_extract', 'video', 3, 'wxyzabcdefg', 'v2', "
+                    "'different-success', 'micro:different-success', 'worker', "
+                    "'succeeded', 0, 3600, :success_input)"
+                ),
+                {
+                    "failed_input": json.dumps(
+                        {
+                            "videoId": 3,
+                            "transcriptId": 3,
+                            "windowMinutes": 30,
+                            "overlapMinutes": 5,
+                            "model": "gpt-5.6-sol",
+                            "reasoningEffort": "high",
+                        }
+                    ),
+                    "success_input": json.dumps(
+                        {
+                            "videoId": 3,
+                            "transcriptId": 3,
+                            "windowMinutes": 20,
+                            "overlapMinutes": 2,
+                            "model": "gpt-5.6-sol",
+                            "reasoningEffort": "medium",
+                        }
+                    ),
+                },
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO workflow_runs("
+                    "id, workflow_type, workflow_version, video_id, input_hash, status, "
+                    "current_stage, options_json, error_code, error_message) VALUES "
+                    "(200, 'process_to_publish', 'v2', 2, 'linked-complete-retry', "
+                    "'failed', NULL, '{}', 'work.execution_failed', 'micro failed')"
+                )
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO workflow_steps("
+                    "id, workflow_run_id, stage_name, position, work_item_id, status) VALUES "
+                    "(200, 200, 'micro_event_extract', 4, 103, 'failed')"
                 )
             )
             await session.commit()

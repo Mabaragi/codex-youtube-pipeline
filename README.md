@@ -52,8 +52,10 @@ OpenAPI is available at `http://127.0.0.1:8000/docs`.
 $body = @{
   selection = @{ type = "selected"; videoIds = @(1, 2) }
   retryFailed = $true
-  microReasoningEffort = "medium"
-  timelineReasoningEffort = "high"
+  microModel = "gpt-5.6-sol"
+  microReasoningEffort = "high"
+  timelineModel = "gpt-5.6-luna"
+  timelineReasoningEffort = "xhigh"
   publishMode = "prod"
   environment = "prod"
   variant = "control"

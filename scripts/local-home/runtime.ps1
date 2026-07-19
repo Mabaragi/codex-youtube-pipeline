@@ -26,6 +26,7 @@ $script:ManagedProcessNames = @(
     "transcript-cue-worker",
     "asr-worker",
     "pipeline-scheduler",
+    "video-availability-worker",
     "pipeline-supervisor",
     "timeline-compose-worker",
     "workflow-coordinator",
@@ -49,6 +50,10 @@ function Enter-RuntimeLock {
 
 function Test-ApiHealth {
     return Test-LocalHttp "$script:ApiBaseUrl/health" '"status"\s*:\s*"ok"'
+}
+
+function Test-VideoAvailabilityWorkerEnabled {
+    return $env:CODEX_CLI_ARCHIVE_VIDEO_AVAILABILITY_ENABLED -match "^(?i:true|1|yes|on)$"
 }
 
 function Wait-ApiHealth {
@@ -231,6 +236,12 @@ function Start-WorkerProcesses {
         "-c",
         '"from codex_sdk_cli.workers.workflow_coordinator import run; run()"'
     )
+    if (Test-VideoAvailabilityWorkerEnabled) {
+        Start-LoggedProcess "video-availability-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+            "-m",
+            "codex_sdk_cli.workers.video_availability"
+        )
+    }
 }
 
 function Start-SchedulerProcess {
@@ -289,6 +300,9 @@ function Start-Runtime {
         "timeline-compose-worker",
         "workflow-coordinator"
     )
+    if (Test-VideoAvailabilityWorkerEnabled) {
+        Assert-ProcessStarted @("video-availability-worker")
+    }
 
     if ($before.runtime.state -eq "stopped" -and -not $KeepPaused) {
         Invoke-RuntimeTransition `
@@ -305,6 +319,7 @@ function Start-Runtime {
 
 function Stop-NativeRuntime {
     Stop-ManagedProcess "pipeline-scheduler"
+    Stop-ManagedProcess "video-availability-worker"
     Stop-ManagedProcess "workflow-coordinator"
     Stop-ManagedProcess "timeline-compose-worker"
     Stop-ManagedProcess "transcript-cue-worker"

@@ -18,6 +18,10 @@ from codex_sdk_cli.application.operations.selection import (
 )
 from codex_sdk_cli.application.workflows.models import WorkflowBatchResult
 from codex_sdk_cli.domains.codex.choices import (
+    DEFAULT_MICRO_EVENT_MODEL,
+    DEFAULT_MICRO_EVENT_REASONING_EFFORT,
+    DEFAULT_TIMELINE_MODEL,
+    DEFAULT_TIMELINE_REASONING_EFFORT,
     CodexModelChoice,
     ReasoningEffortChoice,
 )
@@ -118,9 +122,9 @@ class MicroEventOperationRequest(BaseModel):
     selection: VideoSelectionRequest
     window_minutes: int = Field(default=30, alias="windowMinutes", ge=1, le=240)
     overlap_minutes: int = Field(default=5, alias="overlapMinutes", ge=0, le=239)
-    model: CodexModelChoice = "gpt-5.5"
+    model: CodexModelChoice = DEFAULT_MICRO_EVENT_MODEL
     reasoning_effort: ReasoningEffortChoice = Field(
-        default="medium",
+        default=DEFAULT_MICRO_EVENT_REASONING_EFFORT,
         alias="reasoningEffort",
     )
     prompt_version_id: int | None = Field(default=None, alias="promptVersionId", ge=1)
@@ -140,9 +144,9 @@ class MicroEventOperationRequest(BaseModel):
 
 class TimelineOperationRequest(BaseModel):
     selection: VideoSelectionRequest
-    model: CodexModelChoice = "gpt-5.5"
+    model: CodexModelChoice = DEFAULT_TIMELINE_MODEL
     reasoning_effort: ReasoningEffortChoice = Field(
-        default="high",
+        default=DEFAULT_TIMELINE_REASONING_EFFORT,
         alias="reasoningEffort",
     )
     copy_style: Annotated[CopyStyle, Field(alias="copyStyle")] = "LIGHT_FANDOM_V1"
@@ -182,17 +186,21 @@ class ProcessToPublishOperationRequest(BaseModel):
     preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
     micro_window_minutes: int = Field(default=30, alias="microWindowMinutes", ge=1, le=240)
     micro_overlap_minutes: int = Field(default=5, alias="microOverlapMinutes", ge=0, le=239)
-    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = "gpt-5.6-sol"
+    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = (
+        DEFAULT_MICRO_EVENT_MODEL
+    )
     micro_reasoning_effort: ReasoningEffortChoice = Field(
-        default="medium",
+        default=DEFAULT_MICRO_EVENT_REASONING_EFFORT,
         alias="microReasoningEffort",
     )
     micro_prompt_version_id: int | None = Field(
         default=None, alias="microPromptVersionId", ge=1
     )
-    timeline_model: Annotated[CodexModelChoice, Field(alias="timelineModel")] = "gpt-5.6-sol"
+    timeline_model: Annotated[CodexModelChoice, Field(alias="timelineModel")] = (
+        DEFAULT_TIMELINE_MODEL
+    )
     timeline_reasoning_effort: ReasoningEffortChoice = Field(
-        default="medium",
+        default=DEFAULT_TIMELINE_REASONING_EFFORT,
         alias="timelineReasoningEffort",
     )
     timeline_prompt_version_id: int | None = Field(

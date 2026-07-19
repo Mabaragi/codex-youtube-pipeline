@@ -13,11 +13,12 @@ dependencies = [
     "faster-whisper>=1.1,<2",
     "httpx>=0.27,<1",
     "minio>=7.2,<8",
-    "openai-codex>=0.1.0b3,<0.2",
+    "openai-codex>=0.144.4,<0.145",
     "pydantic-settings>=2.2",
     "psutil>=7.0,<8",
     "sqlalchemy[asyncio]>=2.0,<3",
     "structlog>=26.1,<27",
+    "tzdata>=2025.2",
     "typing-extensions>=4.12",
     "uvicorn[standard]>=0.30",
     "youtube-transcript-api>=1.2.4,<2",
@@ -33,6 +34,7 @@ codex-pipeline-supervisor = "codex_sdk_cli.workers.pipeline_supervisor:run"
 codex-timeline-compose-worker = "codex_sdk_cli.workers.timelines:run"
 codex-transcript-worker = "codex_sdk_cli.workers.transcripts:run_transcript"
 codex-transcript-cue-worker = "codex_sdk_cli.workers.transcripts:run_transcript_cue"
+codex-video-availability-worker = "codex_sdk_cli.workers.video_availability:run"
 codex-workflow-coordinator = "codex_sdk_cli.workers.workflow_coordinator:run"
 
 [dependency-groups]

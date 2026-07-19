@@ -1847,6 +1847,7 @@ export interface components {
         AutomationStatusResponse: {
             /** Backfillstartedat */
             backfillStartedAt: string | null;
+            dailyVideoQuota: components["schemas"]["DailyVideoQuotaResponse"];
             dataIntegrity: components["schemas"]["AutomationDataIntegrityResponse"];
             /** Mode */
             mode: string;
@@ -2219,6 +2220,34 @@ export interface components {
             videoId: number;
             /** Youtubevideoid */
             youtubeVideoId: string | null;
+        };
+        /** DailyVideoQuotaChannelResponse */
+        DailyVideoQuotaChannelResponse: {
+            /** Admittedtodaycount */
+            admittedTodayCount: number;
+            /** Channelid */
+            channelId: number;
+            /** Eligiblebacklogcount */
+            eligibleBacklogCount: number;
+        };
+        /** DailyVideoQuotaResponse */
+        DailyVideoQuotaResponse: {
+            /** Admitted */
+            admitted: number;
+            /** Channels */
+            channels: components["schemas"]["DailyVideoQuotaChannelResponse"][];
+            /** Floorfeasible */
+            floorFeasible: boolean;
+            /** Limit */
+            limit: number;
+            /** Minimumperchannel */
+            minimumPerChannel: number;
+            /** Quotadate */
+            quotaDate: string;
+            /** Remaining */
+            remaining: number;
+            /** Timezone */
+            timezone: string;
         };
         /** DeleteResponse */
         DeleteResponse: {
@@ -2826,7 +2855,7 @@ export interface components {
             includeNonEmbeddable: boolean;
             /**
              * Model
-             * @default gpt-5.5
+             * @default gpt-5.6-sol
              * @enum {string}
              */
             model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
@@ -2839,7 +2868,7 @@ export interface components {
             promptVersionId?: number | null;
             /**
              * Reasoningeffort
-             * @default medium
+             * @default high
              * @enum {string}
              */
             reasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -3610,7 +3639,7 @@ export interface components {
             microPromptVersionId?: number | null;
             /**
              * Microreasoningeffort
-             * @default medium
+             * @default high
              * @enum {string}
              */
             microReasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -3644,7 +3673,7 @@ export interface components {
             selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
             /**
              * Timelinemodel
-             * @default gpt-5.6-sol
+             * @default gpt-5.6-luna
              * @enum {string}
              */
             timelineModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
@@ -3652,7 +3681,7 @@ export interface components {
             timelinePromptVersionId?: number | null;
             /**
              * Timelinereasoningeffort
-             * @default medium
+             * @default xhigh
              * @enum {string}
              */
             timelineReasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -4550,7 +4579,7 @@ export interface components {
             includeNonEmbeddable: boolean;
             /**
              * Model
-             * @default gpt-5.5
+             * @default gpt-5.6-luna
              * @enum {string}
              */
             model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
@@ -4558,7 +4587,7 @@ export interface components {
             promptVersionId?: number | null;
             /**
              * Reasoningeffort
-             * @default high
+             * @default xhigh
              * @enum {string}
              */
             reasoningEffort: "low" | "medium" | "high" | "xhigh";

@@ -21,6 +21,7 @@ from codex_sdk_cli.infra.automation.repository import (
     SqlAlchemyAutomationRepository,
     SqlAlchemySafeRemediator,
 )
+from codex_sdk_cli.infra.work.scheduler import SqlAlchemyWorkflowCandidateReader
 
 
 def get_automation_repository(
@@ -63,8 +64,17 @@ def get_execute_incident_action_use_case(
 
 def get_automation_status_use_case(
     repository: AutomationRepositoryDep,
+    session_factory: DatabaseSessionFactoryDep,
+    settings: SettingsDep,
 ) -> GetAutomationStatusUseCase:
-    return GetAutomationStatusUseCase(repository)
+    return GetAutomationStatusUseCase(
+        repository,
+        workflow_candidates=SqlAlchemyWorkflowCandidateReader(session_factory),
+        schedule_state=repository,
+        daily_workflow_limit=settings.pipeline_scheduler_daily_workflow_limit,
+        channel_daily_minimum=settings.pipeline_scheduler_channel_daily_minimum,
+        quota_timezone=settings.pipeline_scheduler_quota_timezone,
+    )
 
 
 def get_managed_processes_use_case(settings: SettingsDep) -> GetManagedProcessesUseCase:

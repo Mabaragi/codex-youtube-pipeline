@@ -94,6 +94,27 @@ class RuntimeStateResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class DailyVideoQuotaChannelResponse(BaseModel):
+    channel_id: int = Field(alias="channelId", ge=1)
+    eligible_backlog_count: int = Field(alias="eligibleBacklogCount", ge=0)
+    admitted_today_count: int = Field(alias="admittedTodayCount", ge=0)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DailyVideoQuotaResponse(BaseModel):
+    quota_date: str = Field(alias="quotaDate")
+    timezone: str
+    limit: int = Field(ge=1)
+    admitted: int = Field(ge=0)
+    remaining: int = Field(ge=0)
+    minimum_per_channel: int = Field(alias="minimumPerChannel", ge=1)
+    floor_feasible: bool = Field(alias="floorFeasible")
+    channels: list[DailyVideoQuotaChannelResponse]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class AutomationStatusResponse(BaseModel):
     mode: str
     backfill_started_at: str | None = Field(alias="backfillStartedAt")
@@ -102,6 +123,7 @@ class AutomationStatusResponse(BaseModel):
     open_incident_count: int = Field(alias="openIncidentCount")
     data_integrity: AutomationDataIntegrityResponse = Field(alias="dataIntegrity")
     runtime: RuntimeStateResponse
+    daily_video_quota: DailyVideoQuotaResponse = Field(alias="dailyVideoQuota")
     queues: list[dict[str, object]]
 
     model_config = ConfigDict(populate_by_name=True)

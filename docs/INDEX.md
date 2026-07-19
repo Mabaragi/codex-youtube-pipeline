@@ -23,6 +23,10 @@ operators can use them without private runtime context.
   process topology, the control/public-catalog PostgreSQL databases, MinIO, and
   publication connection registry. Read
   when deploying, starting, or recovering the local runtime.
+- [Codex SDK runtime compatibility](CODEX_RUNTIME_COMPATIBILITY.md): bundled CLI
+  selection, the external-CLI model-availability escape hatch, version/cache
+  failure signatures, and the supported upgrade procedure. Read before changing
+  `openai-codex` or `CODEX_CLI_CODEX_BIN`.
 - [PostgreSQL local database](POSTGRESQL_LOCAL_DATABASE.md): worker concurrency,
   SQLite migration, persistence, backup, and recovery. Read when changing the
   database or diagnosing claim/heartbeat contention.
@@ -41,6 +45,9 @@ operators can use them without private runtime context.
 - [Publication data migration](PUBLICATION_MIGRATION.md): offline preparation,
   canonical/local copy, historical index preservation, catalog replay, resume,
   and verification. Read before migrating existing archive data.
+- [One-shot model evaluation](MODEL_EVALUATION.md): private evaluation database and
+  object storage preparation, plan format, blind micro selection, timeline comparison,
+  resume behavior, verification, and report interpretation.
 - [CI/CD status](CICD.md): current manual GitHub Actions behavior and local
   quality gates. Read when changing verification or deployment automation.
 - [Human learnings](learnings/INDEX.md): public-safe discoveries, debugging

@@ -29,11 +29,11 @@ export function useRunPipeline() {
         includeNonEmbeddable: false,
         retryFailed: false,
         microModel: "gpt-5.6-sol",
-        microReasoningEffort: "medium",
+        microReasoningEffort: "high",
         microWindowMinutes: 30,
         microOverlapMinutes: 5,
-        timelineModel: "gpt-5.6-sol",
-        timelineReasoningEffort: "medium",
+        timelineModel: "gpt-5.6-luna",
+        timelineReasoningEffort: "xhigh",
         publishMode: "prod",
         environment: "prod",
         variant: "control",
@@ -82,10 +82,10 @@ export function useRunStage(stage: StageOperation) {
         return requireData(await browserApi.POST("/ops/operations/transcript-cue-generate", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 600 } }));
       }
       if (stage === "micro") {
-        return requireData(await browserApi.POST("/ops/operations/micro-event-extract", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 14400, model: "gpt-5.6-sol", reasoningEffort: "medium", windowMinutes: 30, overlapMinutes: 5 } }));
+        return requireData(await browserApi.POST("/ops/operations/micro-event-extract", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 14400, model: "gpt-5.6-sol", reasoningEffort: "high", windowMinutes: 30, overlapMinutes: 5 } }));
       }
       if (stage === "timeline") {
-        return requireData(await browserApi.POST("/ops/operations/timeline-compose", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 7200, model: "gpt-5.6-sol", reasoningEffort: "medium", copyStyle: "LIGHT_FANDOM_V1" } }));
+        return requireData(await browserApi.POST("/ops/operations/timeline-compose", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 7200, model: "gpt-5.6-luna", reasoningEffort: "xhigh", copyStyle: "LIGHT_FANDOM_V1" } }));
       }
       return requireData(await browserApi.POST("/ops/operations/archive-publish", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 600, publishMode: "prod", environment: "prod", variant: "control", schemaVersion: 1 } }));
     },

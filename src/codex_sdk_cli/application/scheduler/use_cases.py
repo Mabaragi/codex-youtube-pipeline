@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -33,7 +34,14 @@ from .ports import (
     ScheduledChannelReaderPort,
     SchedulerEvent,
     SchedulerEventRecorderPort,
+    WorkflowAdmissionGuardPort,
     WorkflowCandidateReaderPort,
+    WorkflowCandidateSnapshot,
+)
+from .quota import (
+    WorkflowAllocationPlan,
+    allocate_workflow_candidates,
+    daily_quota_window,
 )
 
 Now = Callable[[], datetime]
@@ -49,6 +57,9 @@ class PipelineSchedulerConfig:
     no_transcript_limit: int
     video_collect_timeout_seconds: int = 600
     workflow_limit: int = 12
+    daily_workflow_limit: int = 40
+    channel_daily_minimum: int = 2
+    quota_timezone: str = "Asia/Seoul"
     transcript_fallback_grace_seconds: int = 21600
     transcript_recheck_interval_seconds: int = 1800
 
@@ -89,6 +100,7 @@ class RunPipelineSchedulerTickUseCase:
         config: PipelineSchedulerConfig,
         start_workflows: StartProcessToPublishUseCase | None = None,
         workflow_candidates: WorkflowCandidateReaderPort | None = None,
+        workflow_admission_guard: WorkflowAdmissionGuardPort | None = None,
         automation_state: AutomationScheduleStatePort | None = None,
         prompts: PublishedPromptSnapshotPort | None = None,
         now: Now | None = None,
@@ -101,6 +113,7 @@ class RunPipelineSchedulerTickUseCase:
         self._config = config
         self._start_workflows = start_workflows
         self._workflow_candidates = workflow_candidates
+        self._workflow_admission_guard = workflow_admission_guard
         self._automation_state = automation_state
         self._prompts = prompts
         self._now = now or (lambda: datetime.now(UTC))
@@ -202,54 +215,91 @@ class RunPipelineSchedulerTickUseCase:
             or self._prompts is None
         ):
             return 0
-        state = await self._automation_state.get_state(now=now)
-        candidates = await self._workflow_candidates.list_candidates(
-            state=state,
-            limit=self._config.workflow_limit,
+        admission_context = (
+            self._workflow_admission_guard.hold()
+            if self._workflow_admission_guard is not None
+            else nullcontext()
         )
-        if not candidates and state.mode == "backfill":
-            await self._automation_state.mark_steady(now=now)
+        async with admission_context:
             state = await self._automation_state.get_state(now=now)
-            candidates = await self._workflow_candidates.list_candidates(
+            window = daily_quota_window(now, self._config.quota_timezone)
+            snapshot = await self._workflow_candidates.read_snapshot(
                 state=state,
-                limit=self._config.workflow_limit,
+                quota_started_at=window.started_at,
+                quota_ends_at=window.ends_at,
             )
-        if not candidates:
-            return 0
-        micro_prompt_id, timeline_prompt_id = await self._prompts.active_version_ids()
-        result = await self._start_workflows.execute(
-            ProcessToPublishCommand(
-                selection=SelectedVideos(tuple(item.id for item in candidates)),
-                micro_model="gpt-5.6-sol",
-                micro_reasoning_effort="medium",
-                micro_prompt_version_id=micro_prompt_id,
-                timeline_model="gpt-5.6-sol",
-                timeline_reasoning_effort="medium",
-                timeline_prompt_version_id=timeline_prompt_id,
-                retry_failed=False,
-                transcript_fallback_mode="asr_after_grace",
-                transcript_fallback_grace_seconds=(
-                    self._config.transcript_fallback_grace_seconds
-                ),
-                transcript_recheck_interval_seconds=(
-                    self._config.transcript_recheck_interval_seconds
-                ),
-                asr_model="turbo",
-                asr_language="ko",
-                asr_device="cuda",
-                asr_compute_type="auto",
-                asr_chunk_minutes=15,
-                asr_overlap_seconds=3,
-                asr_beam_size=5,
-                asr_vad_filter=True,
-                asr_timeout_seconds=64800,
-                micro_timeout_seconds=14400,
-                timeline_timeout_seconds=7200,
-                actor_type="system",
-                automation_mode=state.mode,
+            if not _snapshot_has_candidates(snapshot) and state.mode == "backfill":
+                await self._automation_state.mark_steady(now=now)
+                state = await self._automation_state.get_state(now=now)
+                snapshot = await self._workflow_candidates.read_snapshot(
+                    state=state,
+                    quota_started_at=window.started_at,
+                    quota_ends_at=window.ends_at,
+                )
+            plan = allocate_workflow_candidates(
+                snapshot,
+                daily_limit=self._config.daily_workflow_limit,
+                channel_minimum=self._config.channel_daily_minimum,
+                tick_limit=self._config.workflow_limit,
+                quota_date=window.quota_date,
             )
-        )
-        return result.created_count
+            if not plan.floor_feasible:
+                await self._record(
+                    "pipeline_scheduler.quota_floor_infeasible",
+                    "warning",
+                    "Daily channel minimum cannot fit within the workflow quota.",
+                    metadata=_quota_metadata(
+                        quota_date=window.quota_date.isoformat(),
+                        daily_limit=self._config.daily_workflow_limit,
+                        plan=plan,
+                    ),
+                )
+            if not plan.candidates:
+                return 0
+            micro_prompt_id, timeline_prompt_id = await self._prompts.active_version_ids()
+            result = await self._start_workflows.execute(
+                ProcessToPublishCommand(
+                    selection=SelectedVideos(tuple(item.id for item in plan.candidates)),
+                    micro_prompt_version_id=micro_prompt_id,
+                    timeline_prompt_version_id=timeline_prompt_id,
+                    retry_failed=False,
+                    transcript_fallback_mode="asr_after_grace",
+                    transcript_fallback_grace_seconds=(
+                        self._config.transcript_fallback_grace_seconds
+                    ),
+                    transcript_recheck_interval_seconds=(
+                        self._config.transcript_recheck_interval_seconds
+                    ),
+                    asr_model="turbo",
+                    asr_language="ko",
+                    asr_device="cuda",
+                    asr_compute_type="auto",
+                    asr_chunk_minutes=15,
+                    asr_overlap_seconds=3,
+                    asr_beam_size=5,
+                    asr_vad_filter=True,
+                    asr_timeout_seconds=64800,
+                    micro_timeout_seconds=14400,
+                    timeline_timeout_seconds=7200,
+                    actor_type="system",
+                    automation_mode=state.mode,
+                )
+            )
+            await self._record(
+                "pipeline_scheduler.quota_admitted",
+                "info",
+                "Automatic workflows admitted under the daily quota.",
+                metadata={
+                    **_quota_metadata(
+                        quota_date=window.quota_date.isoformat(),
+                        daily_limit=self._config.daily_workflow_limit,
+                        plan=plan,
+                    ),
+                    "createdWorkflowCount": result.created_count,
+                    "reusedWorkflowCount": result.reused_count,
+                },
+            )
+            return result.created_count
 
     async def _prepare_video_collect(
         self,
@@ -430,6 +480,30 @@ def _tick_metadata(result: PipelineSchedulerTickResult) -> JsonObject:
         "transcriptReusedCount": result.transcript_reused_count,
         "noTranscriptRecheckCount": result.no_transcript_recheck_count,
         "workflowEnqueuedCount": result.workflow_enqueued_count,
+    }
+
+
+def _snapshot_has_candidates(snapshot: WorkflowCandidateSnapshot) -> bool:
+    return any(channel.candidates for channel in snapshot.channels)
+
+
+def _quota_metadata(
+    *,
+    quota_date: str,
+    daily_limit: int,
+    plan: WorkflowAllocationPlan,
+) -> JsonObject:
+    return {
+        "quotaDate": quota_date,
+        "dailyLimit": daily_limit,
+        "admittedBeforeCount": plan.admitted_before_count,
+        "admittedAfterCount": plan.admitted_after_count,
+        "remainingAfterCount": plan.remaining_after_count,
+        "floorFeasible": plan.floor_feasible,
+        "channelAllocations": [
+            {"channelId": channel_id, "count": count}
+            for channel_id, count in plan.channel_allocations
+        ],
     }
 
 

@@ -109,14 +109,29 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert blank_settings.youtube_data_api_key_value() is None
     assert blank_settings.model == "gpt-5.5"
     assert blank_settings.reasoning_effort == "medium"
+    assert blank_settings.codex_config_overrides == ()
     assert blank_settings.micro_event_extract_concurrency_limit == 1
     assert blank_settings.micro_event_window_concurrency_limit == 6
     assert blank_settings.micro_event_worker_poll_interval_seconds == 5
     assert blank_settings.micro_event_worker_id is None
     assert blank_settings.timeline_compose_concurrency_limit == 3
     assert blank_settings.pipeline_scheduler_channel_interval_seconds == 7200
+    assert blank_settings.pipeline_scheduler_daily_workflow_limit == 40
+    assert blank_settings.pipeline_scheduler_channel_daily_minimum == 2
+    assert blank_settings.pipeline_scheduler_quota_timezone == "Asia/Seoul"
     assert blank_settings.pipeline_scheduler_transcript_fallback_grace_seconds == 21600
     assert blank_settings.pipeline_scheduler_transcript_recheck_interval_seconds == 1800
+    assert blank_settings.archive_video_availability_enabled is False
+    assert blank_settings.archive_video_availability_poll_interval_seconds == 5
+    assert blank_settings.archive_video_availability_claim_limit == 50
+    assert blank_settings.archive_video_availability_lease_seconds == 120
+    assert blank_settings.archive_video_availability_cleanup_interval_seconds == 86400
+    assert blank_settings.archive_video_availability_admin_token_value() is None
+
+    shared_admin_token = CliSettings(archive_public_catalog_sync_token="SHARED_TOKEN")
+    assert shared_admin_token.archive_video_availability_admin_token_value() == (
+        "SHARED_TOKEN"
+    )
 
     monkeypatch.setenv("CODEX_CLI_MODEL", " ")
     monkeypatch.setenv("CODEX_CLI_REASONING_EFFORT", " ")
@@ -152,6 +167,26 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert settings.micro_event_worker_poll_interval_seconds == 7
     assert settings.micro_event_worker_id == "micro-event-worker:test"
     assert settings.timeline_compose_concurrency_limit == 2
+
+
+def test_codex_config_passes_runtime_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = CliSettings(
+        codex_config_overrides=("mcp_servers.example.enabled=false",),
+    )
+
+    assert settings.codex_config().config_overrides == (
+        "mcp_servers.example.enabled=false",
+    )
+
+    monkeypatch.setenv(
+        "CODEX_CLI_CODEX_CONFIG_OVERRIDES",
+        '["mcp_servers.example.enabled=false"]',
+    )
+    assert CliSettings().codex_config_overrides == (
+        "mcp_servers.example.enabled=false",
+    )
 
 
 def test_blank_database_url_uses_default() -> None:

@@ -32,6 +32,7 @@ from .domains.domain_knowledge.use_cases import (
 from .domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from .domains.ops.use_cases import DetectOpsStuckTasksUseCase
 from .domains.video_tasks.constants import TIMELINE_COMPOSE_TASK_NAME
+from .evaluation_cli import evaluation as evaluation_command
 from .infra.asr.faster_whisper import FasterWhisperTranscriber
 from .infra.asr.local_audio import FfmpegAudioChunker, YtDlpAudioDownloader
 from .infra.database.session import create_database_engine, create_session_factory
@@ -786,3 +787,4 @@ def _echo_login_result(success: bool, error: str | None) -> None:
 
 
 main.add_command(publication_command)
+main.add_command(evaluation_command)

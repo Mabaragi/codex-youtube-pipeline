@@ -40,6 +40,7 @@ function Stop-WorkRuntime {
     Stop-ManagedProcess "workflow-coordinator"
     Stop-ManagedProcess "timeline-compose-worker"
     Stop-ManagedProcess "pipeline-scheduler"
+    Stop-ManagedProcess "video-availability-worker"
     Stop-ManagedProcess "transcript-cue-worker"
     Stop-ManagedProcess "transcript-worker"
     Stop-ManagedProcess "micro-event-worker"

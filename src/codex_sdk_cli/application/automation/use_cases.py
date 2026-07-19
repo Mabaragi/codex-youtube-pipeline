@@ -5,6 +5,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from codex_sdk_cli.application.errors import ApplicationError, ErrorKind
+from codex_sdk_cli.application.scheduler.ports import (
+    AutomationScheduleStatePort,
+    WorkflowCandidateReaderPort,
+)
+from codex_sdk_cli.application.scheduler.quota import (
+    daily_quota_json,
+    daily_quota_window,
+)
 from codex_sdk_cli.domains.automation.ports import (
     AutomationCandidateReaderPort,
     IncidentRecord,
@@ -146,12 +154,46 @@ class ExecuteIncidentActionUseCase:
 
 
 class GetAutomationStatusUseCase:
-    def __init__(self, reader: AutomationCandidateReaderPort, *, now: Now | None = None) -> None:
+    def __init__(
+        self,
+        reader: AutomationCandidateReaderPort,
+        *,
+        workflow_candidates: WorkflowCandidateReaderPort | None = None,
+        schedule_state: AutomationScheduleStatePort | None = None,
+        daily_workflow_limit: int = 40,
+        channel_daily_minimum: int = 2,
+        quota_timezone: str = "Asia/Seoul",
+        now: Now | None = None,
+    ) -> None:
         self._reader = reader
+        self._workflow_candidates = workflow_candidates
+        self._schedule_state = schedule_state
+        self._daily_workflow_limit = daily_workflow_limit
+        self._channel_daily_minimum = channel_daily_minimum
+        self._quota_timezone = quota_timezone
         self._now = now or (lambda: datetime.now(UTC))
 
     async def execute(self) -> JsonObject:
-        return await self._reader.automation_status(now=_aware(self._now()))
+        now = _aware(self._now())
+        status = await self._reader.automation_status(now=now)
+        if self._workflow_candidates is None or self._schedule_state is None:
+            return status
+        window = daily_quota_window(now, self._quota_timezone)
+        state = await self._schedule_state.get_state(now=now)
+        snapshot = await self._workflow_candidates.read_snapshot(
+            state=state,
+            quota_started_at=window.started_at,
+            quota_ends_at=window.ends_at,
+        )
+        return {
+            **status,
+            "dailyVideoQuota": daily_quota_json(
+                snapshot,
+                window=window,
+                daily_limit=self._daily_workflow_limit,
+                channel_minimum=self._channel_daily_minimum,
+            ),
+        }
 
 
 class GetManagedProcessesUseCase:

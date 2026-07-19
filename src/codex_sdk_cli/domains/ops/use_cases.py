@@ -3,13 +3,9 @@
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
-from codex_sdk_cli.domains.archive_publish.constants import ARCHIVE_PUBLISH_TASK_NAME
-from codex_sdk_cli.domains.micro_events.constants import MICRO_EVENT_EXTRACT_TASK_NAME
 from codex_sdk_cli.domains.operation_events.ports import (
-    OperationEventCreate,
     OperationEventRecorderPort,
 )
-from codex_sdk_cli.domains.operation_events.recording import record_operation_event
 from codex_sdk_cli.domains.ops.ports import (
     OpsCandidateCategory,
     OpsCandidateListQuery,
@@ -73,10 +69,8 @@ from codex_sdk_cli.domains.ops.schemas import (
     OpsVideoTaskResponse,
     OpsVideoTimelineGenerationResponse,
 )
-from codex_sdk_cli.domains.video_tasks.constants import (
-    TIMELINE_COMPOSE_TASK_NAME,
-    TRANSCRIPT_COLLECT_TASK_NAME,
-    TRANSCRIPT_CUE_GENERATE_TASK_NAME,
+from codex_sdk_cli.domains.video_availability.use_cases import (
+    VerifyVideoAvailabilityUseCase,
 )
 from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.domains.videos.ports import VideoRecord, VideoRepositoryPort
@@ -90,14 +84,6 @@ from codex_sdk_cli.domains.youtube_transcripts.schemas import (
 )
 
 from .exceptions import OpsVideoNotFound
-
-_DOWNSTREAM_TASK_NAMES = (
-    TRANSCRIPT_COLLECT_TASK_NAME,
-    TRANSCRIPT_CUE_GENERATE_TASK_NAME,
-    MICRO_EVENT_EXTRACT_TASK_NAME,
-    TIMELINE_COMPOSE_TASK_NAME,
-    ARCHIVE_PUBLISH_TASK_NAME,
-)
 
 
 class GetOpsSummaryUseCase:
@@ -237,10 +223,13 @@ class RefreshOpsVideoEmbedStatusUseCase:
         events: OperationEventRecorderPort,
     ) -> None:
         self._videos = videos
-        self._video_tasks = video_tasks
-        self._pending_work = pending_work
-        self._youtube_data = youtube_data
-        self._events = events
+        self._verifier = VerifyVideoAvailabilityUseCase(
+            videos=videos,
+            video_tasks=video_tasks,
+            pending_work=pending_work,
+            youtube_data=youtube_data,
+            events=events,
+        )
 
     async def execute(
         self,
@@ -264,106 +253,33 @@ class RefreshOpsVideoEmbedStatusUseCase:
         self,
         videos: list[VideoRecord],
     ) -> list[OpsRefreshVideoEmbedStatusItemResponse]:
-        try:
-            details = await self._youtube_data.get_video_details(
-                tuple(video.youtube_video_id for video in videos)
-            )
-        except Exception as exc:
-            error_type = exc.__class__.__name__
-            error_message = str(exc) or error_type
-            return [
-                OpsRefreshVideoEmbedStatusItemResponse(
-                    videoId=video.id,
-                    youtubeVideoId=video.youtube_video_id,
-                    status="failed",
-                    isEmbeddable=video.is_embeddable,
-                    sourceApiCallId=None,
-                    canceledPendingTaskCount=0,
-                    errorType=error_type,
-                    errorMessage=error_message,
-                )
-                for video in videos
-            ]
-
-        details_by_id = {
-            detail.youtube_video_id: detail
-            for detail in details.videos
-        }
-        checked_at = datetime.now(UTC)
-        items: list[OpsRefreshVideoEmbedStatusItemResponse] = []
-        for video in videos:
-            detail = details_by_id.get(video.youtube_video_id)
-            if detail is None:
-                items.append(
-                    OpsRefreshVideoEmbedStatusItemResponse(
-                        videoId=video.id,
-                        youtubeVideoId=video.youtube_video_id,
-                        status="failed",
-                        isEmbeddable=video.is_embeddable,
-                        sourceApiCallId=details.source_api_call_id,
-                        canceledPendingTaskCount=0,
-                        errorType="YouTubeVideoDetailsMissing",
-                        errorMessage="YouTube videos.list did not return this video.",
-                    )
-                )
-                continue
-            updated = await self._videos.update_embed_status(
-                video.id,
-                is_embeddable=detail.is_embeddable,
-                checked_at=checked_at,
-                source_api_call_id=detail.source_api_call_id,
-            )
-            canceled_count = 0
-            if updated.is_embeddable is False:
-                cancellation_reason = (
-                    "YouTube status.embeddable=false; downstream work was canceled."
-                )
-                canceled = await self._video_tasks.cancel_pending_tasks_for_video(
-                    video_id=updated.id,
-                    task_names=_DOWNSTREAM_TASK_NAMES,
-                    error_type="VideoNotEmbeddable",
-                    error_message=cancellation_reason,
-                )
-                canceled_work_count = await self._pending_work.execute(
-                    subject_type="video",
-                    subject_id=updated.id,
-                    task_types=_DOWNSTREAM_TASK_NAMES,
-                    outcome_code="not_embeddable",
-                    reason=cancellation_reason,
-                )
-                canceled_count = max(len(canceled), canceled_work_count)
-            await record_operation_event(
-                self._events,
-                OperationEventCreate(
-                    event_type="video.embed_status_refreshed",
-                    severity="warning" if updated.is_embeddable is False else "info",
-                    message="Video embed status was refreshed.",
-                    actor_type="manual_api",
-                    source="ops.videos.embed_status",
-                    video_id=updated.id,
-                    subject_type="video",
-                    subject_id=updated.id,
-                    external_key=updated.youtube_video_id,
-                    metadata_json={
-                        "isEmbeddable": updated.is_embeddable,
-                        "sourceApiCallId": detail.source_api_call_id,
-                        "canceledPendingTaskCount": canceled_count,
-                    },
+        original_by_youtube_id = {video.youtube_video_id: video for video in videos}
+        results = await self._verifier.execute(
+            tuple(video.youtube_video_id for video in videos),
+            actor_type="manual_api",
+            source="ops.videos.embed_status",
+        )
+        return [
+            OpsRefreshVideoEmbedStatusItemResponse(
+                videoId=(
+                    result.video_id
+                    if result.video_id is not None
+                    else original_by_youtube_id[result.youtube_video_id].id
                 ),
+                youtubeVideoId=result.youtube_video_id,
+                status="failed" if result.outcome == "retry" else "updated",
+                isEmbeddable=(
+                    original_by_youtube_id[result.youtube_video_id].is_embeddable
+                    if result.outcome == "retry"
+                    else result.is_embeddable
+                ),
+                sourceApiCallId=result.source_api_call_id,
+                canceledPendingTaskCount=result.canceled_pending_task_count,
+                errorType=result.error_type,
+                errorMessage=result.error_message,
             )
-            items.append(
-                OpsRefreshVideoEmbedStatusItemResponse(
-                    videoId=updated.id,
-                    youtubeVideoId=updated.youtube_video_id,
-                    status="updated",
-                    isEmbeddable=updated.is_embeddable,
-                    sourceApiCallId=detail.source_api_call_id,
-                    canceledPendingTaskCount=canceled_count,
-                    errorType=None,
-                    errorMessage=None,
-                )
-            )
-        return items
+            for result in results
+        ]
 
 
 class GetOpsVideoDetailUseCase:

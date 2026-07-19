@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "database": {
+    "kind": "sql_database",
+    "databaseUrl": "postgresql+asyncpg://codex_app:replace-me@127.0.0.1:5432/codex_model_evaluations",
+    "echo": false
+  },
+  "objectStore": {
+    "kind": "s3_compatible_object",
+    "endpoint": "127.0.0.1:9000",
+    "accessKey": "replace-me",
+    "secretKey": "replace-me",
+    "bucket": "model-evaluations",
+    "secure": false,
+    "region": "auto"
+  }
+}

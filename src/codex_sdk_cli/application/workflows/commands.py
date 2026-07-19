@@ -9,7 +9,14 @@ from datetime import UTC, datetime, timedelta
 from codex_sdk_cli.application.operations.selection import VideoSelection, VideoSelectionPort
 from codex_sdk_cli.application.work.execution import WorkUnitOfWorkFactory
 from codex_sdk_cli.application.work.ports import CreateWorkBatch, CreateWorkflowRun
-from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
+from codex_sdk_cli.domains.codex.choices import (
+    DEFAULT_MICRO_EVENT_MODEL,
+    DEFAULT_MICRO_EVENT_REASONING_EFFORT,
+    DEFAULT_TIMELINE_MODEL,
+    DEFAULT_TIMELINE_REASONING_EFFORT,
+    CodexModelChoice,
+    ReasoningEffortChoice,
+)
 from codex_sdk_cli.domains.timelines.ports import CopyStyle
 from codex_sdk_cli.domains.work.models import WorkBatchStatus
 
@@ -27,11 +34,11 @@ class ProcessToPublishCommand:
     preserve_formatting: bool = False
     micro_window_minutes: int = 30
     micro_overlap_minutes: int = 5
-    micro_model: CodexModelChoice = "gpt-5.6-sol"
-    micro_reasoning_effort: ReasoningEffortChoice = "medium"
+    micro_model: CodexModelChoice = DEFAULT_MICRO_EVENT_MODEL
+    micro_reasoning_effort: ReasoningEffortChoice = DEFAULT_MICRO_EVENT_REASONING_EFFORT
     micro_prompt_version_id: int | None = None
-    timeline_model: CodexModelChoice = "gpt-5.6-sol"
-    timeline_reasoning_effort: ReasoningEffortChoice = "medium"
+    timeline_model: CodexModelChoice = DEFAULT_TIMELINE_MODEL
+    timeline_reasoning_effort: ReasoningEffortChoice = DEFAULT_TIMELINE_REASONING_EFFORT
     timeline_copy_style: CopyStyle = "LIGHT_FANDOM_V1"
     timeline_prompt_version_id: int | None = None
     publish_mode: str = "prod"

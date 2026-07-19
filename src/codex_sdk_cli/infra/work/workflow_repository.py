@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,6 +131,10 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
                 WorkflowRunModel.available_at <= now,
             )
             .order_by(
+                case(
+                    (WorkflowRunModel.status == WorkflowStatus.PENDING.value, 0),
+                    else_=1,
+                ),
                 video_published_at.desc(),
                 WorkflowRunModel.updated_at.asc(),
                 WorkflowRunModel.id.asc(),

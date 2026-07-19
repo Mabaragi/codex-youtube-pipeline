@@ -27,6 +27,32 @@ class WorkItemTransitionNotAllowed(ApplicationError):
         )
 
 
+class WorkItemRetrySuperseded(ApplicationError):
+    def __init__(self, work_item_id: int, *, replacement_work_item_id: int) -> None:
+        super().__init__(
+            code="work_item.retry_superseded",
+            message="A newer succeeded work item already replaces this work item.",
+            kind=ErrorKind.CONFLICT,
+            details={
+                "workItemId": work_item_id,
+                "replacementWorkItemId": replacement_work_item_id,
+            },
+        )
+
+
+class WorkItemRetryInputUnavailable(ApplicationError):
+    def __init__(self, work_item_id: int, *, invalid_fields: tuple[str, ...]) -> None:
+        super().__init__(
+            code="work_item.retry_input_unavailable",
+            message="The stored work input is incomplete and cannot be retried safely.",
+            kind=ErrorKind.CONFLICT,
+            details={
+                "workItemId": work_item_id,
+                "invalidFields": list(invalid_fields),
+            },
+        )
+
+
 class WorkBatchNotFound(ApplicationError):
     def __init__(self, batch_id: int) -> None:
         super().__init__(

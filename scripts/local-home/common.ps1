@@ -179,6 +179,7 @@ function Test-ManagedProcessIdentity {
         "transcript-cue-worker" { "run_transcript_cue; run_transcript_cue()" }
         "asr-worker" { "codex_sdk_cli.workers.asr" }
         "pipeline-scheduler" { "codex_sdk_cli.workers.pipeline_scheduler" }
+        "video-availability-worker" { "codex_sdk_cli.workers.video_availability" }
         "pipeline-supervisor" { "codex_sdk_cli.workers.pipeline_supervisor" }
         "timeline-compose-worker" { "codex_sdk_cli.workers.timelines" }
         "workflow-coordinator" { "codex_sdk_cli.workers.workflow_coordinator" }
@@ -265,6 +266,8 @@ function Get-LocalHomeRuntimeProcesses {
             $lowerCommandLine -match "codex_sdk_cli\.workers\.asr" -or
             $lowerCommandLine -match "codex-pipeline-scheduler" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_scheduler" -or
+            $lowerCommandLine -match "codex-video-availability-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.video_availability" -or
             $lowerCommandLine -match "codex-pipeline-supervisor" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_supervisor" -or
             $lowerCommandLine -match "codex-timeline-compose-worker" -or

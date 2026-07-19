@@ -68,6 +68,23 @@ creates bounded v2 workflows with active published database prompt IDs
 snapshotted into each workflow. It drains the initial backfill before switching
 to steady mode.
 
+Automatic `process_to_publish` admission has one shared daily quota for backfill
+and steady work. The default is 40 videos per `Asia/Seoul` calendar day. Each
+eligible channel is brought up to two admitted videos first, using its newest
+eligible videos. Remaining slots are assigned in proportion to each channel's
+remaining eligible backlog with largest-remainder rounding. The per-tick limit
+still bounds one scheduler pass. When the daily quota cannot provide the
+channel floor, the scheduler rotates the first channel by quota date and gives
+every channel one slot before assigning second slots.
+
+Every automatically created workflow counts once, regardless of whether it is
+pending, running, succeeded, failed, blocked, or canceled. A retry adds an
+attempt to the same workflow and does not consume another slot. Manual API
+workflows are excluded from this quota. Scheduler admissions are serialized by
+a PostgreSQL advisory lock so concurrent scheduler processes cannot exceed the
+cap; the quota is an admission limit, not a loop that repeatedly wakes blocked
+work during the day.
+
 ## ASR And Supervision
 
 - ASR uses one GPU worker and durable 15-minute chunk checkpoints. A retry
@@ -100,6 +117,15 @@ micro-event coverage and block membership remain hard invariants.
 transcript, cue, micro-event, timeline, workflow, and archive selection unless
 an internal command explicitly sets `includeNonEmbeddable=true`. Unknown legacy
 rows remain eligible until refreshed.
+
+The optional `codex-video-availability-worker` consumes only frontend-reported
+candidates from the public catalog's durable D1 inbox. It does not scan all
+stored videos. A successful `videos.list` response that omits an ID is treated
+as `unavailable/not_returned`; `status.embeddable=false` is
+`unavailable/not_embeddable`. Either outcome stores `is_embeddable=false`,
+cancels pending downstream work, and acknowledges the D1 candidate. API or
+local persistence failures remain retryable. Confirmed unavailable candidates
+are not periodically rechecked.
 
 ## Observability
 

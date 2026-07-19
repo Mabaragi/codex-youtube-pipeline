@@ -56,12 +56,12 @@ export function usePublishVideo(environment: string, publishMode: "prod" | "dev"
 
 const publicationConfigurationKey = [...queryKeys.publishing, "configuration"] as const;
 
-export function usePublicationConnections() {
+export function usePublicationConnections(initialData?: PublicationConnectionList | null) {
   return useQuery({ queryKey: [...publicationConfigurationKey, "connections"], queryFn: async () => {
     const { data, error } = await browserApi.GET("/ops/publish/connections");
     if (!data) throw apiError(error);
     return data;
-  }, refetchInterval: 15_000, placeholderData: (previous) => previous });
+  }, initialData: initialData ?? undefined, refetchInterval: 15_000, placeholderData: (previous) => previous });
 }
 
 export function useObjectDestinations() {
@@ -80,12 +80,12 @@ export function useCatalogDestinations() {
   }, refetchInterval: 15_000, placeholderData: (previous) => previous });
 }
 
-export function usePublishProfiles() {
+export function usePublishProfiles(initialData?: PublishProfile[] | null) {
   return useQuery({ queryKey: [...publicationConfigurationKey, "profiles"], queryFn: async () => {
     const { data, error } = await browserApi.GET("/ops/publish/profiles");
     if (!data) throw apiError(error);
     return data;
-  }, refetchInterval: 15_000, placeholderData: (previous) => previous });
+  }, initialData: initialData ?? undefined, refetchInterval: 15_000, placeholderData: (previous) => previous });
 }
 
 export function usePublishProfileDetail(profileId: number | null) {

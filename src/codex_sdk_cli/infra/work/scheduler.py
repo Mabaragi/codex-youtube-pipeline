@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import datetime
 from typing import cast
 
 import httpx
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.sql import Select
 from typing_extensions import override
 
 from codex_sdk_cli.application.scheduler.ports import (
@@ -14,7 +19,10 @@ from codex_sdk_cli.application.scheduler.ports import (
     ScheduledChannelReaderPort,
     SchedulerEvent,
     SchedulerEventRecorderPort,
+    WorkflowAdmissionGuardPort,
+    WorkflowCandidateChannel,
     WorkflowCandidateReaderPort,
+    WorkflowCandidateSnapshot,
 )
 from codex_sdk_cli.application.videos.ports import (
     VideoCollectionResult,
@@ -117,51 +125,11 @@ class SqlAlchemyWorkflowCandidateReader(WorkflowCandidateReaderPort):
         state: AutomationScheduleState,
         limit: int,
     ) -> list[VideoRecord]:
-        published = exists(
-            select(WorkItemModel.id).where(
-                WorkItemModel.task_type == "archive_publish",
-                WorkItemModel.subject_type == "video",
-                WorkItemModel.subject_id == VideoModel.id,
-                WorkItemModel.status == WorkItemStatus.SUCCEEDED.value,
-                WorkItemModel.outcome_code.is_(None),
-            )
-        )
-        active_workflow = exists(
-            select(WorkflowRunModel.id).where(
-                WorkflowRunModel.video_id == VideoModel.id,
-                WorkflowRunModel.workflow_type == "process_to_publish",
-                WorkflowRunModel.workflow_version == "v2",
-                WorkflowRunModel.status.in_(("pending", "running", "waiting")),
-            )
-        )
-        terminal_automation_workflow = exists(
-            select(WorkflowRunModel.id).where(
-                WorkflowRunModel.video_id == VideoModel.id,
-                WorkflowRunModel.workflow_type == "process_to_publish",
-                WorkflowRunModel.workflow_version == "v2",
-                WorkflowRunModel.options_json["automation_mode"].as_string() == state.mode,
-                WorkflowRunModel.status.in_(("failed", "blocked", "canceled")),
-            )
-        )
         async with self._session_factory() as session:
-            statement = (
-                select(VideoModel)
-                .join(ChannelModel, ChannelModel.id == VideoModel.channel_id)
-                .where(
-                    VideoModel.is_embeddable.is_not(False),
-                    ~published,
-                    ~active_workflow,
-                    ~terminal_automation_workflow,
-                )
-            )
-            if state.mode == "backfill":
-                statement = statement.where(VideoModel.created_at <= state.backfill_started_at)
-            else:
-                statement = statement.where(VideoModel.created_at > state.backfill_started_at)
             models = list(
                 (
                     await session.scalars(
-                        statement.order_by(
+                        _candidate_statement(state).order_by(
                             VideoModel.published_at.desc(),
                             VideoModel.id.desc(),
                         ).limit(limit)
@@ -171,6 +139,137 @@ class SqlAlchemyWorkflowCandidateReader(WorkflowCandidateReaderPort):
         from codex_sdk_cli.infra.videos.repository import video_record_from_model
 
         return [video_record_from_model(model) for model in models]
+
+    @override
+    async def read_snapshot(
+        self,
+        *,
+        state: AutomationScheduleState,
+        quota_started_at: datetime,
+        quota_ends_at: datetime,
+    ) -> WorkflowCandidateSnapshot:
+        async with self._session_factory() as session:
+            models = list(
+                (
+                    await session.scalars(
+                        _candidate_statement(state).order_by(
+                            VideoModel.channel_id,
+                            VideoModel.published_at.desc(),
+                            VideoModel.id.desc(),
+                        )
+                    )
+                ).all()
+            )
+            admitted_rows = (
+                await session.execute(
+                    select(VideoModel.channel_id, func.count(WorkflowRunModel.id))
+                    .join(VideoModel, VideoModel.id == WorkflowRunModel.video_id)
+                    .where(
+                        WorkflowRunModel.workflow_type == "process_to_publish",
+                        WorkflowRunModel.workflow_version == "v2",
+                        WorkflowRunModel.created_at >= quota_started_at,
+                        WorkflowRunModel.created_at < quota_ends_at,
+                        WorkflowRunModel.options_json[
+                            "automation_mode"
+                        ].as_string().in_(("backfill", "steady")),
+                    )
+                    .group_by(VideoModel.channel_id)
+                )
+            ).all()
+        from codex_sdk_cli.infra.videos.repository import video_record_from_model
+
+        grouped: dict[int, list[VideoRecord]] = {}
+        for model in models:
+            grouped.setdefault(model.channel_id, []).append(video_record_from_model(model))
+        admitted = dict(admitted_rows)
+        channel_ids = sorted(set(grouped) | set(admitted))
+        return WorkflowCandidateSnapshot(
+            admitted_today_count=sum(admitted.values()),
+            channels=tuple(
+                WorkflowCandidateChannel(
+                    channel_id=channel_id,
+                    admitted_today_count=admitted.get(channel_id, 0),
+                    candidates=tuple(grouped.get(channel_id, ())),
+                )
+                for channel_id in channel_ids
+            ),
+        )
+
+
+class SqlAlchemyWorkflowAdmissionGuard(WorkflowAdmissionGuardPort):
+    _LOCK_NAMESPACE = 1_884_654_345
+    _LOCK_KEY = 40
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+        self._fallback_lock = asyncio.Lock()
+
+    @override
+    def hold(self) -> AbstractAsyncContextManager[None]:
+        return self._hold()
+
+    @asynccontextmanager
+    async def _hold(self) -> AsyncGenerator[None]:
+        async with self._session_factory() as session:
+            bind = session.get_bind()
+            if bind.dialect.name != "postgresql":
+                async with self._fallback_lock:
+                    yield
+                return
+            parameters = {
+                "namespace": self._LOCK_NAMESPACE,
+                "lock_key": self._LOCK_KEY,
+            }
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(:namespace, :lock_key)"),
+                parameters,
+            )
+            try:
+                yield
+            finally:
+                await session.rollback()
+
+
+def _candidate_statement(state: AutomationScheduleState) -> Select[VideoModel]:
+    published = exists(
+        select(WorkItemModel.id).where(
+            WorkItemModel.task_type == "archive_publish",
+            WorkItemModel.subject_type == "video",
+            WorkItemModel.subject_id == VideoModel.id,
+            WorkItemModel.status == WorkItemStatus.SUCCEEDED.value,
+            WorkItemModel.outcome_code.is_(None),
+        )
+    )
+    active_workflow = exists(
+        select(WorkflowRunModel.id).where(
+            WorkflowRunModel.video_id == VideoModel.id,
+            WorkflowRunModel.workflow_type == "process_to_publish",
+            WorkflowRunModel.workflow_version == "v2",
+            WorkflowRunModel.status.in_(("pending", "running", "waiting")),
+        )
+    )
+    terminal_automation_workflow = exists(
+        select(WorkflowRunModel.id).where(
+            WorkflowRunModel.video_id == VideoModel.id,
+            WorkflowRunModel.workflow_type == "process_to_publish",
+            WorkflowRunModel.workflow_version == "v2",
+            WorkflowRunModel.options_json["automation_mode"].as_string() == state.mode,
+            WorkflowRunModel.status.in_(("failed", "blocked", "canceled")),
+        )
+    )
+    statement = (
+        select(VideoModel)
+        .join(ChannelModel, ChannelModel.id == VideoModel.channel_id)
+        .where(
+            VideoModel.is_embeddable.is_not(False),
+            ~published,
+            ~active_workflow,
+            ~terminal_automation_workflow,
+        )
+    )
+    if state.mode == "backfill":
+        return statement.where(VideoModel.created_at <= state.backfill_started_at)
+    return statement.where(VideoModel.created_at > state.backfill_started_at)
 
 
 class SqlAlchemyPublishedPromptSnapshot(PublishedPromptSnapshotPort):

@@ -53,7 +53,7 @@ it("전체 pipeline 확인 후 Sol medium 운영 계약을 BFF로 전송한다",
   fireEvent.click(screen.getByRole("button", { name: "전체 실행" }));
   fireEvent.click(screen.getByRole("button", { name: "Workflow 생성" }));
   await waitFor(() => expect(captured.body).not.toBeNull());
-  expect(captured.body).toMatchObject({ microModel: "gpt-5.6-sol", microReasoningEffort: "medium", timelineModel: "gpt-5.6-sol", timelineReasoningEffort: "medium", publishMode: "prod" });
+  expect(captured.body).toMatchObject({ microModel: "gpt-5.6-sol", microReasoningEffort: "high", timelineModel: "gpt-5.6-luna", timelineReasoningEffort: "xhigh", publishMode: "prod" });
 });
 
 it("incident 안전 조치에 한 번 생성한 idempotency key를 포함한다", async () => {

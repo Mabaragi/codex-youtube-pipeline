@@ -59,10 +59,10 @@ Example end-to-end request:
 {
   "selection": {"type": "selected", "videoIds": [101]},
   "languages": ["ko", "en"],
-  "microModel": "gpt-5.5",
-  "microReasoningEffort": "medium",
-  "timelineModel": "gpt-5.5",
-  "timelineReasoningEffort": "high",
+  "microModel": "gpt-5.6-sol",
+  "microReasoningEffort": "high",
+  "timelineModel": "gpt-5.6-luna",
+  "timelineReasoningEffort": "xhigh",
   "retryFailed": true,
   "publishMode": "prod",
   "environment": "prod",
@@ -158,8 +158,12 @@ otherwise the API returns `422 automation.incident_action_not_allowed`.
 `extend_timeout` accepts `extensionSeconds` as a bounded increment and also
 supports an absolute `timeoutSeconds` value for API clients.
 
-`GET /ops/automation/status` includes
-`runtime` and `dataIntegrity.orphanVideoCount`. Runtime state is `active`,
+`GET /ops/automation/status` includes `runtime`,
+`dataIntegrity.orphanVideoCount`, and `dailyVideoQuota`. The quota object reports
+the Seoul quota date, configured limit, admitted and remaining counts, minimum
+per channel, floor feasibility, and per-channel eligible backlog/admitted
+counts. It is an observational snapshot; scheduler admission itself is guarded
+by a database advisory lock. Runtime state is `active`,
 `draining`, or `stopped`; `runningWorkItemCount`, `runningWorkflowCount`,
 `runningByTaskType`, and `readyToStop` are the source of truth for a safe local
 shutdown. `mark-stopped` returns `409 pipeline.runtime_not_drained` until both

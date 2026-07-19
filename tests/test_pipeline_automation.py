@@ -102,11 +102,27 @@ def test_automation_openapi_paths_are_registered() -> None:
     assert "/ops/automation/runtime/resume" in paths
     assert "/ops/incidents" in paths
     assert "/ops/incidents/{incident_id}/actions" in paths
+    automation_status = schema["components"]["schemas"]["AutomationStatusResponse"]
+    assert "dailyVideoQuota" in automation_status["properties"]
     properties = schema["components"]["schemas"]["ProcessToPublishOperationRequest"][
         "properties"
     ]
     assert {"microPromptVersionId", "timelinePromptVersionId", "transcriptFallback"} <= set(
         properties
+    )
+    assert properties["microModel"]["default"] == "gpt-5.6-sol"
+    assert properties["microReasoningEffort"]["default"] == "high"
+    assert properties["timelineModel"]["default"] == "gpt-5.6-luna"
+    assert properties["timelineReasoningEffort"]["default"] == "xhigh"
+    micro = schema["components"]["schemas"]["MicroEventOperationRequest"]["properties"]
+    timeline = schema["components"]["schemas"]["TimelineOperationRequest"]["properties"]
+    assert (micro["model"]["default"], micro["reasoningEffort"]["default"]) == (
+        "gpt-5.6-sol",
+        "high",
+    )
+    assert (timeline["model"]["default"], timeline["reasoningEffort"]["default"]) == (
+        "gpt-5.6-luna",
+        "xhigh",
     )
     fallback = schema["components"]["schemas"]["TranscriptFallbackRequest"]
     assert fallback["properties"]["recheckIntervalSeconds"]["default"] == 1800
@@ -723,6 +739,9 @@ async def _exercise_scheduler_workflow(database_path: Path) -> None:
         assert workflow is not None
         assert workflow.workflow_version == "v2"
         assert workflow.options_json["micro_model"] == "gpt-5.6-sol"
+        assert workflow.options_json["micro_reasoning_effort"] == "high"
+        assert workflow.options_json["timeline_model"] == "gpt-5.6-luna"
+        assert workflow.options_json["timeline_reasoning_effort"] == "xhigh"
         assert workflow.options_json["micro_prompt_version_id"] == 10
         assert workflow.options_json["timeline_prompt_version_id"] == 11
         assert workflow.options_json["automation_mode"] == "backfill"

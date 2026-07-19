@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -54,6 +55,19 @@ class AutomationScheduleStatePort(Protocol):
     async def mark_steady(self, *, now: datetime) -> None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class WorkflowCandidateChannel:
+    channel_id: int
+    admitted_today_count: int
+    candidates: tuple[VideoRecord, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowCandidateSnapshot:
+    admitted_today_count: int
+    channels: tuple[WorkflowCandidateChannel, ...]
+
+
 class WorkflowCandidateReaderPort(Protocol):
     async def list_candidates(
         self,
@@ -61,6 +75,18 @@ class WorkflowCandidateReaderPort(Protocol):
         state: AutomationScheduleState,
         limit: int,
     ) -> list[VideoRecord]: ...
+
+    async def read_snapshot(
+        self,
+        *,
+        state: AutomationScheduleState,
+        quota_started_at: datetime,
+        quota_ends_at: datetime,
+    ) -> WorkflowCandidateSnapshot: ...
+
+
+class WorkflowAdmissionGuardPort(Protocol):
+    def hold(self) -> AbstractAsyncContextManager[None]: ...
 
 
 class PublishedPromptSnapshotPort(Protocol):

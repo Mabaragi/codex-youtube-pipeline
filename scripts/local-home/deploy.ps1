@@ -49,6 +49,7 @@ if ($drainAware) {
     Stop-ManagedProcess "workflow-coordinator"
     Stop-ManagedProcess "timeline-compose-worker"
     Stop-ManagedProcess "pipeline-scheduler"
+    Stop-ManagedProcess "video-availability-worker"
     Stop-ManagedProcess "pipeline-supervisor"
     Stop-ManagedProcess "transcript-cue-worker"
     Stop-ManagedProcess "asr-worker"

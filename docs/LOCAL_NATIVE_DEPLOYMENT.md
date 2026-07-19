@@ -18,6 +18,7 @@ Windows process: codex-micro-event-worker
 Windows process: codex-timeline-compose-worker
 Windows process: codex-workflow-coordinator
 Windows process: codex-pipeline-supervisor
+Windows process: codex-video-availability-worker
 Windows process: Next.js ops-ui on 127.0.0.1:3000
 Docker container: MinIO on 127.0.0.1:9000 and console on 127.0.0.1:9001
 Docker container: PostgreSQL on 127.0.0.1:5432
@@ -60,6 +61,21 @@ notepad .home-deploy/local.env
 Keep `.home-deploy/local.env` private. It contains the PostgreSQL password and
 may contain API keys and local MinIO credentials. Replace every `CHANGE_ME`
 value before the first start.
+
+The Python SDK normally starts the matching CLI supplied by
+`openai-codex-cli-bin`. Do not set `CODEX_CLI_CODEX_BIN` unless a newer external
+CLI is temporarily required for model availability. SDK and external CLI
+versions can diverge at the typed app-server protocol and shared model-cache
+boundaries. Follow [Codex SDK runtime compatibility](CODEX_RUNTIME_COMPATIBILITY.md)
+before enabling or removing that override.
+
+The native pipeline uses `CODEX_CLI_CODEX_CONFIG_OVERRIDES` to disable this
+host's unrelated MCP servers. Pipeline prompts do not use personal MCP tools,
+and each prompt currently starts a short-lived app-server process. Disabling
+those inherited servers prevents an unreachable optional integration from
+delaying every micro-event window or timeline call; it does not change the
+operator's global Codex configuration. The value is a JSON list of Codex TOML
+overrides, for example `["mcp_servers.example.enabled=false"]`.
 
 Create the private publication connection registry from the tracked,
 public-safe template and replace its placeholders locally:
@@ -139,6 +155,13 @@ After the first deploy, use idempotent start:
 processes are API, pipeline scheduler, transcript worker, cue worker,
 ASR worker, micro-event worker, timeline worker, workflow coordinator,
 pipeline supervisor, and optionally Ops UI.
+The video availability worker is started only when
+`CODEX_CLI_ARCHIVE_VIDEO_AVAILABILITY_ENABLED=true`. When enabled it polls the
+configured D1 candidate inbox every five seconds, verifies at most 50 YouTube
+IDs per `videos.list` call, and runs inbox-only cleanup once per day.
+The worker uses `CODEX_CLI_ARCHIVE_VIDEO_AVAILABILITY_ADMIN_TOKEN` when set and
+otherwise reuses the existing public catalog sync token; neither value is
+logged.
 
 Check status:
 
@@ -186,6 +209,7 @@ Read logs:
 .\scripts\local-home\logs.ps1
 .\scripts\local-home\logs.ps1 api -Tail 200
 .\scripts\local-home\logs.ps1 pipeline-scheduler -Tail 200
+.\scripts\local-home\logs.ps1 video-availability-worker -Tail 200
 .\scripts\local-home\logs.ps1 transcript-worker -Tail 200
 .\scripts\local-home\logs.ps1 workflow-coordinator -Tail 200
 .\scripts\local-home\logs.ps1 timeline-compose-worker -Wait
