@@ -83,6 +83,36 @@ async def _exercise_latest_video_priority(database_path: Path) -> None:
         assert claimed_pending_workflow.id == old_workflow.id
 
         async with SqlAlchemyWorkUnitOfWork(session_factory) as unit_of_work:
+            await unit_of_work.workflows.set_waiting(
+                workflow_run_id=old_workflow.id,
+                current_stage="timeline_compose",
+                now=now + timedelta(seconds=1),
+                available_at=now,
+            )
+            reclaimed_latest = await unit_of_work.workflows.claim_next(
+                worker_id="coordinator:test",
+                now=now + timedelta(seconds=2),
+                lease_expires_at=now + timedelta(minutes=5),
+            )
+            assert reclaimed_latest is not None
+            assert reclaimed_latest.id == latest_workflow.id
+            await unit_of_work.workflows.set_waiting(
+                workflow_run_id=latest_workflow.id,
+                current_stage="timeline_compose",
+                now=now + timedelta(seconds=2),
+                available_at=now,
+            )
+            next_waiting = await unit_of_work.workflows.claim_next(
+                worker_id="coordinator:test",
+                now=now + timedelta(seconds=3),
+                lease_expires_at=now + timedelta(minutes=5),
+            )
+            await unit_of_work.commit()
+
+        assert next_waiting is not None
+        assert next_waiting.id == old_workflow.id
+
+        async with SqlAlchemyWorkUnitOfWork(session_factory) as unit_of_work:
             old_high, _ = await unit_of_work.work_items.get_or_create(
                 _create_item(video_id=1, key="old-high", priority=10, now=now)
             )

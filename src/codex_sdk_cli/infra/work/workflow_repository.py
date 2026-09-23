@@ -130,13 +130,19 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
                 ),
                 WorkflowRunModel.available_at <= now,
             )
+            # Start newly admitted videos newest-first, then revisit waiting runs fairly.
             .order_by(
                 case(
                     (WorkflowRunModel.status == WorkflowStatus.PENDING.value, 0),
                     else_=1,
                 ),
+                case(
+                    (
+                        WorkflowRunModel.status == WorkflowStatus.WAITING.value,
+                        WorkflowRunModel.updated_at,
+                    )
+                ).asc(),
                 video_published_at.desc(),
-                WorkflowRunModel.updated_at.asc(),
                 WorkflowRunModel.id.asc(),
             )
             .limit(1)
