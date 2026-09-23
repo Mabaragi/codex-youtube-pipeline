@@ -40,6 +40,8 @@ each source snapshot, and the resolved ID is frozen in the experiment's candidat
   "version": 1,
   "experimentKey": "july-micro-timeline-baseline",
   "videoIds": [101, 202],
+  "startMinutes": 0,
+  "endMinutes": 120,
   "microCandidates": [
     {
       "key": "micro-balanced",
@@ -71,6 +73,10 @@ each source snapshot, and the resolved ID is frozen in the experiment's candidat
 }
 ```
 
+`startMinutes` defaults to 0 and `endMinutes` defaults to the end of the video. When
+specified, the source snapshot includes only cues overlapping `[startMinutes, endMinutes)`.
+The same bounded snapshot is used for every candidate in the experiment.
+
 The same `experimentKey` and canonical plan hash return the existing experiment. Reusing the key
 with a different plan is rejected. Candidate aliases and blind run IDs are stable within an
 experiment.
@@ -93,6 +99,11 @@ uv run codex-demo evaluation status --experiment-id <id> --json
 uv run codex-demo evaluation report --experiment-id <id> --format md
 uv run codex-demo evaluation verify --experiment-id <id>
 ```
+
+For a micro-only comparison, use `evaluation report --experiment-id <id> --stage micro
+--unblind` after all micro runs finish and are scored. This does not require running timeline
+candidates. Without `--stage`, unblinding still requires all experiment stages to finish and be
+scored.
 
 The micro bundle exposes cues, normalized candidate output, and validation warnings. It omits
 models, reasoning effort, token usage, raw responses, and runtime identifiers. Score files use the

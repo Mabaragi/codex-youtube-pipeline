@@ -450,11 +450,14 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
         }
 
     @override
-    async def report(self, experiment_id: str, *, unblind: bool) -> JsonObject:
+    async def report(
+        self, experiment_id: str, *, unblind: bool, stage: EvaluationStage | None = None
+    ) -> JsonObject:
         experiment = await self._session.get(EvaluationExperimentModel, experiment_id)
         if experiment is None:
             raise ValueError("Evaluation experiment was not found.")
         expected_review = _expected_review_filter(experiment)
+        stage_filter = [EvaluationRunModel.stage == stage] if stage is not None else []
         rows = (
             await self._session.execute(
                 select(EvaluationRunModel, EvaluationCandidateModel)
@@ -462,7 +465,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                     EvaluationCandidateModel,
                     EvaluationCandidateModel.id == EvaluationRunModel.candidate_id,
                 )
-                .where(EvaluationRunModel.experiment_id == experiment_id)
+                .where(EvaluationRunModel.experiment_id == experiment_id, *stage_filter)
             )
         ).all()
         if unblind:
@@ -493,7 +496,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                     EvaluationRunAttemptModel.id == EvaluationUsageModel.attempt_id,
                 )
                 .join(EvaluationRunModel, EvaluationRunModel.id == EvaluationUsageModel.run_id)
-                .where(EvaluationRunModel.experiment_id == experiment_id)
+                .where(EvaluationRunModel.experiment_id == experiment_id, *stage_filter)
             )
         ).all()
         reviews = (
@@ -508,6 +511,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                 .join(EvaluationCaseModel, EvaluationCaseModel.id == EvaluationRunModel.case_id)
                 .where(
                     EvaluationRunModel.experiment_id == experiment_id,
+                    *stage_filter,
                     expected_review,
                 )
             )
@@ -582,6 +586,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
         return {
             "version": 1,
             "experimentId": experiment_id,
+            "stage": stage,
             "unblinded": unblind,
             "candidates": candidate_results,
             "videos": video_results,

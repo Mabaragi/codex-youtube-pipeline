@@ -42,6 +42,7 @@ from .infra.timelines.style_backfill import normalize_timeline_style_backfill
 from .infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
 from .infra.youtube_transcripts.repository import SqlAlchemyYouTubeTranscriptRepository
 from .infra.youtube_transcripts.storage import MinioTranscriptStorage
+from .once_cli import once as once_command
 from .publication_cli import publication as publication_command
 from .runner import (
     BLANK_BASE_INSTRUCTIONS,
@@ -629,6 +630,9 @@ async def _domain_entry_import_with_repository(
 @main.group()
 def timeline() -> None:
     """Manage timeline maintenance operations."""
+
+
+timeline.add_command(once_command)
 
 
 @timeline.command("normalize-style")

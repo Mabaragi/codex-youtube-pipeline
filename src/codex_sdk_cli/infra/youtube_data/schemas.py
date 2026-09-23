@@ -95,12 +95,33 @@ class YouTubeVideoContentDetails(BaseModel):
 
 class YouTubeVideoStatus(BaseModel):
     embeddable: bool | None = None
+    privacy_status: str | None = Field(default=None, alias="privacyStatus")
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+
+class YouTubeVideoSnippet(BaseModel):
+    title: str = Field(min_length=1)
+    description: str = ""
+    published_at: datetime = Field(alias="publishedAt")
+    channel_id: str = Field(alias="channelId", min_length=1)
+    channel_title: str = Field(alias="channelTitle", min_length=1)
+    thumbnails: dict[str, YouTubeThumbnail] = Field(default_factory=dict)
+
+    @property
+    def thumbnail_url(self) -> str | None:
+        for key in ("maxres", "standard", "high", "medium", "default"):
+            thumbnail = self.thumbnails.get(key)
+            if thumbnail is not None:
+                return thumbnail.url
+        return None
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
 class YouTubeVideoResource(BaseModel):
     youtube_video_id: str = Field(alias="id", min_length=1)
+    snippet: YouTubeVideoSnippet | None = None
     content_details: YouTubeVideoContentDetails | None = Field(
         default=None,
         alias="contentDetails",

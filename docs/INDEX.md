@@ -42,12 +42,17 @@ operators can use them without private runtime context.
 - [Archive publish](ARCHIVE_PUBLISH.md): streamer profiles, canonical local
   artifacts, multi-destination routes, recovery stages, status, and cutover.
   Read when publishing or validating timeline projections.
+- [Public archive API](PUBLIC_ARCHIVE_API.md): read-only Planetip-compatible
+  endpoints backed by the local SQL publication catalog. Read when connecting
+  a frontend to a streamer-scoped local publication.
 - [Publication data migration](PUBLICATION_MIGRATION.md): offline preparation,
   canonical/local copy, historical index preservation, catalog replay, resume,
   and verification. Read before migrating existing archive data.
 - [One-shot model evaluation](MODEL_EVALUATION.md): private evaluation database and
   object storage preparation, plan format, blind micro selection, timeline comparison,
   resume behavior, verification, and report interpretation.
+- [One-shot timeline](ONE_SHOT_TIMELINE.md): direct YouTube video planning, local-only
+  generation, ASR fallback, resume, and artifact verification.
 - [CI/CD status](CICD.md): current manual GitHub Actions behavior and local
   quality gates. Read when changing verification or deployment automation.
 - [Human learnings](learnings/INDEX.md): public-safe discoveries, debugging

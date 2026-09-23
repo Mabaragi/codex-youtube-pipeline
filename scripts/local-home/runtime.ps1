@@ -56,6 +56,36 @@ function Test-VideoAvailabilityWorkerEnabled {
     return $env:CODEX_CLI_ARCHIVE_VIDEO_AVAILABILITY_ENABLED -match "^(?i:true|1|yes|on)$"
 }
 
+function Test-AsrWorkerEnabled {
+    $value = $env:CODEX_CLI_ASR_WORKER_ENABLED
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $true
+    }
+    $value = $value.Trim()
+    if ($value -match "^(true|1|yes|on|t|y)$") {
+        return $true
+    }
+    if ($value -match "^(false|0|no|off|f|n)$") {
+        return $false
+    }
+    throw "CODEX_CLI_ASR_WORKER_ENABLED must be a boolean value."
+}
+
+function Get-RequiredWorkerProcessNames {
+    $names = @(
+        "pipeline-supervisor",
+        "micro-event-worker",
+        "transcript-worker",
+        "transcript-cue-worker",
+        "timeline-compose-worker",
+        "workflow-coordinator"
+    )
+    if (Test-AsrWorkerEnabled) {
+        $names += "asr-worker"
+    }
+    return $names
+}
+
 function Wait-ApiHealth {
     param([int]$TimeoutSeconds = 30)
 
@@ -152,12 +182,14 @@ function Get-RuntimeSnapshot {
         apiHealthy = $apiHealthy
         processes = Get-ProcessSnapshot
         infrastructure = Get-InfraSnapshot
+        asrWorkerEnabled = Test-AsrWorkerEnabled
         automationMode = $(if ($automation) { $automation.mode } else { $null })
         runtime = $(if ($automation) { $automation.runtime } else { $null })
     }
 }
 
 function Show-RuntimeStatus {
+    Import-LocalHomeEnv
     $snapshot = Get-RuntimeSnapshot
     if ($Json) {
         $snapshot | ConvertTo-Json -Depth 12
@@ -174,6 +206,7 @@ function Show-RuntimeStatus {
     }
     Write-Host ""
     Write-Host ("API health: {0}" -f $(if ($snapshot.apiHealthy) { "ok" } else { "unavailable" }))
+    Write-Host ("ASR worker setting: {0}" -f $(if ($snapshot.asrWorkerEnabled) { "enabled" } else { "disabled" }))
     if ($snapshot.runtime) {
         Write-Host ("Automation mode: {0}" -f $snapshot.automationMode)
         Write-Host ("Runtime state: {0}" -f $snapshot.runtime.state)
@@ -224,10 +257,12 @@ function Start-WorkerProcesses {
         "-c",
         '"from codex_sdk_cli.workers.transcripts import run_transcript_cue; run_transcript_cue()"'
     )
-    Start-LoggedProcess "asr-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
-        "-m",
-        "codex_sdk_cli.workers.asr"
-    )
+    if (Test-AsrWorkerEnabled) {
+        Start-LoggedProcess "asr-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+            "-m",
+            "codex_sdk_cli.workers.asr"
+        )
+    }
     Start-LoggedProcess "timeline-compose-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
         "-c",
         '"from codex_sdk_cli.workers.timelines import run; run()"'
@@ -291,15 +326,7 @@ function Start-Runtime {
     Start-ApiProcess
     $before = Get-AutomationStatus
     Start-WorkerProcesses
-    Assert-ProcessStarted @(
-        "pipeline-supervisor",
-        "micro-event-worker",
-        "transcript-worker",
-        "transcript-cue-worker",
-        "asr-worker",
-        "timeline-compose-worker",
-        "workflow-coordinator"
-    )
+    Assert-ProcessStarted -Names (Get-RequiredWorkerProcessNames)
     if (Test-VideoAvailabilityWorkerEnabled) {
         Assert-ProcessStarted @("video-availability-worker")
     }

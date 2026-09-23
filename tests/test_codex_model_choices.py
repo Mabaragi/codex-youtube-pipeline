@@ -9,7 +9,13 @@ from codex_sdk_cli.domains.micro_events.schemas import MicroEventExtractRequest
 from codex_sdk_cli.domains.timelines.schemas import TimelineComposeEnqueueRequest
 from codex_sdk_cli.settings import CliSettings
 
-NEW_CODEX_MODELS = ("gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna")
+NEW_CODEX_MODELS = (
+    "gpt-5.6-terra",
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "gpt-6-sol",
+    "gpt-6-luna",
+)
 
 
 @pytest.mark.parametrize("model", NEW_CODEX_MODELS)

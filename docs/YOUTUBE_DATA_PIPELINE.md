@@ -68,6 +68,10 @@ creates bounded v2 workflows with active published database prompt IDs
 snapshotted into each workflow. It drains the initial backfill before switching
 to steady mode.
 
+New workflows default to GPT-6 Sol/xhigh for micro-events and GPT-6 Luna/xhigh
+for timelines. Each workflow retains its selected models and prompt version IDs
+after admission; changing the defaults or active prompt affects new workflows.
+
 Automatic `process_to_publish` admission has one shared daily quota for backfill
 and steady work. The default is 40 videos per `Asia/Seoul` calendar day. Each
 eligible channel is brought up to two admitted videos first, using its newest
@@ -91,6 +95,11 @@ work during the day.
   downloads/chunks the source again but does not transcribe completed chunks.
 - CUDA `float16` falls back once to `int8_float16`; automatic workflows do not
   silently fall back to CPU.
+- `CODEX_CLI_ASR_WORKER_ENABLED=false` pauses the local ASR worker while leaving
+  no-caption workflows and ASR items pending. Re-enabling it resumes the same
+  work items; the workflow's stored fallback mode and daily admission count do
+  not change. New ASR queue and ASR-stage SLA alerts are not opened during the
+  pause, while execution failures remain visible.
 - `codex-pipeline-supervisor` runs every minute. It recovers expired leases,
   retries classified transient failures at 5- and 20-minute delays, and opens
   deduplicated incidents for exhausted, stalled, or SLA-breaching work.

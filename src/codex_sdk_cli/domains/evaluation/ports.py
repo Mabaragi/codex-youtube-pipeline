@@ -89,7 +89,9 @@ class EvaluationRepositoryPort(Protocol):
 
     async def status(self, experiment_id: str) -> JsonObject: ...
 
-    async def report(self, experiment_id: str, *, unblind: bool) -> JsonObject: ...
+    async def report(
+        self, experiment_id: str, *, unblind: bool, stage: EvaluationStage | None = None
+    ) -> JsonObject: ...
 
     async def record_artifact(
         self,

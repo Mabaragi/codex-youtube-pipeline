@@ -4095,14 +4095,16 @@
             "type": "boolean"
           },
           "model": {
-            "default": "gpt-5.6-sol",
+            "default": "gpt-6-sol",
             "enum": [
               "gpt-5.5",
               "gpt-5.4",
               "gpt-5.4-mini",
               "gpt-5.6-terra",
               "gpt-5.6-sol",
-              "gpt-5.6-luna"
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna"
             ],
             "title": "Model",
             "type": "string"
@@ -4127,7 +4129,7 @@
             "title": "Promptversionid"
           },
           "reasoningEffort": {
-            "default": "high",
+            "default": "xhigh",
             "enum": [
               "low",
               "medium",
@@ -6558,14 +6560,16 @@
             "type": "array"
           },
           "microModel": {
-            "default": "gpt-5.6-sol",
+            "default": "gpt-6-sol",
             "enum": [
               "gpt-5.5",
               "gpt-5.4",
               "gpt-5.4-mini",
               "gpt-5.6-terra",
               "gpt-5.6-sol",
-              "gpt-5.6-luna"
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna"
             ],
             "title": "Micromodel",
             "type": "string"
@@ -6590,7 +6594,7 @@
             "title": "Micropromptversionid"
           },
           "microReasoningEffort": {
-            "default": "high",
+            "default": "xhigh",
             "enum": [
               "low",
               "medium",
@@ -6660,14 +6664,16 @@
             "title": "Selection"
           },
           "timelineModel": {
-            "default": "gpt-5.6-luna",
+            "default": "gpt-6-luna",
             "enum": [
               "gpt-5.5",
               "gpt-5.4",
               "gpt-5.4-mini",
               "gpt-5.6-terra",
               "gpt-5.6-sol",
-              "gpt-5.6-luna"
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna"
             ],
             "title": "Timelinemodel",
             "type": "string"
@@ -7043,6 +7049,466 @@
           }
         },
         "title": "PromptVersionUpdateRequest",
+        "type": "object"
+      },
+      "PublicArchiveCatalogVersionResponse": {
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "PublicArchiveCatalogVersionResponse",
+        "type": "object"
+      },
+      "PublicArchiveChannelResponse": {
+        "properties": {
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "youtubeChannelId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtubechannelid"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "handle",
+          "youtubeChannelId"
+        ],
+        "title": "PublicArchiveChannelResponse",
+        "type": "object"
+      },
+      "PublicArchiveSearchMatchesResponse": {
+        "properties": {
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/PublicArchiveTopicMatchResponse"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "topics"
+        ],
+        "title": "PublicArchiveSearchMatchesResponse",
+        "type": "object"
+      },
+      "PublicArchiveStreamerMetadataResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PublicArchiveStreamerMetadataResponse",
+        "type": "object"
+      },
+      "PublicArchiveStreamerResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "videoCount": {
+            "title": "Videocount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "videoCount"
+        ],
+        "title": "PublicArchiveStreamerResponse",
+        "type": "object"
+      },
+      "PublicArchiveStreamersResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicArchiveStreamerResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PublicArchiveStreamersResponse",
+        "type": "object"
+      },
+      "PublicArchiveTimelineVariantResponse": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "url",
+          "version"
+        ],
+        "title": "PublicArchiveTimelineVariantResponse",
+        "type": "object"
+      },
+      "PublicArchiveTopicMatchResponse": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "PublicArchiveTopicMatchResponse",
+        "type": "object"
+      },
+      "PublicArchiveVideoItemResponse": {
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/PublicArchiveVideoResponse"
+          }
+        },
+        "required": [
+          "item"
+        ],
+        "title": "PublicArchiveVideoItemResponse",
+        "type": "object"
+      },
+      "PublicArchiveVideoResponse": {
+        "properties": {
+          "blockCount": {
+            "title": "Blockcount",
+            "type": "integer"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/PublicArchiveChannelResponse"
+          },
+          "displaySummary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaysummary"
+          },
+          "displayTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displaytitle"
+          },
+          "durationSeconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationseconds"
+          },
+          "durationText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationtext"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "episodeClickCount": {
+            "title": "Episodeclickcount",
+            "type": "integer"
+          },
+          "episodeCount": {
+            "title": "Episodecount",
+            "type": "integer"
+          },
+          "eventCount": {
+            "title": "Eventcount",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "isEmbeddable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isembeddable"
+          },
+          "mainTopics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Maintopics",
+            "type": "array"
+          },
+          "openCount": {
+            "title": "Opencount",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishedat"
+          },
+          "searchMatches": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicArchiveSearchMatchesResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "streamer": {
+            "$ref": "#/components/schemas/PublicArchiveStreamerMetadataResponse"
+          },
+          "streamerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Streamerid"
+          },
+          "thumbnailUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnailurl"
+          },
+          "timelineLoadCount": {
+            "title": "Timelineloadcount",
+            "type": "integer"
+          },
+          "timelineUrl": {
+            "title": "Timelineurl",
+            "type": "string"
+          },
+          "timelineVariants": {
+            "items": {
+              "$ref": "#/components/schemas/PublicArchiveTimelineVariantResponse"
+            },
+            "title": "Timelinevariants",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "topicClusterCount": {
+            "title": "Topicclustercount",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "youtubeId": {
+            "title": "Youtubeid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment",
+          "id",
+          "youtubeId",
+          "title",
+          "streamerId",
+          "streamer",
+          "channel",
+          "publishedAt",
+          "durationText",
+          "durationSeconds",
+          "thumbnailUrl",
+          "isEmbeddable",
+          "displayTitle",
+          "displaySummary",
+          "mainTopics",
+          "episodeCount",
+          "eventCount",
+          "topicClusterCount",
+          "blockCount",
+          "timelineVariants",
+          "timelineUrl",
+          "updatedAt",
+          "openCount",
+          "timelineLoadCount",
+          "episodeClickCount"
+        ],
+        "title": "PublicArchiveVideoResponse",
+        "type": "object"
+      },
+      "PublicArchiveVideosResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicArchiveVideoResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          },
+          "totalCount": {
+            "title": "Totalcount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "totalCount"
+        ],
+        "title": "PublicArchiveVideosResponse",
         "type": "object"
       },
       "PublicationArtifactStageRequest": {
@@ -8469,7 +8935,9 @@
                   "gpt-5.4-mini",
                   "gpt-5.6-terra",
                   "gpt-5.6-sol",
-                  "gpt-5.6-luna"
+                  "gpt-5.6-luna",
+                  "gpt-6-sol",
+                  "gpt-6-luna"
                 ],
                 "type": "string"
               },
@@ -9213,14 +9681,16 @@
             "type": "boolean"
           },
           "model": {
-            "default": "gpt-5.6-luna",
+            "default": "gpt-6-luna",
             "enum": [
               "gpt-5.5",
               "gpt-5.4",
               "gpt-5.4-mini",
               "gpt-5.6-terra",
               "gpt-5.6-sol",
-              "gpt-5.6-luna"
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna"
             ],
             "title": "Model",
             "type": "string"
@@ -11427,6 +11897,356 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/archive/catalog-version": {
+      "get": {
+        "operationId": "get_public_archive_catalog_version_api_archive_catalog_version_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "default": "prod",
+              "title": "Environment",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicArchiveCatalogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Archive Catalog Version",
+        "tags": [
+          "public-archive"
+        ]
+      }
+    },
+    "/api/archive/streamers": {
+      "get": {
+        "operationId": "list_public_archive_streamers_api_archive_streamers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "default": "prod",
+              "title": "Environment",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicArchiveStreamersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Public Archive Streamers",
+        "tags": [
+          "public-archive"
+        ]
+      }
+    },
+    "/api/archive/videos": {
+      "get": {
+        "operationId": "list_public_archive_videos_api_archive_videos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "latest",
+              "enum": [
+                "latest",
+                "oldest"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "streamerId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Streamerid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channelId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channelid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "youtubeVideoId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_-]{11}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Youtubevideoid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeStats",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Includestats",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "default": "prod",
+              "title": "Environment",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicArchiveVideosResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Public Archive Videos",
+        "tags": [
+          "public-archive"
+        ]
+      }
+    },
+    "/api/archive/videos/{videoId}": {
+      "get": {
+        "operationId": "get_public_archive_video_api_archive_videos__videoId__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "videoId",
+            "required": true,
+            "schema": {
+              "pattern": "^(?:[1-9][0-9]*|[A-Za-z0-9_-]{11})$",
+              "title": "Videoid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "default": "prod",
+              "title": "Environment",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicArchiveVideoItemResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Archive Video",
+        "tags": [
+          "public-archive"
+        ]
+      },
+      "head": {
+        "operationId": "head_public_archive_video_api_archive_videos__videoId__head",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "videoId",
+            "required": true,
+            "schema": {
+              "pattern": "^(?:[1-9][0-9]*|[A-Za-z0-9_-]{11})$",
+              "title": "Videoid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "default": "prod",
+              "title": "Environment",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Head Public Archive Video",
+        "tags": [
+          "public-archive"
+        ]
+      }
+    },
     "/codex/account": {
       "get": {
         "operationId": "get_codex_account_codex_account_get",

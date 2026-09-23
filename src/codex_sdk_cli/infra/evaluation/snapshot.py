@@ -82,15 +82,26 @@ class ReadOnlyControlSnapshotter(EvaluationSnapshotterPort):
             transcript = await self._latest_transcript_with_cues(video.youtube_video_id)
             if transcript is None:
                 raise ValueError(f"No transcript cues are available for video: {video_id}")
+            cue_query = select(TranscriptCueModel).where(
+                TranscriptCueModel.transcript_id == transcript.id
+            )
+            if plan.start_minutes:
+                cue_query = cue_query.where(
+                    TranscriptCueModel.end_ms > plan.start_minutes * 60_000
+                )
+            if plan.end_minutes is not None:
+                cue_query = cue_query.where(
+                    TranscriptCueModel.start_ms < plan.end_minutes * 60_000
+                )
             cues = list(
                 (
                     await self._session.scalars(
-                        select(TranscriptCueModel)
-                        .where(TranscriptCueModel.transcript_id == transcript.id)
-                        .order_by(TranscriptCueModel.cue_index)
+                        cue_query.order_by(TranscriptCueModel.cue_index)
                     )
                 ).all()
             )
+            if not cues:
+                raise ValueError(f"No transcript cues are available in range for video: {video_id}")
             domain_entries = await domain_repository.list_prompt_entries_for_streamer(streamer.id)
             snapshots.append(
                 cast(
@@ -101,6 +112,10 @@ class ReadOnlyControlSnapshotter(EvaluationSnapshotterPort):
                             "experimentId": experiment_id,
                             "videoId": video.id,
                             "youtubeVideoId": video.youtube_video_id,
+                            "cueRange": {
+                                "startMinutes": plan.start_minutes,
+                                "endMinutes": plan.end_minutes,
+                            },
                             "video": _model_columns(video),
                             "channel": _model_columns(channel),
                             "streamer": _model_columns(streamer),

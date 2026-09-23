@@ -52,6 +52,10 @@ class EvaluationService:
 
     async def create(self, plan: EvaluationPlan) -> JsonObject:
         plan_json = plan.model_dump(mode="json", by_alias=True)
+        # Preserve hashes of plans created before bounded snapshots were supported.
+        if plan.start_minutes == 0 and plan.end_minutes is None:
+            plan_json.pop("startMinutes")
+            plan_json.pop("endMinutes")
         plan_hash = _json_sha256(plan_json)
         existing = await self._repository.get_experiment_by_key(plan.experiment_key)
         if existing is not None:
@@ -276,9 +280,11 @@ class EvaluationService:
         await self._require_experiment(experiment_id)
         return await self._repository.status(experiment_id)
 
-    async def report(self, experiment_id: str, *, unblind: bool) -> JsonObject:
+    async def report(
+        self, experiment_id: str, *, unblind: bool, stage: EvaluationStage | None = None
+    ) -> JsonObject:
         await self._require_experiment(experiment_id)
-        return await self._repository.report(experiment_id, unblind=unblind)
+        return await self._repository.report(experiment_id, unblind=unblind, stage=stage)
 
     async def verify(self, experiment_id: str) -> JsonObject:
         await self._require_experiment(experiment_id)

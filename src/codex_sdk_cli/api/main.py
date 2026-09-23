@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from codex_sdk_cli.api.dependencies import get_settings
 from codex_sdk_cli.api.exception_handlers import add_exception_handlers
@@ -20,6 +21,7 @@ from codex_sdk_cli.api.routes.operation_events import router as operation_events
 from codex_sdk_cli.api.routes.operations import router as operations_router
 from codex_sdk_cli.api.routes.ops import router as ops_router
 from codex_sdk_cli.api.routes.prompts import router as prompts_router
+from codex_sdk_cli.api.routes.public_archive import router as public_archive_router
 from codex_sdk_cli.api.routes.publication import router as publication_router
 from codex_sdk_cli.api.routes.publication_config import router as publication_config_router
 from codex_sdk_cli.api.routes.publication_stages import router as publication_stages_router
@@ -61,6 +63,7 @@ async def _recover_interrupted_work_on_startup() -> None:
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(
         title="Codex SDK CLI API",
         version="0.1.0",
@@ -68,6 +71,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     add_exception_handlers(app)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.public_archive_cors_origins),
+        allow_credentials=False,
+        allow_methods=["GET", "HEAD", "OPTIONS"],
+        allow_headers=["*"],
+    )
+    app.include_router(public_archive_router, prefix="/api/archive", tags=["public-archive"])
     app.include_router(codex_router, prefix="/codex", tags=["codex"])
     app.include_router(ops_router, prefix="/ops", tags=["ops"])
     app.include_router(codex_usage_router, prefix="/ops", tags=["ops"])

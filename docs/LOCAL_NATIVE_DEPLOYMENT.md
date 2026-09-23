@@ -106,6 +106,18 @@ starts `asr-worker` with GPU concurrency one and `pipeline-supervisor` with a
 60-second incident scan interval. These tools are not needed when automatic
 ASR fallback is disabled.
 
+When the GPU is unavailable, set `CODEX_CLI_ASR_WORKER_ENABLED=false` in
+`.home-deploy/local.env` and run `.\scripts\local-home\runtime.ps1 restart`.
+The restart drains active work before stopping processes. Captioned videos
+continue through the pipeline; videos waiting for local ASR retain their pending
+work items and do not consume a second daily admission when resumed. Set the
+flag back to `true` and restart again when the GPU is ready. The same pending
+ASR work items then run, and completed chunk checkpoints remain available.
+The status command shows whether the stopped ASR worker is intentional. Direct
+`codex-demo asr transcribe` calls are separate from this worker setting. ASR jobs
+that had already failed or become blocked before the pause need the existing retry
+procedure; toggling the flag does not reset them.
+
 If the previous Docker home stack has the metadata DB, copy it once:
 
 ```powershell

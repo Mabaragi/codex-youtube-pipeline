@@ -115,4 +115,35 @@ try {
 }
 Assert-Equal $secondLockRejected $true "Concurrent runtime commands must be rejected."
 
+$previousAsrWorkerEnabled = [Environment]::GetEnvironmentVariable("CODEX_CLI_ASR_WORKER_ENABLED", "Process")
+try {
+    $script:startedProcesses = New-Object System.Collections.Generic.List[string]
+    function Start-LoggedProcess {
+        param([string]$Name, [string]$FilePath, [string[]]$ArgumentList)
+        $script:startedProcesses.Add($Name)
+    }
+    function Get-ProcessSnapshot { return @() }
+    function Get-InfraSnapshot { return @() }
+
+    $env:CODEX_CLI_ASR_WORKER_ENABLED = "false"
+    Assert-Equal (Test-AsrWorkerEnabled) $false "ASR worker must be disabled by false."
+    Assert-Equal ((Get-RequiredWorkerProcessNames) -contains "asr-worker") $false "Disabled ASR must not be required."
+    Start-WorkerProcesses
+    Assert-Equal ($script:startedProcesses.Contains("asr-worker")) $false "Disabled ASR must not start."
+    Assert-Equal (Get-RuntimeSnapshot).asrWorkerEnabled $false "Status must show disabled ASR."
+
+    $script:startedProcesses.Clear()
+    $env:CODEX_CLI_ASR_WORKER_ENABLED = "true"
+    Assert-Equal ((Get-RequiredWorkerProcessNames) -contains "asr-worker") $true "Enabled ASR must be required."
+    Start-WorkerProcesses
+    Assert-Equal ($script:startedProcesses.Contains("asr-worker")) $true "Enabled ASR must start."
+    Assert-Equal (Get-RuntimeSnapshot).asrWorkerEnabled $true "Status must show enabled ASR."
+} finally {
+    if ($null -eq $previousAsrWorkerEnabled) {
+        Remove-Item Env:CODEX_CLI_ASR_WORKER_ENABLED -ErrorAction SilentlyContinue
+    } else {
+        $env:CODEX_CLI_ASR_WORKER_ENABLED = $previousAsrWorkerEnabled
+    }
+}
+
 Write-Host "local runtime orchestration tests passed"

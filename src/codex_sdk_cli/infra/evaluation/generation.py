@@ -42,11 +42,7 @@ from codex_sdk_cli.domains.videos.ports import VideoRepositoryPort
 from codex_sdk_cli.domains.youtube_transcripts.ports import YouTubeTranscriptRepositoryPort
 from codex_sdk_cli.infra.codex.client import CodexRuntimeClient
 from codex_sdk_cli.infra.codex.recording import RecordingCodexRuntime
-from codex_sdk_cli.infra.micro_events.extractor import CodexMicroEventExtractor
-from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
-from codex_sdk_cli.settings import CliSettings
-
-from .memory import (
+from codex_sdk_cli.infra.local_generation.memory import (
     MemoryMicroEventRepository,
     MemoryPipelineJobRepository,
     MemoryTimelineRepository,
@@ -64,6 +60,10 @@ from .memory import (
     snapshot_records,
     window_create_from_json,
 )
+from codex_sdk_cli.infra.micro_events.extractor import CodexMicroEventExtractor
+from codex_sdk_cli.infra.timelines.composer import CodexTimelineComposer
+from codex_sdk_cli.settings import CliSettings
+
 from .recording import (
     EvaluationCheckpointWriter,
     EvaluationUsageRecorder,

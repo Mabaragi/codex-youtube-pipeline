@@ -4,6 +4,75 @@
  */
 
 export interface paths {
+    "/api/archive/catalog-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Archive Catalog Version */
+        get: operations["get_public_archive_catalog_version_api_archive_catalog_version_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/archive/streamers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Archive Streamers */
+        get: operations["list_public_archive_streamers_api_archive_streamers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/archive/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Archive Videos */
+        get: operations["list_public_archive_videos_api_archive_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/archive/videos/{videoId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Archive Video */
+        get: operations["get_public_archive_video_api_archive_videos__videoId__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Head Public Archive Video */
+        head: operations["head_public_archive_video_api_archive_videos__videoId__head"];
+        patch?: never;
+        trace?: never;
+    };
     "/codex/account": {
         parameters: {
             query?: never;
@@ -2855,10 +2924,10 @@ export interface components {
             includeNonEmbeddable: boolean;
             /**
              * Model
-             * @default gpt-5.6-sol
+             * @default gpt-6-sol
              * @enum {string}
              */
-            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
+            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
             /**
              * Overlapminutes
              * @default 5
@@ -2868,7 +2937,7 @@ export interface components {
             promptVersionId?: number | null;
             /**
              * Reasoningeffort
-             * @default high
+             * @default xhigh
              * @enum {string}
              */
             reasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -3626,10 +3695,10 @@ export interface components {
             languages: string[];
             /**
              * Micromodel
-             * @default gpt-5.6-sol
+             * @default gpt-6-sol
              * @enum {string}
              */
-            microModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
+            microModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
             /**
              * Microoverlapminutes
              * @default 5
@@ -3639,7 +3708,7 @@ export interface components {
             microPromptVersionId?: number | null;
             /**
              * Microreasoningeffort
-             * @default high
+             * @default xhigh
              * @enum {string}
              */
             microReasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -3673,10 +3742,10 @@ export interface components {
             selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
             /**
              * Timelinemodel
-             * @default gpt-5.6-luna
+             * @default gpt-6-luna
              * @enum {string}
              */
-            timelineModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
+            timelineModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
             /** Timelinepromptversionid */
             timelinePromptVersionId?: number | null;
             /**
@@ -3806,6 +3875,132 @@ export interface components {
             body?: string | null;
             /** Sourcenote */
             sourceNote?: string | null;
+        };
+        /** PublicArchiveCatalogVersionResponse */
+        PublicArchiveCatalogVersionResponse: {
+            /** Version */
+            version: string;
+        };
+        /** PublicArchiveChannelResponse */
+        PublicArchiveChannelResponse: {
+            /** Handle */
+            handle: string | null;
+            /** Id */
+            id: number | null;
+            /** Name */
+            name: string | null;
+            /** Youtubechannelid */
+            youtubeChannelId: string | null;
+        };
+        /** PublicArchiveSearchMatchesResponse */
+        PublicArchiveSearchMatchesResponse: {
+            /** Topics */
+            topics: components["schemas"]["PublicArchiveTopicMatchResponse"][];
+        };
+        /** PublicArchiveStreamerMetadataResponse */
+        PublicArchiveStreamerMetadataResponse: {
+            /** Id */
+            id: string | null;
+            /** Name */
+            name: string | null;
+        };
+        /** PublicArchiveStreamerResponse */
+        PublicArchiveStreamerResponse: {
+            /** Id */
+            id: string | null;
+            /** Name */
+            name: string | null;
+            /** Videocount */
+            videoCount: number;
+        };
+        /** PublicArchiveStreamersResponse */
+        PublicArchiveStreamersResponse: {
+            /** Items */
+            items: components["schemas"]["PublicArchiveStreamerResponse"][];
+        };
+        /** PublicArchiveTimelineVariantResponse */
+        PublicArchiveTimelineVariantResponse: {
+            /** Key */
+            key: string;
+            /** Url */
+            url: string;
+            /** Version */
+            version: string;
+        };
+        /** PublicArchiveTopicMatchResponse */
+        PublicArchiveTopicMatchResponse: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** PublicArchiveVideoItemResponse */
+        PublicArchiveVideoItemResponse: {
+            item: components["schemas"]["PublicArchiveVideoResponse"];
+        };
+        /** PublicArchiveVideoResponse */
+        PublicArchiveVideoResponse: {
+            /** Blockcount */
+            blockCount: number;
+            channel: components["schemas"]["PublicArchiveChannelResponse"];
+            /** Displaysummary */
+            displaySummary: string | null;
+            /** Displaytitle */
+            displayTitle: string | null;
+            /** Durationseconds */
+            durationSeconds: number | null;
+            /** Durationtext */
+            durationText: string | null;
+            /** Environment */
+            environment: string;
+            /** Episodeclickcount */
+            episodeClickCount: number;
+            /** Episodecount */
+            episodeCount: number;
+            /** Eventcount */
+            eventCount: number;
+            /** Id */
+            id: number;
+            /** Isembeddable */
+            isEmbeddable: boolean | null;
+            /** Maintopics */
+            mainTopics: string[];
+            /** Opencount */
+            openCount: number;
+            /** Publishedat */
+            publishedAt: string | null;
+            searchMatches?: components["schemas"]["PublicArchiveSearchMatchesResponse"] | null;
+            streamer: components["schemas"]["PublicArchiveStreamerMetadataResponse"];
+            /** Streamerid */
+            streamerId: string | null;
+            /** Thumbnailurl */
+            thumbnailUrl: string | null;
+            /** Timelineloadcount */
+            timelineLoadCount: number;
+            /** Timelineurl */
+            timelineUrl: string;
+            /** Timelinevariants */
+            timelineVariants: components["schemas"]["PublicArchiveTimelineVariantResponse"][];
+            /** Title */
+            title: string;
+            /** Topicclustercount */
+            topicClusterCount: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Youtubeid */
+            youtubeId: string;
+        };
+        /** PublicArchiveVideosResponse */
+        PublicArchiveVideosResponse: {
+            /** Items */
+            items: components["schemas"]["PublicArchiveVideoResponse"][];
+            /** Nextcursor */
+            nextCursor: string | null;
+            /** Totalcount */
+            totalCount: number;
         };
         /** PublicationArtifactStageRequest */
         PublicationArtifactStageRequest: {
@@ -4315,7 +4510,7 @@ export interface components {
              * @description Optional model override for this run.
              * @example gpt-5.5
              */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna") | null;
             /**
              * Prompt
              * @description User prompt to send to a Codex thread.
@@ -4579,10 +4774,10 @@ export interface components {
             includeNonEmbeddable: boolean;
             /**
              * Model
-             * @default gpt-5.6-luna
+             * @default gpt-6-luna
              * @enum {string}
              */
-            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna";
+            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
             /** Promptversionid */
             promptVersionId?: number | null;
             /**
@@ -5368,6 +5563,173 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_public_archive_catalog_version_api_archive_catalog_version_get: {
+        parameters: {
+            query?: {
+                environment?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicArchiveCatalogVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_public_archive_streamers_api_archive_streamers_get: {
+        parameters: {
+            query?: {
+                environment?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicArchiveStreamersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_public_archive_videos_api_archive_videos_get: {
+        parameters: {
+            query?: {
+                sort?: "latest" | "oldest";
+                limit?: number;
+                cursor?: string | null;
+                q?: string | null;
+                streamerId?: string | null;
+                channelId?: number | null;
+                youtubeVideoId?: string | null;
+                includeStats?: boolean;
+                environment?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicArchiveVideosResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_archive_video_api_archive_videos__videoId__get: {
+        parameters: {
+            query?: {
+                environment?: string;
+            };
+            header?: never;
+            path: {
+                videoId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicArchiveVideoItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    head_public_archive_video_api_archive_videos__videoId__head: {
+        parameters: {
+            query?: {
+                environment?: string;
+            };
+            header?: never;
+            path: {
+                videoId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_codex_account_codex_account_get: {
         parameters: {
             query?: {

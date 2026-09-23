@@ -46,6 +46,8 @@ class EvaluationPlan(BaseModel):
         alias="experimentKey",
     )
     video_ids: list[int] = Field(min_length=1, max_length=200, alias="videoIds")
+    start_minutes: int = Field(default=0, ge=0, alias="startMinutes")
+    end_minutes: int | None = Field(default=None, gt=0, alias="endMinutes")
     micro_candidates: list[MicroEvaluationCandidate] = Field(
         min_length=1,
         max_length=20,
@@ -67,6 +69,8 @@ class EvaluationPlan(BaseModel):
 
     @model_validator(mode="after")
     def validate_unique_values(self) -> EvaluationPlan:
+        if self.end_minutes is not None and self.end_minutes <= self.start_minutes:
+            raise ValueError("endMinutes must be greater than startMinutes.")
         if len(set(self.video_ids)) != len(self.video_ids):
             raise ValueError("videoIds must be unique.")
         micro_keys = [item.key for item in self.micro_candidates]

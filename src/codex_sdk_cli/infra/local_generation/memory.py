@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from codex_sdk_cli.domains.channels.ports import ChannelRecord
 from codex_sdk_cli.domains.domain_knowledge.ports import (
@@ -46,7 +46,10 @@ from codex_sdk_cli.domains.youtube_transcripts.ports import (
     YouTubeTranscriptMetadataRecord,
 )
 
-from .recording import EvaluationCheckpointWriter
+
+class WindowCheckpointWriter(Protocol):
+    async def write(self, *, window_index: int, payload: JsonObject, status: str) -> None: ...
+
 
 NOW = datetime.now(UTC)
 
@@ -453,7 +456,7 @@ class MemoryMicroEventRepository:
         *,
         video: VideoRecord,
         tasks: MemoryVideoTaskRepository,
-        checkpoint_writer: EvaluationCheckpointWriter | None = None,
+        checkpoint_writer: WindowCheckpointWriter | None = None,
     ) -> None:
         self.video = video
         self.tasks = tasks

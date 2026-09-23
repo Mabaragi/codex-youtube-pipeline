@@ -59,9 +59,9 @@ Example end-to-end request:
 {
   "selection": {"type": "selected", "videoIds": [101]},
   "languages": ["ko", "en"],
-  "microModel": "gpt-5.6-sol",
-  "microReasoningEffort": "high",
-  "timelineModel": "gpt-5.6-luna",
+  "microModel": "gpt-6-sol",
+  "microReasoningEffort": "xhigh",
+  "timelineModel": "gpt-6-luna",
   "timelineReasoningEffort": "xhigh",
   "retryFailed": true,
   "publishMode": "prod",

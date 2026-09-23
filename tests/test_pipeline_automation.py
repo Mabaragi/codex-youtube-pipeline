@@ -43,7 +43,11 @@ from codex_sdk_cli.domains.asr.ports import (
     AudioChunkCheckpoint,
     AudioTranscriptionSegment,
 )
-from codex_sdk_cli.domains.automation.ports import IncidentUpsert
+from codex_sdk_cli.domains.automation.ports import (
+    IncidentUpsert,
+    QueueStallCandidate,
+    SlaBreachCandidate,
+)
 from codex_sdk_cli.domains.work.models import (
     WorkExecutionMode,
     WorkflowStatus,
@@ -88,6 +92,41 @@ class RecordingEvents:
         self.events.append(event)
 
 
+class PauseObservationReader:
+    def __init__(self, now: datetime) -> None:
+        self.now = now
+
+    async def sla_breaches(self, *, now: datetime, limit: int) -> list[SlaBreachCandidate]:
+        assert now == self.now and limit == 200
+        return [
+            SlaBreachCandidate(1, 1, "asr_transcribe", now, now),
+            SlaBreachCandidate(2, 2, "micro_event_extract", now, now),
+        ]
+
+    async def stalls(self, *, now: datetime, limit: int) -> list[object]:
+        assert now == self.now and limit == 200
+        return []
+
+    async def queue_stalls(self, *, now: datetime, limit: int) -> list[QueueStallCandidate]:
+        assert now == self.now and limit == 50
+        return [
+            QueueStallCandidate("asr_transcribe", 1, now, now),
+            QueueStallCandidate("micro_event_extract", 1, now, now),
+        ]
+
+    async def orphan_videos(self, *, limit: int) -> list[object]:
+        assert limit == 200
+        return []
+
+
+class RecordingIncidentSink:
+    def __init__(self) -> None:
+        self.items: list[IncidentUpsert] = []
+
+    async def upsert(self, incident: IncidentUpsert) -> None:
+        self.items.append(incident)
+
+
 class TimeoutExecutor(WorkExecutorPort):
     async def execute(self, context: WorkExecutionContext) -> WorkExecutionResult:
         raise TimeoutError(f"temporary timeout for {context.work_item.id}")
@@ -110,18 +149,18 @@ def test_automation_openapi_paths_are_registered() -> None:
     assert {"microPromptVersionId", "timelinePromptVersionId", "transcriptFallback"} <= set(
         properties
     )
-    assert properties["microModel"]["default"] == "gpt-5.6-sol"
-    assert properties["microReasoningEffort"]["default"] == "high"
-    assert properties["timelineModel"]["default"] == "gpt-5.6-luna"
+    assert properties["microModel"]["default"] == "gpt-6-sol"
+    assert properties["microReasoningEffort"]["default"] == "xhigh"
+    assert properties["timelineModel"]["default"] == "gpt-6-luna"
     assert properties["timelineReasoningEffort"]["default"] == "xhigh"
     micro = schema["components"]["schemas"]["MicroEventOperationRequest"]["properties"]
     timeline = schema["components"]["schemas"]["TimelineOperationRequest"]["properties"]
     assert (micro["model"]["default"], micro["reasoningEffort"]["default"]) == (
-        "gpt-5.6-sol",
-        "high",
+        "gpt-6-sol",
+        "xhigh",
     )
     assert (timeline["model"]["default"], timeline["reasoningEffort"]["default"]) == (
-        "gpt-5.6-luna",
+        "gpt-6-luna",
         "xhigh",
     )
     fallback = schema["components"]["schemas"]["TranscriptFallbackRequest"]
@@ -150,6 +189,41 @@ def test_supervisor_retries_transient_failure_with_backoff(
     migrated_database_path: Path,
 ) -> None:
     asyncio.run(_exercise_supervisor(migrated_database_path))
+
+
+def test_supervisor_suppresses_expected_asr_pause_alerts() -> None:
+    asyncio.run(_exercise_asr_pause_observations())
+
+
+async def _exercise_asr_pause_observations() -> None:
+    now = datetime(2026, 7, 16, tzinfo=UTC)
+    reader = PauseObservationReader(now)
+    incidents = RecordingIncidentSink()
+    paused = RunPipelineSupervisorUseCase(
+        reader=reader,  # type: ignore[arg-type]
+        incidents=incidents,  # type: ignore[arg-type]
+        remediator=object(),  # type: ignore[arg-type]
+        asr_worker_enabled=False,
+    )
+    assert await paused._record_observation_incidents(now) == 2
+    assert [(item.incident_type, item.task_type) for item in incidents.items] == [
+        ("sla_breach", "micro_event_extract"),
+        ("queue_stalled", "micro_event_extract"),
+    ]
+
+    incidents.items.clear()
+    enabled = RunPipelineSupervisorUseCase(
+        reader=reader,  # type: ignore[arg-type]
+        incidents=incidents,  # type: ignore[arg-type]
+        remediator=object(),  # type: ignore[arg-type]
+    )
+    assert await enabled._record_observation_incidents(now) == 4
+    assert [item.task_type for item in incidents.items] == [
+        "asr_transcribe",
+        "micro_event_extract",
+        "asr_transcribe",
+        "micro_event_extract",
+    ]
 
 
 def test_scheduler_enqueues_backfill_with_published_prompt_snapshot(
@@ -639,6 +713,7 @@ async def _exercise_supervisor(database_path: Path) -> None:
             reader=repository,
             incidents=repository,
             remediator=SqlAlchemySafeRemediator(session_factory),
+            asr_worker_enabled=False,
             now=lambda: now,
         ).execute_once()
         assert result["automaticRetryCount"] == 1
@@ -738,9 +813,9 @@ async def _exercise_scheduler_workflow(database_path: Path) -> None:
             workflow = await session.scalar(select(WorkflowRunModel))
         assert workflow is not None
         assert workflow.workflow_version == "v2"
-        assert workflow.options_json["micro_model"] == "gpt-5.6-sol"
-        assert workflow.options_json["micro_reasoning_effort"] == "high"
-        assert workflow.options_json["timeline_model"] == "gpt-5.6-luna"
+        assert workflow.options_json["micro_model"] == "gpt-6-sol"
+        assert workflow.options_json["micro_reasoning_effort"] == "xhigh"
+        assert workflow.options_json["timeline_model"] == "gpt-6-luna"
         assert workflow.options_json["timeline_reasoning_effort"] == "xhigh"
         assert workflow.options_json["micro_prompt_version_id"] == 10
         assert workflow.options_json["timeline_prompt_version_id"] == 11

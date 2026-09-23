@@ -60,6 +60,7 @@ class CliSettings(BaseSettings):
     transcript_cue_worker_id: str | None = None
     asr_transcribe_timeout_seconds: int = 64800
     asr_transcribe_concurrency_limit: int = 1
+    asr_worker_enabled: bool = True
     asr_worker_poll_interval_seconds: int = 5
     asr_worker_id: str | None = None
     micro_event_extract_timeout_seconds: int = 14400
@@ -117,6 +118,13 @@ class CliSettings(BaseSettings):
     evaluation_connections_file: Path = Path(".home-deploy/evaluation-connections.json")
     publication_artifact_store_ref: str = "local-artifact-store"
     publication_staging_store_ref: str = "local-publication-staging"
+    public_archive_catalog_connection_ref: str = "local-public-catalog"
+    public_archive_profile_key: str = "stellive-cliche-local"
+    public_archive_publish_mode: str = "prod"
+    public_archive_cors_origins: tuple[str, ...] = (
+        "http://127.0.0.1:3001",
+        "http://localhost:3001",
+    )
     prompt_cache_ttl_seconds: int = 60
     transcript_minio_endpoint: str | None = None
     transcript_minio_access_key: SecretStr | None = None
@@ -163,6 +171,9 @@ class CliSettings(BaseSettings):
         "archive_video_availability_admin_token",
         "archive_video_availability_worker_id",
         "publish_connections_file",
+        "public_archive_catalog_connection_ref",
+        "public_archive_profile_key",
+        "public_archive_publish_mode",
         "transcript_minio_endpoint",
         "transcript_minio_access_key",
         "transcript_minio_secret_key",

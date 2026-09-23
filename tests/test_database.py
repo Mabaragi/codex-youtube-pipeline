@@ -121,12 +121,17 @@ def test_youtube_data_settings_handle_blank_and_env_override(
     assert blank_settings.pipeline_scheduler_quota_timezone == "Asia/Seoul"
     assert blank_settings.pipeline_scheduler_transcript_fallback_grace_seconds == 21600
     assert blank_settings.pipeline_scheduler_transcript_recheck_interval_seconds == 1800
+    assert blank_settings.asr_worker_enabled is True
     assert blank_settings.archive_video_availability_enabled is False
     assert blank_settings.archive_video_availability_poll_interval_seconds == 5
     assert blank_settings.archive_video_availability_claim_limit == 50
     assert blank_settings.archive_video_availability_lease_seconds == 120
     assert blank_settings.archive_video_availability_cleanup_interval_seconds == 86400
     assert blank_settings.archive_video_availability_admin_token_value() is None
+
+    monkeypatch.setenv("CODEX_CLI_ASR_WORKER_ENABLED", "false")
+    assert CliSettings().asr_worker_enabled is False
+    monkeypatch.delenv("CODEX_CLI_ASR_WORKER_ENABLED")
 
     shared_admin_token = CliSettings(archive_public_catalog_sync_token="SHARED_TOKEN")
     assert shared_admin_token.archive_video_availability_admin_token_value() == (

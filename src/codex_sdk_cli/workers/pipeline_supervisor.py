@@ -40,6 +40,7 @@ async def run_worker(
         reader=repository,
         incidents=repository,
         remediator=SqlAlchemySafeRemediator(session_factory),
+        asr_worker_enabled=resolved.asr_worker_enabled,
     )
     logger.info("Starting pipeline supervisor id=%s", worker_id)
     try:

@@ -24,6 +24,9 @@ async def run_worker(
     stop_after_one: bool = False,
 ) -> None:
     resolved = settings or CliSettings()
+    if not resolved.asr_worker_enabled:
+        logger.info("ASR worker disabled by CODEX_CLI_ASR_WORKER_ENABLED")
+        return
     runtime = WorkRuntime(resolved)
     worker_id = resolved.asr_worker_id or f"asr-worker:{socket.gethostname()}:{os.getpid()}"
     logger.info("Starting ASR work engine id=%s concurrency=1", worker_id)

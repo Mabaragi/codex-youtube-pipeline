@@ -297,12 +297,22 @@ class RetryCodexRuntime(FakeCodexRuntime):
 
 def test_plan_validation_and_defaults() -> None:
     plan = _plan("valid-plan")
+    assert plan.start_minutes == 0
+    assert plan.end_minutes is None
     assert plan.repetitions == 1
     assert plan.run_concurrency == 1
     assert plan.micro_window_concurrency == 1
     with pytest.raises(ValueError, match="videoIds must be unique"):
         EvaluationPlan.model_validate(
             {**plan.model_dump(mode="json", by_alias=True), "videoIds": [1, 1]}
+        )
+    ranged = EvaluationPlan.model_validate(
+        {**plan.model_dump(mode="json", by_alias=True), "endMinutes": 120}
+    )
+    assert ranged.end_minutes == 120
+    with pytest.raises(ValueError, match="endMinutes must be greater"):
+        EvaluationPlan.model_validate(
+            {**plan.model_dump(mode="json", by_alias=True), "startMinutes": 120, "endMinutes": 120}
         )
 
 
@@ -451,6 +461,14 @@ def test_evaluation_repository_service_and_blinding(tmp_path: Path) -> None:
                     }
                 )
                 await service.import_scores(experiment_id=experiment_id, scores=scores)
+                micro_report = await service.report(
+                    experiment_id, unblind=True, stage="micro"
+                )
+                assert micro_report["stage"] == "micro"
+                assert all(
+                    item["stage"] == "micro" and "config" in item
+                    for item in cast(list[JsonObject], micro_report["candidates"])
+                )
                 selection = MicroSelectionImport.model_validate(
                     {
                         "version": 1,

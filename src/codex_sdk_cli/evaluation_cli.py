@@ -216,11 +216,20 @@ def evaluation_status(experiment_id: str, json_output: bool) -> None:
 @click.option("--experiment-id", required=True)
 @click.option("--format", "report_format", type=click.Choice(["json", "md"]), default="json")
 @click.option("--unblind", is_flag=True)
-def evaluation_report(experiment_id: str, report_format: str, unblind: bool) -> None:
+@click.option("--stage", type=click.Choice(["micro", "timeline"]))
+def evaluation_report(
+    experiment_id: str, report_format: str, unblind: bool, stage: str | None
+) -> None:
     """Aggregate quality, failures, successful tokens, and actual retry tokens."""
     try:
         report = asyncio.run(
-            _invoke(lambda service: service.report(experiment_id, unblind=unblind))
+            _invoke(
+                lambda service: service.report(
+                    experiment_id,
+                    unblind=unblind,
+                    stage=cast(EvaluationStage, stage) if stage is not None else None,
+                )
+            )
         )
         if report_format == "json":
             _echo_json({"ok": True, **report})
@@ -402,7 +411,8 @@ def _objects(connections: EvaluationConnections) -> S3EvaluationObjectStore:
 def _write_markdown_report(report: JsonObject) -> Path:
     directory = _PRIVATE_EXPERIMENT_DIR / "reports"
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{report['experimentId']}-report.md"
+    stage_suffix = f"-{report['stage']}" if report.get("stage") else ""
+    path = directory / f"{report['experimentId']}{stage_suffix}-report.md"
     lines = [
         "# Model evaluation report",
         "",

@@ -7,6 +7,7 @@ from pathlib import Path
 from sqlalchemy import text
 
 from codex_sdk_cli.application.operations.selection import SelectedVideos
+from codex_sdk_cli.application.scheduler.quota import daily_quota_window
 from codex_sdk_cli.application.work.execution import (
     WorkExecutionContext,
     WorkExecutionEngine,
@@ -28,10 +29,14 @@ from codex_sdk_cli.application.workflows.ports import (
     TranscriptArtifactReaderPort,
 )
 from codex_sdk_cli.domains.work.models import WorkflowStatus, WorkItemStatus
+from codex_sdk_cli.infra.automation.repository import SqlAlchemyAutomationRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.work.archive_execution import InlineWorkExecutionRunner
+from codex_sdk_cli.infra.work.scheduler import SqlAlchemyWorkflowCandidateReader
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
+from codex_sdk_cli.settings import CliSettings
+from codex_sdk_cli.workers.asr import run_worker as run_asr_worker
 
 
 class StaticExecutor(WorkExecutorPort):
@@ -316,6 +321,8 @@ async def _exercise_asr_branch(database_path: Path) -> None:
                 selection=SelectedVideos((1,)),
                 transcript_fallback_grace_seconds=21600,
                 transcript_recheck_interval_seconds=1800,
+                actor_type="system",
+                automation_mode="backfill",
             )
         )
         workflow_id = started.items[0].workflow_run_id
@@ -382,6 +389,34 @@ async def _exercise_asr_branch(database_path: Path) -> None:
         async with unit_of_work_factory() as unit_of_work:
             attempts = await unit_of_work.work_attempts.list_for_work_item(recheck_item_id)
         assert len(attempts) == 12
+        pending_asr = await _stage_item(unit_of_work_factory, workflow_id, "asr_transcribe")
+        assert pending_asr.status is WorkItemStatus.PENDING
+        automation = SqlAlchemyAutomationRepository(session_factory)
+        state = await automation.get_state(now=clock.value)
+        async with unit_of_work_factory() as unit_of_work:
+            workflow = await unit_of_work.workflows.get(workflow_id)
+        assert workflow is not None
+        quota_window = daily_quota_window(_aware(workflow.created_at), "Asia/Seoul")
+        candidates = SqlAlchemyWorkflowCandidateReader(session_factory)
+
+        async def admitted_count() -> int:
+            snapshot = await candidates.read_snapshot(
+                state=state,
+                quota_started_at=quota_window.started_at,
+                quota_ends_at=quota_window.ends_at,
+            )
+            return snapshot.admitted_today_count
+
+        assert await admitted_count() == 1
+        await run_asr_worker(
+            settings=CliSettings(asr_worker_enabled=False),
+            stop_after_one=True,
+        )
+        still_pending = await _stage_item(unit_of_work_factory, workflow_id, "asr_transcribe")
+        assert still_pending.id == pending_asr.id
+        assert still_pending.status is WorkItemStatus.PENDING
+        assert await admitted_count() == 1
+
         asr_id = await _run_stage(
             unit_of_work_factory,
             "asr_transcribe",
@@ -409,6 +444,8 @@ async def _exercise_asr_branch(database_path: Path) -> None:
         ]
         asr_step = next(step for step in steps if step.stage_name == "asr_transcribe")
         assert asr_step.work_item_id == asr_id
+        assert asr_id == pending_asr.id
+        assert await admitted_count() == 1
     finally:
         await engine.dispose()
 

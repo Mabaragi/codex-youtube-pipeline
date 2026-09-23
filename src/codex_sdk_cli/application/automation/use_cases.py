@@ -271,11 +271,13 @@ class RunPipelineSupervisorUseCase:
         reader: AutomationCandidateReaderPort,
         incidents: IncidentRepositoryPort,
         remediator: SafeRemediationPort,
+        asr_worker_enabled: bool = True,
         now: Now | None = None,
     ) -> None:
         self._reader = reader
         self._incidents = incidents
         self._remediator = remediator
+        self._asr_worker_enabled = asr_worker_enabled
         self._now = now or (lambda: datetime.now(UTC))
 
     async def execute_once(self) -> JsonObject:
@@ -364,6 +366,8 @@ class RunPipelineSupervisorUseCase:
     async def _record_observation_incidents(self, now: datetime) -> int:
         opened = 0
         for breach in await self._reader.sla_breaches(now=now, limit=200):
+            if not self._asr_worker_enabled and breach.current_stage == "asr_transcribe":
+                continue
             await self._incidents.upsert(
                 IncidentUpsert(
                     fingerprint=_fingerprint("sla_breach", breach.workflow_run_id, None, None),
@@ -401,6 +405,8 @@ class RunPipelineSupervisorUseCase:
             )
             opened += 1
         for queue in await self._reader.queue_stalls(now=now, limit=50):
+            if not self._asr_worker_enabled and queue.task_type == "asr_transcribe":
+                continue
             await self._incidents.upsert(
                 IncidentUpsert(
                     fingerprint=_fingerprint("queue_stalled", 0, queue.task_type, None),

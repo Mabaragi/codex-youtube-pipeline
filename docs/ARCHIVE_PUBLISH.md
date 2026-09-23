@@ -153,5 +153,9 @@ environment, video_id, variant)`. A source-profile cutover reconciles that SQL
 scope against the rebuilt membership snapshot, removing rows and child
 projections for streamers that moved out of the profile.
 
+The local FastAPI server can expose one configured SQL catalog scope through a
+read-only, Planetip-compatible contract. See [Public archive API](PUBLIC_ARCHIVE_API.md)
+for endpoints, query parameters, CORS configuration, and data-authority rules.
+
 For offline legacy migration and its inventory guarantees, see
 [Publication data migration](PUBLICATION_MIGRATION.md).
