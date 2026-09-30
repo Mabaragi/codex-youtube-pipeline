@@ -28,7 +28,7 @@ export function useRunPipeline() {
         preserveFormatting: false,
         includeNonEmbeddable: false,
         retryFailed: false,
-        microModel: "gpt-5.6-sol",
+        microModel: "gpt-6.1-sol",
         microReasoningEffort: "high",
         microWindowMinutes: 30,
         microOverlapMinutes: 5,
@@ -82,7 +82,7 @@ export function useRunStage(stage: StageOperation) {
         return requireData(await browserApi.POST("/ops/operations/transcript-cue-generate", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 600 } }));
       }
       if (stage === "micro") {
-        return requireData(await browserApi.POST("/ops/operations/micro-event-extract", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 14400, model: "gpt-5.6-sol", reasoningEffort: "high", windowMinutes: 30, overlapMinutes: 5 } }));
+        return requireData(await browserApi.POST("/ops/operations/micro-event-extract", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 14400, model: "gpt-6.1-sol", reasoningEffort: "high", windowMinutes: 30, overlapMinutes: 5 } }));
       }
       if (stage === "timeline") {
         return requireData(await browserApi.POST("/ops/operations/timeline-compose", { body: { selection, includeNonEmbeddable: false, retryFailed: false, rerunSucceeded: false, timeoutSeconds: 7200, model: "gpt-5.6-luna", reasoningEffort: "xhigh", copyStyle: "LIGHT_FANDOM_V1" } }));

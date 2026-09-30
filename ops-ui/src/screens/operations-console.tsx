@@ -35,8 +35,8 @@ export function OperationsConsole() {
       <PageHeader eyebrow="운영 조작" heading="파이프라인 실행" description="전체 process-to-publish 또는 필요한 단계를 선택해 실행합니다. 성공한 기존 입력은 서버의 idempotency 계약에 따라 재사용됩니다." />
       <div className="grid min-w-0 gap-4 xl:grid-cols-[22rem_minmax(0,1fr)]">
         <Panel.Root className="self-start xl:sticky xl:top-20">
-          <Panel.Header><Panel.HeadingGroup><Panel.Title>대상과 기본 프로필</Panel.Title><Panel.Description>자동 운영 기본값: <span translate="no">gpt-5.6-sol / medium</span></Panel.Description></Panel.HeadingGroup></Panel.Header>
-          <Panel.Body><SelectionBuilder.Provider onChange={setSelection}><SelectionBuilder.Root><SelectionBuilder.TypeField /><SelectionBuilder.CriteriaFields /></SelectionBuilder.Root></SelectionBuilder.Provider><dl className="mt-5 grid gap-2 border-t pt-4 text-xs"><ProfileRow term="Micro" value="gpt-5.6-sol · medium" /><ProfileRow term="Timeline" value="gpt-5.6-sol · medium" /><ProfileRow term="Publish" value="prod · control · v1" /><ProfileRow term="ASR fallback" value="30분마다 재확인 · 최대 6시간 · 이후 turbo/CUDA" /></dl></Panel.Body>
+          <Panel.Header><Panel.HeadingGroup><Panel.Title>대상과 기본 프로필</Panel.Title><Panel.Description>자동 운영 기본값: <span translate="no">micro gpt-6.1-sol / high · timeline gpt-6-luna / xhigh</span></Panel.Description></Panel.HeadingGroup></Panel.Header>
+          <Panel.Body><SelectionBuilder.Provider onChange={setSelection}><SelectionBuilder.Root><SelectionBuilder.TypeField /><SelectionBuilder.CriteriaFields /></SelectionBuilder.Root></SelectionBuilder.Provider><dl className="mt-5 grid gap-2 border-t pt-4 text-xs"><ProfileRow term="Micro" value="gpt-6.1-sol · high" /><ProfileRow term="Timeline" value="gpt-6-luna · xhigh" /><ProfileRow term="Publish" value="prod · control · v1" /><ProfileRow term="ASR fallback" value="30분마다 재확인 · 최대 6시간 · 이후 turbo/CUDA" /></dl></Panel.Body>
         </Panel.Root>
         <div className="grid min-w-0 gap-4">
           <div className="grid gap-4 md:grid-cols-2">

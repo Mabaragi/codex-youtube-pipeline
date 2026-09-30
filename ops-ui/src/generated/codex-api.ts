@@ -2924,10 +2924,10 @@ export interface components {
             includeNonEmbeddable: boolean;
             /**
              * Model
-             * @default gpt-6-sol
+             * @default gpt-6.1-sol
              * @enum {string}
              */
-            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
+            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
             /**
              * Overlapminutes
              * @default 5
@@ -2937,7 +2937,7 @@ export interface components {
             promptVersionId?: number | null;
             /**
              * Reasoningeffort
-             * @default xhigh
+             * @default high
              * @enum {string}
              */
             reasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -3695,10 +3695,10 @@ export interface components {
             languages: string[];
             /**
              * Micromodel
-             * @default gpt-6-sol
+             * @default gpt-6.1-sol
              * @enum {string}
              */
-            microModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
+            microModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
             /**
              * Microoverlapminutes
              * @default 5
@@ -3708,7 +3708,7 @@ export interface components {
             microPromptVersionId?: number | null;
             /**
              * Microreasoningeffort
-             * @default xhigh
+             * @default high
              * @enum {string}
              */
             microReasoningEffort: "low" | "medium" | "high" | "xhigh";
@@ -3745,7 +3745,7 @@ export interface components {
              * @default gpt-6-luna
              * @enum {string}
              */
-            timelineModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
+            timelineModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
             /** Timelinepromptversionid */
             timelinePromptVersionId?: number | null;
             /**
@@ -4510,7 +4510,7 @@ export interface components {
              * @description Optional model override for this run.
              * @example gpt-5.5
              */
-            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna") | null;
+            model?: ("gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol") | null;
             /**
              * Prompt
              * @description User prompt to send to a Codex thread.
@@ -4777,7 +4777,7 @@ export interface components {
              * @default gpt-6-luna
              * @enum {string}
              */
-            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna";
+            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
             /** Promptversionid */
             promptVersionId?: number | null;
             /**

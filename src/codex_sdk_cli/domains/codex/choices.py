@@ -13,13 +13,14 @@ CodexModelChoice = Literal[
     "gpt-5.6-luna",
     "gpt-6-sol",
     "gpt-6-luna",
+    "gpt-6.1-sol",
 ]
 ReasoningEffortChoice = Literal["low", "medium", "high", "xhigh"]
 
 DEFAULT_CODEX_MODEL: CodexModelChoice = "gpt-5.5"
 DEFAULT_CODEX_REASONING_EFFORT: ReasoningEffortChoice = "medium"
-DEFAULT_MICRO_EVENT_MODEL: CodexModelChoice = "gpt-6-sol"
-DEFAULT_MICRO_EVENT_REASONING_EFFORT: ReasoningEffortChoice = "xhigh"
+DEFAULT_MICRO_EVENT_MODEL: CodexModelChoice = "gpt-6.1-sol"
+DEFAULT_MICRO_EVENT_REASONING_EFFORT: ReasoningEffortChoice = "high"
 DEFAULT_TIMELINE_MODEL: CodexModelChoice = "gpt-6-luna"
 DEFAULT_TIMELINE_REASONING_EFFORT: ReasoningEffortChoice = "xhigh"
 CODEX_MODEL_CHOICES: tuple[CodexModelChoice, ...] = (
@@ -31,6 +32,7 @@ CODEX_MODEL_CHOICES: tuple[CodexModelChoice, ...] = (
     "gpt-5.6-luna",
     "gpt-6-sol",
     "gpt-6-luna",
+    "gpt-6.1-sol",
 )
 CODEX_REASONING_EFFORT_CHOICES: tuple[ReasoningEffortChoice, ...] = (
     "low",

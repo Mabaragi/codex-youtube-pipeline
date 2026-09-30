@@ -149,15 +149,15 @@ def test_automation_openapi_paths_are_registered() -> None:
     assert {"microPromptVersionId", "timelinePromptVersionId", "transcriptFallback"} <= set(
         properties
     )
-    assert properties["microModel"]["default"] == "gpt-6-sol"
-    assert properties["microReasoningEffort"]["default"] == "xhigh"
+    assert properties["microModel"]["default"] == "gpt-6.1-sol"
+    assert properties["microReasoningEffort"]["default"] == "high"
     assert properties["timelineModel"]["default"] == "gpt-6-luna"
     assert properties["timelineReasoningEffort"]["default"] == "xhigh"
     micro = schema["components"]["schemas"]["MicroEventOperationRequest"]["properties"]
     timeline = schema["components"]["schemas"]["TimelineOperationRequest"]["properties"]
     assert (micro["model"]["default"], micro["reasoningEffort"]["default"]) == (
-        "gpt-6-sol",
-        "xhigh",
+        "gpt-6.1-sol",
+        "high",
     )
     assert (timeline["model"]["default"], timeline["reasoningEffort"]["default"]) == (
         "gpt-6-luna",
@@ -813,8 +813,8 @@ async def _exercise_scheduler_workflow(database_path: Path) -> None:
             workflow = await session.scalar(select(WorkflowRunModel))
         assert workflow is not None
         assert workflow.workflow_version == "v2"
-        assert workflow.options_json["micro_model"] == "gpt-6-sol"
-        assert workflow.options_json["micro_reasoning_effort"] == "xhigh"
+        assert workflow.options_json["micro_model"] == "gpt-6.1-sol"
+        assert workflow.options_json["micro_reasoning_effort"] == "high"
         assert workflow.options_json["timeline_model"] == "gpt-6-luna"
         assert workflow.options_json["timeline_reasoning_effort"] == "xhigh"
         assert workflow.options_json["micro_prompt_version_id"] == 10

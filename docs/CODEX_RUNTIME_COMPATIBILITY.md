@@ -5,8 +5,8 @@ unit. The normal runtime path uses the CLI bundled by `openai-codex` through
 its `openai-codex-cli-bin` dependency. Leave `CODEX_CLI_CODEX_BIN` unset unless
 an operator intentionally activates the external-CLI escape hatch below.
 
-The current project baseline is `openai-codex` 0.144.x. The dependency lock
-selects SDK 0.144.4 and its matching bundled CLI 0.144.4. The local native
+The current project baseline is `openai-codex` 0.159.x. The dependency lock
+selects SDK 0.159.1 and its matching bundled CLI 0.159.1. The local native
 pipeline also supplies per-server `enabled=false` entries through
 `CODEX_CLI_CODEX_CONFIG_OVERRIDES`; its structured generation prompts do not
 need personal or project MCP tools.
