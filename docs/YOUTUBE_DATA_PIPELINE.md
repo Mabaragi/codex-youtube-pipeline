@@ -8,7 +8,11 @@
 3. `transcript_collect` stores transcript metadata and raw JSON in MinIO.
 4. `transcript_cue_generate` converts transcript segments into stable cue IDs.
 5. `micro_event_extract` processes bounded cue windows and persists normalized
-   events, exclusions, corrections, warnings, and repair history.
+   events, exclusions, corrections, warnings, and repair history. `windowMinutes`
+   is a target length: the cue range is split into equal windows of at most 5/4
+   of the target, so a short tail is not extracted as its own window, and each
+   cue belongs to exactly one window by its start time. `overlapMinutes` adds
+   read-only context cues before and after each window.
 6. `timeline_compose` merges micro-events into blocks, episodes, topic clusters,
    review flags, and user-facing copy.
 7. `archive_publish` writes the canonical artifact to private local MinIO, then

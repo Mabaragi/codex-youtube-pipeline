@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from bisect import bisect_right
 from dataclasses import dataclass
 
 from codex_sdk_cli.domains.codex.choices import (
@@ -18,8 +19,15 @@ from codex_sdk_cli.domains.videos.ports import VideoRecord
 from codex_sdk_cli.domains.youtube_transcripts.ports import YouTubeTranscriptMetadataRecord
 
 from .ports import JsonObject
+from .window_sizing import micro_window_count
 
 DOMAIN_KNOWLEDGE_PROMPT_ENTRY_LIMIT = 80
+_CUE_GAP_MARK_MS = 1_000
+_CUE_FORMAT_NOTE = (
+    "각 줄은 cue 하나다: `<cue_id> <시작 시각 H:MM:SS> [+Ns] | <자막>`. "
+    "`+Ns`는 앞 cue가 끝난 뒤 자막이 없던 초 수이며 1초 이상일 때만 붙는다. "
+    "출력에는 줄 맨 앞의 cue_id를 그대로 쓴다."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,41 +60,41 @@ def _cue_windows(
     window_minutes: int,
     overlap_minutes: int,
 ) -> list[_CueWindow]:
-    window_ms = window_minutes * 60_000
     context_ms = overlap_minutes * 60_000
     first_start_ms = cues[0].start_ms
-    last_end_ms = cues[-1].end_ms
+    span_ms = max(0, cues[-1].end_ms - first_start_ms)
+    window_count = micro_window_count(span_ms, window_minutes=window_minutes)
+    boundaries = [
+        first_start_ms + span_ms * position // window_count for position in range(window_count + 1)
+    ]
+    # Each cue belongs to exactly one window, chosen by its start time.
+    owned_by_position: list[list[TranscriptCueRecord]] = [[] for _ in range(window_count)]
+    for cue in cues:
+        owned_by_position[bisect_right(boundaries, cue.start_ms, 1, window_count) - 1].append(cue)
     windows: list[_CueWindow] = []
-    window_start_ms = first_start_ms
-    window_index = 1
-    while window_start_ms <= last_end_ms:
-        window_end_ms = window_start_ms + window_ms
-        owned_cues = [
-            cue for cue in cues if cue.end_ms > window_start_ms and cue.start_ms < window_end_ms
-        ]
-        if owned_cues:
-            context_before = [
-                cue
-                for cue in cues
-                if cue.end_ms > window_start_ms - context_ms and cue.end_ms <= window_start_ms
-            ]
-            context_after = [
-                cue
-                for cue in cues
-                if cue.start_ms >= window_end_ms and cue.start_ms < window_end_ms + context_ms
-            ]
-            windows.append(
-                _CueWindow(
-                    window_index=window_index,
-                    context_before=context_before,
-                    owned_cues=owned_cues,
-                    context_after=context_after,
-                )
+    for position, owned_cues in enumerate(owned_by_position):
+        if not owned_cues:
+            continue
+        window_start_ms = boundaries[position]
+        window_end_ms = boundaries[position + 1]
+        context_before = (
+            [cue for cue in cues if window_start_ms - context_ms <= cue.start_ms < window_start_ms]
+            if position > 0
+            else []
+        )
+        context_after = (
+            [cue for cue in cues if window_end_ms <= cue.start_ms < window_end_ms + context_ms]
+            if position < window_count - 1
+            else []
+        )
+        windows.append(
+            _CueWindow(
+                window_index=len(windows) + 1,
+                context_before=context_before,
+                owned_cues=owned_cues,
+                context_after=context_after,
             )
-            window_index += 1
-        if window_end_ms >= last_end_ms:
-            break
-        window_start_ms += window_ms
+        )
     return windows
 
 
@@ -110,15 +118,17 @@ def _window_prompt(
             execution_input.prompt.body,
             "# INPUT_METADATA",
             json.dumps(video_metadata, ensure_ascii=False),
-            "# ?ъ쟾 ?먯젙???⑹뼱 annotation",
+            "# DOMAIN_KNOWLEDGE",
             json.dumps(term_annotations, ensure_ascii=False),
-            "# 泥섎━ 踰붿쐞",
+            "# OWNED_RANGE_BOUNDS",
             "\n".join(
                 [
                     f"OWNED_START_CUE_ID: {cue_window.owned_cues[0].cue_id}",
                     f"OWNED_END_CUE_ID: {cue_window.owned_cues[-1].cue_id}",
                 ]
             ),
+            "# CUE_FORMAT",
+            _CUE_FORMAT_NOTE,
             "# CONTEXT_BEFORE",
             _format_cue_block(cue_window.context_before, execution_input.cues),
             "# OWNED_RANGE",
@@ -272,34 +282,25 @@ def _format_cue_block(
 ) -> str:
     if not cues:
         return "(none)"
-    cue_gaps = _cue_gap_lookup(all_cues)
-    return "\n".join(
-        json.dumps(
-            {
-                "cue_id": cue.cue_id,
-                "text": cue.text,
-                "start_ms": cue.start_ms,
-                "end_ms": cue.end_ms,
-                "duration_ms": cue.duration_ms,
-                "gap_from_previous_ms": cue_gaps.get(cue.cue_id, (None, None))[0],
-                "gap_to_next_ms": cue_gaps.get(cue.cue_id, (None, None))[1],
-            },
-            ensure_ascii=False,
-        )
-        for cue in cues
-    )
+    gaps = _gaps_from_previous(all_cues)
+    return "\n".join(_format_cue_line(cue, gaps.get(cue.cue_id)) for cue in cues)
 
 
-def _cue_gap_lookup(
-    cues: list[TranscriptCueRecord],
-) -> dict[str, tuple[int | None, int | None]]:
-    gaps: dict[str, tuple[int | None, int | None]] = {}
-    for index, cue in enumerate(cues):
-        previous_gap = None
-        next_gap = None
-        if index > 0:
-            previous_gap = max(0, cue.start_ms - cues[index - 1].end_ms)
-        if index + 1 < len(cues):
-            next_gap = max(0, cues[index + 1].start_ms - cue.end_ms)
-        gaps[cue.cue_id] = (previous_gap, next_gap)
-    return gaps
+def _format_cue_line(cue: TranscriptCueRecord, gap_from_previous_ms: int | None) -> str:
+    gap = ""
+    if gap_from_previous_ms is not None and gap_from_previous_ms >= _CUE_GAP_MARK_MS:
+        gap = f" +{(gap_from_previous_ms + 500) // 1000}s"
+    text = " ".join(cue.text.splitlines())
+    return f"{cue.cue_id} {_clock(cue.start_ms)}{gap} | {text}"
+
+
+def _clock(ms: int) -> str:
+    seconds = ms // 1000
+    return f"{seconds // 3600}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
+def _gaps_from_previous(cues: list[TranscriptCueRecord]) -> dict[str, int | None]:
+    return {
+        cue.cue_id: max(0, cue.start_ms - cues[index - 1].end_ms) if index > 0 else None
+        for index, cue in enumerate(cues)
+    }

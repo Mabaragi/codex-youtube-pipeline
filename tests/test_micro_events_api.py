@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1438,6 +1439,8 @@ def test_micro_event_extract_prompt_uses_public_fallback_and_records_version() -
     assert "공개 저장소용 샘플 fallback" in prompt
     assert "반드시 JSON object만 출력한다" in prompt
     assert "CONTEXT_BEFORE" in prompt
+    assert "# DOMAIN_KNOWLEDGE" in prompt
+    assert "# OWNED_RANGE_BOUNDS" in prompt
     assert "OWNED_START_CUE_ID: tr1-c000001" in prompt
     resolved_prompt = fallback_prompt(MICRO_EVENT_EXTRACT_PROMPT_KEY)
     assert fakes.pipeline_jobs.jobs[1].input_json["promptVersionId"] is None
@@ -1540,36 +1543,12 @@ def test_micro_event_extract_prompt_includes_cue_timing_gaps() -> None:
     asyncio.run(_extract(fakes))
 
     prompt = fakes.extractor.prompts[0]
-    cue_rows = _prompt_cue_rows(prompt)
 
-    assert cue_rows == [
-        {
-            "cue_id": "tr1-c000001",
-            "text": "cue 1",
-            "start_ms": 0,
-            "end_ms": 10_000,
-            "duration_ms": 10_000,
-            "gap_from_previous_ms": None,
-            "gap_to_next_ms": 5_000,
-        },
-        {
-            "cue_id": "tr1-c000002",
-            "text": "cue 2",
-            "start_ms": 15_000,
-            "end_ms": 25_000,
-            "duration_ms": 10_000,
-            "gap_from_previous_ms": 5_000,
-            "gap_to_next_ms": 0,
-        },
-        {
-            "cue_id": "tr1-c000003",
-            "text": "cue 3",
-            "start_ms": 24_000,
-            "end_ms": 34_000,
-            "duration_ms": 10_000,
-            "gap_from_previous_ms": 0,
-            "gap_to_next_ms": None,
-        },
+    assert "# CUE_FORMAT" in prompt
+    assert _prompt_cue_lines(prompt) == [
+        "tr1-c000001 0:00:00 | cue 1",
+        "tr1-c000002 0:00:15 +5s | cue 2",
+        "tr1-c000003 0:00:24 | cue 3",
     ]
 
 
@@ -2727,9 +2706,9 @@ def test_micro_event_extract_retries_implausibly_large_low_information_output() 
     assert len(fakes.extractor.repair_requests) == 1
 
 
-def test_micro_event_extract_uses_thirty_minute_windows_with_five_minute_overlap() -> None:
+def test_micro_event_extract_splits_range_longer_than_window_stretch_limit() -> None:
     fakes = _seed_ready_fakes()
-    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000])
+    _seed_cues(fakes, cue_starts_ms=[0, 40 * 60_000])
     fakes.extractor.responses = [
         _extractor_json("tr1-c000001", "tr1-c000001"),
         _extractor_json("tr1-c000002", "tr1-c000002"),
@@ -2748,7 +2727,7 @@ def test_micro_event_extract_runs_windows_with_bounded_worker_pool() -> None:
     )
     _seed_cues(
         fakes,
-        cue_starts_ms=[0, 31 * 60_000, 62 * 60_000, 93 * 60_000],
+        cue_starts_ms=[0, 40 * 60_000, 80 * 60_000, 120 * 60_000],
     )
     fakes.extractor.delays_by_window = {
         1: 0.05,
@@ -2778,7 +2757,7 @@ def test_micro_event_extract_validation_failure_keeps_completed_parallel_windows
     )
     _seed_cues(
         fakes,
-        cue_starts_ms=[0, 31 * 60_000, 62 * 60_000, 93 * 60_000],
+        cue_starts_ms=[0, 40 * 60_000, 80 * 60_000, 120 * 60_000],
     )
     fakes.extractor.delays_by_window = {1: 0.05, 3: 0.05, 4: 0.05}
     fakes.extractor.responses_by_window = {
@@ -2812,7 +2791,7 @@ def test_micro_event_extract_runtime_failure_retries_failed_window_and_succeeds(
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_window_concurrency_limit": 3}
     )
-    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    _seed_cues(fakes, cue_starts_ms=[0, 40 * 60_000, 80 * 60_000])
     fakes.extractor.delays_by_window = {1: 0.05, 3: 0.05}
     fakes.extractor.failures_by_window = {2: [RuntimeError("codex failed")]}
     fakes.extractor.responses_by_window = {
@@ -2844,7 +2823,7 @@ def test_micro_event_extract_runtime_retry_exhaustion_stores_partial_windows() -
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_window_concurrency_limit": 3}
     )
-    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    _seed_cues(fakes, cue_starts_ms=[0, 40 * 60_000, 80 * 60_000])
     fakes.extractor.failures_by_window = {
         2: [
             RuntimeError("codex failed 1"),
@@ -2881,7 +2860,7 @@ def test_micro_event_retry_failed_task_resumes_successful_windows() -> None:
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_window_concurrency_limit": 3}
     )
-    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    _seed_cues(fakes, cue_starts_ms=[0, 40 * 60_000, 80 * 60_000])
     fakes.extractor.failures_by_window = {
         2: [
             RuntimeError("codex failed 1"),
@@ -2920,7 +2899,7 @@ def test_micro_event_retry_failed_task_runs_missing_windows_only() -> None:
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_window_concurrency_limit": 3}
     )
-    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    _seed_cues(fakes, cue_starts_ms=[0, 40 * 60_000, 80 * 60_000])
     fakes.extractor.responses_by_window = {
         1: _extractor_json("tr1-c000001", "tr1-c000001"),
         2: "not json",
@@ -2955,7 +2934,7 @@ def test_micro_event_retry_stale_partial_reexecutes_all_windows() -> None:
     fakes.settings = fakes.settings.model_copy(
         update={"micro_event_window_concurrency_limit": 3}
     )
-    _seed_cues(fakes, cue_starts_ms=[0, 31 * 60_000, 62 * 60_000])
+    _seed_cues(fakes, cue_starts_ms=[0, 40 * 60_000, 80 * 60_000])
     fakes.extractor.responses_by_window = {
         1: _extractor_json("tr1-c000001", "tr1-c000001"),
         2: "not json",
@@ -3409,13 +3388,8 @@ def _prompt_metadata(prompt: str) -> dict[str, Any]:
     raise AssertionError("Missing prompt metadata.")
 
 
-def _prompt_cue_rows(prompt: str) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for line in prompt.splitlines():
-        payload = _json_line(line)
-        if payload is not None and "cue_id" in payload:
-            rows.append(payload)
-    return rows
+def _prompt_cue_lines(prompt: str) -> list[str]:
+    return [line for line in prompt.splitlines() if re.match(r"tr\d+-c\d{6} \d+:\d{2}:\d{2}", line)]
 
 
 def _json_line(line: str) -> dict[str, Any] | None:

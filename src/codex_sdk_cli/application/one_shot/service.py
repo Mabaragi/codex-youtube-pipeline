@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from codex_sdk_cli.domains.micro_events.window_sizing import micro_window_count
 from codex_sdk_cli.domains.prompts.ports import ResolvedPrompt
 from codex_sdk_cli.domains.youtube_transcripts.exceptions import YouTubeTranscriptNotFound
 from codex_sdk_cli.domains.youtube_transcripts.ports import YouTubeTranscriptFetchResult
@@ -75,7 +75,9 @@ class OneShotTimelineService:
             if caption is not None
             else video.duration_seconds
         )
-        window_count = max(1, math.ceil(last_end / (options.window_minutes * 60)))
+        window_count = micro_window_count(
+            round(last_end * 1000), window_minutes=options.window_minutes
+        )
         plan: dict[str, object] = {
             "schemaVersion": 1,
             "video": _video_json(video),
