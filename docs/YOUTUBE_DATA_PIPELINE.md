@@ -23,8 +23,9 @@
 workflow failure. It waits until the configured grace deadline, checks YouTube
 once more, and then creates `asr_transcribe` when captions are still absent.
 ASR output rejoins the common cue, micro-event, timeline, and archive stages.
-The archive step remains inline; its reusable recovery stages are not registered
-as background workers.
+The archive step runs in its independent worker. Persistent publishing OFF
+pauses archive claims while upstream generation continues; direct stage recovery
+remains available when publishing is ON. Local artifact build also works while OFF.
 
 Publication profiles have immutable active revisions and routes scoped by
 `(publishMode, environment)`. Each route can bind multiple local or remote

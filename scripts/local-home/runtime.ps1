@@ -29,6 +29,8 @@ $script:ManagedProcessNames = @(
     "video-availability-worker",
     "pipeline-supervisor",
     "timeline-compose-worker",
+    "segment-classify-worker",
+    "archive-publish-worker",
     "workflow-coordinator",
     "ops-ui"
 )
@@ -79,11 +81,23 @@ function Get-RequiredWorkerProcessNames {
         "transcript-cue-worker",
         "timeline-compose-worker",
         "workflow-coordinator"
+        "archive-publish-worker"
     )
     if (Test-AsrWorkerEnabled) {
         $names += "asr-worker"
     }
+    if (Test-SegmentWorkerEnabled) {
+        $names += "segment-classify-worker"
+    }
     return $names
+}
+
+function Test-SegmentWorkerEnabled {
+    $value = $env:CODEX_CLI_SEGMENT_CLASSIFY_ENABLED
+    if ([string]::IsNullOrWhiteSpace($value)) { return $true }
+    if ($value.Trim() -match "^(true|1|yes|on|t|y)$") { return $true }
+    if ($value.Trim() -match "^(false|0|no|off|f|n)$") { return $false }
+    throw "CODEX_CLI_SEGMENT_CLASSIFY_ENABLED must be a boolean value."
 }
 
 function Wait-ApiHealth {
@@ -183,8 +197,10 @@ function Get-RuntimeSnapshot {
         processes = Get-ProcessSnapshot
         infrastructure = Get-InfraSnapshot
         asrWorkerEnabled = Test-AsrWorkerEnabled
+        segmentWorkerEnabled = Test-SegmentWorkerEnabled
         automationMode = $(if ($automation) { $automation.mode } else { $null })
         runtime = $(if ($automation) { $automation.runtime } else { $null })
+        publishing = $(if ($automation) { $automation.publishing } else { $null })
     }
 }
 
@@ -208,6 +224,9 @@ function Show-RuntimeStatus {
     Write-Host ("API health: {0}" -f $(if ($snapshot.apiHealthy) { "ok" } else { "unavailable" }))
     Write-Host ("ASR worker setting: {0}" -f $(if ($snapshot.asrWorkerEnabled) { "enabled" } else { "disabled" }))
     if ($snapshot.runtime) {
+        if ($snapshot.publishing) {
+            Write-Host ("Publishing: {0} (pending {1}, running {2})" -f $(if ($snapshot.publishing.enabled) { "ON" } else { "OFF" }), $snapshot.publishing.pendingCount, $snapshot.publishing.runningCount)
+        }
         Write-Host ("Automation mode: {0}" -f $snapshot.automationMode)
         Write-Host ("Runtime state: {0}" -f $snapshot.runtime.state)
         Write-Host ("Running work items: {0}" -f $snapshot.runtime.runningWorkItemCount)
@@ -228,7 +247,8 @@ function Start-ApiProcess {
         Write-Host "api already healthy on $script:ApiBaseUrl."
         return
     }
-    Start-LoggedProcess "api" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "api" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-m",
         "uvicorn",
         "codex_sdk_cli.api.main:app",
@@ -241,38 +261,57 @@ function Start-ApiProcess {
 }
 
 function Start-WorkerProcesses {
-    Start-LoggedProcess "pipeline-supervisor" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "pipeline-supervisor" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-m",
         "codex_sdk_cli.workers.pipeline_supervisor"
     )
-    Start-LoggedProcess "micro-event-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "micro-event-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-c",
         '"from codex_sdk_cli.workers.micro_events import run; run()"'
     )
-    Start-LoggedProcess "transcript-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "transcript-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-c",
         '"from codex_sdk_cli.workers.transcripts import run_transcript; run_transcript()"'
     )
-    Start-LoggedProcess "transcript-cue-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "transcript-cue-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-c",
         '"from codex_sdk_cli.workers.transcripts import run_transcript_cue; run_transcript_cue()"'
     )
     if (Test-AsrWorkerEnabled) {
-        Start-LoggedProcess "asr-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+        Start-LoggedProcess "asr-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
             "-m",
             "codex_sdk_cli.workers.asr"
         )
     }
-    Start-LoggedProcess "timeline-compose-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "timeline-compose-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-c",
         '"from codex_sdk_cli.workers.timelines import run; run()"'
     )
-    Start-LoggedProcess "workflow-coordinator" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    if (Test-SegmentWorkerEnabled) {
+        Start-LoggedProcess "segment-classify-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
+            "-m",
+            "codex_sdk_cli.workers.segments"
+        )
+    }
+    Start-LoggedProcess "workflow-coordinator" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-c",
         '"from codex_sdk_cli.workers.workflow_coordinator import run; run()"'
     )
+    Start-LoggedProcess "archive-publish-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
+        "-m", "codex_sdk_cli.workers.archive_publish"
+    )
     if (Test-VideoAvailabilityWorkerEnabled) {
-        Start-LoggedProcess "video-availability-worker" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+        Start-LoggedProcess "video-availability-worker" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
             "-m",
             "codex_sdk_cli.workers.video_availability"
         )
@@ -280,7 +319,8 @@ function Start-WorkerProcesses {
 }
 
 function Start-SchedulerProcess {
-    Start-LoggedProcess "pipeline-scheduler" (Join-Path $script:RepoRoot ".venv\Scripts\python.exe") @(
+    Start-LoggedProcess "pipeline-scheduler" (Get-Command uv).Source @(
+        "run", "--project", ('"' + $script:RepoRoot + '"'), "--no-sync", "python",
         "-m",
         "codex_sdk_cli.workers.pipeline_scheduler"
     )
@@ -348,7 +388,9 @@ function Stop-NativeRuntime {
     Stop-ManagedProcess "pipeline-scheduler"
     Stop-ManagedProcess "video-availability-worker"
     Stop-ManagedProcess "workflow-coordinator"
+    Stop-ManagedProcess "archive-publish-worker"
     Stop-ManagedProcess "timeline-compose-worker"
+    Stop-ManagedProcess "segment-classify-worker"
     Stop-ManagedProcess "transcript-cue-worker"
     Stop-ManagedProcess "asr-worker"
     Stop-ManagedProcess "transcript-worker"

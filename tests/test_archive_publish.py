@@ -64,9 +64,6 @@ def test_archive_publish_openapi_paths_are_registered() -> None:
     assert "publishMode" in schema["components"]["schemas"]["ProcessToPublishRequest"]["properties"]
 
 
-def test_archive_publish_has_no_active_worker_module() -> None:
-    assert not (Path("src/codex_sdk_cli/workers/archive_publish.py")).exists()
-
 
 def test_archive_publish_dev_mode_defaults_and_rejects_prod_environment() -> None:
     request = ArchivePublishRequest.model_validate({"publishMode": "dev"})
@@ -228,7 +225,26 @@ def test_archive_publish_migration_creates_archive_tables(
     )
 
 
-def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
+@pytest.mark.parametrize("classified", [False, True])
+def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times(classified: bool) -> None:
+    segment_payload: dict[str, object] | None = (
+        {
+            "taxonomyVersion": "v1.6",
+            "segments": [
+                {
+                    "start": 10,
+                    "end": 20,
+                    "category": "game",
+                    "label": "게임",
+                    "collab": False,
+                    "partners": [],
+                }
+            ],
+            "segmentClassification": {"id": 1, "inputFingerprint": "a" * 64},
+        }
+        if classified
+        else None
+    )
     artifact = _timeline_artifact(
         video=_video(),
         channel=_channel(),
@@ -249,7 +265,17 @@ def test_timeline_artifact_maps_episode_candidate_ranges_to_cue_times() -> None:
         environment="prod",
         variant="control",
         schema_version=1,
+        segment_payload=segment_payload,
     )
+
+    serialized = json.loads(artifact.payload_bytes)
+    if classified:
+        assert serialized["taxonomyVersion"] == "v1.6"
+        assert serialized["segments"][0]["start"] == 10
+        assert serialized["segmentClassification"]["id"] == 1
+    else:
+        assert "segments" not in serialized
+    assert "promptBody" not in serialized and "raw_response" not in serialized
 
     episodes = cast(list[dict[str, object]], artifact.payload["episodes"])
     episode = episodes[0]

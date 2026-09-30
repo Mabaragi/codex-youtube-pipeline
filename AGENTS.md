@@ -26,6 +26,7 @@
 - 다른 에이전트나 사용자의 변경을 임의로 되돌리거나 정리하지 않는다.
 - 관련 없는 파일, 설정, 기록은 건드리지 않는다.
 - 충돌 가능성이 보이면 먼저 현재 상태를 확인하고, 필요한 경우 사용자에게 묻는다.
+- 운영 API·워커는 별도 Windows Terminal 창 안에서 `runtime.ps1`로 실행하고 앱과 분리된 프로세스 계보를 확인한다. 예약 작업이나 서비스로 전환하려면 사용자의 명시적인 요청이 있어야 한다. 절차는 [local native deployment](docs/LOCAL_NATIVE_DEPLOYMENT.md)를 따른다.
 - 새 Python 코드는 domain-first 구조를 따른다.
 - CLI command 함수와 FastAPI route handler는 얇게 유지한다.
 - 환경 설정은 `src/codex_sdk_cli/settings.py`의 `CliSettings`와 `CODEX_CLI_` prefix를 통해 관리한다.

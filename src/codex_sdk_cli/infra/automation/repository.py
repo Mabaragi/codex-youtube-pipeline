@@ -5,6 +5,7 @@ from typing import cast
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -13,9 +14,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     exists,
     func,
     select,
+    true,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +36,8 @@ from codex_sdk_cli.domains.automation.ports import (
     IncidentState,
     IncidentUpsert,
     OrphanVideoCandidate,
+    PublishingControlPort,
+    PublishingState,
     QueueStallCandidate,
     RemediationAction,
     RuntimeAuditPort,
@@ -147,13 +152,16 @@ class PipelineAutomationStateModel(Base):
     steady_started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    runtime_state: Mapped[str] = mapped_column(
-        String(16), nullable=False, server_default="active"
-    )
+    runtime_state: Mapped[str] = mapped_column(String(16), nullable=False, server_default="active")
     drain_requested_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     drain_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    publishing_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    publishing_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    publishing_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
@@ -165,6 +173,7 @@ class SqlAlchemyAutomationRepository(
     AutomationScheduleStatePort,
     RuntimeControlPort,
     RuntimeAuditPort,
+    PublishingControlPort,
 ):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -392,11 +401,24 @@ class SqlAlchemyAutomationRepository(
     @override
     async def sla_breaches(self, *, now: datetime, limit: int) -> list[SlaBreachCandidate]:
         async with self._session_factory() as session:
+            state = await session.get(PipelineAutomationStateModel, 1)
+            publishing_paused = state is not None and not state.publishing_enabled
+            publication_wait = and_(
+                WorkflowRunModel.current_stage == "archive_publish",
+                WorkflowRunModel.status == "waiting",
+                exists().where(
+                    WorkflowStepModel.workflow_run_id == WorkflowRunModel.id,
+                    WorkflowStepModel.stage_name == "archive_publish",
+                    WorkflowStepModel.work_item_id == WorkItemModel.id,
+                    WorkItemModel.status == "pending",
+                ),
+            )
             workflows = list(
                 (
                     await session.scalars(
                         select(WorkflowRunModel)
                         .where(WorkflowRunModel.status.in_(("pending", "running", "waiting")))
+                        .where(~publication_wait if publishing_paused else true())
                         .order_by(WorkflowRunModel.id.asc())
                         .limit(limit)
                     )
@@ -483,6 +505,8 @@ class SqlAlchemyAutomationRepository(
     async def queue_stalls(self, *, now: datetime, limit: int) -> list[QueueStallCandidate]:
         cutoff = now - timedelta(minutes=30)
         async with self._session_factory() as session:
+            state = await session.get(PipelineAutomationStateModel, 1)
+            publishing_paused = state is not None and not state.publishing_enabled
             rows = (
                 await session.execute(
                     select(
@@ -493,6 +517,11 @@ class SqlAlchemyAutomationRepository(
                     .where(
                         WorkItemModel.status == "pending",
                         WorkItemModel.available_at <= cutoff,
+                        (
+                            WorkItemModel.task_type != "archive_publish"
+                            if publishing_paused
+                            else true()
+                        ),
                     )
                     .group_by(WorkItemModel.task_type)
                     .limit(limit)
@@ -557,6 +586,7 @@ class SqlAlchemyAutomationRepository(
                 .where(ChannelModel.id.is_(None))
             )
             runtime = await _runtime_snapshot(session, state)
+            publishing = await _publishing_snapshot(session, state)
             await session.commit()
         return {
             "mode": state.mode,
@@ -566,19 +596,40 @@ class SqlAlchemyAutomationRepository(
                 else None
             ),
             "steadyStartedAt": (
-                state.steady_started_at.isoformat()
-                if state.steady_started_at is not None
-                else None
+                state.steady_started_at.isoformat() if state.steady_started_at is not None else None
             ),
             "observedAt": now.isoformat(),
             "openIncidentCount": open_incidents or 0,
             "dataIntegrity": {"orphanVideoCount": orphan_video_count or 0},
             "runtime": _runtime_json(runtime),
+            "publishing": _publishing_json(publishing),
             "queues": [
                 {"taskType": task_type, "status": status, "count": count}
                 for task_type, status, count in queue_rows
             ],
         }
+
+    @override
+    async def publishing_state(self, *, now: datetime) -> PublishingState:
+        async with self._session_factory() as session:
+            state = await _get_or_create_automation_state(session, now=now)
+            snapshot = await _publishing_snapshot(session, state)
+            await session.commit()
+            return snapshot
+
+    @override
+    async def set_publishing(
+        self, *, enabled: bool, reason: str | None, now: datetime
+    ) -> PublishingState:
+        async with self._session_factory() as session:
+            state = await _get_or_create_automation_state(session, now=now, for_update=True)
+            state.publishing_enabled = enabled
+            state.publishing_updated_at = now
+            state.publishing_reason = reason
+            await session.flush()
+            snapshot = await _publishing_snapshot(session, state)
+            await session.commit()
+        return snapshot
 
     @override
     async def runtime_state(self, *, now: datetime) -> RuntimeState:
@@ -690,9 +741,7 @@ class SqlAlchemyAutomationRepository(
             "stopped": ("pipeline_runtime.stopped", "Pipeline runtime stopped."),
         }[transition.state.mode]
         async with self._session_factory() as session:
-            recorder = BestEffortOperationEventRecorder(
-                SQLAlchemyOperationEventRepository(session)
-            )
+            recorder = BestEffortOperationEventRecorder(SQLAlchemyOperationEventRepository(session))
             await recorder.record_event(
                 OperationEventCreate(
                     event_type=event_type,
@@ -706,12 +755,8 @@ class SqlAlchemyAutomationRepository(
                         "previousState": transition.previous_mode,
                         "currentState": transition.state.mode,
                         "reason": reason,
-                        "runningWorkItemCount": (
-                            transition.state.running_work_item_count
-                        ),
-                        "runningWorkflowCount": (
-                            transition.state.running_workflow_count
-                        ),
+                        "runningWorkItemCount": (transition.state.running_work_item_count),
+                        "runningWorkflowCount": (transition.state.running_workflow_count),
                         "occurredAt": now.isoformat(),
                     },
                 )
@@ -749,9 +794,8 @@ class SqlAlchemyAutomationRepository(
                 select(WorkflowRunModel.id).where(
                     WorkflowRunModel.video_id == VideoModel.id,
                     WorkflowRunModel.workflow_type == "process_to_publish",
-                    WorkflowRunModel.workflow_version == "v2",
-                    WorkflowRunModel.options_json["automation_mode"].as_string()
-                    == "backfill",
+                    WorkflowRunModel.workflow_version.in_(("v2", "v3")),
+                    WorkflowRunModel.options_json["automation_mode"].as_string() == "backfill",
                     WorkflowRunModel.status.in_(("failed", "blocked", "canceled")),
                 )
             )
@@ -771,6 +815,36 @@ class SqlAlchemyAutomationRepository(
             state.mode = "steady"
             state.steady_started_at = state.steady_started_at or now
             await session.commit()
+
+
+async def _publishing_snapshot(
+    session: AsyncSession, state: PipelineAutomationStateModel
+) -> PublishingState:
+    rows = (
+        await session.execute(
+            select(WorkItemModel.status, func.count())
+            .where(WorkItemModel.task_type == "archive_publish")
+            .group_by(WorkItemModel.status)
+        )
+    ).all()
+    counts = dict(rows)
+    return PublishingState(
+        enabled=state.publishing_enabled,
+        pending_count=counts.get("pending", 0),
+        running_count=counts.get("running", 0),
+        updated_at=state.publishing_updated_at,
+        reason=state.publishing_reason,
+    )
+
+
+def _publishing_json(state: PublishingState) -> JsonObject:
+    return {
+        "enabled": state.enabled,
+        "pendingCount": state.pending_count,
+        "runningCount": state.running_count,
+        "updatedAt": state.updated_at.isoformat() if state.updated_at else None,
+        "reason": state.reason,
+    }
 
 
 class SqlAlchemySafeRemediator(SafeRemediationPort):
@@ -884,9 +958,7 @@ async def _get_or_create_automation_state(
     now: datetime,
     for_update: bool = False,
 ) -> PipelineAutomationStateModel:
-    statement = select(PipelineAutomationStateModel).where(
-        PipelineAutomationStateModel.id == 1
-    )
+    statement = select(PipelineAutomationStateModel).where(PipelineAutomationStateModel.id == 1)
     if for_update:
         statement = statement.with_for_update()
     state = await session.scalar(statement)
@@ -916,20 +988,15 @@ async def _runtime_snapshot(
         )
     ).all()
     running_workflow_count = await session.scalar(
-        select(func.count(WorkflowRunModel.id)).where(
-            WorkflowRunModel.status == "running"
-        )
+        select(func.count(WorkflowRunModel.id)).where(WorkflowRunModel.status == "running")
     )
     by_task_type = tuple(
-        RuntimeTaskCount(task_type=task_type, count=count)
-        for task_type, count in running_rows
+        RuntimeTaskCount(task_type=task_type, count=count) for task_type, count in running_rows
     )
     return RuntimeState(
         mode=cast(RuntimeMode, state.runtime_state),
         drain_requested_at=(
-            _aware(state.drain_requested_at)
-            if state.drain_requested_at is not None
-            else None
+            _aware(state.drain_requested_at) if state.drain_requested_at is not None else None
         ),
         drain_reason=state.drain_reason,
         running_work_item_count=sum(item.count for item in by_task_type),
@@ -942,16 +1009,13 @@ def _runtime_json(state: RuntimeState) -> JsonObject:
     return {
         "state": state.mode,
         "drainRequestedAt": (
-            state.drain_requested_at.isoformat()
-            if state.drain_requested_at is not None
-            else None
+            state.drain_requested_at.isoformat() if state.drain_requested_at is not None else None
         ),
         "drainReason": state.drain_reason,
         "runningWorkItemCount": state.running_work_item_count,
         "runningWorkflowCount": state.running_workflow_count,
         "runningByTaskType": [
-            {"taskType": item.task_type, "count": item.count}
-            for item in state.running_by_task_type
+            {"taskType": item.task_type, "count": item.count} for item in state.running_by_task_type
         ],
         "readyToStop": state.ready_to_stop,
     }

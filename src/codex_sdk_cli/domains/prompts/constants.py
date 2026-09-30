@@ -6,6 +6,7 @@ PromptKey = Literal[
     "micro_event_extract",
     "timeline_compose",
     "timeline_episode_repair",
+    "segment_classify",
 ]
 PromptStatus = Literal["DRAFT", "PUBLISHED", "ARCHIVED"]
 PromptSource = Literal["database", "fallback"]
@@ -18,4 +19,5 @@ KNOWN_PROMPT_KEYS: tuple[PromptKey, ...] = (
     MICRO_EVENT_EXTRACT_PROMPT_KEY,
     TIMELINE_COMPOSE_PROMPT_KEY,
     TIMELINE_EPISODE_REPAIR_PROMPT_KEY,
+    "segment_classify",
 )

@@ -134,6 +134,23 @@ class RuntimeTransition:
 
 
 @dataclass(frozen=True, slots=True)
+class PublishingState:
+    enabled: bool
+    pending_count: int
+    running_count: int
+    updated_at: datetime | None
+    reason: str | None
+
+
+class PublishingControlPort(Protocol):
+    async def publishing_state(self, *, now: datetime) -> PublishingState: ...
+
+    async def set_publishing(
+        self, *, enabled: bool, reason: str | None, now: datetime
+    ) -> PublishingState: ...
+
+
+@dataclass(frozen=True, slots=True)
 class ManagedProcess:
     name: str
     role: str

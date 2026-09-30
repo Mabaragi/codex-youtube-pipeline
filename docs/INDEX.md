@@ -16,6 +16,9 @@ operators can use them without private runtime context.
 - [YouTube data pipeline](YOUTUBE_DATA_PIPELINE.md): channel, video,
   transcript, cue, micro-event, timeline, scheduler, and retry behavior. Read
   when changing pipeline state, task ownership, or execution orchestration.
+- [Pipeline worker architecture](PIPELINE_WORKER_ARCHITECTURE.md): worker/DB
+  relationships, v2/v3 processing, segment backfill/publication, and prompt
+  management and evaluation entry points, with editable diagrams.
 - [YouTube data pipeline backlog](YOUTUBE_DATA_PIPELINE_TODO.md): implemented
   milestones and remaining domain work. Read when scoping the next pipeline
   capability.
@@ -42,6 +45,8 @@ operators can use them without private runtime context.
 - [Archive publish](ARCHIVE_PUBLISH.md): streamer profiles, canonical local
   artifacts, multi-destination routes, recovery stages, status, and cutover.
   Read when publishing or validating timeline projections.
+- [Segment classification](SEGMENT_CLASSIFICATION.md): v1.6 categories, versioned
+  results, v3 workflow, classification-only backfill, and published JSON contract.
 - [Public archive API](PUBLIC_ARCHIVE_API.md): read-only Planetip-compatible
   endpoints backed by the local SQL publication catalog. Read when connecting
   a frontend to a streamer-scoped local publication.

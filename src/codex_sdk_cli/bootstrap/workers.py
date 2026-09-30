@@ -20,7 +20,6 @@ from codex_sdk_cli.application.workflows.archive import ArchivePublishExecutor
 from codex_sdk_cli.application.workflows.coordinator import ProcessToPublishCoordinator
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
 from codex_sdk_cli.infra.work.archive_execution import (
-    InlineWorkExecutionRunner,
     WorkArchivePublisher,
 )
 from codex_sdk_cli.infra.work.asr_execution import StoredAsrTranscriber
@@ -46,6 +45,7 @@ from codex_sdk_cli.settings import CliSettings
 
 from .archive import archive_publish_execution_use_case
 from .processing import micro_event_use_case, timeline_use_case
+from .segments import SegmentInputPlanner, segment_executor
 
 
 class WorkRuntime:
@@ -79,6 +79,10 @@ class WorkRuntime:
             factories["micro_event_extract"] = self._micro_event_executor
         if "timeline_compose" in task_types:
             factories["timeline_compose"] = self._timeline_executor
+        if "segment_classify" in task_types:
+            factories["segment_classify"] = lambda: segment_executor(
+                self.session_factory, self.settings
+            )
         if "archive_publish" in task_types:
             factories["archive_publish"] = self._archive_executor
         return WorkExecutionEngine(
@@ -89,14 +93,10 @@ class WorkRuntime:
         )
 
     def workflow_coordinator(self, *, worker_id: str) -> ProcessToPublishCoordinator:
-        archive_engine = self.execution_engine(
-            task_types=("archive_publish",),
-            worker_id=f"{worker_id}:archive",
-        )
         return ProcessToPublishCoordinator(
             unit_of_work_factory=lambda: SqlAlchemyWorkUnitOfWork(self.session_factory),
-            inline_runner=InlineWorkExecutionRunner(archive_engine),
             transcript_artifacts=SqlAlchemyTranscriptArtifactReader(self.session_factory),
+            segment_inputs=SegmentInputPlanner(self.session_factory),
             worker_id=worker_id,
         )
 

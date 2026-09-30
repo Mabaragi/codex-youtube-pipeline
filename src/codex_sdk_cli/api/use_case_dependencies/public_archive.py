@@ -89,6 +89,7 @@ def get_public_archive_scope(
         profile_key=settings.public_archive_profile_key,
         publish_mode=settings.public_archive_publish_mode,
         environment=environment,
+        additional_profile_keys=settings.public_archive_additional_profile_keys,
     )
 
 

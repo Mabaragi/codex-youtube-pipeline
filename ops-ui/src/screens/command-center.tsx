@@ -16,6 +16,7 @@ import { useWorkItems } from "@/features/work/api";
 import type { ArchiveCurrent } from "@/features/publishing/api";
 import { useArchiveCurrent } from "@/features/publishing/api";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { PublishingControl } from "@/features/automation/publishing-control";
 
 interface CommandCenterProps {
   initialStatus: AutomationStatus | null;
@@ -53,6 +54,7 @@ export function CommandCenter(props: CommandCenterProps) {
         <Metric label="실행 중 work" value={formatNumber(runtime?.runningWorkItemCount)} icon={<Cpu aria-hidden="true" />} status={(runtime?.runningWorkItemCount ?? 0) > 0 ? "running" : "stopped"} />
         <Metric label="퍼블리시 영상" value={formatNumber(publication.data?.latestPublication?.videoCount)} icon={<RadioTower aria-hidden="true" />} status={publication.data?.latestPublication ? "published" : "pending"} />
       </section>
+      <PublishingControl />
       <div className="grid min-w-0 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Panel.Root>
           <Panel.Header><Panel.HeadingGroup><Panel.Title>프로세스</Panel.Title><Panel.Description>{processes.data?.hostName ?? "호스트 확인 불가"}</Panel.Description></Panel.HeadingGroup><RefreshStatus refreshing={processes.isFetching} /></Panel.Header>

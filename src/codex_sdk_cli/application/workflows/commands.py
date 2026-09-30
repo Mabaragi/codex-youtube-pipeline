@@ -41,6 +41,12 @@ class ProcessToPublishCommand:
     timeline_reasoning_effort: ReasoningEffortChoice = DEFAULT_TIMELINE_REASONING_EFFORT
     timeline_copy_style: CopyStyle = "LIGHT_FANDOM_V1"
     timeline_prompt_version_id: int | None = None
+    segment_enabled: bool = False
+    segment_model: CodexModelChoice = "gpt-6-luna"
+    segment_reasoning_effort: ReasoningEffortChoice = "high"
+    segment_prompt_version_id: int | None = None
+    segment_taxonomy_version: str = "v1.6"
+    segment_timeout_seconds: int = 600
     publish_mode: str = "prod"
     environment: str = "prod"
     variant: str = "control"
@@ -127,7 +133,9 @@ class StartProcessToPublishUseCase:
                     workflow, created = await unit_of_work.workflows.create_or_get(
                         CreateWorkflowRun(
                             workflow_type=PROCESS_TO_PUBLISH_WORKFLOW,
-                            workflow_version=PROCESS_TO_PUBLISH_VERSION,
+                            workflow_version="v3"
+                            if command.segment_enabled
+                            else PROCESS_TO_PUBLISH_VERSION,
                             video_id=video.id,
                             input_hash=input_hash,
                             options_json=options,
@@ -182,6 +190,10 @@ def _command_options(command: ProcessToPublishCommand) -> dict[str, object]:
     values = asdict(command)
     values.pop("selection")
     values.pop("actor_type")
+    if not command.segment_enabled:
+        for key in tuple(values):
+            if key.startswith("segment_"):
+                values.pop(key)
     return {**values, "languages": list(command.languages)}
 
 

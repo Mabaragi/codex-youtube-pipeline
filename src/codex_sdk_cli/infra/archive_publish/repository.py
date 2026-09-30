@@ -108,6 +108,9 @@ class ArchiveVideoArtifactModel(Base):
         ForeignKey("timeline_compositions.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    source_classification_id: Mapped[int | None] = mapped_column(
+        ForeignKey("segment_classifications.id", ondelete="RESTRICT"), nullable=True,
+    )
     source_timeline_task_id: Mapped[int] = mapped_column(
         ForeignKey("work_items.id", ondelete="RESTRICT"),
         nullable=False,
@@ -347,6 +350,7 @@ class SqlAlchemyArchivePublishRepository(ArchivePublishRepositoryPort):
             model = ArchiveVideoArtifactModel(
                 video_id=create.video_id,
                 source_timeline_composition_id=create.source_timeline_composition_id,
+                source_classification_id=create.source_classification_id,
                 source_timeline_task_id=create.source_timeline_task_id,
                 source_micro_event_task_id=create.source_micro_event_task_id,
                 publish_task_id=create.publish_task_id,
@@ -714,6 +718,7 @@ def _artifact_record(model: ArchiveVideoArtifactModel) -> ArchiveVideoArtifactRe
         id=model.id,
         video_id=model.video_id,
         source_timeline_composition_id=model.source_timeline_composition_id,
+        source_classification_id=model.source_classification_id,
         source_timeline_task_id=model.source_timeline_task_id,
         source_micro_event_task_id=model.source_micro_event_task_id,
         publish_task_id=model.publish_task_id,

@@ -31,7 +31,6 @@ from codex_sdk_cli.application.workflows.ports import (
 from codex_sdk_cli.domains.work.models import WorkflowStatus, WorkItemStatus
 from codex_sdk_cli.infra.automation.repository import SqlAlchemyAutomationRepository
 from codex_sdk_cli.infra.database.session import create_database_engine, create_session_factory
-from codex_sdk_cli.infra.work.archive_execution import InlineWorkExecutionRunner
 from codex_sdk_cli.infra.work.scheduler import SqlAlchemyWorkflowCandidateReader
 from codex_sdk_cli.infra.work.unit_of_work import SqlAlchemyWorkUnitOfWork
 from codex_sdk_cli.infra.work.video_selection import SqlAlchemyVideoSelection
@@ -113,6 +112,23 @@ def test_process_to_publish_coordinator_resumes_each_durable_stage(
     asyncio.run(_exercise_workflow(migrated_database_path))
 
 
+def test_process_to_publish_v3_pins_classification_and_both_dependencies(
+    migrated_database_path: Path,
+) -> None:
+    asyncio.run(_exercise_workflow(migrated_database_path, segment_enabled=True))
+
+
+class FakeSegmentInputs:
+    async def prepare(self, **kwargs):
+        return {
+            "videoId": kwargs["video_id"],
+            "sourceTimelineWorkItemId": kwargs["timeline_work_item_id"],
+            "sourceFingerprint": "a" * 64,
+            "model": kwargs["model"],
+            "reasoningEffort": kwargs["reasoning_effort"],
+        }
+
+
 def test_process_to_publish_v2_rechecks_then_branches_to_asr(
     migrated_database_path: Path,
 ) -> None:
@@ -146,15 +162,8 @@ async def _exercise_artifact_reuse(database_path: Path) -> None:
         ).execute(ProcessToPublishCommand(selection=SelectedVideos((1,))))
         workflow_id = started.items[0].workflow_run_id
         assert workflow_id is not None
-        archive_engine = WorkExecutionEngine(
-            unit_of_work_factory=unit_of_work_factory,
-            registry=WorkExecutorRegistry({}),
-            task_types=("archive_publish",),
-            worker_id="archive:test",
-        )
         initial = ProcessToPublishCoordinator(
             unit_of_work_factory=unit_of_work_factory,
-            inline_runner=InlineWorkExecutionRunner(archive_engine),
             worker_id="coordinator:initial",
         )
         assert (await initial.run_once()).current_stage == "transcript_collect"
@@ -165,7 +174,6 @@ async def _exercise_artifact_reuse(database_path: Path) -> None:
 
         resumed = ProcessToPublishCoordinator(
             unit_of_work_factory=unit_of_work_factory,
-            inline_runner=InlineWorkExecutionRunner(archive_engine),
             transcript_artifacts=FakeTranscriptArtifacts(),
             worker_id="coordinator:resumed",
         )
@@ -183,7 +191,7 @@ async def _exercise_artifact_reuse(database_path: Path) -> None:
         await engine.dispose()
 
 
-async def _exercise_workflow(database_path: Path) -> None:
+async def _exercise_workflow(database_path: Path, *, segment_enabled: bool = False) -> None:
     engine = create_database_engine(f"sqlite+aiosqlite:///{database_path.as_posix()}")
     session_factory = create_session_factory(engine)
 
@@ -195,7 +203,9 @@ async def _exercise_workflow(database_path: Path) -> None:
         started = await StartProcessToPublishUseCase(
             videos=SqlAlchemyVideoSelection(session_factory),
             unit_of_work_factory=unit_of_work_factory,
-        ).execute(ProcessToPublishCommand(selection=SelectedVideos((1,))))
+        ).execute(
+            ProcessToPublishCommand(selection=SelectedVideos((1,)), segment_enabled=segment_enabled)
+        )
         workflow_id = started.items[0].workflow_run_id
         assert workflow_id is not None
 
@@ -210,8 +220,8 @@ async def _exercise_workflow(database_path: Path) -> None:
         )
         coordinator = ProcessToPublishCoordinator(
             unit_of_work_factory=unit_of_work_factory,
-            inline_runner=InlineWorkExecutionRunner(archive_engine),
             worker_id="coordinator:test",
+            segment_inputs=FakeSegmentInputs(),
         )
 
         first = await coordinator.run_once()
@@ -269,18 +279,66 @@ async def _exercise_workflow(database_path: Path) -> None:
             WorkExecutionResult(output_json={"videoId": 1, "compositionId": 30}),
         )
 
+        if segment_enabled:
+            waiting = await coordinator.run_once()
+            assert waiting.current_stage == "segment_classify"
+            item = await _stage_item(unit_of_work_factory, workflow_id, "segment_classify")
+            await _run_stage(
+                unit_of_work_factory,
+                "segment_classify",
+                WorkExecutionResult(
+                    output_json={
+                        "classificationId": 40,
+                        "sourceTimelineWorkItemId": timeline_id,
+                        "inputFingerprint": item.input_hash,
+                    },
+                ),
+            )
+
         paused_coordinator = ProcessToPublishCoordinator(
             unit_of_work_factory=unit_of_work_factory,
-            inline_runner=PausedInlineRunner(),
             worker_id="coordinator:paused",
         )
         paused = await paused_coordinator.run_once()
         assert (paused.status, paused.current_stage) == ("waiting", "archive_publish")
-        pending_archive = await _stage_item(
-            unit_of_work_factory, workflow_id, "archive_publish"
-        )
+        pending_archive = await _stage_item(unit_of_work_factory, workflow_id, "archive_publish")
         assert pending_archive.status is WorkItemStatus.PENDING
+        if segment_enabled:
+            assert pending_archive.input_json["sourceClassificationId"] == 40
+            assert pending_archive.input_json["sourceTimelineWorkItemId"] == timeline_id
+            async with session_factory() as session:
+                dependencies = (
+                    (
+                        await session.execute(
+                            text(
+                                "SELECT dependency_work_item_id FROM work_item_dependencies "
+                                "WHERE work_item_id=:id"
+                            ),
+                            {"id": pending_archive.id},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            classification_item = await _stage_item(
+                unit_of_work_factory, workflow_id, "segment_classify"
+            )
+            assert set(dependencies) == {timeline_id, classification_item.id}
 
+        controls = SqlAlchemyAutomationRepository(session_factory)
+        await controls.set_publishing(enabled=False, reason="test pause", now=datetime.now(UTC))
+        assert not (await archive_engine.run_once_with_result()).processed
+        async with unit_of_work_factory() as unit:
+            assert await unit.work_attempts.list_for_work_item(pending_archive.id) == []
+            preserved = await unit.work_items.get(pending_archive.id)
+        assert preserved == pending_archive
+        assert archive_publisher.source_timeline_work_item_id is None
+        assert not (await coordinator.run_once()).processed
+        resumed_controls = SqlAlchemyAutomationRepository(session_factory)
+        await resumed_controls.set_publishing(
+            enabled=True, reason="test resume", now=datetime.now(UTC)
+        )
+        assert (await archive_engine.run_once_with_result()).succeeded
         finished = await coordinator.run_once()
         assert finished.status == "succeeded"
         assert archive_publisher.source_timeline_work_item_id == timeline_id
@@ -294,6 +352,7 @@ async def _exercise_workflow(database_path: Path) -> None:
             "transcript_cue_generate",
             "micro_event_extract",
             "timeline_compose",
+            *(["segment_classify"] if segment_enabled else []),
             "archive_publish",
         ]
         assert all(step.status == WorkItemStatus.SUCCEEDED.value for step in steps)
@@ -327,17 +386,8 @@ async def _exercise_asr_branch(database_path: Path) -> None:
         )
         workflow_id = started.items[0].workflow_run_id
         assert workflow_id is not None
-        archive_engine = WorkExecutionEngine(
-            unit_of_work_factory=unit_of_work_factory,
-            registry=WorkExecutorRegistry(
-                {"archive_publish": lambda: ArchivePublishExecutor(FakeArchivePublisher())}
-            ),
-            task_types=("archive_publish",),
-            worker_id="archive:test",
-        )
         coordinator = ProcessToPublishCoordinator(
             unit_of_work_factory=unit_of_work_factory,
-            inline_runner=InlineWorkExecutionRunner(archive_engine),
             worker_id="coordinator:test",
             now=clock,
         )
@@ -379,9 +429,7 @@ async def _exercise_asr_branch(database_path: Path) -> None:
                 pending_recheck = await _stage_item(
                     unit_of_work_factory, workflow_id, "transcript_recheck"
                 )
-                assert _aware(pending_recheck.available_at) == clock.value + timedelta(
-                    minutes=30
-                )
+                assert _aware(pending_recheck.available_at) == clock.value + timedelta(minutes=30)
             else:
                 assert next_result.current_stage == "asr_transcribe"
 
@@ -469,7 +517,6 @@ async def _exercise_recheck_discovers_transcript(database_path: Path) -> None:
         assert workflow_id is not None
         coordinator = ProcessToPublishCoordinator(
             unit_of_work_factory=unit_of_work_factory,
-            inline_runner=UnusedInlineRunner(),
             worker_id="coordinator:test",
             now=clock,
         )
@@ -545,10 +592,7 @@ def _aware(value: datetime) -> datetime:
 async def _insert_video(session_factory) -> None:
     async with session_factory() as session:
         await session.execute(
-            text(
-                "INSERT INTO streamers(id, name, publish_profile_id) "
-                "VALUES (1, 'Nagi', 1)"
-            )
+            text("INSERT INTO streamers(id, name, publish_profile_id) VALUES (1, 'Nagi', 1)")
         )
         await session.execute(
             text(

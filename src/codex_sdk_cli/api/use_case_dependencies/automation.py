@@ -10,10 +10,13 @@ from codex_sdk_cli.application.automation.use_cases import (
     GetAutomationStatusUseCase,
     GetIncidentUseCase,
     GetManagedProcessesUseCase,
+    GetPublishingStateUseCase,
     ListIncidentsUseCase,
     MarkRuntimeStoppedUseCase,
+    PublishingDisabled,
     RequestRuntimeDrainUseCase,
     ResumeRuntimeUseCase,
+    SetPublishingStateUseCase,
     UpdateIncidentUseCase,
 )
 from codex_sdk_cli.infra.automation.processes import PsutilManagedProcessReader
@@ -102,6 +105,32 @@ def get_resume_runtime_use_case(
     repository: AutomationRepositoryDep,
 ) -> ResumeRuntimeUseCase:
     return ResumeRuntimeUseCase(repository, repository)
+
+
+def get_publishing_state_use_case(
+    repository: AutomationRepositoryDep,
+) -> GetPublishingStateUseCase:
+    return GetPublishingStateUseCase(repository)
+
+
+def set_publishing_state_use_case(
+    repository: AutomationRepositoryDep,
+) -> SetPublishingStateUseCase:
+    return SetPublishingStateUseCase(repository)
+
+
+async def require_publishing_enabled(repository: AutomationRepositoryDep) -> None:
+    state = await GetPublishingStateUseCase(repository).execute()
+    if not state.enabled:
+        raise PublishingDisabled()
+
+
+GetPublishingStateUseCaseDep = Annotated[
+    GetPublishingStateUseCase, Depends(get_publishing_state_use_case)
+]
+SetPublishingStateUseCaseDep = Annotated[
+    SetPublishingStateUseCase, Depends(set_publishing_state_use_case)
+]
 
 
 ListIncidentsUseCaseDep = Annotated[

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -181,21 +181,27 @@ class TranscriptFallbackRequest(BaseModel):
 
 
 class ProcessToPublishOperationRequest(BaseModel):
+    segment_enabled: bool = Field(default=True, alias="segmentEnabled")
+    segment_model: CodexModelChoice = Field(
+        default=cast(CodexModelChoice, "gpt-6-luna"), alias="segmentModel"
+    )
+    segment_reasoning_effort: ReasoningEffortChoice = Field(
+        default="high", alias="segmentReasoningEffort"
+    )
+    segment_prompt_version_id: int | None = Field(
+        default=None, alias="segmentPromptVersionId", ge=1
+    )
     selection: VideoSelectionRequest
     languages: tuple[str, ...] = Field(default=("ko", "en"), min_length=1, max_length=10)
     preserve_formatting: bool = Field(default=False, alias="preserveFormatting")
     micro_window_minutes: int = Field(default=30, alias="microWindowMinutes", ge=1, le=240)
     micro_overlap_minutes: int = Field(default=5, alias="microOverlapMinutes", ge=0, le=239)
-    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = (
-        DEFAULT_MICRO_EVENT_MODEL
-    )
+    micro_model: Annotated[CodexModelChoice, Field(alias="microModel")] = DEFAULT_MICRO_EVENT_MODEL
     micro_reasoning_effort: ReasoningEffortChoice = Field(
         default=DEFAULT_MICRO_EVENT_REASONING_EFFORT,
         alias="microReasoningEffort",
     )
-    micro_prompt_version_id: int | None = Field(
-        default=None, alias="microPromptVersionId", ge=1
-    )
+    micro_prompt_version_id: int | None = Field(default=None, alias="microPromptVersionId", ge=1)
     timeline_model: Annotated[CodexModelChoice, Field(alias="timelineModel")] = (
         DEFAULT_TIMELINE_MODEL
     )
@@ -229,6 +235,7 @@ class ProcessToPublishOperationRequest(BaseModel):
 
 
 class ArchivePublishOperationRequest(BaseModel):
+    include_segments: bool | None = Field(default=None, alias="includeSegments")
     selection: VideoSelectionRequest
     publish_mode: Literal["prod", "dev"] = Field(default="prod", alias="publishMode")
     environment: str = Field(default="prod", min_length=1, max_length=64)

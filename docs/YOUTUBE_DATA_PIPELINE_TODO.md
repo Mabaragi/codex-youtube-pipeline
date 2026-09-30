@@ -4,10 +4,12 @@
 
 - Unified work items, attempts, dependencies, batches, and workflow runs.
 - Shared leased worker engine for transcript, cue, micro-event, and timeline.
-- Process-to-publish coordinator and inline archive publisher.
+- Process-to-publish coordinator, independent archive worker, and persistent publishing control.
 - `/ops/operations/*`, `/ops/work-items*`, and standardized error envelope.
 - Embeddable gating, warning-preserving LLM repair, R2/D1 publish, and Ops UI.
 - Candidate DB migration, provenance validation, and atomic cutover tooling.
+- Versioned v1.6 segment classification, v3 processing, classification-only
+  backfill, and published segment JSON. See [segment classification](SEGMENT_CLASSIFICATION.md).
 
 ## Remaining Contract Phase
 
@@ -26,4 +28,8 @@ legacy tables before those criteria pass.
 - Cursor pagination for remaining offset-based read projections.
 - Archive cleanup/retention command with pointer protection.
 - Structured timeline correction for episode summaries/topics.
+- Human-labeled segment gold set for measuring category and collaboration
+  boundary accuracy. The 30-video runtime evaluation and preview agreement
+  check do not establish gold-set accuracy. See
+  [the classification experiment](learnings/notes/2026-09-30-segment-category-classification.md).
 - Optional external queue only if DB polling becomes a measured bottleneck.

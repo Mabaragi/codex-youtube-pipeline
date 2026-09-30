@@ -12,10 +12,13 @@ from codex_sdk_cli.api.schemas.automation import (
     IncidentResponse,
     IncidentUpdateRequest,
     ManagedProcessInventoryResponse,
+    PublishingStateRequest,
+    PublishingStateResponse,
     RuntimeStateResponse,
     RuntimeTransitionRequest,
     incident_response,
     managed_process_inventory_response,
+    publishing_state_response,
     runtime_state_response,
 )
 from codex_sdk_cli.api.use_case_dependencies.automation import (
@@ -23,15 +26,31 @@ from codex_sdk_cli.api.use_case_dependencies.automation import (
     GetAutomationStatusUseCaseDep,
     GetIncidentUseCaseDep,
     GetManagedProcessesUseCaseDep,
+    GetPublishingStateUseCaseDep,
     ListIncidentsUseCaseDep,
     MarkRuntimeStoppedUseCaseDep,
     RequestRuntimeDrainUseCaseDep,
     ResumeRuntimeUseCaseDep,
+    SetPublishingStateUseCaseDep,
     UpdateIncidentUseCaseDep,
 )
 from codex_sdk_cli.domains.automation.ports import IncidentState
 
 router = APIRouter()
+
+
+@router.get("/automation/publishing", response_model=PublishingStateResponse)
+async def publishing_state(use_case: GetPublishingStateUseCaseDep) -> PublishingStateResponse:
+    return publishing_state_response(await use_case.execute())
+
+
+@router.put("/automation/publishing", response_model=PublishingStateResponse)
+async def set_publishing_state(
+    request: PublishingStateRequest, use_case: SetPublishingStateUseCaseDep
+) -> PublishingStateResponse:
+    return publishing_state_response(
+        await use_case.execute(enabled=request.enabled, reason=request.reason)
+    )
 
 
 @router.get("/automation/processes", response_model=ManagedProcessInventoryResponse)

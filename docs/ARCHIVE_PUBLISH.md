@@ -2,8 +2,9 @@
 
 Archive publication converts completed timelines into a canonical private
 artifact and then publishes projections through the active profile assigned to
-the video's streamer. It still runs inline through
-`POST /ops/operations/archive-publish`; there is no publication worker.
+the video's streamer. `POST /ops/operations/archive-publish` enqueues work (`202`),
+and the independent archive worker executes it. Persistent publishing ON/OFF
+control is available in Ops UI and `/ops/automation/publishing`.
 
 ## Data boundary
 

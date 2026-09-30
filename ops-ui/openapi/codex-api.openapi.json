@@ -372,6 +372,17 @@
             "title": "Includenonembeddable",
             "type": "boolean"
           },
+          "includeSegments": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Includesegments"
+          },
           "publishMode": {
             "default": "prod",
             "enum": [
@@ -886,6 +897,9 @@
             "title": "Openincidentcount",
             "type": "integer"
           },
+          "publishing": {
+            "$ref": "#/components/schemas/PublishingStateResponse"
+          },
           "queues": {
             "items": {
               "additionalProperties": true,
@@ -917,10 +931,139 @@
           "openIncidentCount",
           "dataIntegrity",
           "runtime",
+          "publishing",
           "dailyVideoQuota",
           "queues"
         ],
         "title": "AutomationStatusResponse",
+        "type": "object"
+      },
+      "BackfillSegmentsOperationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "environment": {
+            "default": "prod",
+            "title": "Environment",
+            "type": "string"
+          },
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "gpt-6-luna",
+            "enum": [
+              "gpt-5.5",
+              "gpt-5.4",
+              "gpt-5.4-mini",
+              "gpt-5.6-terra",
+              "gpt-5.6-sol",
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna",
+              "gpt-6.1-sol"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "promptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversionid"
+          },
+          "publishMode": {
+            "default": "prod",
+            "enum": [
+              "prod",
+              "dev"
+            ],
+            "title": "Publishmode",
+            "type": "string"
+          },
+          "reasoningEffort": {
+            "default": "high",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ],
+            "title": "Reasoningeffort",
+            "type": "string"
+          },
+          "rerunSucceeded": {
+            "default": false,
+            "title": "Rerunsucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "selection": {
+            "discriminator": {
+              "mapping": {
+                "channel": "#/components/schemas/ChannelVideoSelectionRequest",
+                "filter": "#/components/schemas/FilterVideoSelectionRequest",
+                "nextEligible": "#/components/schemas/NextEligibleVideoSelectionRequest",
+                "selected": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/FilterVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/NextEligibleVideoSelectionRequest"
+              }
+            ],
+            "title": "Selection"
+          },
+          "taxonomyVersion": {
+            "const": "v1.6",
+            "default": "v1.6",
+            "title": "Taxonomyversion",
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "default": 600,
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Timeoutseconds",
+            "type": "integer"
+          },
+          "variant": {
+            "default": "control",
+            "title": "Variant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "title": "BackfillSegmentsOperationRequest",
         "type": "object"
       },
       "CancelWorkItemRequest": {
@@ -6639,6 +6782,50 @@
             "title": "Schemaversion",
             "type": "integer"
           },
+          "segmentEnabled": {
+            "default": true,
+            "title": "Segmentenabled",
+            "type": "boolean"
+          },
+          "segmentModel": {
+            "default": "gpt-6-luna",
+            "enum": [
+              "gpt-5.5",
+              "gpt-5.4",
+              "gpt-5.4-mini",
+              "gpt-5.6-terra",
+              "gpt-5.6-sol",
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna",
+              "gpt-6.1-sol"
+            ],
+            "title": "Segmentmodel",
+            "type": "string"
+          },
+          "segmentPromptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segmentpromptversionid"
+          },
+          "segmentReasoningEffort": {
+            "default": "high",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ],
+            "title": "Segmentreasoningeffort",
+            "type": "string"
+          },
           "selection": {
             "discriminator": {
               "mapping": {
@@ -6735,7 +6922,8 @@
             "enum": [
               "micro_event_extract",
               "timeline_compose",
-              "timeline_episode_repair"
+              "timeline_episode_repair",
+              "segment_classify"
             ],
             "title": "Key",
             "type": "string"
@@ -6784,7 +6972,8 @@
                 "enum": [
                   "micro_event_extract",
                   "timeline_compose",
-                  "timeline_episode_repair"
+                  "timeline_episode_repair",
+                  "segment_classify"
                 ],
                 "type": "string"
               },
@@ -6843,7 +7032,8 @@
             "enum": [
               "micro_event_extract",
               "timeline_compose",
-              "timeline_episode_repair"
+              "timeline_episode_repair",
+              "segment_classify"
             ],
             "title": "Key",
             "type": "string"
@@ -6873,7 +7063,8 @@
             "enum": [
               "micro_event_extract",
               "timeline_compose",
-              "timeline_episode_repair"
+              "timeline_episode_repair",
+              "segment_classify"
             ],
             "title": "Key",
             "type": "string"
@@ -6960,7 +7151,8 @@
             "enum": [
               "micro_event_extract",
               "timeline_compose",
-              "timeline_episode_repair"
+              "timeline_episode_repair",
+              "segment_classify"
             ],
             "title": "Promptkey",
             "type": "string"
@@ -8736,6 +8928,82 @@
         "title": "PublishProfileSummaryResponse",
         "type": "object"
       },
+      "PublishingStateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "PublishingStateRequest",
+        "type": "object"
+      },
+      "PublishingStateResponse": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "pendingCount": {
+            "minimum": 0.0,
+            "title": "Pendingcount",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "runningCount": {
+            "minimum": 0.0,
+            "title": "Runningcount",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "required": [
+          "enabled",
+          "pendingCount",
+          "runningCount",
+          "updatedAt",
+          "reason"
+        ],
+        "title": "PublishingStateResponse",
+        "type": "object"
+      },
       "RetryWorkItemRequest": {
         "additionalProperties": false,
         "properties": {
@@ -9143,6 +9411,109 @@
           }
         },
         "title": "RuntimeTransitionRequest",
+        "type": "object"
+      },
+      "SegmentOperationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "includeNonEmbeddable": {
+            "default": false,
+            "title": "Includenonembeddable",
+            "type": "boolean"
+          },
+          "model": {
+            "default": "gpt-6-luna",
+            "enum": [
+              "gpt-5.5",
+              "gpt-5.4",
+              "gpt-5.4-mini",
+              "gpt-5.6-terra",
+              "gpt-5.6-sol",
+              "gpt-5.6-luna",
+              "gpt-6-sol",
+              "gpt-6-luna",
+              "gpt-6.1-sol"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "promptVersionId": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversionid"
+          },
+          "reasoningEffort": {
+            "default": "high",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ],
+            "title": "Reasoningeffort",
+            "type": "string"
+          },
+          "rerunSucceeded": {
+            "default": false,
+            "title": "Rerunsucceeded",
+            "type": "boolean"
+          },
+          "retryFailed": {
+            "default": false,
+            "title": "Retryfailed",
+            "type": "boolean"
+          },
+          "selection": {
+            "discriminator": {
+              "mapping": {
+                "channel": "#/components/schemas/ChannelVideoSelectionRequest",
+                "filter": "#/components/schemas/FilterVideoSelectionRequest",
+                "nextEligible": "#/components/schemas/NextEligibleVideoSelectionRequest",
+                "selected": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectedVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/FilterVideoSelectionRequest"
+              },
+              {
+                "$ref": "#/components/schemas/NextEligibleVideoSelectionRequest"
+              }
+            ],
+            "title": "Selection"
+          },
+          "taxonomyVersion": {
+            "const": "v1.6",
+            "default": "v1.6",
+            "title": "Taxonomyversion",
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "default": 600,
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Timeoutseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selection"
+        ],
+        "title": "SegmentOperationRequest",
         "type": "object"
       },
       "SelectedVideoSelectionRequest": {
@@ -12720,6 +13091,66 @@
         ]
       }
     },
+    "/ops/automation/publishing": {
+      "get": {
+        "operationId": "publishing_state_ops_automation_publishing_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishingStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Publishing State",
+        "tags": [
+          "ops-automation"
+        ]
+      },
+      "put": {
+        "operationId": "set_publishing_state_ops_automation_publishing_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishingStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishingStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Publishing State",
+        "tags": [
+          "ops-automation"
+        ]
+      }
+    },
     "/ops/automation/runtime/drain": {
       "post": {
         "operationId": "request_runtime_drain_ops_automation_runtime_drain_post",
@@ -15062,7 +15493,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
@@ -15214,6 +15645,47 @@
           }
         },
         "summary": "Extract Micro Events",
+        "tags": [
+          "ops-operations"
+        ]
+      }
+    },
+    "/ops/operations/segment-classify": {
+      "post": {
+        "operationId": "classify_segments_ops_operations_segment_classify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Classify Segments",
         "tags": [
           "ops-operations"
         ]
@@ -15468,7 +15940,8 @@
               "enum": [
                 "micro_event_extract",
                 "timeline_compose",
-                "timeline_episode_repair"
+                "timeline_episode_repair",
+                "segment_classify"
               ],
               "title": "Promptkey",
               "type": "string"
@@ -15515,7 +15988,8 @@
               "enum": [
                 "micro_event_extract",
                 "timeline_compose",
-                "timeline_episode_repair"
+                "timeline_episode_repair",
+                "segment_classify"
               ],
               "title": "Promptkey",
               "type": "string"
@@ -15572,7 +16046,8 @@
               "enum": [
                 "micro_event_extract",
                 "timeline_compose",
-                "timeline_episode_repair"
+                "timeline_episode_repair",
+                "segment_classify"
               ],
               "title": "Promptkey",
               "type": "string"
@@ -15639,7 +16114,8 @@
               "enum": [
                 "micro_event_extract",
                 "timeline_compose",
-                "timeline_episode_repair"
+                "timeline_episode_repair",
+                "segment_classify"
               ],
               "title": "Promptkey",
               "type": "string"
@@ -15707,7 +16183,8 @@
               "enum": [
                 "micro_event_extract",
                 "timeline_compose",
-                "timeline_episode_repair"
+                "timeline_episode_repair",
+                "segment_classify"
               ],
               "title": "Promptkey",
               "type": "string"
@@ -18157,6 +18634,47 @@
         "summary": "List Workflow Runs",
         "tags": [
           "ops-work"
+        ]
+      }
+    },
+    "/ops/workflows/classify-to-publish": {
+      "post": {
+        "operationId": "backfill_segments_ops_workflows_classify_to_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackfillSegmentsOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Backfill Segments",
+        "tags": [
+          "ops-operations"
         ]
       }
     },

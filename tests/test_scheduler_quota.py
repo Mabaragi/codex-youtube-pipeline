@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 
 from codex_sdk_cli.application.scheduler.ports import (
@@ -103,10 +104,12 @@ def test_quota_window_rolls_over_at_seoul_midnight() -> None:
     assert after.started_at == datetime(2026, 7, 19, 15, 0, tzinfo=UTC)
 
 
+@pytest.mark.parametrize("workflow_version", ["v2", "v3"])
 def test_snapshot_counts_automatic_workflows_in_all_statuses_but_not_manual(
     migrated_database_path: Path,
+    workflow_version: str,
 ) -> None:
-    asyncio.run(_exercise_automatic_workflow_count(migrated_database_path))
+    asyncio.run(_exercise_automatic_workflow_count(migrated_database_path, workflow_version))
 
 
 def _snapshot(
@@ -153,7 +156,7 @@ def _video(channel_id: int, index: int) -> VideoRecord:
     )
 
 
-async def _exercise_automatic_workflow_count(database_path: Path) -> None:
+async def _exercise_automatic_workflow_count(database_path: Path, workflow_version: str) -> None:
     engine = create_database_engine(
         f"sqlite+aiosqlite:///{database_path.as_posix()}"
     )
@@ -195,7 +198,7 @@ async def _exercise_automatic_workflow_count(database_path: Path) -> None:
                 session.add(
                     WorkflowRunModel(
                         workflow_type="process_to_publish",
-                        workflow_version="v2",
+                        workflow_version=workflow_version,
                         video_id=video_id,
                         input_hash=f"{video_id:064x}",
                         status=status,

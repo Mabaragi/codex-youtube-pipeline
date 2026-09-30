@@ -1,0 +1,35 @@
+digraph G {
+graph [rankdir=LR, bgcolor="white", pad="0.35", nodesep="0.35", ranksep="0.65", splines=polyline, fontname="Malgun Gothic", fontsize=22, fontcolor="#0f172a", labelloc=t, label="01 · 워커와 공용 DB\n실선: 작업·데이터 접근 / 점선: 결과 기록·감독 / 각 워커는 DB를 통해 연결"];
+node [shape=box, style="rounded,filled", fontname="Malgun Gothic", fontsize=14, fontcolor="#0f172a", margin="0.18,0.15", penwidth=1.4];
+edge [fontname="Malgun Gothic", fontsize=11, color="#64748b", fontcolor="#475569", arrowsize=0.75, penwidth=1.2];
+"operator" [label="운영자 / 에이전트\nOps UI 또는 HTTP API", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"api" [label="FastAPI\n/ops 작업·workflow·상태", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"scheduler" [label="pipeline-scheduler\nvideo_collect는 내부 inline 실행\n신규 workflow 승인: 40개/일", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"db" [label="운영 PostgreSQL\nworkflow_runs / workflow_steps\nwork_items / attempts / dependencies\n결과·prompt_versions·운영 상태", fillcolor="#fffbeb", color="#d97706", shape=box];
+"coordinator" [label="workflow-coordinator\n완료 확인 → 다음 단계 생성\n게시 work enqueue · 완료 확인", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"supervisor" [label="pipeline-supervisor\nlease 정리·사건/SLA·제한 재시도\nOS 프로세스 재시작 기능은 없음", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"workers" [label="단계별 독립 워커\ntranscript-worker · 자막\ntranscript-cue-worker · cue\nasr-worker · 음성 인식\nmicro-event-worker · 이벤트\ntimeline-compose-worker · 타임라인\nsegment-classify-worker · 구간 분류", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"llm" [label="CodexRuntimeClient\nSDK → CLI app-server → 모델\nmicro / timeline / segment 호출", fillcolor="#f8fafc", color="#64748b", shape=box];
+"youtube" [label="YouTube\n채널·영상·자막 / ASR용 오디오", fillcolor="#f8fafc", color="#64748b", shape=box];
+"minio" [label="로컬 MinIO\n원본 자막·ASR·저장 아티팩트", fillcolor="#fffbeb", color="#d97706", shape=box];
+"publish" [label="archive-publish-worker\nDB 설정 OFF: 새 claim 대기\nprofile router → 게시 대상", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"availability" [label="video-availability-worker\n공개 inbox의 재생 불가 후보 검증\nDB 반영·대기 작업 취소", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"inbox" [label="공개 카탈로그 API / D1 inbox\n재생 가능 여부 확인 대상", fillcolor="#f8fafc", color="#64748b", shape=box];
+"operator" -> "api" [label="수동 실행·조회"];
+"api" -> "db" [label="enqueue / 상태 조회"];
+"scheduler" -> "db" [label="영상 저장·workflow 승인"];
+"scheduler" -> "youtube" [label="영상 목록 수집"];
+"db" -> "coordinator" [label="workflow claim"];
+"coordinator" -> "db" [label="단계 생성·결과 확인",constraint=false,style=dashed];
+"db" -> "workers" [label="task_type별 claim"];
+"workers" -> "db" [label="heartbeat·결과·오류 기록",constraint=false,style=dashed];
+"workers" -> "llm" [label="LLM 생성 3종"];
+"workers" -> "youtube" [label="자막 / 오디오"];
+"workers" -> "minio" [label="원본 읽기·저장"];
+"db" -> "publish" [label="archive_publish claim"];
+"publish" -> "db" [label="heartbeat·결과·오류",constraint=false,style=dashed];
+"supervisor" -> "db" [label="감독·lease 복구",constraint=false,style=dashed];
+"inbox" -> "availability" [label="후보 poll"];
+"availability" -> "youtube" [label="재생 가능 여부 확인"];
+"availability" -> "db" [label="검증 결과·취소",constraint=false,style=dashed];
+}

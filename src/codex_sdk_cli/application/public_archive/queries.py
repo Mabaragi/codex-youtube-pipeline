@@ -14,6 +14,11 @@ class PublicArchiveScope:
     profile_key: str
     publish_mode: str
     environment: str
+    additional_profile_keys: tuple[str, ...] = ()
+
+    @property
+    def profile_keys(self) -> tuple[str, ...]:
+        return tuple(dict.fromkeys((self.profile_key, *self.additional_profile_keys)))
 
 
 @dataclass(frozen=True, slots=True)

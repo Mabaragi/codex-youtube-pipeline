@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from codex_sdk_cli.api.schemas.publication_stages import (
     ArchiveArtifactBuildOperationRequest,
@@ -13,6 +13,7 @@ from codex_sdk_cli.api.schemas.publication_stages import (
 from codex_sdk_cli.api.use_case_dependencies.archive_publish import (
     ArchivePublishUseCaseDep,
 )
+from codex_sdk_cli.api.use_case_dependencies.automation import require_publishing_enabled
 from codex_sdk_cli.api.use_case_dependencies.publication_stages import (
     PublicationStageServiceDep,
 )
@@ -82,6 +83,7 @@ async def build_archive_artifacts(
 
 @router.post(
     "/operations/archive-object-deliver",
+    dependencies=[Depends(require_publishing_enabled)],
     response_model=PublicationStageResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -105,6 +107,7 @@ async def deliver_archive_objects(
 
 @router.post(
     "/operations/archive-catalog-publish",
+    dependencies=[Depends(require_publishing_enabled)],
     response_model=PublicationStageResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -128,6 +131,7 @@ async def publish_archive_catalogs(
 
 @router.post(
     "/operations/archive-publication-build",
+    dependencies=[Depends(require_publishing_enabled)],
     response_model=PublicationStageResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -152,6 +156,7 @@ async def build_archive_publication(
 
 @router.post(
     "/operations/archive-pointer-publish",
+    dependencies=[Depends(require_publishing_enabled)],
     response_model=PublicationStageResponse,
     status_code=status.HTTP_200_OK,
 )

@@ -1,0 +1,52 @@
+digraph G {
+graph [rankdir=LR, bgcolor="white", pad="0.35", nodesep="0.35", ranksep="0.65", splines=polyline, fontname="Malgun Gothic", fontsize=22, fontcolor="#0f172a", labelloc=t, label="04 · 프롬프트 관리·테스트 접근\n운영 단계 실행, 격리 비교 실험, 단발 파일 생성의 저장 경로를 구분"];
+node [shape=box, style="rounded,filled", fontname="Malgun Gothic", fontsize=14, fontcolor="#0f172a", margin="0.18,0.15", penwidth=1.4];
+edge [fontname="Malgun Gothic", fontsize=11, color="#64748b", fontcolor="#475569", arrowsize=0.75, penwidth=1.2];
+subgraph cluster_entry { label="인터페이스"; fontsize=16; color="#3b82f6"; style="rounded,dashed"; margin=18;
+"manage";
+"stages";
+"cli";
+"once";
+"smoke";
+}
+subgraph cluster_control { label="운영 경로"; fontsize=16; color="#6366f1"; style="rounded,dashed"; margin=18;
+"prod";
+}
+subgraph cluster_eval { label="격리 실험 경로"; fontsize=16; color="#9333ea"; style="rounded,dashed"; margin=18;
+"snap";
+"compare";
+}
+subgraph cluster_storage { label="저장"; fontsize=16; color="#d97706"; style="rounded,dashed"; margin=18;
+"prompts";
+"evalstore";
+"files";
+}
+subgraph cluster_external { label="공유 생성 런타임"; fontsize=16; color="#64748b"; style="rounded,dashed"; margin=18;
+"llm";
+}
+"manage" [label="Ops UI /configuration/prompts\n또는 /ops/prompts API\ndraft → published → archived", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"prompts" [label="운영 DB prompt_versions\n본문·ID·hash·활성 버전\n공개 저장소에는 sample만", fillcolor="#fffbeb", color="#d97706", shape=box];
+"stages" [label="Ops UI /operations\n또는 /ops/operations/* API\n선택 단계 / 전체 workflow 실행", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"prod" [label="운영 work queue + 기존 워커\n모델·추론·prompt ID로 입력 식별\n운영 DB에 실행 결과 저장", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"cli" [label="codex-demo evaluation\ncreate → run micro → score/select\nrun timeline → report / verify", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"snap" [label="create 시 읽기 전용 snapshot\n기존 cue + metadata + prompt 고정\n후보별 같은 입력 사용", fillcolor="#faf5ff", color="#9333ea", shape=box];
+"compare" [label="EvaluationGenerationService\n후보 / 반복 / 범위별 생성\n별도 워커·API·scheduler 사용 안 함", fillcolor="#faf5ff", color="#9333ea", shape=box];
+"evalstore" [label="격리 평가 DB + private MinIO\ncodex_model_evaluations\nmodel-evaluations bucket\nblind bundle·점수·비교 보고서", fillcolor="#fffbeb", color="#d97706", shape=box];
+"once" [label="codex-demo timeline once\nplan → run / resume → verify\nYouTube 영상 ID 하나", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"files" [label="private 로컬 파일\n.home-deploy/one-shot/\nASR·micro 체크포인트 + timeline", fillcolor="#fffbeb", color="#d97706", shape=box];
+"smoke" [label="codex-demo run / POST /codex/runs\n임의 prompt 구조화 출력 확인\n도메인 품질 평가와 별개", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"llm" [label="공유 CodexRuntimeClient\nSDK → CLI app-server → 모델\n각 요청이 model / effort 전달", fillcolor="#f8fafc", color="#64748b", shape=box];
+"manage" -> "prompts" [label="버전 관리"];
+"stages" -> "prod" [label="운영 작업 생성"];
+"prompts" -> "prod" [label="선택 버전 / 활성 버전"];
+"cli" -> "snap" [label="create"];
+"prompts" -> "snap" [label="prompt 고정"];
+"snap" -> "compare" [label="고정된 source bundle"];
+"compare" -> "evalstore" [label="실행·검증·점수"];
+"compare" -> "llm" [label="micro / timeline"];
+"prod" -> "llm" [label="생성 단계"];
+"once" -> "files" [label="파일 생성"];
+"prompts" -> "once" [label="plan 시 읽기·고정"];
+"once" -> "llm" [label="micro / timeline"];
+"smoke" -> "llm" [label="직접 생성"];
+}

@@ -1,0 +1,57 @@
+digraph G {
+graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.35", ranksep="0.65", splines=polyline, fontname="Malgun Gothic", fontsize=22, fontcolor="#0f172a", labelloc=t, label="03 · 세그먼트 분류 백필과 공개 데이터\n분류 생성 완료와 공개 연결 완료는 다른 단계 / 재게시 후 프론트가 읽음"];
+node [shape=box, style="rounded,filled", fontname="Malgun Gothic", fontsize=14, fontcolor="#0f172a", margin="0.18,0.15", penwidth=1.4];
+edge [fontname="Malgun Gothic", fontsize=11, color="#64748b", fontcolor="#475569", arrowsize=0.75, penwidth=1.2];
+subgraph cluster_entry { label="API 접근"; fontsize=16; color="#3b82f6"; style="rounded,dashed"; margin=18;
+"caller";
+"backfill";
+"only";
+}
+subgraph cluster_pin { label="게시 원본 고정"; fontsize=16; color="#6366f1"; style="rounded,dashed"; margin=18;
+"snapshot";
+"workflow";
+}
+subgraph cluster_classify { label="분류 생성"; fontsize=16; color="#16a34a"; style="rounded,dashed"; margin=18;
+"segment";
+"result";
+}
+subgraph cluster_publish { label="재게시"; fontsize=16; color="#16a34a"; style="rounded,dashed"; margin=18;
+"archive";
+"canonical";
+"router";
+}
+subgraph cluster_deliver { label="대상에 전달"; fontsize=16; color="#d97706"; style="rounded,dashed"; margin=18;
+"cloud";
+"local";
+}
+subgraph cluster_view { label="프론트 조회"; fontsize=16; color="#64748b"; style="rounded,dashed"; margin=18;
+"front";
+}
+"caller" [label="운영자 / 배치 스크립트\nselection: 영상 ID·채널·대상 조건", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"backfill" [label="POST /ops/workflows/\nclassify-to-publish", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"only" [label="POST /ops/operations/\nsegment-classify\n분류만 생성", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"snapshot" [label="현재 게시된 timeline 고정\nsource work ID + 입력 fingerprint\n운영 prompt ID/hash + 모델·추론", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"workflow" [label="classify_to_publish workflow\n분류 → 게시 두 단계\n신규 영상 일일 승인 슬롯 사용 안 함", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"segment" [label="동일 segment-classify-worker\nLLM → 검증 → 결정적 policy\n상위 자막·micro·timeline 재생성 없음", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"result" [label="segment_classifications\n+ timeline_segments\n분류가 저장된 상태", fillcolor="#fffbeb", color="#d97706", shape=box];
+"archive" [label="archive-publish-worker\n코디네이터 / 수동 API → 작업 큐\nOFF: 대기 · ON: 같은 작업 재개", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"canonical" [label="정규 아티팩트: 로컬 MinIO\narchive_video_artifacts\n분류 ID를 함께 추적", fillcolor="#fffbeb", color="#d97706", shape=box];
+"router" [label="Publication profile / route\n대상 object·catalog에 전달\n각 delivery 상태 저장", fillcolor="#eef2ff", color="#6366f1", shape=box];
+"cloud" [label="클라우드 대상\nR2 timeline JSON + D1 catalog", fillcolor="#fffbeb", color="#d97706", shape=box];
+"local" [label="로컬 대상\nMinIO JSON + PostgreSQL catalog", fillcolor="#fffbeb", color="#d97706", shape=box];
+"front" [label="Planetip\n카탈로그가 선택한 timeline JSON 조회\nsegments 있음: 카테고리 구간 UI\n없음: 기존 블록·필터 UI", fillcolor="#f8fafc", color="#64748b", shape=box];
+"caller" -> "backfill" [label=""];
+"caller" -> "only" [label=""];
+"backfill" -> "snapshot" [label=""];
+"snapshot" -> "workflow" [label=""];
+"workflow" -> "segment" [label="코디네이터가 작업 생성"];
+"only" -> "segment" [label="분류 work enqueue"];
+"segment" -> "result" [label=""];
+"result" -> "archive" [label="백필 workflow / 별도 게시 요청"];
+"archive" -> "canonical" [label=""];
+"canonical" -> "router" [label=""];
+"router" -> "cloud" [label="profile에 따라"];
+"router" -> "local" [label="profile에 따라"];
+"cloud" -> "front" [label="archive API + JSON"];
+"local" -> "front" [label="/api/archive + JSON"];
+}

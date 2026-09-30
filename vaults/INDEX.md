@@ -16,6 +16,9 @@ for the current task. Public product and operations documentation lives in
 
 ## Project Context
 
+- [Independent archive publisher](decisions/2026-10-01-independent-archive-publish-worker.md):
+  publication queue, persistent ON/OFF control, and generation while publication pauses.
+
 - [Drain-based local runtime decision](decisions/2026-07-14-drain-based-local-runtime-orchestration.md):
   explains why runtime intent is persisted as `active/draining/stopped`, which
   operations drain blocks, and why timeout never escalates to force. Read before

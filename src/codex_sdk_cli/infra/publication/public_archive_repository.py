@@ -7,7 +7,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import UTC
 
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -33,6 +33,8 @@ _SEARCH_SEPARATOR = re.compile(r"[^\w\s]", flags=re.UNICODE)
 class _Cursor:
     published_at: str
     video_id: int
+    profile_key: str | None = None
+    variant: str | None = None
 
 
 class SqlAlchemyPublicArchiveRepository(PublicArchiveRepositoryPort):
@@ -61,7 +63,16 @@ class SqlAlchemyPublicArchiveRepository(PublicArchiveRepositoryPort):
         cursor = _decode_cursor(query.cursor)
         if cursor is not None:
             published_at = func.coalesce(PublishedVideoModel.published_at, "")
-            if query.sort == "latest":
+            if cursor.profile_key is not None and cursor.variant is not None:
+                key = tuple_(
+                    published_at,
+                    PublishedVideoModel.video_id,
+                    PublishedVideoModel.profile_key,
+                    PublishedVideoModel.variant,
+                )
+                values = (cursor.published_at, cursor.video_id, cursor.profile_key, cursor.variant)
+                page_predicates.append(key < values if query.sort == "latest" else key > values)
+            elif query.sort == "latest":
                 page_predicates.append(
                     or_(
                         published_at < cursor.published_at,
@@ -88,18 +99,26 @@ class SqlAlchemyPublicArchiveRepository(PublicArchiveRepositoryPort):
             statement = statement.order_by(
                 published_at.asc(),
                 PublishedVideoModel.video_id.asc(),
+                PublishedVideoModel.profile_key.asc(),
+                PublishedVideoModel.variant.asc(),
             )
         else:
             statement = statement.order_by(
                 published_at.desc(),
                 PublishedVideoModel.video_id.desc(),
+                PublishedVideoModel.profile_key.desc(),
+                PublishedVideoModel.variant.desc(),
             )
         statement = statement.limit(query.limit + 1)
         rows = list((await self._session.scalars(statement)).all())
         page_rows = rows[: query.limit]
         topic_matches = await self._topic_matches(query.scope, page_rows, search_tokens)
         items = tuple(
-            _to_video(row, topic_matches.get((row.video_id, row.variant), ())) for row in page_rows
+            _to_video(
+                row,
+                topic_matches.get((row.profile_key, row.video_id, row.variant), ()),
+            )
+            for row in page_rows
         )
         next_cursor = (
             _encode_cursor(page_rows[-1]) if len(rows) > query.limit and page_rows else None
@@ -182,10 +201,10 @@ class SqlAlchemyPublicArchiveRepository(PublicArchiveRepositoryPort):
         scope: PublicArchiveScope,
         videos: list[PublishedVideoModel],
         tokens: tuple[str, ...],
-    ) -> dict[tuple[int, str], tuple[PublicArchiveTopicMatch, ...]]:
+    ) -> dict[tuple[str, int, str], tuple[PublicArchiveTopicMatch, ...]]:
         if not videos or not tokens:
             return {}
-        keys = {(video.video_id, video.variant) for video in videos}
+        keys = {(video.profile_key, video.video_id, video.variant) for video in videos}
         statement = (
             select(PublishedTimelineTopicClusterModel)
             .where(
@@ -208,9 +227,9 @@ class SqlAlchemyPublicArchiveRepository(PublicArchiveRepositoryPort):
                 PublishedTimelineTopicClusterModel.topic_id,
             )
         )
-        matches: dict[tuple[int, str], list[PublicArchiveTopicMatch]] = {}
+        matches: dict[tuple[str, int, str], list[PublicArchiveTopicMatch]] = {}
         for row in (await self._session.scalars(statement)).all():
-            key = (row.video_id, row.variant)
+            key = (row.profile_key, row.video_id, row.variant)
             if key not in keys:
                 continue
             values = matches.setdefault(key, [])
@@ -226,7 +245,7 @@ class SqlAlchemyPublicArchiveRepository(PublicArchiveRepositoryPort):
 
 def _scope_predicates(scope: PublicArchiveScope) -> tuple[ColumnElement[bool], ...]:
     return (
-        PublishedVideoModel.profile_key == scope.profile_key,
+        PublishedVideoModel.profile_key.in_(scope.profile_keys),
         PublishedVideoModel.publish_mode == scope.publish_mode,
         PublishedVideoModel.environment == scope.environment,
     )
@@ -234,7 +253,7 @@ def _scope_predicates(scope: PublicArchiveScope) -> tuple[ColumnElement[bool], .
 
 def _topic_scope_predicates(scope: PublicArchiveScope) -> tuple[ColumnElement[bool], ...]:
     return (
-        PublishedTimelineTopicClusterModel.profile_key == scope.profile_key,
+        PublishedTimelineTopicClusterModel.profile_key.in_(scope.profile_keys),
         PublishedTimelineTopicClusterModel.publish_mode == scope.publish_mode,
         PublishedTimelineTopicClusterModel.environment == scope.environment,
     )
@@ -245,6 +264,7 @@ def _search_predicate(scope: PublicArchiveScope, token: str) -> ColumnElement[bo
     topic_match = exists(
         select(1).where(
             *_topic_scope_predicates(scope),
+            PublishedTimelineTopicClusterModel.profile_key == PublishedVideoModel.profile_key,
             PublishedTimelineTopicClusterModel.video_id == PublishedVideoModel.video_id,
             PublishedTimelineTopicClusterModel.variant == PublishedVideoModel.variant,
             func.lower(
@@ -279,18 +299,33 @@ def _decode_cursor(value: str | None) -> _Cursor | None:
     try:
         padded = value + "=" * (-len(value) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+        if not isinstance(payload, dict):
+            return None
         published_at = payload.get("publishedAt", "")
         video_id = payload.get("videoId", 0)
-        if not isinstance(published_at, str) or not isinstance(video_id, int):
+        profile_key = payload.get("profileKey")
+        variant = payload.get("variant")
+        if (
+            not isinstance(published_at, str)
+            or not isinstance(video_id, int)
+            or isinstance(video_id, bool)
+            or (profile_key is not None and not isinstance(profile_key, str))
+            or (variant is not None and not isinstance(variant, str))
+        ):
             return None
-        return _Cursor(published_at=published_at, video_id=video_id)
+        return _Cursor(published_at, video_id, profile_key, variant)
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 
 def _encode_cursor(row: PublishedVideoModel) -> str:
     payload = json.dumps(
-        {"publishedAt": row.published_at or "", "videoId": row.video_id},
+        {
+            "publishedAt": row.published_at or "",
+            "videoId": row.video_id,
+            "profileKey": row.profile_key,
+            "variant": row.variant,
+        },
         separators=(",", ":"),
     ).encode("utf-8")
     return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")

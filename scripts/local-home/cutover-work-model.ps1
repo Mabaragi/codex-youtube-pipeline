@@ -38,7 +38,9 @@ function Resolve-LocalDatabasePath {
 function Stop-WorkRuntime {
     Stop-ManagedProcess "ops-ui"
     Stop-ManagedProcess "workflow-coordinator"
+    Stop-ManagedProcess "archive-publish-worker"
     Stop-ManagedProcess "timeline-compose-worker"
+    Stop-ManagedProcess "segment-classify-worker"
     Stop-ManagedProcess "pipeline-scheduler"
     Stop-ManagedProcess "video-availability-worker"
     Stop-ManagedProcess "transcript-cue-worker"

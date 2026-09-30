@@ -27,6 +27,7 @@ from codex_sdk_cli.domains.pipeline_jobs.ports import (
     PipelineJobRecord,
     PipelineJobRepositoryPort,
 )
+from codex_sdk_cli.domains.segments.ports import SegmentPublicationReaderPort
 from codex_sdk_cli.domains.timelines.ports import (
     TimelineCompositionRecord,
     TimelineCompositionRepositoryPort,
@@ -56,6 +57,7 @@ from .constants import (
 from .exceptions import (
     ArchivePublishArtifactInvalid,
     ArchivePublishConfigurationError,
+    ArchivePublishingDisabled,
     ArchivePublishPreconditionFailed,
 )
 from .ports import (
@@ -75,6 +77,7 @@ from .ports import (
     ArchivePublicCatalogVideoRow,
     ArchivePublishCandidateQuery,
     ArchivePublishCandidateRecord,
+    ArchivePublishingControlPort,
     ArchivePublishRepositoryPort,
     ArchivePublishStatusFilter,
     ArchivePublishStoragePort,
@@ -175,6 +178,8 @@ class ArchivePublishUseCase:
         public_catalog_sync: ArchivePublicCatalogSyncPort | None = None,
         public_catalog_sync_enabled: bool = False,
         routed_publication: RoutedArchivePublicationPort | None = None,
+        segment_publication: SegmentPublicationReaderPort | None = None,
+        publishing_control: ArchivePublishingControlPort | None = None,
     ) -> None:
         self._videos = videos
         self._video_tasks = video_tasks
@@ -189,6 +194,8 @@ class ArchivePublishUseCase:
         self._public_catalog_sync = public_catalog_sync
         self._public_catalog_sync_enabled = public_catalog_sync_enabled
         self._routed_publication = routed_publication
+        self._segment_publication = segment_publication
+        self._publishing_control = publishing_control
         self._profiles: dict[ArchivePublishModeLiteral, _ArchivePublishProfile] = {
             "prod": _ArchivePublishProfile(
                 publish_mode="prod",
@@ -214,6 +221,12 @@ class ArchivePublishUseCase:
         self,
         request: ArchivePublishRequest,
     ) -> ArchivePublishResponse:
+        if (
+            request.stop_after_stage != "artifact"
+            and self._publishing_control is not None
+            and not await self._publishing_control.enabled()
+        ):
+            raise ArchivePublishingDisabled("Publishing is paused; archive work remains queued.")
         if request.stop_after_stage is not None and self._routed_publication is None:
             raise ArchivePublishConfigurationError("Canonical artifact storage is not configured.")
         counters = _PublishCounters()
@@ -276,10 +289,7 @@ class ArchivePublishUseCase:
             storage=ArchiveStorageConfigResponse(
                 configured=(
                     self._routed_publication is not None
-                    or (
-                        profile.public_base_url is not None
-                        and profile.storage_factory is not None
-                    )
+                    or (profile.public_base_url is not None and profile.storage_factory is not None)
                 ),
                 bucket=profile.storage_bucket,
                 endpoint=profile.storage_endpoint,
@@ -688,6 +698,13 @@ class ArchivePublishUseCase:
             environment = _required_str(job.input_json, "environment")
             variant = _required_str(job.input_json, "variant")
             schema_version = _required_int(job.input_json, "schemaVersion")
+            segment_payload = None
+            if "sourceClassificationId" in job.input_json:
+                if self._segment_publication is None:
+                    raise ArchivePublishConfigurationError(
+                        "Segment publication reader is required."
+                    )
+                segment_payload = await self._segment_publication.load(job.input_json)
             candidate = await self._archive.get_publish_candidate(
                 video_id=task.video_id,
                 environment=environment,
@@ -751,6 +768,7 @@ class ArchivePublishUseCase:
                 environment=environment,
                 variant=variant,
                 schema_version=schema_version,
+                segment_payload=segment_payload,
             )
             if storage is not None:
                 await storage.save_json(
@@ -764,6 +782,11 @@ class ArchivePublishUseCase:
                 ArchiveVideoArtifactCreate(
                     video_id=video.id,
                     source_timeline_composition_id=composition.id,
+                    source_classification_id=(
+                        _required_int(job.input_json, "sourceClassificationId")
+                        if segment_payload is not None
+                        else None
+                    ),
                     source_timeline_task_id=composition.video_task_id,
                     source_micro_event_task_id=composition.source_micro_event_task_id,
                     publish_task_id=task.id,
@@ -1048,6 +1071,7 @@ def _timeline_artifact(
     environment: str,
     variant: str,
     schema_version: int,
+    segment_payload: JsonObject | None = None,
 ) -> ArchiveTimelineArtifact:
     candidate_by_id = {candidate.id: candidate for candidate in micro_events}
     cue_by_id = {cue.cue_id: cue for cue in cues}
@@ -1136,6 +1160,8 @@ def _timeline_artifact(
             for topic in composition.topic_clusters
         ],
     }
+    if segment_payload is not None:
+        payload.update(segment_payload)
     if timeline_state == "empty":
         payload["reviewFlags"] = []
     payload_bytes = _json_bytes(payload)

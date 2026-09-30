@@ -92,7 +92,9 @@ to cue generation without creating ASR work.
 7. Fetch the returned primary timeline URL as UTF-8 JSON and verify counts and
    video identity. Do not assume the primary object service is a specific vendor.
 
-Archive publish is inline; there is no archive worker.
+Archive publication runs in the independent archive worker. The operation
+returns `202`; poll its work item for the final outcome. Publishing OFF preserves
+the queued work until ON is restored, while LLM processing continues.
 
 For stage recovery, use the explicit endpoints in predecessor order:
 

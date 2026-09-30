@@ -8,6 +8,7 @@ from codex_sdk_cli.domains.automation.ports import (
     IncidentRecord,
     IncidentState,
     ManagedProcessInventory,
+    PublishingState,
     RemediationAction,
     RuntimeMode,
     RuntimeState,
@@ -115,6 +116,33 @@ class DailyVideoQuotaResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PublishingStateRequest(BaseModel):
+    enabled: bool
+    reason: str | None = Field(default=None, max_length=500)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PublishingStateResponse(BaseModel):
+    enabled: bool
+    pending_count: int = Field(alias="pendingCount", ge=0)
+    running_count: int = Field(alias="runningCount", ge=0)
+    updated_at: datetime | None = Field(alias="updatedAt")
+    reason: str | None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+def publishing_state_response(state: PublishingState) -> PublishingStateResponse:
+    return PublishingStateResponse(
+        enabled=state.enabled,
+        pendingCount=state.pending_count,
+        runningCount=state.running_count,
+        updatedAt=state.updated_at,
+        reason=state.reason,
+    )
+
+
 class AutomationStatusResponse(BaseModel):
     mode: str
     backfill_started_at: str | None = Field(alias="backfillStartedAt")
@@ -123,6 +151,7 @@ class AutomationStatusResponse(BaseModel):
     open_incident_count: int = Field(alias="openIncidentCount")
     data_integrity: AutomationDataIntegrityResponse = Field(alias="dataIntegrity")
     runtime: RuntimeStateResponse
+    publishing: PublishingStateResponse
     daily_video_quota: DailyVideoQuotaResponse = Field(alias="dailyVideoQuota")
     queues: list[dict[str, object]]
 

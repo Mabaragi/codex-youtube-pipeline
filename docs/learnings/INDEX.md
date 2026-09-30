@@ -8,7 +8,10 @@ annotated index다. 작성 위치와 형식은 [Human Learnings](README.md)를 �
 - [Notes guide](notes/README.md): 날짜와 작업 맥락에 묶인 짧은 학습 기록의 naming과
   작성 범위를 설명한다. 새 debugging·discovery note를 남길 때 읽는다.
 
-아직 등록된 note가 없다.
+- [방송 구간 분류 실험](notes/2026-09-30-segment-category-classification.md):
+  timeline 요약 위에서 저챗·게임·노래·같이보기·카페 탐방·준비·세팅·합방을 분류한
+  taxonomy v1.6 규칙, 후처리, 정확도·안정성 결과, 파이프라인 구현 시 고려점을 정리한다.
+  구간 분류 단계나 공개 segment 계약을 설계할 때 읽는다.
 
 ## Topics
 

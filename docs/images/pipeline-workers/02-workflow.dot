@@ -1,0 +1,29 @@
+digraph G {
+graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.35", ranksep="0.65", splines=polyline, fontname="Malgun Gothic", fontsize=22, fontcolor="#0f172a", labelloc=t, label="02 · 전체 영상 처리 v2 / v3\n화살표는 논리적 처리 순서 / 실제 인계는 코디네이터와 DB를 통함"];
+node [shape=box, style="rounded,filled", fontname="Malgun Gothic", fontsize=14, fontcolor="#0f172a", margin="0.18,0.15", penwidth=1.4];
+edge [fontname="Malgun Gothic", fontsize=11, color="#64748b", fontcolor="#475569", arrowsize=0.75, penwidth=1.2];
+"start" [label="process_to_publish\n스케줄러 승인 또는 수동 API", fillcolor="#eff6ff", color="#3b82f6", shape=box];
+"transcript" [label="transcript-worker\ntranscript_collect", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"check" [label="사용 가능한 자막이 있는가?", fillcolor="#eef2ff", color="#6366f1", shape=diamond];
+"recheck" [label="같은 transcript-worker\ntranscript_recheck\n기본 30분 간격 / 최대 6시간", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"asr" [label="asr-worker\nasr_transcribe · 로컬 Whisper\nOFF이면 같은 작업을 대기 보존", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"cue" [label="transcript-cue-worker\ntranscript_cue_generate", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"micro" [label="micro-event-worker\nmicro_event_extract\n30분 창 + 5분 문맥 겹침", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"timeline" [label="timeline-compose-worker\ntimeline_compose\nblock / episode / event 참조", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"version" [label="워크플로 버전", fillcolor="#eef2ff", color="#6366f1", shape=diamond];
+"segment" [label="segment-classify-worker\nsegment_classify\nv1.6 활동 + 합방 / 참여자", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"archive" [label="archive-publish-worker\nOFF: 같은 게시 work 대기 보존\ntimeline (+ v3 분류) 고정해 게시", fillcolor="#f0fdf4", color="#16a34a", shape=box];
+"start" -> "transcript" [label=""];
+"transcript" -> "check" [label=""];
+"check" -> "cue" [label="있음"];
+"check" -> "recheck" [label="없음 · 폴백 활성"];
+"recheck" -> "cue" [label="자막 도착"];
+"recheck" -> "asr" [label="유예 종료 후에도 없음"];
+"asr" -> "cue" [label="ASR 자막 완료"];
+"cue" -> "micro" [label=""];
+"micro" -> "timeline" [label=""];
+"timeline" -> "version" [label=""];
+"version" -> "archive" [label="v2"];
+"version" -> "segment" [label="v3"];
+"segment" -> "archive" [label=""];
+}

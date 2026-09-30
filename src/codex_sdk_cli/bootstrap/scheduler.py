@@ -69,12 +69,14 @@ class PipelineSchedulerRuntime:
                 unit_of_work_factory=unit_of_work_factory,
             ),
             workflow_candidates=SqlAlchemyWorkflowCandidateReader(self.session_factory),
-            workflow_admission_guard=SqlAlchemyWorkflowAdmissionGuard(
-                self.session_factory
-            ),
+            workflow_admission_guard=SqlAlchemyWorkflowAdmissionGuard(self.session_factory),
             automation_state=SqlAlchemyAutomationRepository(self.session_factory),
             prompts=SqlAlchemyPublishedPromptSnapshot(self.session_factory),
             config=PipelineSchedulerConfig(
+                segment_enabled=self.settings.segment_classify_enabled,
+                segment_model=self.settings.segment_classify_model,
+                segment_reasoning_effort=self.settings.segment_classify_reasoning_effort,
+                segment_timeout_seconds=self.settings.segment_classify_timeout_seconds,
                 channel_interval_seconds=(
                     self.settings.pipeline_scheduler_channel_interval_seconds
                 ),
@@ -84,12 +86,8 @@ class PipelineSchedulerRuntime:
                 ),
                 no_transcript_limit=self.settings.pipeline_scheduler_no_transcript_limit,
                 workflow_limit=self.settings.pipeline_scheduler_workflow_limit,
-                daily_workflow_limit=(
-                    self.settings.pipeline_scheduler_daily_workflow_limit
-                ),
-                channel_daily_minimum=(
-                    self.settings.pipeline_scheduler_channel_daily_minimum
-                ),
+                daily_workflow_limit=(self.settings.pipeline_scheduler_daily_workflow_limit),
+                channel_daily_minimum=(self.settings.pipeline_scheduler_channel_daily_minimum),
                 quota_timezone=self.settings.pipeline_scheduler_quota_timezone,
                 transcript_fallback_grace_seconds=(
                     self.settings.pipeline_scheduler_transcript_fallback_grace_seconds

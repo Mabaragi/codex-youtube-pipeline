@@ -15,6 +15,7 @@ from .ports import ResolvedPrompt
 
 _RESOURCE_PACKAGE = f"{__package__}.resources"
 _FALLBACK_FILES: dict[PromptKey, tuple[str, str]] = {
+    "segment_classify": ("segment-classify-sample-v1", "segment_classify_sample_v1.md"),
     MICRO_EVENT_EXTRACT_PROMPT_KEY: (
         "micro-event-extract-v3",
         "micro_event_extract_v3.md",

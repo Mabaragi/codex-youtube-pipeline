@@ -1,13 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 import type { ArchiveCurrent, ArchiveVideos, PublicationStatusList } from "@/features/publishing/api";
 import { PublishingConsole } from "@/screens/publishing-console";
 import { server } from "@/test/server";
 
 const replace = vi.fn();
+beforeEach(() => {
+  server.use(http.get("/ops/api/backend/ops/automation/status", () => HttpResponse.json({
+    runtime: { state: "active" },
+    publishing: { enabled: false, pendingCount: 0, runningCount: 0, updatedAt: null, reason: null },
+  })));
+});
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }), usePathname: () => "/publishing", useSearchParams: () => new URLSearchParams() }));
 
 const emptyArchiveVideos = { items: [], limit: 50, offset: 0, total: 0 } as ArchiveVideos;

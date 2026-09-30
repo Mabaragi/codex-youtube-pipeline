@@ -60,6 +60,8 @@ def test_database_base_registers_app_tables() -> None:
         "timeline_episodes",
         "timeline_review_flags",
         "timeline_topic_clusters",
+        "timeline_segments",
+        "segment_classifications",
         "video_tasks",
         "videos",
         "legacy_work_refs",

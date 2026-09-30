@@ -14,6 +14,7 @@ from codex_sdk_cli.domains.video_tasks.ports import VideoTaskRepositoryPort
 from codex_sdk_cli.infra.archive_publish.checkpoints import (
     SqlAlchemyArchivePublicationCheckpointRepository,
 )
+from codex_sdk_cli.infra.archive_publish.control import SqlAlchemyArchivePublishingControl
 from codex_sdk_cli.infra.archive_publish.repository import SqlAlchemyArchivePublishRepository
 from codex_sdk_cli.infra.micro_events.repository import SqlAlchemyMicroEventExtractionRepository
 from codex_sdk_cli.infra.operation_events.repository import SQLAlchemyOperationEventRepository
@@ -22,6 +23,7 @@ from codex_sdk_cli.infra.publication.stages import PublicationStageService
 from codex_sdk_cli.infra.publication_config.repository import (
     SqlAlchemyPublishConfigurationRepository,
 )
+from codex_sdk_cli.infra.segments.publication import SqlAlchemySegmentPublicationReader
 from codex_sdk_cli.infra.timelines.repository import SqlAlchemyTimelineCompositionRepository
 from codex_sdk_cli.infra.transcript_cues.repository import SqlAlchemyTranscriptCueRepository
 from codex_sdk_cli.infra.videos.repository import SqlAlchemyVideoRepository
@@ -94,6 +96,8 @@ def archive_publish_use_case(
         public_catalog_sync=None,
         public_catalog_sync_enabled=False,
         routed_publication=routed_publication,
+        segment_publication=SqlAlchemySegmentPublicationReader(session),
+        publishing_control=SqlAlchemyArchivePublishingControl(session),
     )
 
 

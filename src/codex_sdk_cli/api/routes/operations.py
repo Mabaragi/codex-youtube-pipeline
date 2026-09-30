@@ -21,7 +21,15 @@ from codex_sdk_cli.api.schemas.operations import (
     to_selection,
     workflow_batch_response,
 )
+from codex_sdk_cli.api.schemas.segments import (
+    BackfillSegmentsOperationRequest,
+    SegmentOperationRequest,
+)
 from codex_sdk_cli.api.use_case_dependencies.ops import RefreshOpsVideoEmbedStatusUseCaseDep
+from codex_sdk_cli.api.use_case_dependencies.segments import (
+    BackfillSegmentsUseCaseDep,
+    ClassifySegmentsUseCaseDep,
+)
 from codex_sdk_cli.api.use_case_dependencies.work import (
     CollectTranscriptsUseCaseDep,
     CollectVideosUseCaseDep,
@@ -37,6 +45,8 @@ from codex_sdk_cli.application.processing.commands import (
     ComposeTimelinesCommand,
     ExtractMicroEventsCommand,
 )
+from codex_sdk_cli.application.segments.backfill import BackfillSegmentsCommand
+from codex_sdk_cli.application.segments.commands import ClassifySegmentsCommand
 from codex_sdk_cli.application.transcripts.commands import (
     CollectTranscriptsCommand,
     GenerateTranscriptCuesCommand,
@@ -50,6 +60,63 @@ from codex_sdk_cli.domains.ops.schemas import (
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/workflows/classify-to-publish",
+    response_model=WorkflowBatchResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def backfill_segments(
+    request: BackfillSegmentsOperationRequest,
+    use_case: BackfillSegmentsUseCaseDep,
+) -> WorkflowBatchResponse:
+    return workflow_batch_response(
+        await use_case.execute(
+            BackfillSegmentsCommand(
+                classification=ClassifySegmentsCommand(
+                    selection=to_selection(request.selection),
+                    model=request.model,
+                    reasoning_effort=request.reasoning_effort,
+                    prompt_version_id=request.prompt_version_id,
+                    taxonomy_version=request.taxonomy_version,
+                    retry_failed=request.retry_failed,
+                    include_non_embeddable=request.include_non_embeddable,
+                    timeout_seconds=request.timeout_seconds,
+                ),
+                publish_mode=request.publish_mode,
+                environment=request.environment,
+                variant=request.variant,
+                schema_version=request.schema_version,
+            )
+        )
+    )
+
+
+@router.post(
+    "/operations/segment-classify",
+    response_model=OperationBatchResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def classify_segments(
+    request: SegmentOperationRequest,
+    use_case: ClassifySegmentsUseCaseDep,
+) -> OperationBatchResponse:
+    return operation_response(
+        await use_case.execute(
+            ClassifySegmentsCommand(
+                selection=to_selection(request.selection),
+                model=request.model,
+                reasoning_effort=request.reasoning_effort,
+                prompt_version_id=request.prompt_version_id,
+                taxonomy_version=request.taxonomy_version,
+                retry_failed=request.retry_failed,
+                rerun_succeeded=request.rerun_succeeded,
+                include_non_embeddable=request.include_non_embeddable,
+                timeout_seconds=request.timeout_seconds,
+            )
+        )
+    )
 
 
 @router.post(
@@ -89,7 +156,7 @@ async def resolve_channel(
 @router.post(
     "/operations/archive-publish",
     response_model=OperationBatchResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def publish_archives(
     request: ArchivePublishOperationRequest,
@@ -103,6 +170,7 @@ async def publish_archives(
                 environment=request.environment,
                 variant=request.variant,
                 schema_version=request.schema_version,
+                include_segments=request.include_segments,
                 retry_failed=request.retry_failed,
                 rerun_succeeded=request.rerun_succeeded,
                 include_non_embeddable=request.include_non_embeddable,
@@ -155,6 +223,10 @@ async def process_to_publish(
             timeline_model=request.timeline_model,
             timeline_reasoning_effort=request.timeline_reasoning_effort,
             timeline_prompt_version_id=request.timeline_prompt_version_id,
+            segment_enabled=request.segment_enabled,
+            segment_model=request.segment_model,
+            segment_reasoning_effort=request.segment_reasoning_effort,
+            segment_prompt_version_id=request.segment_prompt_version_id,
             transcript_fallback_mode=request.transcript_fallback.mode,
             transcript_fallback_grace_seconds=request.transcript_fallback.grace_seconds,
             transcript_recheck_interval_seconds=(

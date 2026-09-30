@@ -22,3 +22,14 @@ def _runtime_state_statement(dialect_name: str) -> TextClause:
     if dialect_name == "postgresql":
         statement += " FOR SHARE"
     return text(statement)
+
+
+async def publishing_enabled(session: AsyncSession) -> bool:
+    statement = "SELECT publishing_enabled FROM pipeline_automation_state WHERE id = 1"
+    if session.get_bind().dialect.name == "postgresql":
+        statement += " FOR SHARE"
+    try:
+        value = (await session.execute(text(statement))).scalar_one_or_none()
+    except SQLAlchemyError as exc:
+        raise WorkPersistenceError() from exc
+    return value is None or bool(value)

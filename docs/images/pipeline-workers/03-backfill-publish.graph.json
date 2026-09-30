@@ -1,0 +1,229 @@
+{
+  "direction": "TB",
+  "groups": {
+    "entry": "API 접근",
+    "pin": "게시 원본 고정",
+    "classify": "분류 생성",
+    "publish": "재게시",
+    "deliver": "대상에 전달",
+    "view": "프론트 조회"
+  },
+  "nodes": [
+    {
+      "id": "caller",
+      "label": "운영자 / 배치 스크립트\nselection: 영상 ID·채널·대상 조건",
+      "group": "entry",
+      "role": "entry",
+      "width": 300,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "API 접근"
+    },
+    {
+      "id": "backfill",
+      "label": "POST /ops/workflows/\nclassify-to-publish",
+      "group": "entry",
+      "role": "entry",
+      "width": 300,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "API 접근"
+    },
+    {
+      "id": "only",
+      "label": "POST /ops/operations/\nsegment-classify\n분류만 생성",
+      "group": "entry",
+      "role": "entry",
+      "width": 300,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "API 접근"
+    },
+    {
+      "id": "snapshot",
+      "label": "현재 게시된 timeline 고정\nsource work ID + 입력 fingerprint\n운영 prompt ID/hash + 모델·추론",
+      "group": "pin",
+      "role": "control",
+      "width": 310,
+      "height": 120,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "게시 원본 고정"
+    },
+    {
+      "id": "workflow",
+      "label": "classify_to_publish workflow\n분류 → 게시 두 단계\n신규 영상 일일 승인 슬롯 사용 안 함",
+      "group": "pin",
+      "role": "control",
+      "width": 320,
+      "height": 120,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "게시 원본 고정"
+    },
+    {
+      "id": "segment",
+      "label": "동일 segment-classify-worker\nLLM → 검증 → 결정적 policy\n상위 자막·micro·timeline 재생성 없음",
+      "group": "classify",
+      "role": "workers",
+      "width": 325,
+      "height": 120,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "분류 생성"
+    },
+    {
+      "id": "result",
+      "label": "segment_classifications\n+ timeline_segments\n분류가 저장된 상태",
+      "group": "classify",
+      "role": "storage",
+      "width": 280,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "분류 생성"
+    },
+    {
+      "id": "archive",
+      "label": "archive-publish-worker\n코디네이터 / 수동 API → 작업 큐\nOFF: 대기 · ON: 같은 작업 재개",
+      "group": "publish",
+      "role": "workers",
+      "width": 325,
+      "height": 120,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "재게시"
+    },
+    {
+      "id": "canonical",
+      "label": "정규 아티팩트: 로컬 MinIO\narchive_video_artifacts\n분류 ID를 함께 추적",
+      "group": "publish",
+      "role": "storage",
+      "width": 290,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "재게시"
+    },
+    {
+      "id": "router",
+      "label": "Publication profile / route\n대상 object·catalog에 전달\n각 delivery 상태 저장",
+      "group": "publish",
+      "role": "control",
+      "width": 290,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "재게시"
+    },
+    {
+      "id": "cloud",
+      "label": "클라우드 대상\nR2 timeline JSON + D1 catalog",
+      "group": "deliver",
+      "role": "storage",
+      "width": 290,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "대상에 전달"
+    },
+    {
+      "id": "local",
+      "label": "로컬 대상\nMinIO JSON + PostgreSQL catalog",
+      "group": "deliver",
+      "role": "storage",
+      "width": 300,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "대상에 전달"
+    },
+    {
+      "id": "front",
+      "label": "Planetip\n카탈로그가 선택한 timeline JSON 조회\nsegments 있음: 카테고리 구간 UI\n없음: 기존 블록·필터 UI",
+      "group": "view",
+      "role": "external",
+      "width": 345,
+      "height": 135,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "프론트 조회"
+    }
+  ],
+  "edges": [
+    {
+      "source": "caller",
+      "target": "backfill",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "caller",
+      "target": "only",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "backfill",
+      "target": "snapshot",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "snapshot",
+      "target": "workflow",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "workflow",
+      "target": "segment",
+      "label": "코디네이터가 작업 생성",
+      "feedback": false
+    },
+    {
+      "source": "only",
+      "target": "segment",
+      "label": "분류 work enqueue",
+      "feedback": false
+    },
+    {
+      "source": "segment",
+      "target": "result",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "result",
+      "target": "archive",
+      "label": "백필 workflow / 별도 게시 요청",
+      "feedback": false
+    },
+    {
+      "source": "archive",
+      "target": "canonical",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "canonical",
+      "target": "router",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "router",
+      "target": "cloud",
+      "label": "profile에 따라",
+      "feedback": false
+    },
+    {
+      "source": "router",
+      "target": "local",
+      "label": "profile에 따라",
+      "feedback": false
+    },
+    {
+      "source": "cloud",
+      "target": "front",
+      "label": "archive API + JSON",
+      "feedback": false
+    },
+    {
+      "source": "local",
+      "target": "front",
+      "label": "/api/archive + JSON",
+      "feedback": false
+    }
+  ]
+}

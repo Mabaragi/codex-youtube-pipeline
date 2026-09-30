@@ -8,6 +8,10 @@ from codex_sdk_cli.domains.timelines.ports import TimelineCompositionRecord
 from codex_sdk_cli.domains.video_tasks.ports import JsonObject, VideoTaskRecord
 from codex_sdk_cli.domains.videos.ports import VideoRecord
 
+
+class ArchivePublishingControlPort(Protocol):
+    async def enabled(self) -> bool: ...
+
 ArchivePublishTarget = Literal["selected_videos", "current_filters", "next_eligible"]
 ArchivePublishStatusFilter = Literal[
     "not_ready",
@@ -41,6 +45,7 @@ class ArchivePublishStoragePort(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ArchiveVideoArtifactCreate:
+    source_classification_id: int | None = field(default=None, kw_only=True)
     video_id: int
     source_timeline_composition_id: int
     source_timeline_task_id: int

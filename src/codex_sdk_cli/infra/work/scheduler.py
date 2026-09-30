@@ -166,7 +166,7 @@ class SqlAlchemyWorkflowCandidateReader(WorkflowCandidateReaderPort):
                     .join(VideoModel, VideoModel.id == WorkflowRunModel.video_id)
                     .where(
                         WorkflowRunModel.workflow_type == "process_to_publish",
-                        WorkflowRunModel.workflow_version == "v2",
+                        WorkflowRunModel.workflow_version.in_(("v2", "v3")),
                         WorkflowRunModel.created_at >= quota_started_at,
                         WorkflowRunModel.created_at < quota_ends_at,
                         WorkflowRunModel.options_json[
@@ -244,7 +244,7 @@ def _candidate_statement(state: AutomationScheduleState) -> Select[VideoModel]:
         select(WorkflowRunModel.id).where(
             WorkflowRunModel.video_id == VideoModel.id,
             WorkflowRunModel.workflow_type == "process_to_publish",
-            WorkflowRunModel.workflow_version == "v2",
+            WorkflowRunModel.workflow_version.in_(("v2", "v3")),
             WorkflowRunModel.status.in_(("pending", "running", "waiting")),
         )
     )
@@ -252,7 +252,7 @@ def _candidate_statement(state: AutomationScheduleState) -> Select[VideoModel]:
         select(WorkflowRunModel.id).where(
             WorkflowRunModel.video_id == VideoModel.id,
             WorkflowRunModel.workflow_type == "process_to_publish",
-            WorkflowRunModel.workflow_version == "v2",
+            WorkflowRunModel.workflow_version.in_(("v2", "v3")),
             WorkflowRunModel.options_json["automation_mode"].as_string() == state.mode,
             WorkflowRunModel.status.in_(("failed", "blocked", "canceled")),
         )

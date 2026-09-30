@@ -9,6 +9,7 @@ import { apiError } from "@/features/api-error";
 import { queryKeys } from "@/features/query-keys";
 
 export type AutomationStatus = components["schemas"]["AutomationStatusResponse"];
+export type PublishingState = components["schemas"]["PublishingStateResponse"];
 export type ProcessInventory = components["schemas"]["ManagedProcessInventoryResponse"];
 export type IncidentList = components["schemas"]["IncidentListResponse"];
 export type Incident = components["schemas"]["IncidentResponse"];
@@ -102,6 +103,23 @@ export function useRuntimeTransition(action: "drain" | "mark-stopped" | "resume"
       return result.data;
     },
     onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.automation });
+    },
+  });
+}
+
+export function useSetPublishingState() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: components["schemas"]["PublishingStateRequest"]) => {
+      const { data, error } = await browserApi.PUT("/ops/automation/publishing", { body });
+      if (!data) throw apiError(error);
+      return data;
+    },
+    onSuccess: async (publishing) => {
+      queryClient.setQueryData<AutomationStatus>(queryKeys.automation, (current) =>
+        current ? { ...current, publishing } : current,
+      );
       await queryClient.invalidateQueries({ queryKey: queryKeys.automation });
     },
   });

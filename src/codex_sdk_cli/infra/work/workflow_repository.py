@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import case, or_, select, update
+from sqlalchemy import and_, case, exists, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,7 @@ from codex_sdk_cli.application.work.ports import (
     WorkflowRunQuery,
 )
 from codex_sdk_cli.domains.work.models import (
+    TERMINAL_WORK_ITEM_STATUSES,
     JsonObject,
     WorkflowRun,
     WorkflowStatus,
@@ -23,7 +24,7 @@ from codex_sdk_cli.domains.work.models import (
 )
 from codex_sdk_cli.infra.videos.repository import VideoModel
 
-from .models import WorkflowRunModel, WorkflowStepModel
+from .models import WorkflowRunModel, WorkflowStepModel, WorkItemModel
 from .runtime_gate import runtime_accepting_work
 
 
@@ -71,9 +72,7 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
     async def list_runs(self, query: WorkflowRunQuery) -> list[WorkflowRun]:
         statement = select(WorkflowRunModel)
         if query.workflow_type is not None:
-            statement = statement.where(
-                WorkflowRunModel.workflow_type == query.workflow_type
-            )
+            statement = statement.where(WorkflowRunModel.workflow_type == query.workflow_type)
         if query.status is not None:
             statement = statement.where(WorkflowRunModel.status == query.status.value)
         if query.video_id is not None:
@@ -118,6 +117,25 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
             .where(VideoModel.id == WorkflowRunModel.video_id)
             .scalar_subquery()
         )
+        ready_step = exists(
+            select(WorkflowStepModel.id)
+            .join(WorkItemModel, WorkItemModel.id == WorkflowStepModel.work_item_id)
+            .where(
+                WorkflowStepModel.workflow_run_id == WorkflowRunModel.id,
+                WorkflowStepModel.stage_name == WorkflowRunModel.current_stage,
+                or_(
+                    WorkItemModel.status.in_(tuple(s.value for s in TERMINAL_WORK_ITEM_STATUSES)),
+                    and_(
+                        WorkItemModel.execution_mode == "inline", WorkItemModel.status == "pending"
+                    ),
+                ),
+            )
+            .correlate(WorkflowRunModel)
+        )
+        normal_ready = and_(
+            WorkflowRunModel.workflow_type == "process_to_publish",
+            or_(WorkflowRunModel.status == "pending", ready_step),
+        )
         claimable = (
             select(WorkflowRunModel.id)
             .where(
@@ -129,9 +147,17 @@ class SqlAlchemyWorkflowRepository(WorkflowRepositoryPort):
                     WorkflowRunModel.lease_expires_at <= now,
                 ),
                 WorkflowRunModel.available_at <= now,
+                or_(
+                    WorkflowRunModel.current_stage.is_(None),
+                    WorkflowRunModel.current_stage != "archive_publish",
+                    WorkflowRunModel.status == WorkflowStatus.PENDING.value,
+                    ready_step,
+                ),
             )
-            # Start newly admitted videos newest-first, then revisit waiting runs fairly.
+            # Advance ready normal processing before classification-only backfill.
+            # Normal runs waiting on a worker do not block ready backfill runs.
             .order_by(
+                case((normal_ready, 0), else_=1),
                 case(
                     (WorkflowRunModel.status == WorkflowStatus.PENDING.value, 0),
                     else_=1,

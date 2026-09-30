@@ -31,7 +31,7 @@ from codex_sdk_cli.domains.work.models import (
 from codex_sdk_cli.infra.videos.repository import VideoModel
 
 from .models import WorkAttemptModel, WorkItemDependencyModel, WorkItemModel
-from .runtime_gate import runtime_accepting_work
+from .runtime_gate import publishing_enabled, runtime_accepting_work
 
 
 class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
@@ -218,6 +218,11 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         try:
             if not await runtime_accepting_work(self._session):
                 return None
+            task_type = await self._session.scalar(
+                select(WorkItemModel.task_type).where(WorkItemModel.id == work_item_id)
+            )
+            if task_type == "archive_publish" and not await publishing_enabled(self._session):
+                return None
             started_id = (await self._session.execute(statement)).scalar_one_or_none()
             if started_id is None:
                 return None
@@ -366,6 +371,8 @@ class SqlAlchemyWorkItemRepository(WorkItemRepositoryPort):
         if allow_succeeded:
             allowed.add(WorkItemStatus.SUCCEEDED)
         _require_status(model, allowed, "retry")
+        if model.task_type == "archive_publish":
+            model.execution_mode = WorkExecutionMode.WORKER.value
         model.status = WorkItemStatus.PENDING.value
         model.outcome_code = None
         model.output_json = None
@@ -696,6 +703,8 @@ async def _allowed_task_types(
         return ()
     allowed: list[str] = []
     for task_type in task_types:
+        if task_type == "archive_publish" and not await publishing_enabled(session):
+            continue
         control = (
             await session.execute(
                 text(

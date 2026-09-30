@@ -183,6 +183,8 @@ function Test-ManagedProcessIdentity {
         "video-availability-worker" { "codex_sdk_cli.workers.video_availability" }
         "pipeline-supervisor" { "codex_sdk_cli.workers.pipeline_supervisor" }
         "timeline-compose-worker" { "codex_sdk_cli.workers.timelines" }
+        "segment-classify-worker" { "codex_sdk_cli.workers.segments" }
+        "archive-publish-worker" { "codex_sdk_cli.workers.archive_publish" }
         "workflow-coordinator" { "codex_sdk_cli.workers.workflow_coordinator" }
         "ops-ui" { "pnpm -c ops-ui start" }
         default { return $false }
@@ -273,6 +275,10 @@ function Get-LocalHomeRuntimeProcesses {
             $lowerCommandLine -match "codex_sdk_cli\.workers\.pipeline_supervisor" -or
             $lowerCommandLine -match "codex-timeline-compose-worker" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.timelines" -or
+            $lowerCommandLine -match "codex-segment-classify-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.segments" -or
+            $lowerCommandLine -match "codex-archive-publish-worker" -or
+            $lowerCommandLine -match "codex_sdk_cli\.workers\.archive_publish" -or
             $lowerCommandLine -match "codex-workflow-coordinator" -or
             $lowerCommandLine -match "codex_sdk_cli\.workers\.workflow_coordinator" -or
             $lowerCommandLine -match "ops-ui[\\/]\.next[\\/]standalone" -or

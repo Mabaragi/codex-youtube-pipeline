@@ -10,7 +10,7 @@ Base URL: `http://127.0.0.1:8000`.
 - Use `/ops/operations/*` for commands and `/ops/work-items*` for execution
   state. Do not call removed `/video-tasks/*` or `/pipeline/jobs/*` paths.
 - A queued command returns `202`; channel resolve, video collect, embed refresh,
-  and archive publish execute inline and return `200`.
+  execute inline and return `200`. Archive publish queues work and returns `202`.
 - Retry adds an attempt to the same work item. Set `rerunSucceeded=true` only
   when a successful result must be regenerated.
 - `no_transcript`, `not_embeddable`, and `dependency_failed` are outcome/reason
@@ -50,7 +50,9 @@ Video commands use one discriminated `selection` object:
 | Generate transcript cues | `POST /ops/operations/transcript-cue-generate` | queued |
 | Extract micro-events | `POST /ops/operations/micro-event-extract` | queued |
 | Compose timeline | `POST /ops/operations/timeline-compose` | queued |
-| Publish archive | `POST /ops/operations/archive-publish` | inline |
+| Publish archive | `POST /ops/operations/archive-publish` | worker queue (`202`) |
+| Classify timeline segments | `POST /ops/operations/segment-classify` | worker |
+| Classify existing timeline and publish | `POST /ops/workflows/classify-to-publish` | workflow |
 | Process through publish | `POST /ops/workflows/process-to-publish` | queued workflow |
 
 Example end-to-end request:
@@ -191,3 +193,26 @@ responses, work output, and archives report `timelineState: "empty"`,
 `generationMode: "deterministic_empty"`; `model`, `reasoningEffort`, and Codex
 thread/turn IDs are null. The single guidance episode spans the full video and
 publishes with an empty `microEvents` list.
+
+## Publishing Control
+
+`GET /ops/automation/publishing` returns `enabled`, `pendingCount`, `runningCount`,
+`updatedAt`, and `reason`. `PUT` to the same path accepts
+`{"enabled": false, "reason": "pause publication"}` (or `true` to resume).
+The setting is persisted in PostgreSQL and survives runtime restarts.
+`GET /ops/automation/status` includes the same object under `publishing`.
+
+OFF stops new archive claims; running publication finishes normally. Upstream
+transcript, cue, micro-event, timeline, and segment workers continue. Requests to
+`POST /ops/operations/archive-publish` still enqueue work. ON resumes pending
+work without another workflow, LLM run, or daily approval slot. Failed work keeps
+its existing recovery policy; changing the flag does not reset failed rows.
+Direct delivery, catalog, publication-build, and pointer stage APIs return `409`
+while OFF. Local canonical artifact build remains available.
+
+The Ops UI Command Center and publishing page provide the same control, with an
+operator reason and confirmation. Runtime drain/resume is a separate setting;
+resuming the runtime never enables publication.
+
+Publishing OFF only pauses archive publication. Availability inbox traffic and
+other consumers of the remote catalog are controlled separately.

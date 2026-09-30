@@ -19,9 +19,17 @@ the browser:
 ```env
 CODEX_CLI_PUBLIC_ARCHIVE_CATALOG_CONNECTION_REF=local-public-catalog
 CODEX_CLI_PUBLIC_ARCHIVE_PROFILE_KEY=stellive-cliche-local
+CODEX_CLI_PUBLIC_ARCHIVE_ADDITIONAL_PROFILE_KEYS=[]
 CODEX_CLI_PUBLIC_ARCHIVE_PUBLISH_MODE=prod
 CODEX_CLI_PUBLIC_ARCHIVE_CORS_ORIGINS=["http://127.0.0.1:3001","http://localhost:3001"]
 ```
+
+To include the local DDDDragon publication in the same `/stellive` catalog,
+set `CODEX_CLI_PUBLIC_ARCHIVE_ADDITIONAL_PROFILE_KEYS=["ddddragon-local"]`
+in the private `.home-deploy/local.env` and restart the local runtime. The API
+combines only the configured profile keys for list, streamer, detail, search,
+and catalog-version requests. Clients cannot select arbitrary profile keys
+through query parameters. The default remains limited to StelLive Cliche.
 
 The connection registry remains the only source of the catalog DSN. PostgreSQL
 requests run in read-only transactions.
@@ -63,5 +71,5 @@ not served. MinIO only serves the timeline URL recorded in the selected catalog
 row; the API does not reconstruct a list from object-store pointers or indices.
 
 `catalog-version` returns a stable string derived from the latest catalog row
-update and current row count. The frontend can continue polling this endpoint
-to invalidate its cached list.
+update and current row count across configured profiles. The frontend can
+continue polling this endpoint to invalidate its cached list.

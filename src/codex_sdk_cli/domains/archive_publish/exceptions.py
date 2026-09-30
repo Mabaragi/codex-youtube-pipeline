@@ -11,6 +11,10 @@ class ArchivePublishConfigurationError(ArchivePublishDomainError):
     """Archive publish storage or public URL configuration is missing."""
 
 
+class ArchivePublishingDisabled(ArchivePublishDomainError):
+    """New direct publication is intentionally paused."""
+
+
 class ArchivePublishPersistenceError(ArchivePublishDomainError):
     """Archive publish metadata persistence failed."""
 

@@ -31,6 +31,7 @@ def test_prompts_api_manages_publish_rollback_archive_and_cache(
             "micro_event_extract",
             "timeline_compose",
             "timeline_episode_repair",
+            "segment_classify",
         ],
         "created_status": "DRAFT",
         "duplicate_status": 409,

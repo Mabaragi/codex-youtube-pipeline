@@ -52,6 +52,7 @@ from codex_sdk_cli.infra.publication_config.repository import (
     PublishRouteCatalogBindingModel,
     PublishRouteObjectBindingModel,
 )
+from codex_sdk_cli.infra.segments.repository import SegmentClassificationModel, TimelineSegmentModel
 from codex_sdk_cli.infra.streamers.repository import StreamerModel
 from codex_sdk_cli.infra.timelines.repository import (
     TimelineBlockModel,
@@ -76,6 +77,8 @@ from codex_sdk_cli.infra.work.models import (
 from codex_sdk_cli.infra.youtube_transcripts.repository import YouTubeTranscriptRecordModel
 
 __all__ = [
+    "SegmentClassificationModel",
+    "TimelineSegmentModel",
     "ChannelModel",
     "ArchiveIndexPublicationModel",
     "ArchiveVideoArtifactModel",

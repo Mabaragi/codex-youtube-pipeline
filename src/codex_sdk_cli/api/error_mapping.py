@@ -8,6 +8,7 @@ from codex_sdk_cli.domains.archive_publish.exceptions import (
     ArchivePublishArtifactInvalid,
     ArchivePublishConfigurationError,
     ArchivePublishDomainError,
+    ArchivePublishingDisabled,
     ArchivePublishPersistenceError,
     ArchivePublishPreconditionFailed,
     ArchivePublishStorageError,
@@ -148,6 +149,7 @@ _NOT_FOUND_ERRORS = (
     YouTubeTranscriptNotFound,
 )
 _CONFLICT_ERRORS = (
+    ArchivePublishingDisabled,
     ArchivePublishArtifactInvalid,
     ArchivePublishPreconditionFailed,
     ChannelAlreadyExists,

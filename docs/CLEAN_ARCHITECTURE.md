@@ -73,10 +73,14 @@ record without mutating those rows early. Always configure the current
 only one recreates split ownership and can leave a succeeded item paired with a
 running attempt.
 
-- Inline: channel resolve, video collect, archive publish.
+- Inline: channel resolve, video collect.
 - Worker: transcript collect, cue generation, micro-event extraction, timeline
-  composition.
+  composition, segment classification, archive publish.
 - Coordinator: advances `process_to_publish` after confirmed upstream output.
+
+Archive publish runs in a separate worker. The persistent publishing control
+pauses archive claims while allowing upstream processing; pending work resumes
+with the same identity when publishing is enabled.
 
 The coordinator is restart-safe: a workflow lease can expire, be recovered,
 and continue from its recorded steps.

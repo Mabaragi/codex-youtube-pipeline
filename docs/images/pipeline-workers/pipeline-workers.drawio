@@ -1,0 +1,770 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="01-runtime" name="01 · 워커와 공용 DB">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="operator" value="운영자 / 에이전트 Ops UI 또는 HTTP API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="0" y="70" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="FastAPI /ops 작업·workflow·상태" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="310" y="70" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="scheduler" value="pipeline-scheduler video_collect는 내부 inline 실행 신규 workflow 승인: 40개/일" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="300" y="470" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="db" value="운영 PostgreSQL workflow_runs / workflow_steps work_items / attempts / dependencies 결과·prompt_versions·운영 상태" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="630" y="170" width="325" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="coordinator" value="workflow-coordinator 완료 확인 → 다음 단계 생성 게시 work enqueue · 완료 확인" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="0" width="290" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="supervisor" value="pipeline-supervisor lease 정리·사건/SLA·제한 재시도 OS 프로세스 재시작 기능은 없음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="300" y="190" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="workers" value="단계별 독립 워커 transcript-worker · 자막 transcript-cue-worker · cue asr-worker · 음성 인식 micro-event-worker · 이벤트 timeline-compose-worker · 타임라인 segment-classify-worker · 구간 분류" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="130" width="330" height="215" as="geometry" />
+        </mxCell>
+        <mxCell id="llm" value="CodexRuntimeClient SDK → CLI app-server → 모델 micro / timeline / segment 호출" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="250" width="280" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="youtube" value="YouTube 채널·영상·자막 / ASR용 오디오" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="460" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="minio" value="로컬 MinIO 원본 자막·ASR·저장 아티팩트" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="130" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="publish" value="archive-publish-worker DB 설정 OFF: 새 claim 대기 profile router → 게시 대상" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="370" width="295" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="availability" value="video-availability-worker 공개 inbox의 재생 불가 후보 검증 DB 반영·대기 작업 취소" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="300" y="330" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="inbox" value="공개 카탈로그 API / D1 inbox 재생 가능 여부 확인 대상" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="0" y="330" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="수동 실행·조회" style="html=1;rounded=0;" edge="1" parent="1" source="operator" target="api">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="120" />
+              <mxPoint x="300" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="enqueue / 상태 조회" style="html=1;rounded=0;" edge="1" parent="1" source="api" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="180" />
+              <mxPoint x="450" y="180" />
+              <mxPoint x="450" y="180" />
+              <mxPoint x="450" y="180" />
+              <mxPoint x="620" y="180" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="영상 저장·workflow 승인" style="html=1;rounded=0;" edge="1" parent="1" source="scheduler" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="650" y="470" />
+              <mxPoint x="710" y="470" />
+              <mxPoint x="710" y="470" />
+              <mxPoint x="710" y="470" />
+              <mxPoint x="710" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="영상 목록 수집" style="html=1;rounded=0;" edge="1" parent="1" source="scheduler" target="youtube">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="520" />
+              <mxPoint x="1350" y="520" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="workflow claim" style="html=1;rounded=0;" edge="1" parent="1" source="db" target="coordinator">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="730" y="130" />
+              <mxPoint x="730" y="90" />
+              <mxPoint x="730" y="90" />
+              <mxPoint x="730" y="90" />
+              <mxPoint x="1000" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="단계 생성·결과 확인" style="html=1;rounded=0;" edge="1" parent="1" source="coordinator" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="930" y="100" />
+              <mxPoint x="840" y="100" />
+              <mxPoint x="840" y="100" />
+              <mxPoint x="840" y="100" />
+              <mxPoint x="840" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" value="task_type별 claim" style="html=1;rounded=0;" edge="1" parent="1" source="db" target="workers">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="950" y="270" />
+              <mxPoint x="980" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" value="heartbeat·결과·오류 기록" style="html=1;rounded=0;" edge="1" parent="1" source="workers" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="220" />
+              <mxPoint x="960" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" value="LLM 생성 3종" style="html=1;rounded=0;" edge="1" parent="1" source="workers" target="llm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1320" y="300" />
+              <mxPoint x="1340" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="자막 / 오디오" style="html=1;rounded=0;" edge="1" parent="1" source="workers" target="youtube">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1310" y="410" />
+              <mxPoint x="1310" y="470" />
+              <mxPoint x="1310" y="470" />
+              <mxPoint x="1310" y="470" />
+              <mxPoint x="1350" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="원본 읽기·저장" style="html=1;rounded=0;" edge="1" parent="1" source="workers" target="minio">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1320" y="180" />
+              <mxPoint x="1350" y="180" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" value="archive_publish claim" style="html=1;rounded=0;" edge="1" parent="1" source="db" target="publish">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="870" y="360" />
+              <mxPoint x="870" y="390" />
+              <mxPoint x="870" y="390" />
+              <mxPoint x="870" y="390" />
+              <mxPoint x="990" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" value="heartbeat·결과·오류" style="html=1;rounded=0;" edge="1" parent="1" source="publish" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="410" />
+              <mxPoint x="790" y="410" />
+              <mxPoint x="790" y="410" />
+              <mxPoint x="790" y="410" />
+              <mxPoint x="790" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e13" value="감독·lease 복구" style="html=1;rounded=0;" edge="1" parent="1" source="supervisor" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="250" />
+              <mxPoint x="620" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e14" value="후보 poll" style="html=1;rounded=0;" edge="1" parent="1" source="inbox" target="availability">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="380" />
+              <mxPoint x="290" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e15" value="재생 가능 여부 확인" style="html=1;rounded=0;" edge="1" parent="1" source="availability" target="youtube">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="360" />
+              <mxPoint x="1490" y="360" />
+              <mxPoint x="1490" y="360" />
+              <mxPoint x="1490" y="360" />
+              <mxPoint x="1490" y="450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e16" value="검증 결과·취소" style="html=1;rounded=0;" edge="1" parent="1" source="availability" target="db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="320" />
+              <mxPoint x="450" y="310" />
+              <mxPoint x="450" y="310" />
+              <mxPoint x="450" y="310" />
+              <mxPoint x="620" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="02-workflow" name="02 · 전체 영상 처리 v2 / v3">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="group_0" value="control" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;fontColor=#d79b00;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="946" y="186" width="583" height="118" as="geometry" />
+        </mxCell>
+        <mxCell id="group_1" value="entry" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;fontColor=#6c8ebf;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="6" y="6" width="348" height="148" as="geometry" />
+        </mxCell>
+        <mxCell id="group_2" value="workers" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;fontColor=#82b366;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="26" y="166" width="913" height="728" as="geometry" />
+        </mxCell>
+        <mxCell id="start" value="process_to_publish 스케줄러 승인 또는 수동 API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="24" y="24" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="transcript" value="transcript-worker transcript_collect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="24" y="24" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="check" value="사용 가능한 자막이 있는가?" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_0">
+          <mxGeometry x="24" y="24" width="275" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="recheck" value="같은 transcript-worker transcript_recheck 기본 30분 간격 / 최대 6시간" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="304" y="24" width="280" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="asr" value="asr-worker asr_transcribe · 로컬 Whisper OFF이면 같은 작업을 대기 보존" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="244" y="164" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="cue" value="transcript-cue-worker transcript_cue_generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="474" y="314" width="265" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="micro" value="micro-event-worker micro_event_extract 30분 창 + 5분 문맥 겹침" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="504" y="454" width="285" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="timeline" value="timeline-compose-worker timeline_compose block / episode / event 참조" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="554" y="594" width="285" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="version" value="워크플로 버전" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_0">
+          <mxGeometry x="314" y="24" width="245" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="segment" value="segment-classify-worker segment_classify v1.6 활동 + 합방 / 참여자" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="604" y="24" width="285" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="archive" value="archive-publish-worker OFF: 같은 게시 work 대기 보존 timeline (+ v3 분류) 고정해 게시" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="574" y="164" width="315" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="html=1;rounded=0;" edge="1" parent="1" source="start" target="transcript">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="180" y="130" />
+              <mxPoint x="180" y="180" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="" style="html=1;rounded=0;" edge="1" parent="1" source="transcript" target="check">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="290" y="310" />
+              <mxPoint x="290" y="320" />
+              <mxPoint x="290" y="320" />
+              <mxPoint x="290" y="320" />
+              <mxPoint x="1110" y="320" />
+              <mxPoint x="1110" y="320" />
+              <mxPoint x="1110" y="320" />
+              <mxPoint x="1110" y="290" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="있음" style="html=1;rounded=0;" edge="1" parent="1" source="check" target="cue">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1180" y="360" />
+              <mxPoint x="1180" y="530" />
+              <mxPoint x="1180" y="530" />
+              <mxPoint x="1180" y="530" />
+              <mxPoint x="770" y="530" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="없음 · 폴백 활성" style="html=1;rounded=0;" edge="1" parent="1" source="check" target="recheck">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="290" />
+              <mxPoint x="1040" y="310" />
+              <mxPoint x="1040" y="310" />
+              <mxPoint x="1040" y="310" />
+              <mxPoint x="610" y="310" />
+              <mxPoint x="610" y="310" />
+              <mxPoint x="610" y="310" />
+              <mxPoint x="610" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="자막 도착" style="html=1;rounded=0;" edge="1" parent="1" source="recheck" target="cue">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="300" />
+              <mxPoint x="580" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="유예 종료 후에도 없음" style="html=1;rounded=0;" edge="1" parent="1" source="recheck" target="asr">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="300" />
+              <mxPoint x="450" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" value="ASR 자막 완료" style="html=1;rounded=0;" edge="1" parent="1" source="asr" target="cue">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530" y="440" />
+              <mxPoint x="530" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" value="" style="html=1;rounded=0;" edge="1" parent="1" source="cue" target="micro">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="650" y="580" />
+              <mxPoint x="650" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" value="" style="html=1;rounded=0;" edge="1" parent="1" source="micro" target="timeline">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="730" />
+              <mxPoint x="700" y="750" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="" style="html=1;rounded=0;" edge="1" parent="1" source="timeline" target="version">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070" y="820" />
+              <mxPoint x="1430" y="820" />
+              <mxPoint x="1430" y="820" />
+              <mxPoint x="1430" y="820" />
+              <mxPoint x="1430" y="290" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="v2" style="html=1;rounded=0;" edge="1" parent="1" source="version" target="archive">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1350" y="320" />
+              <mxPoint x="1350" y="390" />
+              <mxPoint x="1350" y="390" />
+              <mxPoint x="1350" y="390" />
+              <mxPoint x="930" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" value="v3" style="html=1;rounded=0;" edge="1" parent="1" source="version" target="segment">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1390" y="200" />
+              <mxPoint x="1390" y="200" />
+              <mxPoint x="1390" y="200" />
+              <mxPoint x="1390" y="200" />
+              <mxPoint x="930" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" value="" style="html=1;rounded=0;" edge="1" parent="1" source="segment" target="archive">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="770" y="300" />
+              <mxPoint x="770" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="03-backfill-publish" name="03 · 세그먼트 분류 백필과 공개 데이터">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="group_0" value="분류 생성" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;fontColor=#d79b00;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="16" y="646" width="373" height="308" as="geometry" />
+        </mxCell>
+        <mxCell id="group_1" value="대상에 전달" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d6b656;fontColor=#d6b656;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="26" y="1436" width="658" height="148" as="geometry" />
+        </mxCell>
+        <mxCell id="group_2" value="API 접근" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;fontColor=#6c8ebf;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="6" y="6" width="668" height="298" as="geometry" />
+        </mxCell>
+        <mxCell id="group_3" value="게시 원본 고정" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;fontColor=#82b366;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="6" y="306" width="368" height="328" as="geometry" />
+        </mxCell>
+        <mxCell id="group_4" value="재게시" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9673a6;fontColor=#9673a6;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="16" y="966" width="373" height="458" as="geometry" />
+        </mxCell>
+        <mxCell id="group_5" value="프론트 조회" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;fontColor=#b85450;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="146" y="1586" width="393" height="183" as="geometry" />
+        </mxCell>
+        <mxCell id="caller" value="운영자 / 배치 스크립트 selection: 영상 ID·채널·대상 조건" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="184" y="24" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="backfill" value="POST /ops/workflows/ classify-to-publish" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="24" y="164" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="only" value="POST /ops/operations/ segment-classify 분류만 생성" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="344" y="164" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="snapshot" value="현재 게시된 timeline 고정 source work ID + 입력 fingerprint 운영 prompt ID/hash + 모델·추론" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_3">
+          <mxGeometry x="34" y="24" width="310" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="workflow" value="classify_to_publish workflow 분류 → 게시 두 단계 신규 영상 일일 승인 슬롯 사용 안 함" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_3">
+          <mxGeometry x="24" y="184" width="320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="segment" value="동일 segment-classify-worker LLM → 검증 → 결정적 policy 상위 자막·micro·timeline 재생성 없음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_0">
+          <mxGeometry x="24" y="24" width="325" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="result" value="segment_classifications + timeline_segments 분류가 저장된 상태" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_0">
+          <mxGeometry x="44" y="174" width="280" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="archive" value="archive-publish-worker 코디네이터 / 수동 API → 작업 큐 OFF: 대기 · ON: 같은 작업 재개" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_4">
+          <mxGeometry x="24" y="24" width="325" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="canonical" value="정규 아티팩트: 로컬 MinIO archive_video_artifacts 분류 ID를 함께 추적" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_4">
+          <mxGeometry x="34" y="174" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="router" value="Publication profile / route 대상 object·catalog에 전달 각 delivery 상태 저장" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_4">
+          <mxGeometry x="34" y="324" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="cloud" value="클라우드 대상 R2 timeline JSON + D1 catalog" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="24" y="24" width="290" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="local" value="로컬 대상 MinIO JSON + PostgreSQL catalog" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="334" y="24" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="front" value="Planetip 카탈로그가 선택한 timeline JSON 조회 segments 있음: 카테고리 구간 UI 없음: 기존 블록·필터 UI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_5">
+          <mxGeometry x="24" y="24" width="345" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="html=1;rounded=0;" edge="1" parent="1" source="caller" target="backfill">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="130" />
+              <mxPoint x="260" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="" style="html=1;rounded=0;" edge="1" parent="1" source="caller" target="only">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="420" y="130" />
+              <mxPoint x="420" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="" style="html=1;rounded=0;" edge="1" parent="1" source="backfill" target="snapshot">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="180" y="270" />
+              <mxPoint x="180" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="" style="html=1;rounded=0;" edge="1" parent="1" source="snapshot" target="workflow">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="450" />
+              <mxPoint x="190" y="480" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="코디네이터가 작업 생성" style="html=1;rounded=0;" edge="1" parent="1" source="workflow" target="segment">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="610" />
+              <mxPoint x="190" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="분류 work enqueue" style="html=1;rounded=0;" edge="1" parent="1" source="only" target="segment">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="410" />
+              <mxPoint x="460" y="730" />
+              <mxPoint x="460" y="730" />
+              <mxPoint x="460" y="730" />
+              <mxPoint x="370" y="730" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" value="" style="html=1;rounded=0;" edge="1" parent="1" source="segment" target="result">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="790" />
+              <mxPoint x="200" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" value="백필 workflow / 별도 게시 요청" style="html=1;rounded=0;" edge="1" parent="1" source="result" target="archive">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="930" />
+              <mxPoint x="200" y="980" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" value="" style="html=1;rounded=0;" edge="1" parent="1" source="archive" target="canonical">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="1110" />
+              <mxPoint x="200" y="1130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="" style="html=1;rounded=0;" edge="1" parent="1" source="canonical" target="router">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="1250" />
+              <mxPoint x="200" y="1280" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="profile에 따라" style="html=1;rounded=0;" edge="1" parent="1" source="router" target="cloud">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="1400" />
+              <mxPoint x="200" y="1440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" value="profile에 따라" style="html=1;rounded=0;" edge="1" parent="1" source="router" target="local">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="1350" />
+              <mxPoint x="550" y="1350" />
+              <mxPoint x="550" y="1350" />
+              <mxPoint x="550" y="1350" />
+              <mxPoint x="550" y="1440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" value="archive API + JSON" style="html=1;rounded=0;" edge="1" parent="1" source="cloud" target="front">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="260" y="1560" />
+              <mxPoint x="260" y="1600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e13" value="/api/archive + JSON" style="html=1;rounded=0;" edge="1" parent="1" source="local" target="front">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="1560" />
+              <mxPoint x="440" y="1600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="04-prompt-testing" name="04 · 프롬프트 관리·테스트 접근">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="group_0" value="운영 경로" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;fontColor=#d79b00;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="796" y="466" width="363" height="163" as="geometry" />
+        </mxCell>
+        <mxCell id="group_1" value="인터페이스" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;fontColor=#6c8ebf;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="6" y="196" width="383" height="698" as="geometry" />
+        </mxCell>
+        <mxCell id="group_2" value="격리 실험 경로" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9673a6;fontColor=#9673a6;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="416" y="6" width="753" height="168" as="geometry" />
+        </mxCell>
+        <mxCell id="group_3" value="공유 생성 런타임" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d6b656;fontColor=#d6b656;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1176" y="526" width="358" height="163" as="geometry" />
+        </mxCell>
+        <mxCell id="group_4" value="저장" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;fontColor=#82b366;verticalAlign=top;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="396" y="186" width="388" height="448" as="geometry" />
+        </mxCell>
+        <mxCell id="manage" value="Ops UI /configuration/prompts 또는 /ops/prompts API draft → published → archived" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="34" y="164" width="320" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="prompts" value="운영 DB prompt_versions 본문·ID·hash·활성 버전 공개 저장소에는 sample만" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_4">
+          <mxGeometry x="44" y="174" width="300" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="stages" value="Ops UI /operations 또는 /ops/operations/* API 선택 단계 / 전체 workflow 실행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="34" y="434" width="310" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="prod" value="운영 work queue + 기존 워커 모델·추론·prompt ID로 입력 식별 운영 DB에 실행 결과 저장" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_0">
+          <mxGeometry x="24" y="24" width="315" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="cli" value="codex-demo evaluation create → run micro → score/select run timeline → report / verify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="24" y="24" width="335" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="snap" value="create 시 읽기 전용 snapshot 기존 cue + metadata + prompt 고정 후보별 같은 입력 사용" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#9333ea;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="24" y="24" width="315" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="compare" value="EvaluationGenerationService 후보 / 반복 / 범위별 생성 별도 워커·API·scheduler 사용 안 함" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#faf5ff;strokeColor=#9333ea;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_2">
+          <mxGeometry x="394" y="24" width="335" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="evalstore" value="격리 평가 DB + private MinIO codex_model_evaluations model-evaluations bucket blind bundle·점수·비교 보고서" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_4">
+          <mxGeometry x="24" y="24" width="340" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="once" value="codex-demo timeline once plan → run / resume → verify YouTube 영상 ID 하나" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="34" y="294" width="310" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="files" value="private 로컬 파일 .home-deploy/one-shot/ ASR·micro 체크포인트 + timeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_4">
+          <mxGeometry x="44" y="314" width="300" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="smoke" value="codex-demo run / POST /codex/runs 임의 prompt 구조화 출력 확인 도메인 품질 평가와 별개" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_1">
+          <mxGeometry x="24" y="564" width="330" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="llm" value="공유 CodexRuntimeClient SDK → CLI app-server → 모델 각 요청이 model / effort 전달" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="group_3">
+          <mxGeometry x="24" y="24" width="310" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="버전 관리" style="html=1;rounded=0;" edge="1" parent="1" source="manage" target="prompts">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="360" y="440" />
+              <mxPoint x="430" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="운영 작업 생성" style="html=1;rounded=0;" edge="1" parent="1" source="stages" target="prod">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="640" />
+              <mxPoint x="980" y="640" />
+              <mxPoint x="980" y="640" />
+              <mxPoint x="980" y="640" />
+              <mxPoint x="980" y="620" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="선택 버전 / 활성 버전" style="html=1;rounded=0;" edge="1" parent="1" source="prompts" target="prod">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="440" />
+              <mxPoint x="980" y="440" />
+              <mxPoint x="980" y="440" />
+              <mxPoint x="980" y="440" />
+              <mxPoint x="980" y="480" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="create" style="html=1;rounded=0;" edge="1" parent="1" source="cli" target="snap">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="170" />
+              <mxPoint x="200" y="90" />
+              <mxPoint x="200" y="90" />
+              <mxPoint x="200" y="90" />
+              <mxPoint x="420" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="prompt 고정" style="html=1;rounded=0;" edge="1" parent="1" source="prompts" target="snap">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="770" y="400" />
+              <mxPoint x="790" y="400" />
+              <mxPoint x="790" y="400" />
+              <mxPoint x="790" y="400" />
+              <mxPoint x="790" y="90" />
+              <mxPoint x="790" y="90" />
+              <mxPoint x="790" y="90" />
+              <mxPoint x="760" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="고정된 source bundle" style="html=1;rounded=0;" edge="1" parent="1" source="snap" target="compare">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="750" y="60" />
+              <mxPoint x="800" y="60" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" value="실행·검증·점수" style="html=1;rounded=0;" edge="1" parent="1" source="compare" target="evalstore">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780" y="120" />
+              <mxPoint x="760" y="120" />
+              <mxPoint x="760" y="120" />
+              <mxPoint x="760" y="120" />
+              <mxPoint x="760" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" value="micro / timeline" style="html=1;rounded=0;" edge="1" parent="1" source="compare" target="llm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1140" y="280" />
+              <mxPoint x="1140" y="570" />
+              <mxPoint x="1140" y="570" />
+              <mxPoint x="1140" y="570" />
+              <mxPoint x="1190" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" value="생성 단계" style="html=1;rounded=0;" edge="1" parent="1" source="prod" target="llm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1130" y="590" />
+              <mxPoint x="1190" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="파일 생성" style="html=1;rounded=0;" edge="1" parent="1" source="once" target="files">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="350" y="570" />
+              <mxPoint x="430" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="plan 시 읽기·고정" style="html=1;rounded=0;" edge="1" parent="1" source="prompts" target="once">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="400" />
+              <mxPoint x="430" y="400" />
+              <mxPoint x="430" y="400" />
+              <mxPoint x="430" y="400" />
+              <mxPoint x="430" y="530" />
+              <mxPoint x="430" y="530" />
+              <mxPoint x="430" y="530" />
+              <mxPoint x="370" y="530" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" value="micro / timeline" style="html=1;rounded=0;" edge="1" parent="1" source="once" target="llm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="610" />
+              <mxPoint x="200" y="620" />
+              <mxPoint x="200" y="620" />
+              <mxPoint x="200" y="620" />
+              <mxPoint x="1190" y="620" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" value="직접 생성" style="html=1;rounded=0;" edge="1" parent="1" source="smoke" target="llm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="810" />
+              <mxPoint x="1350" y="810" />
+              <mxPoint x="1350" y="810" />
+              <mxPoint x="1350" y="810" />
+              <mxPoint x="1350" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

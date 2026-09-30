@@ -1,0 +1,240 @@
+{
+  "direction": "LR",
+  "groups": {},
+  "nodes": [
+    {
+      "id": "operator",
+      "label": "운영자 / 에이전트\nOps UI 또는 HTTP API",
+      "group": "",
+      "role": "entry",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "api",
+      "label": "FastAPI\n/ops 작업·workflow·상태",
+      "group": "",
+      "role": "entry",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "scheduler",
+      "label": "pipeline-scheduler\nvideo_collect는 내부 inline 실행\n신규 workflow 승인: 40개/일",
+      "group": "",
+      "role": "control",
+      "width": 290,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "db",
+      "label": "운영 PostgreSQL\nworkflow_runs / workflow_steps\nwork_items / attempts / dependencies\n결과·prompt_versions·운영 상태",
+      "group": "",
+      "role": "storage",
+      "width": 325,
+      "height": 150,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "coordinator",
+      "label": "workflow-coordinator\n완료 확인 → 다음 단계 생성\n게시 work enqueue · 완료 확인",
+      "group": "",
+      "role": "control",
+      "width": 290,
+      "height": 115,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "supervisor",
+      "label": "pipeline-supervisor\nlease 정리·사건/SLA·제한 재시도\nOS 프로세스 재시작 기능은 없음",
+      "group": "",
+      "role": "control",
+      "width": 290,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "workers",
+      "label": "단계별 독립 워커\ntranscript-worker · 자막\ntranscript-cue-worker · cue\nasr-worker · 음성 인식\nmicro-event-worker · 이벤트\ntimeline-compose-worker · 타임라인\nsegment-classify-worker · 구간 분류",
+      "group": "",
+      "role": "workers",
+      "width": 330,
+      "height": 215,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "llm",
+      "label": "CodexRuntimeClient\nSDK → CLI app-server → 모델\nmicro / timeline / segment 호출",
+      "group": "",
+      "role": "external",
+      "width": 280,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "youtube",
+      "label": "YouTube\n채널·영상·자막 / ASR용 오디오",
+      "group": "",
+      "role": "external",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "minio",
+      "label": "로컬 MinIO\n원본 자막·ASR·저장 아티팩트",
+      "group": "",
+      "role": "storage",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#d97706;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "publish",
+      "label": "archive-publish-worker\nDB 설정 OFF: 새 claim 대기\nprofile router → 게시 대상",
+      "group": "",
+      "role": "workers",
+      "width": 295,
+      "height": 115,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "availability",
+      "label": "video-availability-worker\n공개 inbox의 재생 불가 후보 검증\nDB 반영·대기 작업 취소",
+      "group": "",
+      "role": "control",
+      "width": 290,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    },
+    {
+      "id": "inbox",
+      "label": "공개 카탈로그 API / D1 inbox\n재생 가능 여부 확인 대상",
+      "group": "",
+      "role": "external",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": ""
+    }
+  ],
+  "edges": [
+    {
+      "source": "operator",
+      "target": "api",
+      "label": "수동 실행·조회",
+      "feedback": false
+    },
+    {
+      "source": "api",
+      "target": "db",
+      "label": "enqueue / 상태 조회",
+      "feedback": false
+    },
+    {
+      "source": "scheduler",
+      "target": "db",
+      "label": "영상 저장·workflow 승인",
+      "feedback": false
+    },
+    {
+      "source": "scheduler",
+      "target": "youtube",
+      "label": "영상 목록 수집",
+      "feedback": false
+    },
+    {
+      "source": "db",
+      "target": "coordinator",
+      "label": "workflow claim",
+      "feedback": false
+    },
+    {
+      "source": "coordinator",
+      "target": "db",
+      "label": "단계 생성·결과 확인",
+      "feedback": true
+    },
+    {
+      "source": "db",
+      "target": "workers",
+      "label": "task_type별 claim",
+      "feedback": false
+    },
+    {
+      "source": "workers",
+      "target": "db",
+      "label": "heartbeat·결과·오류 기록",
+      "feedback": true
+    },
+    {
+      "source": "workers",
+      "target": "llm",
+      "label": "LLM 생성 3종",
+      "feedback": false
+    },
+    {
+      "source": "workers",
+      "target": "youtube",
+      "label": "자막 / 오디오",
+      "feedback": false
+    },
+    {
+      "source": "workers",
+      "target": "minio",
+      "label": "원본 읽기·저장",
+      "feedback": false
+    },
+    {
+      "source": "db",
+      "target": "publish",
+      "label": "archive_publish claim",
+      "feedback": false
+    },
+    {
+      "source": "publish",
+      "target": "db",
+      "label": "heartbeat·결과·오류",
+      "feedback": true
+    },
+    {
+      "source": "supervisor",
+      "target": "db",
+      "label": "감독·lease 복구",
+      "feedback": true
+    },
+    {
+      "source": "inbox",
+      "target": "availability",
+      "label": "후보 poll",
+      "feedback": false
+    },
+    {
+      "source": "availability",
+      "target": "youtube",
+      "label": "재생 가능 여부 확인",
+      "feedback": false
+    },
+    {
+      "source": "availability",
+      "target": "db",
+      "label": "검증 결과·취소",
+      "feedback": true
+    }
+  ]
+}

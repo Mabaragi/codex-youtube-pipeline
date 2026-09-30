@@ -243,6 +243,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/automation/publishing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Publishing State */
+        get: operations["publishing_state_ops_automation_publishing_get"];
+        /** Set Publishing State */
+        put: operations["set_publishing_state_ops_automation_publishing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/automation/runtime/drain": {
         parameters: {
             query?: never;
@@ -771,6 +789,23 @@ export interface paths {
         put?: never;
         /** Extract Micro Events */
         post: operations["extract_micro_events_ops_operations_micro_event_extract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/operations/segment-classify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Classify Segments */
+        post: operations["classify_segments_ops_operations_segment_classify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1552,6 +1587,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/workflows/classify-to-publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Backfill Segments */
+        post: operations["backfill_segments_ops_workflows_classify_to_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/workflows/process-to-publish": {
         parameters: {
             query?: never;
@@ -1745,6 +1797,8 @@ export interface components {
              * @default false
              */
             includeNonEmbeddable: boolean;
+            /** Includesegments */
+            includeSegments?: boolean | null;
             /**
              * Publishmode
              * @default prod
@@ -1924,6 +1978,7 @@ export interface components {
             observedAt: string;
             /** Openincidentcount */
             openIncidentCount: number;
+            publishing: components["schemas"]["PublishingStateResponse"];
             /** Queues */
             queues: {
                 [key: string]: unknown;
@@ -1931,6 +1986,72 @@ export interface components {
             runtime: components["schemas"]["RuntimeStateResponse"];
             /** Steadystartedat */
             steadyStartedAt: string | null;
+        };
+        /** BackfillSegmentsOperationRequest */
+        BackfillSegmentsOperationRequest: {
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
+            /**
+             * Model
+             * @default gpt-6-luna
+             * @enum {string}
+             */
+            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
+            /** Promptversionid */
+            promptVersionId?: number | null;
+            /**
+             * Publishmode
+             * @default prod
+             * @enum {string}
+             */
+            publishMode: "prod" | "dev";
+            /**
+             * Reasoningeffort
+             * @default high
+             * @enum {string}
+             */
+            reasoningEffort: "low" | "medium" | "high" | "xhigh";
+            /**
+             * Rerunsucceeded
+             * @default false
+             */
+            rerunSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /**
+             * Schemaversion
+             * @default 1
+             */
+            schemaVersion: number;
+            /** Selection */
+            selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
+            /**
+             * Taxonomyversion
+             * @default v1.6
+             * @constant
+             */
+            taxonomyVersion: "v1.6";
+            /**
+             * Timeoutseconds
+             * @default 600
+             */
+            timeoutSeconds: number;
+            /**
+             * Variant
+             * @default control
+             */
+            variant: string;
         };
         /** CancelWorkItemRequest */
         CancelWorkItemRequest: {
@@ -3738,6 +3859,25 @@ export interface components {
              * @default 1
              */
             schemaVersion: number;
+            /**
+             * Segmentenabled
+             * @default true
+             */
+            segmentEnabled: boolean;
+            /**
+             * Segmentmodel
+             * @default gpt-6-luna
+             * @enum {string}
+             */
+            segmentModel: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
+            /** Segmentpromptversionid */
+            segmentPromptVersionId?: number | null;
+            /**
+             * Segmentreasoningeffort
+             * @default high
+             * @enum {string}
+             */
+            segmentReasoningEffort: "low" | "medium" | "high" | "xhigh";
             /** Selection */
             selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
             /**
@@ -3771,7 +3911,7 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
             /**
              * Source
              * @enum {string}
@@ -3785,7 +3925,7 @@ export interface components {
         /** PromptCacheInvalidateRequest */
         PromptCacheInvalidateRequest: {
             /** Promptkey */
-            promptKey?: ("micro_event_extract" | "timeline_compose" | "timeline_episode_repair") | null;
+            promptKey?: ("micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify") | null;
         };
         /** PromptCacheInvalidateResponse */
         PromptCacheInvalidateResponse: {
@@ -3808,7 +3948,7 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
             /** Versions */
             versions: components["schemas"]["PromptVersionResponse"][];
         };
@@ -3819,7 +3959,7 @@ export interface components {
              * Key
              * @enum {string}
              */
-            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            key: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
             /** Versioncount */
             versionCount: number;
         };
@@ -3851,7 +3991,7 @@ export interface components {
              * Promptkey
              * @enum {string}
              */
-            promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+            promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
             /** Publishedat */
             publishedAt: string | null;
             /** Sourcenote */
@@ -4413,6 +4553,26 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PublishingStateRequest */
+        PublishingStateRequest: {
+            /** Enabled */
+            enabled: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** PublishingStateResponse */
+        PublishingStateResponse: {
+            /** Enabled */
+            enabled: boolean;
+            /** Pendingcount */
+            pendingCount: number;
+            /** Reason */
+            reason: string | null;
+            /** Runningcount */
+            runningCount: number;
+            /** Updatedat */
+            updatedAt: string | null;
+        };
         /** RetryWorkItemRequest */
         RetryWorkItemRequest: {
             /**
@@ -4572,6 +4732,51 @@ export interface components {
         RuntimeTransitionRequest: {
             /** Reason */
             reason?: string | null;
+        };
+        /** SegmentOperationRequest */
+        SegmentOperationRequest: {
+            /**
+             * Includenonembeddable
+             * @default false
+             */
+            includeNonEmbeddable: boolean;
+            /**
+             * Model
+             * @default gpt-6-luna
+             * @enum {string}
+             */
+            model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.6-luna" | "gpt-6-sol" | "gpt-6-luna" | "gpt-6.1-sol";
+            /** Promptversionid */
+            promptVersionId?: number | null;
+            /**
+             * Reasoningeffort
+             * @default high
+             * @enum {string}
+             */
+            reasoningEffort: "low" | "medium" | "high" | "xhigh";
+            /**
+             * Rerunsucceeded
+             * @default false
+             */
+            rerunSucceeded: boolean;
+            /**
+             * Retryfailed
+             * @default false
+             */
+            retryFailed: boolean;
+            /** Selection */
+            selection: components["schemas"]["SelectedVideoSelectionRequest"] | components["schemas"]["ChannelVideoSelectionRequest"] | components["schemas"]["FilterVideoSelectionRequest"] | components["schemas"]["NextEligibleVideoSelectionRequest"];
+            /**
+             * Taxonomyversion
+             * @default v1.6
+             * @constant
+             */
+            taxonomyVersion: "v1.6";
+            /**
+             * Timeoutseconds
+             * @default 600
+             */
+            timeoutSeconds: number;
         };
         /** SelectedVideoSelectionRequest */
         SelectedVideoSelectionRequest: {
@@ -6001,6 +6206,59 @@ export interface operations {
             };
         };
     };
+    publishing_state_ops_automation_publishing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishingStateResponse"];
+                };
+            };
+        };
+    };
+    set_publishing_state_ops_automation_publishing_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishingStateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishingStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     request_runtime_drain_ops_automation_runtime_drain_post: {
         parameters: {
             query?: never;
@@ -7140,7 +7398,7 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7235,6 +7493,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MicroEventOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    classify_segments_ops_operations_segment_classify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentOperationRequest"];
             };
         };
         responses: {
@@ -7448,7 +7739,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
             };
             cookie?: never;
         };
@@ -7479,7 +7770,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
             };
             cookie?: never;
         };
@@ -7514,7 +7805,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
                 versionId: number;
             };
             cookie?: never;
@@ -7552,7 +7843,7 @@ export interface operations {
                 "X-Operator-Reason": string;
             };
             path: {
-                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
                 versionId: number;
             };
             cookie?: never;
@@ -7584,7 +7875,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair";
+                promptKey: "micro_event_extract" | "timeline_compose" | "timeline_episode_repair" | "segment_classify";
                 versionId: number;
             };
             cookie?: never;
@@ -8970,6 +9261,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowRunListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    backfill_segments_ops_workflows_classify_to_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackfillSegmentsOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowBatchResponse"];
                 };
             };
             /** @description Validation Error */

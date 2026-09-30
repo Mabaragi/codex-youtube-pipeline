@@ -1,0 +1,196 @@
+{
+  "direction": "TB",
+  "groups": {},
+  "nodes": [
+    {
+      "id": "start",
+      "label": "process_to_publish\n스케줄러 승인 또는 수동 API",
+      "group": "entry",
+      "role": "entry",
+      "width": 300,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "entry"
+    },
+    {
+      "id": "transcript",
+      "label": "transcript-worker\ntranscript_collect",
+      "group": "workers",
+      "role": "workers",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "check",
+      "label": "사용 가능한 자막이 있는가?",
+      "group": "control",
+      "role": "control",
+      "width": 275,
+      "height": 70,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "control"
+    },
+    {
+      "id": "recheck",
+      "label": "같은 transcript-worker\ntranscript_recheck\n기본 30분 간격 / 최대 6시간",
+      "group": "workers",
+      "role": "workers",
+      "width": 280,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "asr",
+      "label": "asr-worker\nasr_transcribe · 로컬 Whisper\nOFF이면 같은 작업을 대기 보존",
+      "group": "workers",
+      "role": "workers",
+      "width": 290,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "cue",
+      "label": "transcript-cue-worker\ntranscript_cue_generate",
+      "group": "workers",
+      "role": "workers",
+      "width": 265,
+      "height": 100,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "micro",
+      "label": "micro-event-worker\nmicro_event_extract\n30분 창 + 5분 문맥 겹침",
+      "group": "workers",
+      "role": "workers",
+      "width": 285,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "timeline",
+      "label": "timeline-compose-worker\ntimeline_compose\nblock / episode / event 참조",
+      "group": "workers",
+      "role": "workers",
+      "width": 285,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "version",
+      "label": "워크플로 버전",
+      "group": "control",
+      "role": "control",
+      "width": 245,
+      "height": 65,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#6366f1;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "control"
+    },
+    {
+      "id": "segment",
+      "label": "segment-classify-worker\nsegment_classify\nv1.6 활동 + 합방 / 참여자",
+      "group": "workers",
+      "role": "workers",
+      "width": 285,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    },
+    {
+      "id": "archive",
+      "label": "archive-publish-worker\nOFF: 같은 게시 work 대기 보존\ntimeline (+ v3 분류) 고정해 게시",
+      "group": "workers",
+      "role": "workers",
+      "width": 315,
+      "height": 110,
+      "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#16a34a;fontFamily=Malgun Gothic;fontSize=16;fontColor=#0f172a;spacing=12;",
+      "groupLabel": "workers"
+    }
+  ],
+  "edges": [
+    {
+      "source": "start",
+      "target": "transcript",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "transcript",
+      "target": "check",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "check",
+      "target": "cue",
+      "label": "있음",
+      "feedback": false
+    },
+    {
+      "source": "check",
+      "target": "recheck",
+      "label": "없음 · 폴백 활성",
+      "feedback": false
+    },
+    {
+      "source": "recheck",
+      "target": "cue",
+      "label": "자막 도착",
+      "feedback": false
+    },
+    {
+      "source": "recheck",
+      "target": "asr",
+      "label": "유예 종료 후에도 없음",
+      "feedback": false
+    },
+    {
+      "source": "asr",
+      "target": "cue",
+      "label": "ASR 자막 완료",
+      "feedback": false
+    },
+    {
+      "source": "cue",
+      "target": "micro",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "micro",
+      "target": "timeline",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "timeline",
+      "target": "version",
+      "label": "",
+      "feedback": false
+    },
+    {
+      "source": "version",
+      "target": "archive",
+      "label": "v2",
+      "feedback": false
+    },
+    {
+      "source": "version",
+      "target": "segment",
+      "label": "v3",
+      "feedback": false
+    },
+    {
+      "source": "segment",
+      "target": "archive",
+      "label": "",
+      "feedback": false
+    }
+  ]
+}

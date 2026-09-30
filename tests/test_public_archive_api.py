@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient, Response
 from codex_sdk_cli.api.main import create_app
 from codex_sdk_cli.api.use_case_dependencies.public_archive import (
     get_public_archive_repository,
+    get_public_archive_scope,
 )
 from codex_sdk_cli.application.public_archive.queries import (
     PublicArchiveRepositoryPort,
@@ -19,6 +20,7 @@ from codex_sdk_cli.application.public_archive.queries import (
     PublicArchiveVideoPage,
     PublicArchiveVideoQuery,
 )
+from codex_sdk_cli.settings import CliSettings
 
 
 class FakePublicArchiveRepository(PublicArchiveRepositoryPort):
@@ -55,6 +57,19 @@ class FakePublicArchiveRepository(PublicArchiveRepositoryPort):
 
     async def catalog_version(self, scope: PublicArchiveScope) -> str:
         return "123:1"
+
+
+def test_public_archive_scope_accepts_server_configured_extra_profiles(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "CODEX_CLI_PUBLIC_ARCHIVE_ADDITIONAL_PROFILE_KEYS",
+        '["ddddragon-local"]',
+    )
+
+    scope = get_public_archive_scope(CliSettings())
+
+    assert scope.profile_keys == ("stellive-cliche-local", "ddddragon-local")
 
 
 def test_list_videos_matches_planetip_archive_contract() -> None:

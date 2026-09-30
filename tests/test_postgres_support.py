@@ -77,7 +77,7 @@ def test_postgres_migration_normalizes_dsn_and_timestamp() -> None:
         == "postgresql://codex:secret@127.0.0.1:5432/codex"
     )
     assert _datetime("2026-07-12T00:00:00", timezone=True) == datetime(2026, 7, 12, tzinfo=UTC)
-    assert _expected_alembic_head() == "20260718_0034"
+    assert _expected_alembic_head() == "20261001_0036"
 
 
 def test_sqlite_migration_blocks_foreign_key_debt_unless_explicit() -> None:

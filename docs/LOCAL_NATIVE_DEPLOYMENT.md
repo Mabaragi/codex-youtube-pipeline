@@ -157,6 +157,20 @@ For a faster backend-only deploy:
 
 ## Start, Stop, Status
 
+Run the production runtime from a separate Windows Terminal window. From the
+repository root, open it with:
+
+```powershell
+wt.exe -w new new-tab --title "Codex SDK Runtime" -d . powershell.exe -NoExit -NoProfile -ExecutionPolicy Bypass -File .\scripts\local-home\runtime.ps1 start -NoUi
+```
+
+Keep this terminal window open while processing continues. Closing the agent app
+does not need to close the operating terminal. When an agent launches the window,
+verify that the terminal and runtime processes have an independent parent chain;
+hidden background processes alone do not establish that independence. Use
+`runtime.ps1 stop` for the existing drain procedure before ending operation.
+Scheduled-task or service registration is a separate, explicitly requested choice.
+
 After the first deploy, use idempotent start:
 
 ```powershell
@@ -318,8 +332,8 @@ publication destinations. The existing remote object destination can remain
 primary while a local `archive-public` object destination and local
 `codex_public_catalog` destination receive the same publication.
 
-Archive publish runs synchronously in `POST /ops/operations/archive-publish`;
-there is no local publication worker. Explicit stage endpoints reuse successful
+Archive publish queues work through `POST /ops/operations/archive-publish` (`202`)
+and runs in the independent `archive-publish-worker` process. Explicit stage endpoints reuse successful
 checkpoints and support object, catalog, index, and pointer recovery without
 rebuilding the canonical artifact. See [Archive publish](ARCHIVE_PUBLISH.md) for
 profiles, stage APIs, and cutovers. Follow
@@ -359,3 +373,27 @@ pnpm --filter codex-sdk-ops-ui typecheck
 pnpm --filter codex-sdk-ops-ui test
 pnpm --filter codex-sdk-ops-ui build
 ```
+
+## Pause Publishing While Processing Continues
+
+In the Ops UI Command Center or publishing page, select **게시 설정**, enter a
+reason, and confirm **게시 끄기**. The API equivalent is:
+
+```powershell
+$body = @{ enabled = $false; reason = "Pause archive publication" } | ConvertTo-Json
+Invoke-RestMethod -Method Put -Uri "http://127.0.0.1:8000/ops/automation/publishing" `
+    -ContentType "application/json" -Body $body
+```
+
+The PostgreSQL setting survives `runtime.ps1 restart`; no restart is required to
+change it. The publish worker stays alive and polls without claiming new work.
+Runtime status reports publication intent and pending/running counts. LLM
+workers and the coordinator continue storing results and preparing pending
+publication work. Already claimed publication drains naturally.
+
+To resume, send `enabled = $true` or confirm **게시 켜기** in the same UI. Existing
+pending IDs and delivery checkpoints are reused. No new daily approval is needed.
+The initial archive worker has one slot. Intentional publication waits do not
+create queue-stall or publication-wait SLA incidents; actual failures remain
+visible. Remote write usage from availability checks and other applications is
+independent of this archive switch.

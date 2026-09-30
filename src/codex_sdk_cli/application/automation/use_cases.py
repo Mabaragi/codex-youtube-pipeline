@@ -21,6 +21,8 @@ from codex_sdk_cli.domains.automation.ports import (
     IncidentUpsert,
     ManagedProcessInventory,
     ManagedProcessReaderPort,
+    PublishingControlPort,
+    PublishingState,
     RemediationAction,
     RuntimeAuditPort,
     RuntimeControlPort,
@@ -31,6 +33,33 @@ from codex_sdk_cli.domains.automation.ports import (
 from codex_sdk_cli.domains.work.models import JsonObject
 
 Now = Callable[[], datetime]
+
+
+class PublishingDisabled(ApplicationError):
+    def __init__(self) -> None:
+        super().__init__(
+            code="pipeline.publishing_disabled",
+            message="Publishing is paused. Queue archive work or enable publishing first.",
+            kind=ErrorKind.CONFLICT,
+        )
+
+
+class GetPublishingStateUseCase:
+    def __init__(self, repository: PublishingControlPort) -> None:
+        self._repository = repository
+
+    async def execute(self) -> PublishingState:
+        return await self._repository.publishing_state(now=datetime.now(UTC))
+
+
+class SetPublishingStateUseCase:
+    def __init__(self, repository: PublishingControlPort) -> None:
+        self._repository = repository
+
+    async def execute(self, *, enabled: bool, reason: str | None) -> PublishingState:
+        return await self._repository.set_publishing(
+            enabled=enabled, reason=reason, now=datetime.now(UTC)
+        )
 
 
 class IncidentNotFound(ApplicationError):

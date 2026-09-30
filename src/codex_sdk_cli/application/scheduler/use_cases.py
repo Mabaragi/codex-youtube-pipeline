@@ -19,6 +19,7 @@ from codex_sdk_cli.application.workflows.commands import (
     ProcessToPublishCommand,
     StartProcessToPublishUseCase,
 )
+from codex_sdk_cli.domains.codex.choices import CodexModelChoice, ReasoningEffortChoice
 from codex_sdk_cli.domains.work.models import (
     JsonObject,
     WorkExecutionMode,
@@ -62,6 +63,10 @@ class PipelineSchedulerConfig:
     quota_timezone: str = "Asia/Seoul"
     transcript_fallback_grace_seconds: int = 21600
     transcript_recheck_interval_seconds: int = 1800
+    segment_enabled: bool = False
+    segment_model: CodexModelChoice = "gpt-6-luna"
+    segment_reasoning_effort: ReasoningEffortChoice = "high"
+    segment_timeout_seconds: int = 600
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,9 +159,7 @@ class RunPipelineSchedulerTickUseCase:
         channels = await self._channels.list_scheduled_channels()
         results = [await self._process_channel(channel, now) for channel in channels]
         rechecked = (
-            0
-            if self._start_workflows is not None
-            else await self._recheck_no_transcript(now)
+            0 if self._start_workflows is not None else await self._recheck_no_transcript(now)
         )
         workflows = await self._enqueue_workflows(now)
         return _tick_result(results, rechecked, workflows)
@@ -262,6 +265,10 @@ class RunPipelineSchedulerTickUseCase:
                     selection=SelectedVideos(tuple(item.id for item in plan.candidates)),
                     micro_prompt_version_id=micro_prompt_id,
                     timeline_prompt_version_id=timeline_prompt_id,
+                    segment_enabled=self._config.segment_enabled,
+                    segment_model=self._config.segment_model,
+                    segment_reasoning_effort=self._config.segment_reasoning_effort,
+                    segment_timeout_seconds=self._config.segment_timeout_seconds,
                     retry_failed=False,
                     transcript_fallback_mode="asr_after_grace",
                     transcript_fallback_grace_seconds=(
@@ -329,9 +336,7 @@ class RunPipelineSchedulerTickUseCase:
         return item, None
 
     async def _recheck_no_transcript(self, now: datetime) -> int:
-        cutoff = now - timedelta(
-            seconds=self._config.no_transcript_recheck_interval_seconds
-        )
+        cutoff = now - timedelta(seconds=self._config.no_transcript_recheck_interval_seconds)
         async with self._unit_of_work_factory() as unit_of_work:
             candidates = await unit_of_work.work_items.list_outcome_due(
                 task_type=TRANSCRIPT_COLLECT_TASK,
@@ -339,9 +344,7 @@ class RunPipelineSchedulerTickUseCase:
                 completed_before=cutoff,
                 limit=self._config.no_transcript_limit,
             )
-        video_ids = tuple(
-            item.subject_id for item in candidates if item.subject_id is not None
-        )
+        video_ids = tuple(item.subject_id for item in candidates if item.subject_id is not None)
         if not video_ids:
             return 0
         result = await self._collect_transcripts.execute(

@@ -72,6 +72,13 @@ class CliSettings(BaseSettings):
     timeline_compose_concurrency_limit: int = 3
     timeline_compose_worker_poll_interval_seconds: int = 5
     timeline_compose_worker_id: str | None = None
+    segment_classify_enabled: bool = True
+    segment_classify_model: CodexModelChoice = "gpt-6-luna"
+    segment_classify_reasoning_effort: ReasoningEffortChoice = "high"
+    segment_classify_timeout_seconds: int = 600
+    segment_classify_concurrency_limit: int = 2
+    segment_classify_worker_poll_interval_seconds: int = 5
+    segment_classify_worker_id: str | None = None
     workflow_coordinator_poll_interval_seconds: int = 5
     workflow_coordinator_id: str | None = None
     pipeline_supervisor_enabled: bool = True
@@ -83,6 +90,8 @@ class CliSettings(BaseSettings):
     llm_trace_raw_response_enabled: bool = True
     llm_trace_retention_days: int = 14
     archive_publish_timeout_seconds: int = 600
+    archive_publish_worker_poll_interval_seconds: int = 5
+    archive_publish_worker_id: str | None = None
     archive_publish_r2_endpoint: str | None = None
     archive_publish_r2_access_key: SecretStr | None = None
     archive_publish_r2_secret_key: SecretStr | None = None
@@ -120,6 +129,7 @@ class CliSettings(BaseSettings):
     publication_staging_store_ref: str = "local-publication-staging"
     public_archive_catalog_connection_ref: str = "local-public-catalog"
     public_archive_profile_key: str = "stellive-cliche-local"
+    public_archive_additional_profile_keys: tuple[str, ...] = ()
     public_archive_publish_mode: str = "prod"
     public_archive_cors_origins: tuple[str, ...] = (
         "http://127.0.0.1:3001",
@@ -153,6 +163,8 @@ class CliSettings(BaseSettings):
         "asr_worker_id",
         "micro_event_worker_id",
         "timeline_compose_worker_id",
+        "segment_classify_worker_id",
+        "archive_publish_worker_id",
         "workflow_coordinator_id",
         "pipeline_supervisor_id",
         "archive_publish_r2_endpoint",
@@ -243,6 +255,10 @@ class CliSettings(BaseSettings):
         "micro_event_window_concurrency_limit",
         "micro_event_worker_poll_interval_seconds",
         "timeline_compose_timeout_seconds",
+        "segment_classify_timeout_seconds",
+        "segment_classify_concurrency_limit",
+        "segment_classify_worker_poll_interval_seconds",
+        "archive_publish_worker_poll_interval_seconds",
         "timeline_compose_concurrency_limit",
         "timeline_compose_worker_poll_interval_seconds",
         "workflow_coordinator_poll_interval_seconds",

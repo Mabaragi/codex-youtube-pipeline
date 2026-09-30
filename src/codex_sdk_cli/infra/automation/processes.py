@@ -33,11 +33,13 @@ _MANAGED_PROCESSES = (
     ManagedProcessDefinition("transcript-worker", "worker", "run_transcript"),
     ManagedProcessDefinition("transcript-cue-worker", "worker", "run_transcript_cue"),
     ManagedProcessDefinition("asr-worker", "worker", "codex_sdk_cli.workers.asr"),
-    ManagedProcessDefinition(
-        "micro-event-worker", "worker", "codex_sdk_cli.workers.micro_events"
-    ),
+    ManagedProcessDefinition("micro-event-worker", "worker", "codex_sdk_cli.workers.micro_events"),
     ManagedProcessDefinition(
         "timeline-compose-worker", "worker", "codex_sdk_cli.workers.timelines"
+    ),
+    ManagedProcessDefinition("segment-classify-worker", "worker", "codex_sdk_cli.workers.segments"),
+    ManagedProcessDefinition(
+        "archive-publish-worker", "worker", "codex_sdk_cli.workers.archive_publish"
     ),
     ManagedProcessDefinition(
         "workflow-coordinator", "coordinator", "codex_sdk_cli.workers.workflow_coordinator"
